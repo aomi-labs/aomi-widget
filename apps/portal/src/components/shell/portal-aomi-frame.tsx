@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { useAomiRuntime, usePerThreadControl } from "@aomi-labs/react";
-import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-gate";
 import { HeaderControls } from "@portal/components/shell/header-controls";
 import { PackagesModal } from "@portal/components/shell/packages-modal";
 import { SettingsModal } from "@portal/components/settings/settings-modal";
@@ -219,7 +218,6 @@ export function PortalAomiFrame() {
             hideNetwork: true,
           }}
         />
-        <RequiredSecretsGate />
         <SvmWalletBindingGate />
       </AomiFrame.Root>
       {overlay === "settings" && (

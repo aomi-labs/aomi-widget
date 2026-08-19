@@ -152,8 +152,11 @@ export function TimelineDeploymentRow({
             className="border-border bg-surface-1 text-foreground hover:bg-accent-hover inline-flex h-8 items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
             title={
               promoteBlocked ??
+              // No "go to the Environment tab" here any more: the panel below
+              // this row takes the values directly, so pointing elsewhere would
+              // send the builder away from the thing that can fix it.
               (secretsBlocked
-                ? "Required secrets missing — set them in the Environment tab"
+                ? "Required secrets missing"
                 : "Promote this deployment to live")
             }
           >

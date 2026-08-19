@@ -10,6 +10,7 @@ import { projectDeploymentStatus } from "../project-deployment-status";
 import { TimelineDeploymentRow } from "../ui/timeline-deployment-row";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { DeploymentDetail } from "../ui/deployment-detail";
+import { RequiredSecretsPanel } from "@build/features/launch/components/required-secrets-panel";
 import { UpgradeConfirmDialog, UpgradeRail } from "../ui/upgrade-rail";
 import { LoadingPanel, EmptyPanel } from "../ui/state-panels";
 import {
@@ -45,7 +46,6 @@ export function DeploymentsTab({
   const [pending, setPending] = useState<Pending>(null);
   const [view, setView] = useState<View>("deployments");
   const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
-  const [retryingSecrets, setRetryingSecrets] = useState(false);
   const { loadHistory, loadRecords, loadRequiredSecrets } = detail;
 
   useEffect(() => {
@@ -196,17 +196,25 @@ export function DeploymentsTab({
       0,
     ) || missingRequiredApps.length;
 
-  const retryRequiredSecrets = async () => {
-    if (!detail.refreshRequiredSecrets) return;
-    setRetryingSecrets(true);
-    try {
-      await detail.refreshRequiredSecrets();
-    } catch {
-      // The hook keeps the verification error visible and the gate remains
-      // closed. The user can retry again without refreshing the page.
-    } finally {
-      setRetryingSecrets(false);
-    }
+  const missingSecretSlots = missingRequiredApps.flatMap((app) =>
+    (detail.requiredSecrets?.[app]?.slots ?? [])
+      .filter((slot) => detail.requiredSecrets?.[app]?.missing.includes(slot.name))
+      .map((slot) => ({
+        app,
+        slot,
+        applicationId: detail.requiredSecrets?.[app]?.applicationId,
+      })),
+  );
+
+  const saveRequiredSecrets = async (
+    valuesByApplication: Map<number, Record<string, string>>,
+  ) => {
+    await Promise.all(
+      Array.from(valuesByApplication, ([applicationId, values]) =>
+        detail.setEnvVars?.(applicationId, values),
+      ),
+    );
+    await detail.ensureRequiredSecrets?.(missingRequiredApps);
   };
 
   if (!source) {
@@ -427,37 +435,31 @@ export function DeploymentsTab({
       )}
 
       {secretsGateBlocked && (
-        <div
-          className="border-warning/40 bg-warning/10 text-warning flex items-center justify-between gap-3 border-b px-4 py-3 text-xs"
-          role="alert"
-        >
-          <span>
-            {secretsCheckPending
-              ? "Checking required secrets before deployment…"
-              : detail.requiredSecretsError
-                ? "Required secrets could not be verified. Refresh before deploying."
-                : `${missingRequiredCount} required secret${missingRequiredCount === 1 ? "" : "s"} missing for ${missingRequiredApps.join(", ")}.`}
-          </span>
-          {secretsCheckFailed ? (
+        <div className="border-b px-4 py-3">
+          <RequiredSecretsPanel
+            slots={missingSecretSlots}
+            missingCount={missingRequiredCount}
+            verificationError={
+              detail.requiredSecretsError
+                ? `${detail.requiredSecretsError}.`
+                : null
+            }
+            verificationRetryable={detail.requiredSecretsRetryable ?? true}
+            pending={secretsCheckPending}
+            onRetryVerification={detail.refreshRequiredSecrets}
+            onSave={saveRequiredSecrets}
+            actionLabel="Promote"
+          />
+          {onOpenEnvironment && !secretsCheckPending && (
+            // The panel fixes what is missing; this still goes to the full
+            // Environment tab for everything else the project has set.
             <button
               type="button"
-              onClick={() => void retryRequiredSecrets()}
-              disabled={retryingSecrets}
-              className="shrink-0 font-medium underline underline-offset-2 disabled:opacity-60"
+              onClick={onOpenEnvironment}
+              className="text-warning mt-2 text-xs font-medium underline underline-offset-2"
             >
-              {retryingSecrets ? "Retrying…" : "Retry required secrets"}
+              Set required secrets
             </button>
-          ) : (
-            onOpenEnvironment &&
-            !secretsCheckPending && (
-              <button
-                type="button"
-                onClick={onOpenEnvironment}
-                className="shrink-0 font-medium underline underline-offset-2"
-              >
-                Set required secrets
-              </button>
-            )
           )}
         </div>
       )}

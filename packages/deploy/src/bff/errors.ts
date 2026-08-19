@@ -13,18 +13,36 @@ export type LaunchFailureSource = {
   upstream?: "github" | "rust";
   upstreamStatus?: number;
   credential?: "service";
-  response: { status: number; error: string };
+  response: {
+    status: number;
+    error: string;
+    /** Stable identifier the browser can branch on. */
+    code?: string;
+    /** False when retrying cannot help — an operator has to act. */
+    retryable?: boolean;
+  };
 };
 
 /** Layer 1: identify a deploy-domain error without choosing a telemetry route. */
 export function identifyLaunchError(error: unknown): LaunchFailureSource {
   const requiredSecretsError = asRequiredSecretsCheckError(error);
   if (requiredSecretsError) {
+    // Carry the reason and its retryability through to the browser. Flattening
+    // every one of these to "try again" told a builder whose BFF is missing
+    // its GITHUB_TOKEN to retry a request that can never succeed until an
+    // operator fixes the deployment.
+    const retryable = requiredSecretsError.retryable ?? true;
     const common = {
       error: requiredSecretsError.cause ?? error,
       response: {
         status: 503,
-        error: "Unable to verify required secrets. Try again.",
+        error:
+          requiredSecretsError.message ??
+          "Unable to verify required secrets. Try again.",
+        code: requiredSecretsError.reason
+          ? `required_secrets_${requiredSecretsError.reason}`
+          : REQUIRED_SECRETS_CHECK_UNAVAILABLE_CODE,
+        retryable,
       },
     } as const;
     if (
@@ -96,7 +114,13 @@ export function identifyLaunchError(error: unknown): LaunchFailureSource {
 export function launchErrorResponse(error: unknown): Response {
   const failure = identifyLaunchError(error);
   return Response.json(
-    { error: failure.response.error },
+    {
+      error: failure.response.error,
+      ...(failure.response.code ? { code: failure.response.code } : {}),
+      ...(failure.response.retryable !== undefined
+        ? { retryable: failure.response.retryable }
+        : {}),
+    },
     { status: failure.response.status },
   );
 }
@@ -109,11 +133,18 @@ type BackendErrorLike = {
   reason?: unknown;
 };
 
+/** Kept structural: this module must not import the error class it inspects. */
 type RequiredSecretsCheckErrorLike = {
   cause?: unknown;
+  message?: string;
+  reason?: string;
+  retryable?: boolean;
   upstream?: "github" | "rust";
   upstreamStatus?: number;
 };
+
+const REQUIRED_SECRETS_CHECK_UNAVAILABLE_CODE =
+  "required_secrets_check_unavailable";
 
 function asRequiredSecretsCheckError(
   error: unknown,

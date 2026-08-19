@@ -2,7 +2,7 @@
 // Client
 // =============================================================================
 
-export { AomiClient } from "./client";
+export { AomiClient, secretNamesFrom } from "./client";
 export {
   authorizationChallenge,
   authorizationCommit,

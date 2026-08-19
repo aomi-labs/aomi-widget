@@ -1750,22 +1750,20 @@ ${body}` : ""}`
       // Secrets
       // ===========================================================================
       /**
-       * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+       * Ingest client-scoped secrets. Returns opaque `$SECRET:<name>` handles.
        *
-       * When `app` is provided, the values land in the per-app store keyed by
-       * `(client_id, app)` — this is the path the Secrets settings page uses
-       * (one app at a time). When `app` is omitted, secrets land in the flat
-       * client store (used by BYOK and other cross-app pools).
+       * There is no app scope. A hosted app's Environment belongs to its Builder
+       * and is configured in Aomi Build; a per-user copy of it was a second,
+       * process-local store that answered the same handle differently depending on
+       * which fleet host served the turn. The backend answers 410 to any request
+       * that still carries one.
        */
-      async ingestSecrets(sessionId, clientId, secrets, app) {
+      async ingestSecrets(sessionId, clientId, secrets) {
         const url = joinApiPath(this.baseUrl, "/api/secrets");
         const body = {
           client_id: clientId,
           secrets
         };
-        if (app && app.trim().length > 0) {
-          body.app = app.trim();
-        }
         const response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(sessionId, {
@@ -1778,17 +1776,11 @@ ${body}` : ""}`
         }
         return await response.json();
       }
-      /**
-       * Clear secrets for a client. With `app`, removes every slot under that
-       * app. Without `app`, clears the entire client (legacy behavior — wipes
-       * both stores and unbinds the session).
-       */
-      async clearSecrets(sessionId, clientId, app) {
-        const params = { client_id: clientId };
-        if (app && app.trim().length > 0) {
-          params.app = app.trim();
-        }
-        const url = buildApiUrl(this.baseUrl, "/api/secrets", params);
+      /** Clear every client-scoped secret and unbind the session. */
+      async clearSecrets(sessionId, clientId) {
+        const url = buildApiUrl(this.baseUrl, "/api/secrets", {
+          client_id: clientId
+        });
         const response = await this.fetchImpl(url, {
           method: "DELETE",
           headers: withSessionHeader(sessionId)
@@ -1798,15 +1790,9 @@ ${body}` : ""}`
         }
         return await response.json();
       }
-      /**
-       * Remove a single named secret. With `app`, targets the per-app store
-       * under that scope; without, targets the flat store.
-       */
-      async deleteSecret(sessionId, clientId, name, app) {
+      /** Remove a single named client-scoped secret. */
+      async deleteSecret(sessionId, clientId, name) {
         const params = { client_id: clientId };
-        if (app && app.trim().length > 0) {
-          params.app = app.trim();
-        }
         const url = buildApiUrl(
           this.baseUrl,
           `/api/secrets/${encodeURIComponent(name)}`,
@@ -1822,9 +1808,10 @@ ${body}` : ""}`
         return await response.json();
       }
       /**
-       * List currently stored secret names per app for this client. The
-       * backend never returns raw values; the settings page uses this as the
-       * source of truth instead of trusting localStorage.
+       * List the stored secret NAMES for this client — never values.
+       *
+       * Read the result with {@link secretNamesFrom}, which tolerates the
+       * pre-cutover `by_app` shape as well as the flat `names` list.
        */
       async listSecrets(sessionId, clientId) {
         const url = clientId && clientId.trim().length > 0 ? buildApiUrl(this.baseUrl, "/api/secrets", { client_id: clientId }) : joinApiPath(this.baseUrl, "/api/secrets");

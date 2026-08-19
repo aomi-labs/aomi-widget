@@ -17,6 +17,17 @@ export type FailureReason =
 export type PublicFailure = {
   status: number;
   error: string;
+  /**
+   * Stable machine-readable identifier for the failure, when the caller needs
+   * to branch on it. The human message is not a contract; this is.
+   */
+  code?: string;
+  /**
+   * Whether retrying the same request could plausibly succeed. `false` marks
+   * an operator problem (a missing deploy-time credential, say) where telling
+   * the user to try again is the wrong instruction.
+   */
+  retryable?: boolean;
 };
 
 export type LocalDiagnosticValue = string | number | boolean | null;
@@ -115,6 +126,8 @@ export type FailureDecision = {
   handled: boolean;
   responseStatus: number;
   responseError: string;
+  responseCode?: string;
+  responseRetryable?: boolean;
   upstream?: BffUpstream;
   upstreamStatus?: number;
   requestError?: RequestErrorDetails;
