@@ -10,6 +10,21 @@ persisted declarations, and cleared as soon as the matching Environment value
 is saved. Deployment and promotion failures now surface the same actionable
 required-secret state instead of falling back to “No keys required”.
 
+## MCP to CLI partial-execution recovery
+
+Current session goal: **IMPLEMENTED AND LIVE-CHAIN VERIFIED 2026-08-19** — make
+sequential external signing outcome-aware when a requested action confirms but
+an appended service-fee transfer fails. The CLI journals confirmed staged IDs
+before backend callbacks, reports fee outcomes separately with exact wei,
+replays callbacks without rebroadcasting, and preserves the MCP/OAuth boundary:
+only the local CLI signs and broadcasts. The published package tuple is
+`@aomi-labs/client@0.5.1`, `@aomi-labs/react@0.6.2`, and
+`@aomi-labs/widget-lib@2.0.3`, so React/widget consumers resolve the updated
+wallet executor as well as direct CLI users. A fresh staging MCP request completed after action hash
+`0xcefe1911f4986b941be5e6e6c5b9bef7495af4d2b51ad661204172561c3c8ef2`
+confirmed and its delegated-account fee leg failed; the retry did not increase
+the wallet nonce or rebroadcast the action.
+
 ## Generic Solana wallet restoration
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-17** —
