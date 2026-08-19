@@ -126,6 +126,7 @@ function useApiKeyImpl() {
 
 // src/control/byok.ts
 import { useCallback as useCallback2, useEffect as useEffect2, useState as useState2 } from "react";
+import { secretNamesFrom } from "@aomi-labs/client";
 var BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
 var BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
 function useByokImpl({
@@ -172,53 +173,50 @@ function useByokImpl({
     });
   }, [aomiClientRef, byokKeys, getControlSessionId2]);
   const ingestSecrets = useCallback2(
-    async (secrets, app) => {
+    async (secrets) => {
       const clientId = clientIdRef.current;
       if (!clientId) throw new Error("clientId not initialized");
       const { handles } = await aomiClientRef.current.ingestSecrets(
         getControlSessionId2(),
         clientId,
-        secrets,
-        app
+        secrets
       );
       return handles;
     },
     [aomiClientRef, clientIdRef, getControlSessionId2]
   );
   const clearSecrets = useCallback2(
-    async (app) => {
+    async () => {
       var _a, _b;
       const clientId = clientIdRef.current;
       if (!clientId) return;
       await ((_b = (_a = aomiClientRef.current).clearSecrets) == null ? void 0 : _b.call(
         _a,
         getControlSessionId2(),
-        clientId,
-        app
+        clientId
       ));
     },
     [aomiClientRef, clientIdRef, getControlSessionId2]
   );
   const deleteSecret = useCallback2(
-    async (name, app) => {
+    async (name) => {
       const clientId = clientIdRef.current;
       if (!clientId) return;
       await aomiClientRef.current.deleteSecret(
         getControlSessionId2(),
         clientId,
-        name,
-        app
+        name
       );
     },
     [aomiClientRef, clientIdRef, getControlSessionId2]
   );
   const listSecrets = useCallback2(async () => {
     var _a;
-    const { by_app } = await aomiClientRef.current.listSecrets(
+    const response = await aomiClientRef.current.listSecrets(
       getControlSessionId2(),
       (_a = clientIdRef.current) != null ? _a : void 0
     );
-    return by_app;
+    return secretNamesFrom(response);
   }, [aomiClientRef, clientIdRef, getControlSessionId2]);
   const setByok = useCallback2(
     async (provider, apiKey, label) => {
