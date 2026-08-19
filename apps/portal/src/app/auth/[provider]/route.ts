@@ -1,5 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+const ALLOWED_PROVIDERS = new Set(["privy", "para"]);
+
 /**
  * OAuth wallet provider authorization redirect.
  * Handles /auth/privy and /auth/para requests from the MCP backend
@@ -10,6 +12,11 @@ export async function GET(
   { params }: { params: Promise<{ provider: string }> }
 ) {
   const { provider } = await params;
+
+  if (!ALLOWED_PROVIDERS.has(provider)) {
+    return new NextResponse("Unsupported wallet provider", { status: 404 });
+  }
+
   const searchParams = request.nextUrl.searchParams;
 
   // Redirect to the correct API delegation endpoint with all query parameters
