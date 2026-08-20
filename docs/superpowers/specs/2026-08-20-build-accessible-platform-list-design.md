@@ -30,6 +30,11 @@ already list.
 The typed entry stays as a fallback, because the derivation cannot see a
 platform a partner has named but where the user has not connected a project yet.
 
+The shell also gains a standing answer to "which platform am I on". Every scoped
+page — Projects, Deployments, Overview — renders against one platform and
+nothing on screen said which; the top bar now names it, and clicking it opens
+the selector.
+
 ## Data flow
 
 Unchanged upstream, all of it already in place:
@@ -112,6 +117,16 @@ platform)`, same invalidation of the platform being left, same
 again." It gets a quieter heading marking it as the path for a platform not in
 the list.
 
+### `apps/build/src/components/control-plane/platform-badge.tsx` (new)
+
+A top-bar link reading `Platform <name>`, from `usePlatform()` — the same
+URL-then-storage-then-Community resolution the sidebar's platform-scoped links
+already use, so the badge cannot disagree with where those links point. It links
+to `/settings/general`, the selector.
+
+It takes the left slot of the shell header (`control-plane-shell.tsx`), which
+was an empty spacer on desktop, and sits next to the menu button on mobile.
+
 ### `apps/build/src/app/(control-plane)/settings/settings-general-panel.tsx` (changed)
 
 Copy replaced. It currently promises the opposite of what the screen will do:
@@ -139,7 +154,11 @@ name.
   the old platform; 404 shows "Platform not found".
 
 `features/launch/use-accessible-platforms.test.ts` (new): the derivation —
-dedupe, trim, counts, Community injection, active-platform injection, ordering.
+dedupe, trim, counts, Community injection, active-platform injection, ordering,
+and `unavailable` (never an empty list) when the read fails.
+
+`components/control-plane/platform-badge.test.tsx` (new): names the platform the
+page is scoped to, falls back to Community, and links to `/settings/general`.
 
 ## Out of scope
 
@@ -147,5 +166,5 @@ dedupe, trim, counts, Community injection, active-platform injection, ordering.
   real grant model in product-mono (activation tokens or an explicit
   membership table) and a new service-auth endpoint; the typed fallback covers
   the case until then.
-- The shell sidebar and command palette platform affordances.
+- The command palette's platform affordances.
 - Any change to `GET /api/platforms`, which stays unused by Build.
