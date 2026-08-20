@@ -224,3 +224,70 @@ describe("Event API", () => {
     });
   });
 });
+
+describe("failed-turn notice", () => {
+  const noticeKinds = (messages: readonly unknown[]) =>
+    messages
+      .map(
+        (message) =>
+          (
+            message as {
+              metadata?: { custom?: { aomiNoticeKind?: string } };
+            }
+          ).metadata?.custom?.aomiNoticeKind,
+      )
+      .filter(Boolean);
+
+  it("shows one notice when the durable record and the live error describe the same failure", async () => {
+    // A backend that persists the notice sends both in one response: the
+    // durable `notice` message in the projection, and the transient
+    // SystemError that drives the toast. The reader must see one card.
+    setAomiClientConfig({
+      postChatMessage: vi.fn(async () => ({
+        is_processing: false,
+        messages: [
+          { sender: "user", content: "hi" },
+          {
+            sender: "notice",
+            content: "This app hit an error and couldn't respond.",
+          },
+        ],
+        system_events: [{ SystemError: "CompletionError: ProviderError" }],
+      })),
+    });
+
+    const { api, getThreadContext } = renderRuntime();
+    await act(async () => {
+      await api.sendMessage("hi");
+    });
+
+    const threadContext = getThreadContext();
+    const messages = threadContext.getThreadMessages(
+      threadContext.currentThreadId,
+    );
+    expect(noticeKinds(messages)).toEqual(["error"]);
+  });
+
+  it("still explains the failure when the backend sends no durable notice", async () => {
+    // Older backends drain `system_events` and persist nothing, so the
+    // transient error is the only signal there is.
+    setAomiClientConfig({
+      postChatMessage: vi.fn(async () => ({
+        is_processing: false,
+        messages: [{ sender: "user", content: "hi" }],
+        system_events: [{ SystemError: "CompletionError: ProviderError" }],
+      })),
+    });
+
+    const { api, getThreadContext } = renderRuntime();
+    await act(async () => {
+      await api.sendMessage("hi");
+    });
+
+    const threadContext = getThreadContext();
+    const messages = threadContext.getThreadMessages(
+      threadContext.currentThreadId,
+    );
+    expect(noticeKinds(messages)).toEqual(["error"]);
+  });
+});

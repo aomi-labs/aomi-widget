@@ -1497,7 +1497,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   }
   return await response.json();
 }
-var SESSION_ID_HEADER, THREAD_ID_HEADER, APP_KEY_HEADER, AomiClient;
+var SESSION_ID_HEADER, THREAD_ID_HEADER, APP_KEY_HEADER, CREATE_THREAD_RETRY_STATUSES, CREATE_THREAD_RETRY_DELAYS_MS, delay, AomiClient;
 var init_client = __esm({
   "src/client.ts"() {
     "use strict";
@@ -1507,6 +1507,9 @@ var init_client = __esm({
     SESSION_ID_HEADER = "X-Session-Id";
     THREAD_ID_HEADER = "X-Thread-Id";
     APP_KEY_HEADER = "Aomi-App-Key";
+    CREATE_THREAD_RETRY_STATUSES = /* @__PURE__ */ new Set([502, 503, 504]);
+    CREATE_THREAD_RETRY_DELAYS_MS = [400, 1e3, 2e3];
+    delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     AomiClient = class {
       constructor(options) {
         /**
@@ -1914,10 +1917,17 @@ ${body}` : ""}`
           platform: options == null ? void 0 : options.platform,
           client_id: options == null ? void 0 : options.clientId
         });
-        const response = await this.fetchImpl(url, {
+        let response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(threadId)
         });
+        for (let attempt = 0; attempt < CREATE_THREAD_RETRY_DELAYS_MS.length && CREATE_THREAD_RETRY_STATUSES.has(response.status); attempt += 1) {
+          await delay(CREATE_THREAD_RETRY_DELAYS_MS[attempt]);
+          response = await this.fetchImpl(url, {
+            method: "POST",
+            headers: withSessionHeader(threadId)
+          });
+        }
         if (!response.ok) {
           throw new Error(`Failed to create thread: HTTP ${response.status}`);
         }
@@ -3872,8 +3882,8 @@ var init_session = __esm({
       scheduleSigningRequestRecovery(immediate = false) {
         if (this.closed || this.signingRecoveryInFlight) return;
         const elapsed = Date.now() - this.lastSigningRecoveryAt;
-        const delay = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
-        if (delay === 0) {
+        const delay2 = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
+        if (delay2 === 0) {
           void this.recoverSigningRequests();
           return;
         }
@@ -3881,7 +3891,7 @@ var init_session = __esm({
         this.signingRecoveryTimer = setTimeout(() => {
           this.signingRecoveryTimer = null;
           if (!this.closed) void this.recoverSigningRequests();
-        }, delay);
+        }, delay2);
       }
       /**
        * A signing event is transient, but its backend-owned operation is durable.
