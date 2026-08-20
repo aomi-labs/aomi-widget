@@ -39,7 +39,10 @@ describe("ClientSession SSE lifecycle", () => {
       .mockReturnValueOnce(unsubscribeA)
       .mockReturnValueOnce(unsubscribeB);
 
-    const session = new Session(client, { sessionId: "session-sse-1" });
+    const session = new Session(client, {
+      transport: "legacy",
+      sessionId: "session-sse-1",
+    });
 
     expect(session.getIsSSEActive()).toBe(false);
     expect(subscribeSSE).not.toHaveBeenCalled();
@@ -78,6 +81,7 @@ describe("ClientSession SSE lifecycle", () => {
       .mockReturnValueOnce(firstUnsubscribe)
       .mockReturnValueOnce(secondUnsubscribe);
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-sse-app",
       applicationId: 10,
     });
@@ -112,6 +116,7 @@ describe("ClientSession SSE lifecycle", () => {
       )
       .mockResolvedValue({ is_processing: false, messages: [] });
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-single-flight",
       pollIntervalMs: 10,
     });
@@ -141,6 +146,7 @@ describe("ClientSession SSE lifecycle", () => {
       .mockResolvedValueOnce({ is_processing: true, messages: [] })
       .mockResolvedValue({ is_processing: false, messages: [] });
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-backoff",
       pollIntervalMs: 100,
     });
@@ -170,7 +176,10 @@ describe("ClientSession SSE lifecycle", () => {
       .spyOn(client, "fetchState")
       .mockResolvedValueOnce({ is_processing: true, messages: [] })
       .mockResolvedValue({ is_processing: false, messages: [] });
-    const session = new Session(client, { sessionId: "session-visibility" });
+    const session = new Session(client, {
+      transport: "legacy",
+      sessionId: "session-visibility",
+    });
 
     session.startPolling();
     await vi.advanceTimersByTimeAsync(1_999);
@@ -196,7 +205,10 @@ describe("ClientSession ext helpers", () => {
 
   it("initializes ext via addExtValue on empty user state", async () => {
     const { client, sendMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-unit-1" });
+    const session = new Session(client, {
+      transport: "legacy",
+      sessionId: "session-unit-1",
+    });
 
     session.addExtValue("SIMMER_API_KEY", "sk_live_1");
     await session.sendAsync("hello");
@@ -212,6 +224,7 @@ describe("ClientSession ext helpers", () => {
   it("preserves wallet fields and merges ext values", async () => {
     const { client, sendMessage } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-unit-2",
       userState: {
         address: "0xabc",
@@ -244,6 +257,7 @@ describe("ClientSession ext helpers", () => {
   it("removeExtValue removes a key and deletes ext when empty", async () => {
     const { client, sendMessage } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-unit-3",
       userState: { address: "0xdef", isConnected: true },
     });
@@ -275,7 +289,10 @@ describe("ClientSession ext helpers", () => {
 
   it("syncUserState carries ext to fetchState", async () => {
     const { client, fetchState } = createMockClient();
-    const session = new Session(client, { sessionId: "session-unit-4" });
+    const session = new Session(client, {
+      transport: "legacy",
+      sessionId: "session-unit-4",
+    });
 
     session.addExtValue("SIMMER_API_KEY", "sk_live_4");
     await session.syncUserState();
@@ -295,6 +312,7 @@ describe("ClientSession ext helpers", () => {
   it("applies clientType onto userState ext from session options", async () => {
     const { client, sendMessage } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-unit-4b",
       clientType: CLIENT_TYPE_WEB_UI,
       userState: { address: "0x123", isConnected: true },
@@ -315,6 +333,7 @@ describe("ClientSession ext helpers", () => {
   it("accepts backend user_state superset when ext keys match expected subset", async () => {
     const { client, sendMessage } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-unit-5",
       userState: {
         address: "0x999",
@@ -346,6 +365,7 @@ describe("ClientSession ext helpers", () => {
   it("preserves chain_id across partial backend user_state snapshots", async () => {
     const { client, fetchState, sendMessage } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-unit-5b",
       userState: {
         address: "0xabc",
@@ -381,6 +401,7 @@ describe("ClientSession ext helpers", () => {
   it("preserves owner/chain across partial backend snapshots without sending aa or pending", async () => {
     const { client, fetchState, sendMessage } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-unit-5c",
       userState: {
         address: "0xabc",
@@ -437,6 +458,7 @@ describe("ClientSession ext helpers", () => {
     const { client, fetchState } = createMockClient();
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-unit-6",
       userState: {
         address: "0x888",
@@ -469,6 +491,7 @@ describe("ClientSession ext helpers", () => {
     const { client, sendMessage } = createMockClient();
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-unit-7",
       userState: {
         address: "0x9C7a99480c59955a635123EDa064456393e519f5",
@@ -505,7 +528,10 @@ describe("ClientSession ext helpers", () => {
 
   it("hydrates pending transaction requests from backend user_state", async () => {
     const { client, fetchState } = createMockClient();
-    const session = new Session(client, { sessionId: "session-unit-7b" });
+    const session = new Session(client, {
+      transport: "legacy",
+      sessionId: "session-unit-7b",
+    });
     const requestsChanged = vi.fn();
 
     session.on("wallet_requests_changed", requestsChanged);
@@ -548,7 +574,10 @@ describe("ClientSession ext helpers", () => {
 
   it("hydrates id-only wallet_tx_request payloads from backend user_state", async () => {
     const { client, sendMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-unit-7c" });
+    const session = new Session(client, {
+      transport: "legacy",
+      sessionId: "session-unit-7c",
+    });
 
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
@@ -609,6 +638,7 @@ describe("ClientSession ext helpers", () => {
   it("dedupes a synthetic single-tx request once the backend wallet event arrives", async () => {
     const { client, sendMessage } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-unit-7c-dedupe",
     });
 
@@ -658,7 +688,10 @@ describe("ClientSession ext helpers", () => {
 
   it("preserves batched wallet_tx_request payloads across user_state sync", async () => {
     const { client, sendMessage, fetchState } = createMockClient();
-    const session = new Session(client, { sessionId: "session-unit-7d" });
+    const session = new Session(client, {
+      transport: "legacy",
+      sessionId: "session-unit-7d",
+    });
 
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
@@ -756,7 +789,10 @@ describe("ClientSession ext helpers", () => {
 
   it("forwards backend tx identifiers in wallet completion callbacks", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-unit-8" });
+    const session = new Session(client, {
+      transport: "legacy",
+      sessionId: "session-unit-8",
+    });
 
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
@@ -832,6 +868,7 @@ describe("ClientSession ext helpers", () => {
   it("does not rebuild AA authority from parked user state", async () => {
     const { client, fetchState } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-unit-aa-resync",
     });
 
@@ -882,7 +919,10 @@ describe("ClientSession ext helpers", () => {
 
   it("does not re-offer backend-held AA records as plain transactions", async () => {
     const { client, fetchState } = createMockClient();
-    const session = new Session(client, { sessionId: "session-unit-aa-held" });
+    const session = new Session(client, {
+      transport: "legacy",
+      sessionId: "session-unit-aa-held",
+    });
 
     fetchState.mockResolvedValueOnce({
       is_processing: false,
@@ -909,7 +949,10 @@ describe("ClientSession ext helpers", () => {
 
   it("emits wallet_solana_send_request from a wallet::solana_send_request InlineCall", async () => {
     const { client, sendMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-solana-send-1" });
+    const session = new Session(client, {
+      transport: "legacy",
+      sessionId: "session-solana-send-1",
+    });
 
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
@@ -957,7 +1000,10 @@ describe("ClientSession ext helpers", () => {
 
   it("posts wallet::solana_send_complete with signature on resolve", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-solana-send-2" });
+    const session = new Session(client, {
+      transport: "legacy",
+      sessionId: "session-solana-send-2",
+    });
 
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
@@ -1023,7 +1069,10 @@ describe("ClientSession ext helpers", () => {
 
   it("returns every pending SVM id for a multi-instruction send", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-solana-send-4" });
+    const session = new Session(client, {
+      transport: "legacy",
+      sessionId: "session-solana-send-4",
+    });
 
     sendMessage.mockResolvedValueOnce({
       is_processing: false,
@@ -1097,6 +1146,7 @@ describe("ClientSession ext helpers", () => {
   it("emits wallet_solana_sign_and_send_request from a wallet::solana_sign_and_send_request InlineCall", async () => {
     const { client, sendMessage } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-solana-sign-and-send-1",
     });
 
@@ -1147,6 +1197,7 @@ describe("ClientSession ext helpers", () => {
   it("posts wallet::solana_sign_and_send_complete with signature and signed_tx on resolve", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-solana-sign-and-send-2",
     });
 
@@ -1203,6 +1254,7 @@ describe("ClientSession ext helpers", () => {
   it("keeps the sign_and_send request queued when resolve receives the wrong result kind", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-solana-sign-and-send-kind-mismatch",
     });
 
@@ -1252,6 +1304,7 @@ describe("ClientSession ext helpers", () => {
   it("posts wallet::solana_sign_and_send_complete rejected on reject", async () => {
     const { client, sendMessage, sendSystemMessage } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-solana-sign-and-send-3",
     });
 
@@ -1302,6 +1355,7 @@ describe("ClientSession ext helpers", () => {
   it("rebuilds solana_send requests from nested user_state.pending.solana_txs", async () => {
     const { client, fetchState } = createMockClient();
     const session = new Session(client, {
+      transport: "legacy",
       sessionId: "session-solana-send-3",
       userState: {
         connection: {

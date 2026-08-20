@@ -17,6 +17,7 @@ import type {
   SessionEventMap,
   SessionOptions,
   SessionRuntimeOptions,
+  WalletSigningPayload,
   WalletRequest,
   WalletRequestTarget,
   WalletRequestResult,
@@ -30,6 +31,15 @@ import {
   warnIfUserStateMisaligned,
 } from "./state";
 import { SessionWalletController } from "./wallet";
+import type {
+  AgentAction,
+  AgentActionResult,
+  AgentDelta,
+  AgentMessage,
+  EvmExternalTransactionAction,
+  SigningRequestAction,
+  SvmExternalTransactionAction,
+} from "../agent/types";
 
 export { aaModeFromExecutionKind } from "../aa/policy";
 export type {
@@ -52,6 +62,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   readonly sessionId: string;
 
   private app: string;
+  private model?: string | null;
   private applicationId?: number | string | null;
   private apiKey?: string;
   private userState?: UserStateShape;
@@ -60,6 +71,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private syncPendingTxRequestsFromUserState: boolean;
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
+  private readonly transport: "agent" | "legacy";
+  private agentCursor?: string;
+  private agentActions = new Map<string, AgentAction>();
 
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private pollingActive = false;
@@ -93,9 +107,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
     this.sessionId = sessionOptions?.sessionId ?? crypto.randomUUID();
     this.app = sessionOptions?.app ?? "default";
+    this.model = sessionOptions?.model;
     this.applicationId = sessionOptions?.applicationId;
     this.apiKey = sessionOptions?.apiKey;
     this.paymentMethod = sessionOptions?.paymentMethod;
+    this.transport = sessionOptions?.transport ?? "agent";
     const initialUserState = UserState.reconcile(
       undefined,
       sessionOptions?.userState,
@@ -121,10 +137,20 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       onChange: (requests) => this.emit("wallet_requests_changed", requests),
       syncPendingTxRequestsFromUserState:
         this.syncPendingTxRequestsFromUserState,
+      resolveAgentAction:
+        this.transport === "agent"
+          ? (request, result) => this.resolveAgentAction(request, result)
+          : undefined,
+      rejectAgentAction:
+        this.transport === "agent"
+          ? (request, reason) => this.rejectAgentAction(request, reason)
+          : undefined,
     });
     // Durable backend-owned signing handoffs must resume even when loading the
     // application runtime or thread history is slow/unavailable.
-    queueMicrotask(() => this.scheduleSigningRequestRecovery(true));
+    if (this.transport === "legacy") {
+      queueMicrotask(() => this.scheduleSigningRequestRecovery(true));
+    }
   }
 
   // ===========================================================================
@@ -218,11 +244,15 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    */
   async interrupt(): Promise<void> {
     this.stopPolling();
-    const response = await this.client.interrupt(this.sessionId, {
-      app: this.app,
-      applicationId: this.applicationId,
-    });
-    this.applyState(response);
+    if (this.transport === "agent") {
+      this.applyAgentDelta(await this.client.agent.interrupt(this.sessionId));
+    } else {
+      const response = await this.client.interrupt(this.sessionId, {
+        app: this.app,
+        applicationId: this.applicationId,
+      });
+      this.applyState(response);
+    }
     this._isProcessing = false;
     this.emit("processing_end", undefined);
     this.resolvePending();
@@ -297,6 +327,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   syncRuntimeOptions(options: SessionRuntimeOptions): void {
     const previousApplicationId = this.applicationId?.toString();
     this.app = options.app;
+    this.model = options.model;
     this.applicationId = options.applicationId;
     this.apiKey = options.apiKey;
     this.clientId = options.clientId ?? this.clientId;
@@ -315,6 +346,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   }
 
   private startSSE(): void {
+    if (this.transport === "agent") {
+      if (this._isProcessing) this.startPolling();
+      return;
+    }
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
       (event) => this.handleSSEEvent(event),
@@ -374,6 +409,14 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   async syncUserState(): Promise<AomiStateResponse> {
     this.assertOpen();
 
+    if (this.transport === "agent") {
+      const delta = await this.client.agent.check(this.sessionId, {
+        cursor: this.agentCursor,
+      });
+      this.applyAgentDelta(delta);
+      return this.agentState(delta);
+    }
+
     const state = await this.client.fetchState(
       this.sessionId,
       this.outboundUserState(),
@@ -400,6 +443,22 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    */
   async fetchCurrentState(): Promise<void> {
     this.assertOpen();
+
+    if (this.transport === "agent") {
+      const delta = await this.client.agent.check(this.sessionId, {
+        cursor: this.agentCursor,
+      });
+      this.applyAgentDelta(delta);
+      const active = this.agentActive(delta);
+      if (active && !this.pollingActive) {
+        this._isProcessing = true;
+        this.emit("processing_start", undefined);
+        this.startPolling();
+      } else if (!active) {
+        this._isProcessing = false;
+      }
+      return;
+    }
 
     const state = await this.client.fetchState(
       this.sessionId,
@@ -461,6 +520,27 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.pollInFlight = true;
 
     try {
+      if (this.transport === "agent") {
+        const delta = await this.client.agent.check(this.sessionId, {
+          cursor: this.agentCursor,
+          waitMs: 25_000,
+        });
+        if (!this.pollingActive) return;
+        this.pollFailureCount = 0;
+        this.applyAgentDelta(delta);
+        const active = this.agentActive(delta);
+        if (this._backendWasProcessing && !active) {
+          this.emit("backend_idle", undefined);
+        }
+        this._backendWasProcessing = active;
+        if (!active && this.walletController.length === 0) {
+          this.stopPolling();
+          this._isProcessing = false;
+          this.emit("processing_end", undefined);
+          this.resolvePending();
+        }
+        return;
+      }
       const state = await this.client.fetchState(
         this.sessionId,
         this.outboundUserState(),
@@ -561,7 +641,12 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
    * may run twice per second; durable handoff recovery does not need to.
    */
   private scheduleSigningRequestRecovery(immediate = false): void {
-    if (this.closed || this.signingRecoveryInFlight) return;
+    if (
+      this.transport === "agent" ||
+      this.closed ||
+      this.signingRecoveryInFlight
+    )
+      return;
 
     const elapsed = Date.now() - this.lastSigningRecoveryAt;
     const delay = immediate
@@ -691,6 +776,20 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   /** Shared completion path for send()/sendAsync() after the chat POST. */
   private async submitChat(message: string): Promise<AomiChatResponse> {
+    if (this.transport === "agent") {
+      const applicationId = Number(this.applicationId);
+      const delta = await this.client.agent.start({
+        sessionId: this.sessionId,
+        message,
+        ...(Number.isSafeInteger(applicationId) && applicationId > 0
+          ? { applicationId }
+          : { app: this.app }),
+        ...(this.model ? { model: this.model } : {}),
+        wallets: this.agentWallets(),
+      });
+      this.applyAgentDelta(delta);
+      return this.agentState(delta);
+    }
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
       applicationId: this.applicationId,
@@ -703,6 +802,278 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
     return response;
+  }
+
+  private agentActive(delta: AgentDelta): boolean {
+    return delta.status === "processing" || delta.status === "awaiting_user";
+  }
+
+  private agentState(delta: AgentDelta): AomiChatResponse {
+    return {
+      messages: this._messages,
+      title: this._title,
+      is_processing: this.agentActive(delta),
+    };
+  }
+
+  private agentWallets() {
+    const normalized = UserState.normalize(this.userState);
+    const chainId = Number(normalized?.evm?.chain_id);
+    return {
+      ...(normalized?.evm?.address
+        ? {
+            evm: {
+              address: normalized.evm.address,
+              ...(Number.isSafeInteger(chainId) && chainId > 0
+                ? { chainId }
+                : {}),
+            },
+          }
+        : {}),
+      ...(normalized?.svm?.address
+        ? {
+            svm: {
+              address: normalized.svm.address,
+              ...(normalized.svm.cluster
+                ? { cluster: normalized.svm.cluster }
+                : {}),
+            },
+          }
+        : {}),
+    };
+  }
+
+  private applyAgentDelta(delta: AgentDelta): void {
+    if (delta.sessionId !== this.sessionId) {
+      throw new TypeError("Agent response session does not match the request");
+    }
+    this.agentCursor = delta.cursor;
+    let messagesChanged = false;
+    for (const incoming of delta.messages) {
+      const message = this.agentMessage(incoming);
+      const index = message.id
+        ? this._messages.findIndex((current) => current.id === message.id)
+        : -1;
+      if (index >= 0) this._messages[index] = message;
+      else this._messages.push(message);
+      messagesChanged = true;
+    }
+    if (messagesChanged) this.emit("messages", [...this._messages]);
+    if (delta.title && delta.title !== this._title) {
+      this._title = delta.title;
+      this.emit("title_changed", { title: delta.title });
+    }
+    this.applyAgentActivity(delta.activity);
+    this.syncAgentActions(delta.actions);
+  }
+
+  private agentMessage(message: AgentMessage): AomiMessage {
+    return {
+      id: message.id,
+      sender: message.role,
+      content: message.content,
+      timestamp: message.createdAt,
+      is_streaming: message.streaming,
+    };
+  }
+
+  private applyAgentActivity(activity: Array<Record<string, unknown>>): void {
+    for (const event of activity) {
+      const type = typeof event.type === "string" ? event.type : undefined;
+      if (
+        type === "tool_update" ||
+        type === "tool_complete" ||
+        type === "task_started" ||
+        type === "task_activity" ||
+        type === "task_completed"
+      ) {
+        this.emit(type, event as never);
+      }
+    }
+  }
+
+  private syncAgentActions(actions: AgentAction[]): void {
+    const visible = new Set<string>();
+    for (const action of actions) {
+      this.agentActions.set(action.id, action);
+      if (action.status !== "pending") continue;
+      visible.add(action.id);
+      this.enqueueAgentAction(action);
+    }
+    for (const request of this.walletController.list()) {
+      const actionId = this.actionIdForRequest(request.id);
+      if (this.agentActions.has(actionId) && !visible.has(actionId)) {
+        this.walletController.dismiss(request.id);
+      }
+    }
+  }
+
+  private enqueueAgentAction(action: AgentAction): void {
+    if (
+      action.type === "external_transaction" &&
+      action.chainFamily === "evm"
+    ) {
+      const typed = action as EvmExternalTransactionAction;
+      this.walletController.enqueue("transaction", {
+        requestId: typed.id,
+        chainId: typed.chainId,
+        aaPreference: "none",
+        calls: typed.transactions.map((transaction, index) => ({
+          txId: index + 1,
+          to: transaction.to,
+          value: transaction.value,
+          data: transaction.data,
+          chainId: typed.chainId,
+          from: transaction.from,
+          gas: transaction.gas ?? undefined,
+          description: transaction.description,
+        })),
+        txIds: typed.transactions.map((_, index) => index + 1),
+      });
+      return;
+    }
+    if (action.type === "external_transaction") {
+      const typed = action as SvmExternalTransactionAction;
+      const transaction = typed.transactions[0];
+      if (transaction) {
+        this.walletController.enqueue("solana_sign_and_send", {
+          requestId: typed.id,
+          unsignedTx: transaction.unsignedTransactionBase64,
+          description: typed.description,
+          cluster: typed.cluster,
+        });
+      }
+      return;
+    }
+    const typed = action as SigningRequestAction;
+    this.walletController.enqueue("signing", {
+      requestId: typed.id,
+      chainFamily: typed.chainFamily,
+      executionKind:
+        typed.executionKind === "account_abstraction" ||
+        typed.executionKind === "hosted"
+          ? "erc4337"
+          : typed.executionKind,
+      signer: typed.signer,
+      chainId: typed.chainId ?? undefined,
+      cluster: typed.cluster ?? undefined,
+      description: typed.description,
+      payloads: typed.payloads.map((payload) => {
+        if (payload.kind === "evm_personal") {
+          return { kind: payload.kind, message: payload.message };
+        }
+        if (payload.kind === "evm_typed_data") {
+          return { kind: payload.kind, typedData: payload.typedData };
+        }
+        if (payload.kind === "svm_message") {
+          return { kind: payload.kind, messageBase64: payload.messageBase64 };
+        }
+        return {
+          kind: payload.kind,
+          transactionBase64: payload.transactionBase64,
+        };
+      }) as WalletSigningPayload["payloads"],
+      broadcaster: typed.broadcaster,
+      operationId: typed.operationId ?? undefined,
+      executor: typed.executor as `0x${string}` | undefined,
+      expiresAt: typed.expiresAt ?? undefined,
+      callsDigest: typed.callsDigest as `0x${string}` | undefined,
+      calls: typed.calls as never,
+      fees: typed.fees as never,
+      sponsorship: typed.sponsorship ?? undefined,
+    });
+  }
+
+  private async resolveAgentAction(
+    request: WalletRequest,
+    result: WalletRequestResult,
+  ): Promise<void> {
+    const action = this.agentActions.get(this.actionIdForRequest(request.id));
+    if (!action)
+      throw new Error(`No Agent action for wallet request "${request.id}"`);
+    let actionResult: AgentActionResult;
+    if (action.type === "signing_request" && result.kind === "signing") {
+      actionResult = {
+        status: "signed",
+        revision: action.revision,
+        outputs: action.payloads.map((payload, index) => ({
+          id: payload.id,
+          ...(payload.kind === "svm_transaction"
+            ? { signedTransactionBase64: result.signatures[index] }
+            : { signature: result.signatures[index] }),
+        })),
+      };
+    } else if (
+      action.type === "external_transaction" &&
+      action.chainFamily === "evm" &&
+      result.kind === "transaction"
+    ) {
+      const completed = new Set(
+        result.completedTxIds ??
+          action.transactions.map((_, index) => index + 1),
+      );
+      const failed = new Set(result.failedTxIds ?? []);
+      actionResult = {
+        status: "submitted",
+        revision: action.revision,
+        legs: action.transactions.map((transaction, index) => ({
+          id: transaction.id,
+          status: completed.has(index + 1)
+            ? "submitted"
+            : failed.has(index + 1)
+              ? "failed"
+              : "skipped",
+          ...(completed.has(index + 1) ? { transactionId: result.txHash } : {}),
+          ...(failed.has(index + 1)
+            ? { reason: result.failureReason ?? "Transaction failed" }
+            : {}),
+        })),
+      };
+    } else if (
+      action.type === "external_transaction" &&
+      action.chainFamily === "svm" &&
+      (result.kind === "solana_send" || result.kind === "solana_sign_and_send")
+    ) {
+      actionResult = {
+        status: "submitted",
+        revision: action.revision,
+        legs: action.transactions.map((transaction, index) => ({
+          id: transaction.id,
+          status: index === 0 ? "submitted" : "skipped",
+          ...(index === 0
+            ? {
+                transactionId: result.signature,
+                signedTransactionBase64: result.signedTx,
+              }
+            : {}),
+        })),
+      };
+    } else {
+      throw new Error(`Agent action/result kind mismatch for "${request.id}"`);
+    }
+    await this.client.agent.resolveAction(
+      this.sessionId,
+      action.id,
+      actionResult,
+    );
+  }
+
+  private async rejectAgentAction(
+    request: WalletRequest,
+    reason?: string,
+  ): Promise<void> {
+    const action = this.agentActions.get(this.actionIdForRequest(request.id));
+    if (!action)
+      throw new Error(`No Agent action for wallet request "${request.id}"`);
+    await this.client.agent.resolveAction(this.sessionId, action.id, {
+      status: "rejected",
+      revision: action.revision,
+      reason: reason ?? "Request rejected",
+    });
+  }
+
+  private actionIdForRequest(requestId: string): string {
+    return requestId.startsWith("txreq-") ? requestId.slice(6) : requestId;
   }
 
   private resumeAfterWalletResponse(): void {

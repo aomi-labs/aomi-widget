@@ -1,0 +1,1403 @@
+{
+  "components": {
+    "parameters": {
+      "ActionId": {
+        "in": "path",
+        "name": "actionId",
+        "required": true,
+        "schema": {
+          "pattern": "^act_[A-Za-z0-9_-]+$",
+          "type": "string"
+        }
+      },
+      "SessionId": {
+        "in": "path",
+        "name": "sessionId",
+        "required": true,
+        "schema": {
+          "maxLength": 160,
+          "type": "string"
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorEnvelope"
+            }
+          }
+        },
+        "description": "Stable public error"
+      }
+    },
+    "schemas": {
+      "ActionResult": {
+        "oneOf": [
+          {
+            "properties": {
+              "legs": {
+                "items": {
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "signedTransactionBase64": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "enum": [
+                        "submitted",
+                        "rejected",
+                        "failed",
+                        "skipped"
+                      ]
+                    },
+                    "transactionId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "revision": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "status": {
+                "const": "submitted"
+              }
+            },
+            "required": [
+              "status",
+              "revision",
+              "legs"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "outputs": {
+                "items": {
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "signature": {
+                      "type": "string"
+                    },
+                    "signedTransactionBase64": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "revision": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "status": {
+                "const": "signed"
+              }
+            },
+            "required": [
+              "status",
+              "revision",
+              "outputs"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "reason": {
+                "maxLength": 512,
+                "minLength": 1,
+                "type": "string"
+              },
+              "revision": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "status": {
+                "const": "rejected"
+              }
+            },
+            "required": [
+              "status",
+              "revision",
+              "reason"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "AgentAction": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/EvmExternalTransactionAction"
+          },
+          {
+            "$ref": "#/components/schemas/SvmExternalTransactionAction"
+          },
+          {
+            "$ref": "#/components/schemas/SigningRequestAction"
+          }
+        ]
+      },
+      "AgentActionBase": {
+        "properties": {
+          "contextGeneration": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "generation": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "id": {
+            "pattern": "^act_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "revision": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "signed",
+              "submitted",
+              "finalized",
+              "rejected",
+              "failed",
+              "expired",
+              "superseded"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "generation",
+          "contextGeneration",
+          "revision",
+          "status",
+          "createdAt",
+          "expiresAt",
+          "description"
+        ],
+        "type": "object"
+      },
+      "AgentActivity": {
+        "additionalProperties": true,
+        "properties": {
+          "type": {
+            "enum": [
+              "tool_complete",
+              "task_started",
+              "task_activity",
+              "task_completed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "AgentDelta": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/AgentAction"
+            },
+            "type": "array"
+          },
+          "activity": {
+            "items": {
+              "$ref": "#/components/schemas/AgentActivity"
+            },
+            "type": "array"
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/AgentMessage"
+            },
+            "type": "array"
+          },
+          "sessionId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "processing",
+              "awaiting_user",
+              "complete",
+              "interrupted",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "sessionId",
+          "status",
+          "cursor",
+          "messages",
+          "activity",
+          "actions",
+          "hasMore"
+        ],
+        "type": "object"
+      },
+      "AgentMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "agent",
+              "system"
+            ],
+            "type": "string"
+          },
+          "streaming": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "content",
+          "createdAt",
+          "streaming"
+        ],
+        "type": "object"
+      },
+      "AgentSession": {
+        "properties": {
+          "archived": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "updatedAt",
+          "archived"
+        ],
+        "type": "object"
+      },
+      "ErrorEnvelope": {
+        "properties": {
+          "error": {
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "details": {},
+              "message": {
+                "type": "string"
+              },
+              "requestId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "EvmExternalTransactionAction": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AgentActionBase"
+          },
+          {
+            "properties": {
+              "broadcaster": {
+                "const": "wallet"
+              },
+              "chainFamily": {
+                "const": "evm"
+              },
+              "chainId": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "executionKind": {
+                "const": "eoa"
+              },
+              "signer": {
+                "type": "string"
+              },
+              "transactions": {
+                "items": {
+                  "$ref": "#/components/schemas/EvmTransactionIntent"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "type": {
+                "const": "external_transaction"
+              }
+            },
+            "required": [
+              "type",
+              "chainFamily",
+              "executionKind",
+              "chainId",
+              "signer",
+              "broadcaster",
+              "transactions"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "EvmTransactionIntent": {
+        "additionalProperties": false,
+        "properties": {
+          "accessList": {
+            "items": {},
+            "type": "array"
+          },
+          "data": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "gas": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gasPrice": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "intentHash": {
+            "type": "string"
+          },
+          "maxFeePerGas": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "maxPriorityFeePerGas": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nonce": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "simulation": {
+            "additionalProperties": false,
+            "properties": {
+              "error": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "gasUsed": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "success": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "success",
+              "gasUsed",
+              "error"
+            ],
+            "type": "object"
+          },
+          "to": {
+            "type": "string"
+          },
+          "transactionType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "from",
+          "to",
+          "value",
+          "data",
+          "gas",
+          "maxFeePerGas",
+          "maxPriorityFeePerGas",
+          "gasPrice",
+          "nonce",
+          "transactionType",
+          "accessList",
+          "description",
+          "simulation",
+          "intentHash"
+        ],
+        "type": "object"
+      },
+      "EvmWallet": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "chainId": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "type": "object"
+      },
+      "SessionPage": {
+        "properties": {
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sessions": {
+            "items": {
+              "$ref": "#/components/schemas/AgentSession"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sessions"
+        ],
+        "type": "object"
+      },
+      "SignablePayload": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "digest": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "evm_personal"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "message",
+              "digest"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "digest": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "evm_typed_data"
+              },
+              "typedData": {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "typedData",
+              "digest"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "digest": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "svm_message"
+              },
+              "messageBase64": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "messageBase64",
+              "digest"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "digest": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "svm_transaction"
+              },
+              "transactionBase64": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind",
+              "transactionBase64",
+              "digest"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SigningCall": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "to",
+          "value"
+        ],
+        "type": "object"
+      },
+      "SigningFee": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "type": "string"
+          },
+          "asset": {
+            "additionalProperties": false,
+            "properties": {
+              "address": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "native",
+                  "token"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          },
+          "recipient": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "asset",
+          "amount",
+          "recipient"
+        ],
+        "type": "object"
+      },
+      "SigningRequestAction": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AgentActionBase"
+          },
+          {
+            "properties": {
+              "broadcaster": {
+                "enum": [
+                  "wallet",
+                  "venue",
+                  "backend"
+                ],
+                "type": "string"
+              },
+              "calls": {
+                "items": {
+                  "$ref": "#/components/schemas/SigningCall"
+                },
+                "type": "array"
+              },
+              "callsDigest": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "chainFamily": {
+                "enum": [
+                  "evm",
+                  "svm"
+                ],
+                "type": "string"
+              },
+              "chainId": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "cluster": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "executionKind": {
+                "enum": [
+                  "message",
+                  "transaction",
+                  "account_abstraction",
+                  "hosted"
+                ],
+                "type": "string"
+              },
+              "executor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "fees": {
+                "items": {
+                  "$ref": "#/components/schemas/SigningFee"
+                },
+                "type": "array"
+              },
+              "operationId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "payloads": {
+                "items": {
+                  "$ref": "#/components/schemas/SignablePayload"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "signer": {
+                "type": "string"
+              },
+              "sponsorship": {
+                "enum": [
+                  "required",
+                  null
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "const": "signing_request"
+              }
+            },
+            "required": [
+              "type",
+              "chainFamily",
+              "executionKind",
+              "signer",
+              "chainId",
+              "cluster",
+              "broadcaster",
+              "payloads",
+              "operationId",
+              "executor",
+              "callsDigest",
+              "calls",
+              "fees",
+              "sponsorship"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "StartTurnRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "app": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "applicationId": {
+            "minimum": 1,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "message": {
+            "maxLength": 32000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "wallets": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WalletContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "type": "object"
+      },
+      "SvmExternalTransactionAction": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AgentActionBase"
+          },
+          {
+            "properties": {
+              "broadcaster": {
+                "const": "wallet"
+              },
+              "chainFamily": {
+                "const": "svm"
+              },
+              "cluster": {
+                "type": "string"
+              },
+              "executionKind": {
+                "const": "wallet"
+              },
+              "signer": {
+                "type": "string"
+              },
+              "transactions": {
+                "items": {
+                  "$ref": "#/components/schemas/SvmTransactionIntent"
+                },
+                "minItems": 1,
+                "type": "array"
+              },
+              "type": {
+                "const": "external_transaction"
+              }
+            },
+            "required": [
+              "type",
+              "chainFamily",
+              "executionKind",
+              "cluster",
+              "signer",
+              "broadcaster",
+              "transactions"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "SvmTransactionIntent": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "intentHash": {
+            "type": "string"
+          },
+          "lastValidBlockHeight": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "preserveBlockhash": {
+            "type": "boolean"
+          },
+          "recentBlockhash": {
+            "type": "string"
+          },
+          "unsignedTransactionBase64": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "unsignedTransactionBase64",
+          "recentBlockhash",
+          "lastValidBlockHeight",
+          "preserveBlockhash",
+          "description",
+          "intentHash"
+        ],
+        "type": "object"
+      },
+      "SvmWallet": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "cluster": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "type": "object"
+      },
+      "UpdateSessionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "title": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "WalletContext": {
+        "additionalProperties": false,
+        "properties": {
+          "evm": {
+            "$ref": "#/components/schemas/EvmWallet"
+          },
+          "svm": {
+            "$ref": "#/components/schemas/SvmWallet"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Public Agent protocol owned by the Rust api-server. The Portal BFF supplies authentication and proxy policy.",
+    "title": "Aomi Agent API",
+    "version": "1.0.0-preview.1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Process is alive"
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "openapi",
+        "responses": {
+          "200": {
+            "description": "This document"
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "ready",
+        "responses": {
+          "200": {
+            "description": "Backend dependency is ready"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/agent/chat": {
+      "post": {
+        "operationId": "startAgentTurn",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Payment-Signature",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartTurnRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDelta"
+                }
+              }
+            },
+            "description": "Turn accepted"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/agent/chat/{sessionId}": {
+      "get": {
+        "operationId": "checkAgentTurn",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wait",
+            "schema": {
+              "maximum": 30000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDelta"
+                }
+              }
+            },
+            "description": "Agent delta"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/agent/chat/{sessionId}/actions/{actionId}/result": {
+      "post": {
+        "operationId": "submitAgentActionResult",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          },
+          {
+            "$ref": "#/components/parameters/ActionId"
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 255,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionResult"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "action": {
+                      "$ref": "#/components/schemas/AgentAction"
+                    }
+                  },
+                  "required": [
+                    "action"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Verified action result"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/agent/chat/{sessionId}/interrupt": {
+      "post": {
+        "operationId": "interruptAgentTurn",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentDelta"
+                }
+              }
+            },
+            "description": "Interrupted state"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/agent/mcp": {
+      "post": {
+        "description": "Stateless streamable-HTTP MCP JSON-RPC over the same AgentApiService as REST.",
+        "operationId": "agentMcp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "MCP JSON-RPC response",
+            "headers": {
+              "mcp-protocol-version": {
+                "schema": {
+                  "const": "2025-06-18"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "MCP notification accepted"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/agent/sessions": {
+      "get": {
+        "operationId": "listAgentSessions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionPage"
+                }
+              }
+            },
+            "description": "Bounded session page"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/agent/sessions/{sessionId}": {
+      "delete": {
+        "operationId": "deleteAgentSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getAgentSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSession"
+                }
+              }
+            },
+            "description": "Owned session"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateAgentSession",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/SessionId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSession"
+                }
+              }
+            },
+            "description": "Updated session"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "x-aomi-route-manifest": [
+    "DELETE /v1/agent/sessions/{sessionId}",
+    "GET /health",
+    "GET /openapi.json",
+    "GET /ready",
+    "GET /v1/agent/chat/{sessionId}",
+    "GET /v1/agent/sessions",
+    "GET /v1/agent/sessions/{sessionId}",
+    "PATCH /v1/agent/sessions/{sessionId}",
+    "POST /v1/agent/chat",
+    "POST /v1/agent/chat/{sessionId}/actions/{actionId}/result",
+    "POST /v1/agent/chat/{sessionId}/interrupt",
+    "POST /v1/agent/mcp"
+  ]
+}

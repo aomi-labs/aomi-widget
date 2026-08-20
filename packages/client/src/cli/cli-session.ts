@@ -622,6 +622,7 @@ export class CliSession {
         sessionId: this.state.sessionId,
         clientId: this.state.clientId,
         app: this.state.app,
+        model: config?.model ?? this.state.model,
         applicationId: config?.applicationId,
         apiKey: this.state.apiKey,
         paymentMethod: config?.paymentMethod,

@@ -150,10 +150,14 @@ export type SendResult = {
 };
 
 export type SessionOptions = {
+  /** Agent is the permanent transport; legacy is an explicit rollback adapter. */
+  transport?: "agent" | "legacy";
   /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
   sessionId?: string;
   /** App for chat messages. Default: "default" */
   app?: string;
+  /** Optional model selected for the next Agent turn. */
+  model?: string | null;
   /** Optional concrete application row to route chat/model calls to. */
   applicationId?: number | string | null;
   /** API key override. */
@@ -180,6 +184,7 @@ export type SessionOptions = {
 
 export type SessionRuntimeOptions = {
   app: string;
+  model?: string | null;
   applicationId?: number | string | null;
   apiKey?: string;
   clientId?: string;

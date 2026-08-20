@@ -3,6 +3,22 @@
 // =============================================================================
 
 export { AomiClient, secretNamesFrom } from "./client";
+export { AgentApiError, AgentTransport } from "./agent/transport";
+export type {
+  AgentAction,
+  AgentActionResult,
+  AgentActivity,
+  AgentDelta,
+  AgentMessage,
+  AgentSessionPage,
+  AgentSessionRecord,
+  AgentStartRequest,
+  AgentStatus,
+  AgentWalletContext,
+  EvmExternalTransactionAction,
+  SigningRequestAction,
+  SvmExternalTransactionAction,
+} from "./agent/types";
 export {
   authorizationChallenge,
   authorizationCommit,

@@ -35,6 +35,7 @@ import type {
 import { UserState, type OwnedUserState } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
 import { normalizeAppDescriptor } from "./app-descriptor";
+import { AgentTransport } from "./agent/transport";
 
 // =============================================================================
 // Internal helpers
@@ -53,7 +54,6 @@ function previewText(value: string, max = 80): string {
   if (singleLine.length <= max) return singleLine;
   return `${singleLine.slice(0, max - 1)}…`;
 }
-
 
 function joinApiPath(baseUrl: string, path: string): string {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
@@ -177,7 +177,6 @@ const CREATE_THREAD_RETRY_DELAYS_MS = [400, 1_000, 2_000];
 
 const delay = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
-
 function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
@@ -322,6 +321,7 @@ export function secretNamesFrom(response: AomiListSecretsResponse): string[] {
 }
 
 export class AomiClient {
+  readonly agent: AgentTransport;
   private readonly baseUrl: string;
   private readonly apiKey?: string;
   private readonly fetchImpl: typeof fetch;
@@ -349,6 +349,9 @@ export class AomiClient {
     );
     this.logger = options.logger;
     this.accountBearer = options.getAccountBearer;
+    this.agent = new AgentTransport((method, path, requestOptions) =>
+      this.requestResponse(method, path, requestOptions),
+    );
 
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
@@ -410,6 +413,29 @@ export class AomiClient {
     path: string,
     options?: AomiRequestOptions,
   ): Promise<T> {
+    const response = await this.requestResponse(method, path, options);
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}${body ? `\n${body}` : ""}`,
+      );
+    }
+    if (response.status === 204) return undefined as T;
+    const contentType = response.headers.get("content-type") ?? "";
+    return (
+      contentType.includes("application/json")
+        ? await response.json()
+        : await response.text()
+    ) as T;
+  }
+
+  /** Raw authenticated response transport shared by JSON, SSE, and MCP clients. */
+  async requestResponse(
+    method: AomiHttpMethod,
+    path: string,
+    options?: AomiRequestOptions,
+  ): Promise<Response> {
     const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options?.query));
     const headers = new Headers(options?.headers);
     if (options?.sessionId) {
@@ -433,22 +459,7 @@ export class AomiClient {
       },
     );
 
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(
-        `HTTP ${response.status}: ${response.statusText}${body ? `\n${body}` : ""}`,
-      );
-    }
-
-    if (response.status === 204) {
-      return undefined as T;
-    }
-
-    const contentType = response.headers.get("content-type") ?? "";
-    if (contentType.includes("application/json")) {
-      return (await response.json()) as T;
-    }
-    return (await response.text()) as T;
+    return response;
   }
 
   /**
@@ -812,36 +823,33 @@ export class AomiClient {
    * List all threads for the authenticated account.
    */
   async listThreads(sessionId: string): Promise<AomiThread[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/threads");
-    const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
-    }
-
-    const threads = (await response.json()) as ThreadWire[];
-    return threads.map(normalizeThreadWire);
+    void sessionId;
+    const sessions = [];
+    let cursor: string | undefined;
+    do {
+      const page = await this.agent.sessions.list({ cursor, limit: 100 });
+      sessions.push(...page.sessions);
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    return sessions.map((session) => ({
+      session_id: session.id,
+      title: session.title ?? null,
+      is_archived: session.archived,
+      last_active_at: session.updatedAt,
+    }));
   }
 
   /**
    * Get a single thread by ID.
    */
   async getThread(sessionId: string): Promise<AomiThread> {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}`,
-    );
-    const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId),
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return normalizeThreadWire((await response.json()) as ThreadWire);
+    const session = await this.agent.sessions.get(sessionId);
+    return {
+      session_id: session.id,
+      title: session.title ?? null,
+      is_archived: session.archived,
+      last_active_at: session.updatedAt,
+    };
   }
 
   /**
@@ -904,75 +912,28 @@ export class AomiClient {
    * Delete a thread by ID.
    */
   async deleteThread(sessionId: string): Promise<void> {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}`,
-    );
-    const response = await this.fetchImpl(url, {
-      method: "DELETE",
-      headers: withSessionHeader(sessionId),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to delete thread: HTTP ${response.status}`);
-    }
+    await this.agent.sessions.delete(sessionId);
   }
 
   /**
    * Rename a thread.
    */
   async renameThread(sessionId: string, newTitle: string): Promise<void> {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}`,
-    );
-    const response = await this.fetchImpl(url, {
-      method: "PATCH",
-      headers: withSessionHeader(sessionId, {
-        "Content-Type": "application/json",
-      }),
-      body: JSON.stringify({ title: newTitle }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to rename thread: HTTP ${response.status}`);
-    }
+    await this.agent.sessions.update(sessionId, { title: newTitle });
   }
 
   /**
    * Archive a thread.
    */
   async archiveThread(sessionId: string): Promise<void> {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}/archive`,
-    );
-    const response = await this.fetchImpl(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
-    }
+    await this.agent.sessions.update(sessionId, { archived: true });
   }
 
   /**
    * Unarchive a thread.
    */
   async unarchiveThread(sessionId: string): Promise<void> {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}/unarchive`,
-    );
-    const response = await this.fetchImpl(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
-    }
+    await this.agent.sessions.update(sessionId, { archived: false });
   }
 
   // ===========================================================================

@@ -762,53 +762,39 @@ describe("AomiClient transport selection", () => {
     });
   });
 
-  it("normalizes backend thread_id responses to session_id compatibility fields", async () => {
-    const fetch = vi
-      .fn<typeof globalThis.fetch>()
-      .mockResolvedValueOnce(
-        Response.json({
-          thread_id: "thread-1",
-          title: null,
-          last_active_at: "123",
-        }),
-      )
-      .mockResolvedValueOnce(
-        Response.json([
-          { thread_id: "thread-1", title: "One", last_active_at: 456 },
-        ]),
-      );
+  it("uses Agent sessions while preserving thread compatibility fields", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(
+      Response.json({
+        sessions: [
+          { id: "thread-1", title: "One", updatedAt: 456, archived: false },
+        ],
+        nextCursor: null,
+      }),
+    );
     const client = new AomiClient({
       baseUrl: "http://unit.test",
       fetch,
     });
 
-    await expect(client.createThread("thread-1")).resolves.toEqual({
-      session_id: "thread-1",
-      title: null,
-      last_active_at: 123,
-    });
+    await expect(client.createThread("thread-1")).resolves.toEqual(
+      expect.objectContaining({ session_id: "thread-1" }),
+    );
     await expect(client.listThreads("thread-1")).resolves.toEqual([
       {
         session_id: "thread-1",
         title: "One",
-        is_archived: undefined,
+        is_archived: false,
         last_active_at: 456,
       },
     ]);
 
     expect(String(fetch.mock.calls[0]?.[0])).toBe(
-      "http://unit.test/api/threads",
+      "http://unit.test/v1/agent/sessions?limit=100",
     );
-    expect(String(fetch.mock.calls[1]?.[0])).toBe(
-      "http://unit.test/api/threads",
-    );
-    const headers = new Headers(
-      (fetch.mock.calls[0]?.[1] as RequestInit | undefined)?.headers,
-    );
-    expect(headers.get("X-Thread-Id")).toBe("thread-1");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("archives and unarchives through the current thread endpoints", async () => {
+  it("archives and unarchives through the Agent sessions endpoint", async () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       Response.json({ success: true }),
     );
@@ -818,15 +804,20 @@ describe("AomiClient transport selection", () => {
     await client.unarchiveThread("thread/1");
 
     expect(String(fetch.mock.calls[0]?.[0])).toBe(
-      "http://unit.test/api/threads/thread%2F1/archive",
+      "http://unit.test/v1/agent/sessions/thread%2F1",
     );
     expect(String(fetch.mock.calls[1]?.[0])).toBe(
-      "http://unit.test/api/threads/thread%2F1/unarchive",
+      "http://unit.test/v1/agent/sessions/thread%2F1",
     );
-    for (const call of fetch.mock.calls) {
+    for (const [index, call] of fetch.mock.calls.entries()) {
       const init = call[1] as RequestInit;
-      expect(init.method).toBe("POST");
-      expect(new Headers(init.headers).get("X-Thread-Id")).toBe("thread/1");
+      expect(init.method).toBe("PATCH");
+      expect(JSON.parse(String(init.body))).toEqual({
+        archived: index === 0,
+      });
+      expect(new Headers(init.headers).get("Idempotency-Key")).toMatch(
+        /^idem_/,
+      );
     }
   });
 

@@ -55,6 +55,14 @@ type WalletControllerDeps = {
   ) => Promise<void>;
   onChange: (requests: WalletRequest[]) => void;
   syncPendingTxRequestsFromUserState: boolean;
+  resolveAgentAction?: (
+    request: WalletRequest,
+    result: WalletRequestResult,
+  ) => Promise<void>;
+  rejectAgentAction?: (
+    request: WalletRequest,
+    reason?: string,
+  ) => Promise<void>;
 };
 
 export class SessionWalletController {
@@ -158,6 +166,11 @@ export class SessionWalletController {
     this.resolvingRequestIds.add(requestId);
 
     try {
+      if (this.deps.resolveAgentAction) {
+        await this.deps.resolveAgentAction(req, result);
+        this.finishRequest(req);
+        return;
+      }
       const send = (type: string, payload: unknown) =>
         this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction" && result.kind === "transaction") {
@@ -208,6 +221,11 @@ export class SessionWalletController {
     this.resolvingRequestIds.add(requestId);
 
     try {
+      if (this.deps.rejectAgentAction) {
+        await this.deps.rejectAgentAction(req, reason);
+        this.finishRequest(req);
+        return;
+      }
       const send = (type: string, payload: unknown) =>
         this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction") {
@@ -468,8 +486,9 @@ export class SessionWalletController {
     } else if (kind === "signing") {
       id = (payload as WalletSigningPayload).requestId;
     } else {
-      const { pendingSolanaId } = payload as WalletSolanaSignPayload;
-      if (typeof pendingSolanaId === "number")
+      const { requestId, pendingSolanaId } = payload as WalletSolanaSignPayload;
+      if (requestId) id = requestId;
+      if (!id && typeof pendingSolanaId === "number")
         id = `${kind}-${pendingSolanaId}`;
     }
     id ??= `wreq-${this.nextId++}`;

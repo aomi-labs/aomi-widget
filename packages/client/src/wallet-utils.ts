@@ -70,6 +70,8 @@ export type WalletEip712Payload = {
  * decode it; the wallet adapter handles deserialization.
  */
 export type WalletSolanaSignPayload = {
+  /** Stable public Agent action id when projected from the canonical API. */
+  requestId?: string;
   /** Base64 of the unsigned Solana transaction. */
   unsignedTx?: string;
   /** Human-readable summary shown alongside the wallet's decoded preview. */
@@ -83,6 +85,8 @@ export type WalletSolanaSignPayload = {
 };
 
 export type WalletSolanaSignMessagePayload = {
+  /** Stable public Agent action id when projected from the canonical API. */
+  requestId?: string;
   /** Base64 of the raw message bytes to sign. */
   message?: string;
   /** Human-readable summary shown alongside the wallet's decoded preview. */

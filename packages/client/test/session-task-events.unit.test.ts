@@ -25,7 +25,7 @@ function createSSESession(sessionId: string) {
     return () => {};
   });
 
-  const session = new Session(client, { sessionId });
+  const session = new Session(client, { transport: "legacy", sessionId });
   session.setSSEActive(true);
 
   return {
