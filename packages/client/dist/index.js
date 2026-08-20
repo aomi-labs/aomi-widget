@@ -886,7 +886,18 @@ function secretNamesFrom(response) {
 }
 var AomiClient = class {
   constructor(options) {
-    var _a;
+    /**
+     * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
+     *
+     * Historically evaluated ONCE in the constructor, which silently dropped
+     * reconnect for any provider whose `subscribe` appears after construction —
+     * a host bridge that late-binds the kit's provider, or a provider that is
+     * undefined until credentials are ready. Re-attempted lazily on every SSE
+     * subscription so a late-arriving `subscribe` is picked up on the next
+     * stream instead of never.
+     */
+    this.tokenRefreshWired = false;
+    var _a, _b;
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
     const fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
@@ -900,6 +911,7 @@ var AomiClient = class {
       options.getAccountBearer
     );
     this.logger = options.logger;
+    this.accountBearer = options.getAccountBearer;
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
       getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
@@ -908,11 +920,21 @@ var AomiClient = class {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger
     });
-    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      options.getAccountBearer.subscribe(() => {
-        this.sseSubscriber.reconnect("account-token-refreshed");
-      });
+    this.wireTokenRefreshReconnect();
+    if (((_b = options.getAccountBearer) == null ? void 0 : _b.required) === true && !supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      console.warn(
+        "[aomi-client] getAccountBearer.required is set but subscribe() is missing: SSE will not reconnect after token refresh. Pass the WidgetSessionProvider through unwrapped, or preserve its subscribe/dispose/revoke methods."
+      );
     }
+  }
+  wireTokenRefreshReconnect() {
+    if (this.tokenRefreshWired) return;
+    const bearer = this.accountBearer;
+    if (!supportsTokenRefreshSubscription(bearer)) return;
+    this.tokenRefreshWired = true;
+    bearer.subscribe(() => {
+      this.sseSubscriber.reconnect("account-token-refreshed");
+    });
   }
   // ===========================================================================
   // Chat & State
@@ -1210,6 +1232,7 @@ ${body}` : ""}`
    * Returns an unsubscribe function.
    */
   subscribeSSE(sessionId, onUpdate, onError, options) {
+    this.wireTokenRefreshReconnect();
     return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
   }
   // ===========================================================================
@@ -2006,6 +2029,7 @@ function createSignedChallengeAdapter(config) {
         joinUrl(baseUrl, config.noncePath),
         { wallet_address: signer.address, chain_id: signer.chainId }
       );
+      assertChallengeBinding(challenge, baseUrl);
       const message = config.buildMessage({ signer, challenge });
       const signature = await signer.signMessage(message);
       return exchangeJson(fetchImpl, joinUrl(baseUrl, config.verifyPath), {
@@ -2166,6 +2190,40 @@ function createWidgetSessionProvider(input) {
     }
   });
   return provider;
+}
+var WidgetChallengeBindingError = class extends Error {
+  constructor(message) {
+    super(`Widget challenge rejected before signing: ${message}`);
+    this.name = "WidgetChallengeBindingError";
+  }
+};
+function assertChallengeBinding(challenge, baseUrl) {
+  var _a, _b;
+  if (!((_a = challenge.nonce) == null ? void 0 : _a.trim())) {
+    throw new WidgetChallengeBindingError("challenge has no nonce");
+  }
+  const expires = Date.parse(challenge.expirationTime);
+  if (Number.isNaN(expires)) {
+    throw new WidgetChallengeBindingError(
+      "challenge has no parseable expirationTime"
+    );
+  }
+  if (expires <= Date.now()) {
+    throw new WidgetChallengeBindingError("challenge is already expired");
+  }
+  const pageOrigin = typeof window !== "undefined" && ((_b = window.location) == null ? void 0 : _b.origin) ? window.location.origin : null;
+  if (!pageOrigin) return;
+  if (challenge.uri !== pageOrigin) {
+    throw new WidgetChallengeBindingError(
+      `challenge uri "${challenge.uri}" is not this page's origin "${pageOrigin}"`
+    );
+  }
+  const pageHost = new URL(pageOrigin).host;
+  if (challenge.domain !== pageHost) {
+    throw new WidgetChallengeBindingError(
+      `challenge domain "${challenge.domain}" is not this page's host "${pageHost}"`
+    );
+  }
 }
 async function challengeJson(fetchImpl, url, body) {
   const response = await fetchImpl(url, requestInit(body));
@@ -4529,6 +4587,7 @@ export {
   ClientSession as Session,
   TypedEventEmitter,
   UserState,
+  WidgetChallengeBindingError,
   aaModeFromExecutionKind,
   appIdentityKey,
   appendFeeCallToPayload,

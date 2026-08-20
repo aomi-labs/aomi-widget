@@ -1509,7 +1509,18 @@ var init_client = __esm({
     APP_KEY_HEADER = "Aomi-App-Key";
     AomiClient = class {
       constructor(options) {
-        var _a3;
+        /**
+         * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
+         *
+         * Historically evaluated ONCE in the constructor, which silently dropped
+         * reconnect for any provider whose `subscribe` appears after construction —
+         * a host bridge that late-binds the kit's provider, or a provider that is
+         * undefined until credentials are ready. Re-attempted lazily on every SSE
+         * subscription so a late-arriving `subscribe` is picked up on the next
+         * stream instead of never.
+         */
+        this.tokenRefreshWired = false;
+        var _a3, _b;
         this.baseUrl = options.baseUrl.replace(/\/+$/, "");
         this.apiKey = options.apiKey;
         const fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
@@ -1523,6 +1534,7 @@ var init_client = __esm({
           options.getAccountBearer
         );
         this.logger = options.logger;
+        this.accountBearer = options.getAccountBearer;
         this.sseSubscriber = createSseSubscriber({
           backendUrl: this.baseUrl,
           getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
@@ -1531,11 +1543,21 @@ var init_client = __esm({
           fetchImpl: this.rawFetchImpl,
           logger: this.logger
         });
-        if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-          options.getAccountBearer.subscribe(() => {
-            this.sseSubscriber.reconnect("account-token-refreshed");
-          });
+        this.wireTokenRefreshReconnect();
+        if (((_b = options.getAccountBearer) == null ? void 0 : _b.required) === true && !supportsTokenRefreshSubscription(options.getAccountBearer)) {
+          console.warn(
+            "[aomi-client] getAccountBearer.required is set but subscribe() is missing: SSE will not reconnect after token refresh. Pass the WidgetSessionProvider through unwrapped, or preserve its subscribe/dispose/revoke methods."
+          );
         }
+      }
+      wireTokenRefreshReconnect() {
+        if (this.tokenRefreshWired) return;
+        const bearer = this.accountBearer;
+        if (!supportsTokenRefreshSubscription(bearer)) return;
+        this.tokenRefreshWired = true;
+        bearer.subscribe(() => {
+          this.sseSubscriber.reconnect("account-token-refreshed");
+        });
       }
       // ===========================================================================
       // Chat & State
@@ -1833,6 +1855,7 @@ ${body}` : ""}`
        * Returns an unsubscribe function.
        */
       subscribeSSE(sessionId, onUpdate, onError, options) {
+        this.wireTokenRefreshReconnect();
         return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
       }
       // ===========================================================================

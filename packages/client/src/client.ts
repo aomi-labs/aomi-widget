@@ -311,6 +311,7 @@ export class AomiClient {
   private readonly fetchImpl: typeof fetch;
   private readonly rawFetchImpl: typeof fetch;
   private readonly logger?: Logger;
+  private readonly accountBearer?: GetAccountBearer;
   private readonly sseSubscriber: SseSubscriber;
 
   constructor(options: AomiClientOptions) {
@@ -331,6 +332,7 @@ export class AomiClient {
       options.getAccountBearer,
     );
     this.logger = options.logger;
+    this.accountBearer = options.getAccountBearer;
 
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
@@ -341,11 +343,42 @@ export class AomiClient {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger,
     });
-    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      options.getAccountBearer.subscribe(() => {
-        this.sseSubscriber.reconnect("account-token-refreshed");
-      });
+    this.wireTokenRefreshReconnect();
+    if (
+      options.getAccountBearer?.required === true &&
+      !supportsTokenRefreshSubscription(options.getAccountBearer)
+    ) {
+      // A required bearer without subscribe() means live streams keep running
+      // on a superseded token after every refresh and die silently upstream.
+      // The most common cause is a host wrapping the provider and losing its
+      // methods (Object.assign(fn, { required }) keeps only what was copied).
+      console.warn(
+        "[aomi-client] getAccountBearer.required is set but subscribe() is missing: " +
+          "SSE will not reconnect after token refresh. Pass the WidgetSessionProvider " +
+          "through unwrapped, or preserve its subscribe/dispose/revoke methods.",
+      );
     }
+  }
+
+  /**
+   * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
+   *
+   * Historically evaluated ONCE in the constructor, which silently dropped
+   * reconnect for any provider whose `subscribe` appears after construction —
+   * a host bridge that late-binds the kit's provider, or a provider that is
+   * undefined until credentials are ready. Re-attempted lazily on every SSE
+   * subscription so a late-arriving `subscribe` is picked up on the next
+   * stream instead of never.
+   */
+  private tokenRefreshWired = false;
+  private wireTokenRefreshReconnect(): void {
+    if (this.tokenRefreshWired) return;
+    const bearer = this.accountBearer;
+    if (!supportsTokenRefreshSubscription(bearer)) return;
+    this.tokenRefreshWired = true;
+    bearer.subscribe(() => {
+      this.sseSubscriber.reconnect("account-token-refreshed");
+    });
   }
 
   // ===========================================================================
@@ -742,6 +775,9 @@ export class AomiClient {
     onError?: (error: unknown) => void,
     options?: { applicationId?: number | string | null },
   ): () => void {
+    // A provider whose subscribe() appeared after construction (late-bound
+    // host bridges) gets wired here, before the stream it must protect.
+    this.wireTokenRefreshReconnect();
     return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
   }
 
