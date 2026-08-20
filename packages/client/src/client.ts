@@ -225,13 +225,8 @@ export function wrapFetchWithAccountBearer(
 
 function supportsTokenRefreshSubscription(
   provider: GetAccountBearer | undefined,
-): provider is GetAccountBearer & {
-  subscribe: (listener: () => void) => () => void;
-} {
-  return (
-    typeof (provider as { subscribe?: unknown } | undefined)?.subscribe ===
-    "function"
-  );
+): provider is GetAccountBearer & Required<Pick<GetAccountBearer, "subscribe">> {
+  return typeof provider?.subscribe === "function";
 }
 
 async function postState<T>(
@@ -324,6 +319,7 @@ export class AomiClient {
   private readonly fetchImpl: typeof fetch;
   private readonly rawFetchImpl: typeof fetch;
   private readonly logger?: Logger;
+  private readonly accountBearer?: GetAccountBearer;
   private readonly sseSubscriber: SseSubscriber;
 
   constructor(options: AomiClientOptions) {
@@ -344,6 +340,7 @@ export class AomiClient {
       options.getAccountBearer,
     );
     this.logger = options.logger;
+    this.accountBearer = options.getAccountBearer;
 
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
@@ -354,11 +351,42 @@ export class AomiClient {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger,
     });
-    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      options.getAccountBearer.subscribe(() => {
-        this.sseSubscriber.reconnect("account-token-refreshed");
-      });
+    this.wireTokenRefreshReconnect();
+    if (
+      options.getAccountBearer?.required === true &&
+      !supportsTokenRefreshSubscription(options.getAccountBearer)
+    ) {
+      // A required bearer without subscribe() means live streams keep running
+      // on a superseded token after every refresh and die silently upstream.
+      // The most common cause is a host wrapping the provider and losing its
+      // methods (Object.assign(fn, { required }) keeps only what was copied).
+      console.warn(
+        "[aomi-client] getAccountBearer.required is set but subscribe() is missing: " +
+          "SSE will not reconnect after token refresh. Pass the WidgetSessionProvider " +
+          "through unwrapped, or preserve its subscribe/dispose/revoke methods.",
+      );
     }
+  }
+
+  /**
+   * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
+   *
+   * Historically evaluated ONCE in the constructor, which silently dropped
+   * reconnect for a stable bearer whose `subscribe` appears after construction.
+   * Re-attempted lazily on every SSE subscription so that shape is picked up on
+   * the next stream instead of never. Replacing the bearer function itself still
+   * requires a stable host/widget bridge; AomiClient intentionally retains the
+   * source supplied at construction.
+   */
+  private tokenRefreshWired = false;
+  private wireTokenRefreshReconnect(): void {
+    if (this.tokenRefreshWired) return;
+    const bearer = this.accountBearer;
+    if (!supportsTokenRefreshSubscription(bearer)) return;
+    this.tokenRefreshWired = true;
+    bearer.subscribe(() => {
+      this.sseSubscriber.reconnect("account-token-refreshed");
+    });
   }
 
   // ===========================================================================
@@ -755,6 +783,9 @@ export class AomiClient {
     onError?: (error: unknown) => void,
     options?: { applicationId?: number | string | null },
   ): () => void {
+    // A provider whose subscribe() appeared after construction (late-bound
+    // host bridges) gets wired here, before the stream it must protect.
+    this.wireTokenRefreshReconnect();
     return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
   }
 

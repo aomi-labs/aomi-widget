@@ -122,6 +122,63 @@ describe("createWidgetSessionProvider", () => {
     );
   });
 
+  it("allows only one forced renewal per fresh token generation", async () => {
+    const now = 1_900_000_000_000;
+    const adapter: WidgetAuthAdapter = {
+      getFingerprint: () => "wallet-1",
+      exchange: vi
+        .fn()
+        .mockResolvedValueOnce({
+          accessToken: "initial",
+          expiresAt: now / 1000 + 1_800,
+        })
+        .mockResolvedValueOnce({
+          accessToken: "forced-once",
+          expiresAt: now / 1000 + 1_800,
+        }),
+    };
+    const provider = createWidgetSessionProvider({
+      baseUrl: "https://portal.example",
+      adapter,
+      now: () => now,
+    });
+
+    await expect(provider()).resolves.toBe("initial");
+    await expect(provider({ forceRefresh: true })).resolves.toBe("forced-once");
+    await expect(provider({ forceRefresh: true })).resolves.toBe("forced-once");
+    await expect(provider({ forceRefresh: true })).resolves.toBe("forced-once");
+
+    expect(adapter.exchange).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not repeat a failed forced renewal while the cached token is fresh", async () => {
+    const now = 1_900_000_000_000;
+    const adapter: WidgetAuthAdapter = {
+      getFingerprint: () => "wallet-1",
+      exchange: vi
+        .fn()
+        .mockResolvedValueOnce({
+          accessToken: "initial",
+          expiresAt: now / 1000 + 1_800,
+        })
+        .mockRejectedValueOnce(new Error("wallet rejected")),
+    };
+    const provider = createWidgetSessionProvider({
+      baseUrl: "https://portal.example",
+      adapter,
+      now: () => now,
+    });
+
+    await expect(provider()).resolves.toBe("initial");
+    await expect(provider({ forceRefresh: true })).rejects.toThrow(
+      "wallet rejected",
+    );
+    await expect(provider({ forceRefresh: true })).resolves.toBe("initial");
+    await expect(provider()).resolves.toBe("initial");
+
+    expect(adapter.exchange).toHaveBeenCalledTimes(2);
+  });
+
   it("clears failed exchanges so a retry can succeed without an unhandled branch", async () => {
     const adapter: WidgetAuthAdapter = {
       getFingerprint: () => "subject-1",

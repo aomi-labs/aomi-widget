@@ -88,6 +88,7 @@ export type {
 export {
   createProviderCredentialAdapter,
   createSiweWidgetAuthAdapter,
+  WidgetChallengeBindingError,
   createSiwsWidgetAuthAdapter,
   createWidgetSessionProvider,
   type ProviderCredential,

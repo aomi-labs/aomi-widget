@@ -889,7 +889,18 @@ function secretNamesFrom(response) {
 }
 var AomiClient = class {
   constructor(options) {
-    var _a;
+    /**
+     * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
+     *
+     * Historically evaluated ONCE in the constructor, which silently dropped
+     * reconnect for a stable bearer whose `subscribe` appears after construction.
+     * Re-attempted lazily on every SSE subscription so that shape is picked up on
+     * the next stream instead of never. Replacing the bearer function itself still
+     * requires a stable host/widget bridge; AomiClient intentionally retains the
+     * source supplied at construction.
+     */
+    this.tokenRefreshWired = false;
+    var _a, _b;
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
     const fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
@@ -903,6 +914,7 @@ var AomiClient = class {
       options.getAccountBearer
     );
     this.logger = options.logger;
+    this.accountBearer = options.getAccountBearer;
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
       getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
@@ -911,11 +923,21 @@ var AomiClient = class {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger
     });
-    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      options.getAccountBearer.subscribe(() => {
-        this.sseSubscriber.reconnect("account-token-refreshed");
-      });
+    this.wireTokenRefreshReconnect();
+    if (((_b = options.getAccountBearer) == null ? void 0 : _b.required) === true && !supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      console.warn(
+        "[aomi-client] getAccountBearer.required is set but subscribe() is missing: SSE will not reconnect after token refresh. Pass the WidgetSessionProvider through unwrapped, or preserve its subscribe/dispose/revoke methods."
+      );
     }
+  }
+  wireTokenRefreshReconnect() {
+    if (this.tokenRefreshWired) return;
+    const bearer = this.accountBearer;
+    if (!supportsTokenRefreshSubscription(bearer)) return;
+    this.tokenRefreshWired = true;
+    bearer.subscribe(() => {
+      this.sseSubscriber.reconnect("account-token-refreshed");
+    });
   }
   // ===========================================================================
   // Chat & State
@@ -1213,6 +1235,7 @@ ${body}` : ""}`
    * Returns an unsubscribe function.
    */
   subscribeSSE(sessionId, onUpdate, onError, options) {
+    this.wireTokenRefreshReconnect();
     return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
   }
   // ===========================================================================
@@ -1966,6 +1989,8 @@ function wrapFetchWithPaymentChallenges(fetchImpl, client) {
 import { getAddress } from "viem";
 import { createSiweMessage } from "viem/siwe";
 var EXPIRES_AT_MILLISECONDS_THRESHOLD2 = 1e11;
+var MAX_WIDGET_CHALLENGE_LIFETIME_MS = 10 * 60 * 1e3;
+var MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS = 60 * 1e3;
 function createProviderCredentialAdapter(input) {
   let inferredFingerprint = null;
   let stagedCredential = null;
@@ -2016,6 +2041,7 @@ function createSignedChallengeAdapter(config) {
         joinUrl(baseUrl, config.noncePath),
         { wallet_address: signer.address, chain_id: signer.chainId }
       );
+      assertChallengeBinding(challenge);
       const message = config.buildMessage({ signer, challenge });
       const signature = await signer.signMessage(message);
       return exchangeJson(fetchImpl, joinUrl(baseUrl, config.verifyPath), {
@@ -2081,6 +2107,7 @@ function createWidgetSessionProvider(input) {
   let latestFingerprint = null;
   let nextFingerprintRequestId = 0;
   let latestResolvedFingerprint = null;
+  let lastForcedAccessToken = null;
   const listeners = /* @__PURE__ */ new Set();
   const notify = () => {
     for (const listener of listeners) listener();
@@ -2113,12 +2140,23 @@ function createWidgetSessionProvider(input) {
       };
     }
     latestFingerprint = fingerprint;
+    if ((pending == null ? void 0 : pending.fingerprint) === fingerprint) {
+      return (await pending.promise).accessToken;
+    }
     const refreshAt = cached ? cached.expiresAt * 1e3 - refreshBeforeExpiryMs : 0;
+    if (forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && cached.accessToken === lastForcedAccessToken && now() < refreshAt) {
+      return cached.accessToken;
+    }
     if (!forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && now() < refreshAt) {
       return cached.accessToken;
     }
-    if (cached) {
-      const stale = cached;
+    const stale = cached;
+    const retainStaleDuringForcedExchange = Boolean(
+      forceRefresh && (stale == null ? void 0 : stale.fingerprint) === fingerprint && now() < refreshAt
+    );
+    if (retainStaleDuringForcedExchange && stale) {
+      lastForcedAccessToken = stale.accessToken;
+    } else if (stale) {
       cached = null;
       void revokeSession(stale);
     }
@@ -2127,6 +2165,7 @@ function createWidgetSessionProvider(input) {
         if ((pending == null ? void 0 : pending.promise) === promise) pending = null;
       };
       var clearPending = clearPending2;
+      const forcedExchange = forceRefresh;
       const promise = adapter.exchange({ baseUrl: input.baseUrl, fetch: fetchImpl }).then(async (session) => {
         const isCurrent = !disposed && epoch === startEpoch && fingerprint === latestFingerprint;
         if (!isCurrent) {
@@ -2134,6 +2173,10 @@ function createWidgetSessionProvider(input) {
           throw new Error("Widget session exchange was superseded");
         }
         cached = __spreadProps(__spreadValues({}, session), { fingerprint });
+        lastForcedAccessToken = forcedExchange ? session.accessToken : null;
+        if (retainStaleDuringForcedExchange && stale) {
+          void revokeSession(stale);
+        }
         notify();
         return session;
       });
@@ -2148,6 +2191,7 @@ function createWidgetSessionProvider(input) {
     cached = null;
     pending = null;
     latestResolvedFingerprint = null;
+    lastForcedAccessToken = null;
     notify();
     if (session) await revokeSession(session);
   };
@@ -2165,6 +2209,7 @@ function createWidgetSessionProvider(input) {
       cached = null;
       pending = null;
       latestResolvedFingerprint = null;
+      lastForcedAccessToken = null;
       notify();
       listeners.clear();
     },
@@ -2176,6 +2221,55 @@ function createWidgetSessionProvider(input) {
     }
   });
   return provider;
+}
+var WidgetChallengeBindingError = class extends Error {
+  constructor(message) {
+    super(`Widget challenge rejected before signing: ${message}`);
+    this.name = "WidgetChallengeBindingError";
+  }
+};
+function assertChallengeBinding(challenge) {
+  var _a, _b;
+  if (!((_a = challenge.nonce) == null ? void 0 : _a.trim())) {
+    throw new WidgetChallengeBindingError("challenge has no nonce");
+  }
+  const now = Date.now();
+  const issued = Date.parse(challenge.issuedAt);
+  if (Number.isNaN(issued)) {
+    throw new WidgetChallengeBindingError(
+      "challenge has no parseable issuedAt"
+    );
+  }
+  if (issued > now + MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS) {
+    throw new WidgetChallengeBindingError("challenge was issued in the future");
+  }
+  const expires = Date.parse(challenge.expirationTime);
+  if (Number.isNaN(expires)) {
+    throw new WidgetChallengeBindingError(
+      "challenge has no parseable expirationTime"
+    );
+  }
+  if (expires <= now) {
+    throw new WidgetChallengeBindingError("challenge is already expired");
+  }
+  if (expires <= issued || expires - issued > MAX_WIDGET_CHALLENGE_LIFETIME_MS) {
+    throw new WidgetChallengeBindingError(
+      "challenge validity window is not bounded"
+    );
+  }
+  const pageOrigin = typeof window !== "undefined" && ((_b = window.location) == null ? void 0 : _b.origin) ? window.location.origin : null;
+  if (!pageOrigin) return;
+  if (challenge.uri !== pageOrigin) {
+    throw new WidgetChallengeBindingError(
+      `challenge uri "${challenge.uri}" is not this page's origin "${pageOrigin}"`
+    );
+  }
+  const pageHost = new URL(pageOrigin).host;
+  if (challenge.domain !== pageHost) {
+    throw new WidgetChallengeBindingError(
+      `challenge domain "${challenge.domain}" is not this page's host "${pageHost}"`
+    );
+  }
 }
 async function challengeJson(fetchImpl, url, body) {
   const response = await fetchImpl(url, requestInit(body));
@@ -4539,6 +4633,7 @@ export {
   ClientSession as Session,
   TypedEventEmitter,
   UserState,
+  WidgetChallengeBindingError,
   aaModeFromExecutionKind,
   appIdentityKey,
   appendFeeCallToPayload,

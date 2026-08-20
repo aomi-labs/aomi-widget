@@ -1512,7 +1512,18 @@ var init_client = __esm({
     delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     AomiClient = class {
       constructor(options) {
-        var _a3;
+        /**
+         * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
+         *
+         * Historically evaluated ONCE in the constructor, which silently dropped
+         * reconnect for a stable bearer whose `subscribe` appears after construction.
+         * Re-attempted lazily on every SSE subscription so that shape is picked up on
+         * the next stream instead of never. Replacing the bearer function itself still
+         * requires a stable host/widget bridge; AomiClient intentionally retains the
+         * source supplied at construction.
+         */
+        this.tokenRefreshWired = false;
+        var _a3, _b;
         this.baseUrl = options.baseUrl.replace(/\/+$/, "");
         this.apiKey = options.apiKey;
         const fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
@@ -1526,6 +1537,7 @@ var init_client = __esm({
           options.getAccountBearer
         );
         this.logger = options.logger;
+        this.accountBearer = options.getAccountBearer;
         this.sseSubscriber = createSseSubscriber({
           backendUrl: this.baseUrl,
           getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
@@ -1534,11 +1546,21 @@ var init_client = __esm({
           fetchImpl: this.rawFetchImpl,
           logger: this.logger
         });
-        if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-          options.getAccountBearer.subscribe(() => {
-            this.sseSubscriber.reconnect("account-token-refreshed");
-          });
+        this.wireTokenRefreshReconnect();
+        if (((_b = options.getAccountBearer) == null ? void 0 : _b.required) === true && !supportsTokenRefreshSubscription(options.getAccountBearer)) {
+          console.warn(
+            "[aomi-client] getAccountBearer.required is set but subscribe() is missing: SSE will not reconnect after token refresh. Pass the WidgetSessionProvider through unwrapped, or preserve its subscribe/dispose/revoke methods."
+          );
         }
+      }
+      wireTokenRefreshReconnect() {
+        if (this.tokenRefreshWired) return;
+        const bearer = this.accountBearer;
+        if (!supportsTokenRefreshSubscription(bearer)) return;
+        this.tokenRefreshWired = true;
+        bearer.subscribe(() => {
+          this.sseSubscriber.reconnect("account-token-refreshed");
+        });
       }
       // ===========================================================================
       // Chat & State
@@ -1836,6 +1858,7 @@ ${body}` : ""}`
        * Returns an unsubscribe function.
        */
       subscribeSSE(sessionId, onUpdate, onError, options) {
+        this.wireTokenRefreshReconnect();
         return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
       }
       // ===========================================================================
@@ -11327,7 +11350,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.5.1",
+  version: "0.5.2",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
