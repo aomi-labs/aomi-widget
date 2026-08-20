@@ -30,6 +30,7 @@ import {
   waitForAppsToLoad,
   waitForDeploymentReady,
 } from "@aomi-labs/deploy/launch";
+import { deploymentLifecycleFromProject } from "@aomi-labs/deploy/lifecycle";
 import {
   MissingRequiredSecretsError,
   missingRequiredSecrets,
@@ -598,6 +599,165 @@ export function useProjectDetail(projectId: number) {
     [projectId],
   );
 
+  /**
+   * Activate a release CI has already published — the last leg of a deploy,
+   * and the whole of a resume.
+   *
+   * Secret values live in the Manager's vault and are read per turn; a release
+   * only declares the slot *names* it needs. So a release the gate rejected for
+   * a missing secret becomes activatable the moment that value is saved, with
+   * the same artifact and no second build. Resolves `true` once the release is
+   * live, `false` when it set an error state the caller should stop on.
+   */
+  const runActivation = useCallback(
+    async (input: {
+      targetProjectId: number;
+      releaseTags: string[];
+      apps: string[];
+      controller: AbortController;
+      isCurrent: () => boolean;
+    }): Promise<boolean> => {
+      const { targetProjectId, releaseTags, apps, controller, isCurrent } =
+        input;
+      setDeployFlow({ phase: "activating", message: "Activating release…" });
+      const activated = await launchActivate({
+        projectId: targetProjectId,
+        releaseTags,
+        apps,
+      });
+      if (!isCurrent()) return false;
+      // A rejected/partial activation still returns apps (with `error` set), and
+      // a malformed response may omit `activation` entirely — surface the real
+      // reason instead of throwing into the generic "Deploy failed" catch.
+      const activatedApps = activated.activation?.apps ?? [];
+      const failed = activatedApps.find((app) => app.error);
+      if (!activated.ok || failed) {
+        setDeployFlow({
+          phase: "error",
+          message: failed?.error ?? "Activation was not accepted.",
+        });
+        return false;
+      }
+      if (apps.length > 0 && activatedApps.length === 0) {
+        setDeployFlow({
+          phase: "error",
+          message: "Activation returned no application statuses.",
+        });
+        return false;
+      }
+      const unloaded = activatedApps.filter((app) => !app.loaded);
+      if (unloaded.length > 0) {
+        setDeployFlow({
+          phase: "activating",
+          message: "Loading app runtime…",
+        });
+        try {
+          await waitForAppsToLoad(
+            () => launchAppsStatus({ projectId: targetProjectId }),
+            unloaded.map((app) => ({
+              name: app.name,
+              releaseTag: app.releaseTag ?? undefined,
+            })),
+            {
+              signal: controller.signal,
+              intervalMs: DEPLOY_POLL_MS,
+              timeoutMs: RUNTIME_READY_TIMEOUT_MS,
+              isFatal: isFatalLaunchRequestError,
+              onProgress: ({ ready, total }) => {
+                if (isCurrent()) {
+                  setDeployFlow({
+                    phase: "activating",
+                    message: `Loading app runtime… (${ready}/${total})`,
+                  });
+                }
+              },
+            },
+          );
+        } catch (err) {
+          if (controller.signal.aborted) return false;
+          throw err;
+        }
+        if (!isCurrent()) return false;
+      }
+      return true;
+    },
+    [],
+  );
+
+  /**
+   * The candidate release the last deploy published, when it is built and not
+   * yet live. Server-derived, so it survives the reload that a 409 gate used to
+   * strand: the tags come from the project's own latest deployment, not from
+   * whatever this tab happened to hold in memory.
+   */
+  const builtRelease = useMemo(() => {
+    if (!source) return null;
+    const lifecycle = deploymentLifecycleFromProject(source);
+    if (lifecycle.kind !== "build_ready") return null;
+    if (lifecycle.releaseTags.length === 0 || lifecycle.appNames.length === 0) {
+      return null;
+    }
+    return { releaseTags: lifecycle.releaseTags, apps: lifecycle.appNames };
+  }, [source]);
+
+  /**
+   * Make the already-built release live. This is the correct recovery from a
+   * required-secrets 409 — the build is finished and unaffected by the secret
+   * that was missing, so re-running CI would produce the same artifact.
+   */
+  const activateBuiltRelease = useCallback(async () => {
+    const requestEpoch = projectEpochRef.current;
+    const isCurrent = () => projectEpochRef.current === requestEpoch;
+    if (!builtRelease) {
+      setDeployFlow({
+        phase: "error",
+        message: "No built release is waiting to be activated.",
+      });
+      return;
+    }
+    deployAbortRef.current?.abort();
+    const controller = new AbortController();
+    deployAbortRef.current = controller;
+    try {
+      await ensureRequiredSecrets(builtRelease.apps);
+      if (!isCurrent()) return;
+      const live = await runActivation({
+        targetProjectId: projectId,
+        releaseTags: builtRelease.releaseTags,
+        apps: builtRelease.apps,
+        controller,
+        isCurrent,
+      });
+      if (!live || !isCurrent()) return;
+      setDeployFlow({ phase: "done", message: "New version is live." });
+      await reload();
+      if (!isCurrent()) return;
+      refreshRecords();
+    } catch (err) {
+      if (controller.signal.aborted || !isCurrent()) return;
+      const missing = missingSecretsFromLaunchError(err);
+      if (missing) noteMissingRequiredSecrets(missing);
+      setDeployFlow({
+        phase: "error",
+        message: missing
+          ? `Missing required secrets — ${missingSecretsMessage(missing)}. Set them in Environment, then activate.`
+          : err instanceof Error
+            ? err.message
+            : "Activation failed",
+      });
+    } finally {
+      if (deployAbortRef.current === controller) deployAbortRef.current = null;
+    }
+  }, [
+    builtRelease,
+    ensureRequiredSecrets,
+    noteMissingRequiredSecrets,
+    projectId,
+    refreshRecords,
+    reload,
+    runActivation,
+  ]);
+
   // Deploy the source repo's current HEAD and activate the resulting release
   // once CI publishes it. GitHub is read only here (status polling) — the
   // "update deployment" operation — never on the passive tab render.
@@ -608,6 +768,10 @@ export function useProjectDetail(projectId: number) {
     deployAbortRef.current?.abort();
     const controller = new AbortController();
     deployAbortRef.current = controller;
+    // Whether CI got far enough to publish a release. It decides what to tell
+    // a user the gate stopped: before the build there is nothing to reuse, but
+    // after it another deploy would rebuild an artifact that is already correct.
+    let built = false;
     if (!repo) {
       setDeployFlow({ phase: "error", message: "Source repo is unknown." });
       deployAbortRef.current = null;
@@ -671,68 +835,19 @@ export function useProjectDetail(projectId: number) {
       releaseTags = ready.releaseTags?.length ? ready.releaseTags : releaseTags;
       if (!isCurrent()) return;
 
-      setDeployFlow({ phase: "activating", message: "Activating release…" });
+      // CI has published the release: from here on the artifact exists, and a
+      // gate failure must not send the user back through another build.
+      built = true;
       // Activate the SAME project the deploy targeted — `targetProjectId`
       // is preflight-resolved and can differ from the page's `projectId`.
-      const activated = await launchActivate({
-        projectId: targetProjectId,
+      const live = await runActivation({
+        targetProjectId,
         releaseTags,
         apps,
+        controller,
+        isCurrent,
       });
-      if (!isCurrent()) return;
-      // A rejected/partial activation still returns apps (with `error` set), and
-      // a malformed response may omit `activation` entirely — surface the real
-      // reason instead of throwing into the generic "Deploy failed" catch.
-      const activatedApps = activated.activation?.apps ?? [];
-      const failed = activatedApps.find((app) => app.error);
-      if (!activated.ok || failed) {
-        setDeployFlow({
-          phase: "error",
-          message: failed?.error ?? "Activation was not accepted.",
-        });
-        return;
-      }
-      if (apps.length > 0 && activatedApps.length === 0) {
-        setDeployFlow({
-          phase: "error",
-          message: "Activation returned no application statuses.",
-        });
-        return;
-      }
-      const unloaded = activatedApps.filter((app) => !app.loaded);
-      if (unloaded.length > 0) {
-        setDeployFlow({
-          phase: "activating",
-          message: "Loading app runtime…",
-        });
-        try {
-          await waitForAppsToLoad(
-            () => launchAppsStatus({ projectId: targetProjectId }),
-            unloaded.map((app) => ({
-              name: app.name,
-              releaseTag: app.releaseTag ?? undefined,
-            })),
-            {
-              signal: controller.signal,
-              intervalMs: DEPLOY_POLL_MS,
-              timeoutMs: RUNTIME_READY_TIMEOUT_MS,
-              isFatal: isFatalLaunchRequestError,
-              onProgress: ({ ready, total }) => {
-                if (isCurrent()) {
-                  setDeployFlow({
-                    phase: "activating",
-                    message: `Loading app runtime… (${ready}/${total})`,
-                  });
-                }
-              },
-            },
-          );
-        } catch (err) {
-          if (controller.signal.aborted) return;
-          throw err;
-        }
-        if (!isCurrent()) return;
-      }
+      if (!live || !isCurrent()) return;
       setDeployFlow({ phase: "done", message: "New version is live." });
       await reload();
       if (!isCurrent()) return;
@@ -744,7 +859,7 @@ export function useProjectDetail(projectId: number) {
       setDeployFlow({
         phase: "error",
         message: missing
-          ? `Missing required secrets — ${missingSecretsMessage(missing)}. Set them in Environment, then redeploy.`
+          ? `Missing required secrets — ${missingSecretsMessage(missing)}. Set them in Environment, then ${built ? "activate — the build is already done" : "deploy again"}.`
           : err instanceof Error
             ? err.message
             : "Deploy failed",
@@ -758,6 +873,7 @@ export function useProjectDetail(projectId: number) {
     projectPlatform,
     refreshRecords,
     reload,
+    runActivation,
     source,
     projectId,
   ]);
@@ -804,6 +920,9 @@ export function useProjectDetail(projectId: number) {
     refreshRecords,
     promote,
     deactivate,
+    /** The built-but-not-live release waiting to be activated, if any. */
+    builtRelease,
+    activateBuiltRelease,
     redeploySource,
     upgradeSdk,
     checkSdkUpgradeStatus,

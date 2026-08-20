@@ -297,30 +297,46 @@ export function HomeTab({
           label: `Upgrade to ${requiredSdk}`,
           copy: "Update the linked repository before opening chat.",
         }
-      : !isLive
-        ? {
-            href: hrefForTab("deployments"),
-            label: "Redeploy from Linked Repository",
-            copy: "Publish a deployment, then set keys and open chat.",
-          }
-        : environment.blocked
+      : // A built release is waiting. Activating it takes seconds and reuses
+        // the artifact CI already published; secret values live in the vault,
+        // never in the build, so a missing key cannot invalidate it. Ask for
+        // the keys first, then activate — never send this state to a rebuild.
+        lifecycle.kind === "build_ready"
+        ? environment.blocked
           ? {
               href: hrefForTab("environment"),
               label: "Open Environment",
-              copy: environment.hint,
+              copy: `${environment.hint} The build is ready and will be reused.`,
             }
-          : chatUrl
+          : {
+              href: hrefForTab("deployments"),
+              label: "Activate build",
+              copy: "This build is ready. Activate it to go live — no rebuild needed.",
+            }
+        : !isLive
+          ? {
+              href: hrefForTab("deployments"),
+              label: "Redeploy from Linked Repository",
+              copy: "Publish a deployment, then set keys and open chat.",
+            }
+          : environment.blocked
             ? {
-                href: chatUrl,
-                label: "Open Chat",
-                copy: "App is live and keys look set. Try it in chat.",
-                external: true,
+                href: hrefForTab("environment"),
+                label: "Open Environment",
+                copy: environment.hint,
               }
-            : {
-                href: hrefForTab("chat"),
-                label: "Open Chat tab",
-                copy: "Continue in the Chat tab.",
-              };
+            : chatUrl
+              ? {
+                  href: chatUrl,
+                  label: "Open Chat",
+                  copy: "App is live and keys look set. Try it in chat.",
+                  external: true,
+                }
+              : {
+                  href: hrefForTab("chat"),
+                  label: "Open Chat tab",
+                  copy: "Continue in the Chat tab.",
+                };
 
   return (
     <div className="divide-border divide-y">
@@ -416,7 +432,8 @@ export function HomeTab({
             >
               {nextAction.label.startsWith("Upgrade to ") ? (
                 <CircleArrowUp className="size-3.5" aria-hidden />
-              ) : nextAction.label === "Redeploy from Linked Repository" ? (
+              ) : nextAction.label === "Redeploy from Linked Repository" ||
+                nextAction.label === "Activate build" ? (
                 <Rocket className="size-3.5" aria-hidden />
               ) : nextAction.label === "Open Environment" ? (
                 <KeyRound className="size-3.5" aria-hidden />
