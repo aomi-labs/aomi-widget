@@ -15,8 +15,8 @@ Set these in your `.env` file:
 # Backend API URL (required)
 NEXT_PUBLIC_BACKEND_URL=https://api.example.com
 
-# Optional: Para API key for a Para-backed wallet bridge
-NEXT_PUBLIC_PARA_API_KEY=your_para_api_key
+# Application whose backend-owned execution policy governs widget writes
+NEXT_PUBLIC_AOMI_APPLICATION_ID=123
 
 # Optional: WalletConnect project ID for external wallets in the Para modal
 NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
@@ -24,33 +24,38 @@ NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
 
 ## Standalone authenticated widget
 
-An unrelated site can mount the packaged widget with its own browser-visible
-Para project key. Importing the provider subpath registers only that provider;
-the providerless entry does not bundle Para or Privy.
+An unrelated site can mount the packaged widget using an authentication-only
+configuration. Importing the provider subpath registers only that provider;
+the providerless entry does not bundle Para or Privy. The application ID selects
+the server-owned ERC-4337, sponsorship, and fee policy.
 
 ```tsx
 import { AomiWidget } from "@aomi-labs/widget-lib";
-import { paraAuth } from "@aomi-labs/widget-lib/providers/para";
+import "@aomi-labs/widget-lib/providers/para";
 import "@aomi-labs/widget-lib/styles.css";
 
 <AomiWidget
+  applicationId={import.meta.env.VITE_AOMI_APPLICATION_ID}
   apiUrl="https://chat.aomi.dev"
-  auth={paraAuth({
-    apiKey: import.meta.env.VITE_PARA_API_KEY,
+  auth={{
+    kind: "embedded_wallet",
+    provider: "para",
     environment: "PROD",
-  })}
+  }}
 />;
 ```
 
-The consumer key selects the Para tenant and environment; it is not an Aomi
-integration key or a server secret. Portal verifies the provider JWT and returns
-a short-lived, origin-bound widget session token. The token stays in memory,
-requests use `credentials: "omit"`, and sign-out revokes it. Configure the
-consumer origin in the Para Developer Portal. Production consumers must use
-HTTPS; local development may use `http://localhost`.
+Portal verifies the provider credential and returns a short-lived, origin-bound
+widget session token. The token stays in memory, requests use
+`credentials: "omit"`, and sign-out revokes it. Provider tenant material and
+Alchemy policy configuration are registered server-side for the application;
+they are not widget execution inputs. Configure the consumer origin in the
+provider console. Production consumers must use HTTPS; local development may
+use `http://localhost`.
 
-Omit `auth` to use signed external-wallet login (SIWE or SIWS) instead. Both
-modes resolve to the same Aomi account and normal account/thread routes.
+Use `auth={{ kind: "browser_wallet" }}` for signed external-wallet login.
+Browser, Para, and Privy modes all resolve to the same wallet-binding and
+backend-owned sponsored execution contract.
 
 ## AomiFrame Props
 

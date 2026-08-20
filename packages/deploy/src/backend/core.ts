@@ -192,6 +192,7 @@ export class BackendClientCore {
       bearer?: string;
       actor?: string;
       projectId?: number;
+      visibilityGrant?: string;
     },
     pathSuffix: string,
     action: AuditEvent["action"],
@@ -205,6 +206,9 @@ export class BackendClientCore {
       this.userPath(pathSuffix, params),
       action,
       bearer,
+      input.visibilityGrant?.trim()
+        ? { "X-Aomi-Visibility-Grant": input.visibilityGrant.trim() }
+        : undefined,
     );
     await this.audit(action, input.actor, auditExtra);
     return map(raw);
@@ -228,8 +232,9 @@ export class BackendClientCore {
     path: string,
     operation: string,
     bearer: string,
+    headers?: Record<string, string>,
   ): Promise<Resp> {
-    return this.request<Resp>(path, "GET", undefined, operation, bearer);
+    return this.request<Resp>(path, "GET", undefined, operation, bearer, headers);
   }
 
   protected post<Resp>(
@@ -237,8 +242,9 @@ export class BackendClientCore {
     body: unknown,
     operation: string,
     bearer: string,
+    headers?: Record<string, string>,
   ): Promise<Resp> {
-    return this.request<Resp>(path, "POST", body, operation, bearer);
+    return this.request<Resp>(path, "POST", body, operation, bearer, headers);
   }
 
   protected patch<Resp>(
@@ -246,8 +252,9 @@ export class BackendClientCore {
     body: unknown,
     operation: string,
     bearer: string,
+    headers?: Record<string, string>,
   ): Promise<Resp> {
-    return this.request<Resp>(path, "PATCH", body, operation, bearer);
+    return this.request<Resp>(path, "PATCH", body, operation, bearer, headers);
   }
 
   protected put<Resp>(
@@ -255,8 +262,9 @@ export class BackendClientCore {
     body: unknown,
     operation: string,
     bearer: string,
+    headers?: Record<string, string>,
   ): Promise<Resp> {
-    return this.request<Resp>(path, "PUT", body, operation, bearer);
+    return this.request<Resp>(path, "PUT", body, operation, bearer, headers);
   }
 
   protected del<Resp>(
@@ -264,8 +272,9 @@ export class BackendClientCore {
     operation: string,
     bearer: string,
     body?: unknown,
+    headers?: Record<string, string>,
   ): Promise<Resp> {
-    return this.request<Resp>(path, "DELETE", body, operation, bearer);
+    return this.request<Resp>(path, "DELETE", body, operation, bearer, headers);
   }
 
   private async request<Resp>(
@@ -274,6 +283,7 @@ export class BackendClientCore {
     body: unknown,
     operation: string,
     bearer: string,
+    headers?: Record<string, string>,
   ): Promise<Resp> {
     const url = this.endpoint(path);
     let res: Response;
@@ -282,6 +292,7 @@ export class BackendClientCore {
         method,
         headers: {
           Authorization: `Bearer ${bearer}`,
+          ...headers,
           ...(body === undefined ? {} : { "Content-Type": "application/json" }),
         },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),

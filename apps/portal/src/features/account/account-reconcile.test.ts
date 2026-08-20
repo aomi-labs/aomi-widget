@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { modeHintFor } from "./account-reconcile";
+import { normalizeSignerMode } from "./account-api";
 import type { WalletPolicy } from "./types";
 
 function wallet(overrides: Partial<WalletPolicy>): WalletPolicy {
@@ -39,5 +40,17 @@ describe("modeHintFor", () => {
         "auto",
       ),
     ).toContain("cannot delegate this login wallet");
+  });
+});
+
+describe("normalizeSignerMode", () => {
+  it("maps only the canonical ladder spellings; everything else fail-safes to manual", () => {
+    expect(normalizeSignerMode("server_auto")).toBe("auto");
+    expect(normalizeSignerMode("client_auto")).toBe("client_auto");
+    expect(normalizeSignerMode("denied")).toBe("denied");
+    expect(normalizeSignerMode("manual")).toBe("manual");
+    // Pre-rename spellings are not wire values anymore — no aliases.
+    expect(normalizeSignerMode("auto")).toBe("manual");
+    expect(normalizeSignerMode("agent_sync")).toBe("manual");
   });
 });

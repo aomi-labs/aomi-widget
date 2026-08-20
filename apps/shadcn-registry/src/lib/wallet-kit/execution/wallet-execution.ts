@@ -234,7 +234,7 @@ export async function executeWalletKitTransaction({
   try {
     execution = await executeWalletCalls({
       callList,
-      currentChainId: state.currentChainId ?? callList[0]?.chainId ?? 1,
+      currentChainId: state.currentChainId,
       capabilities: state.capabilities,
       localPrivateKey: null,
       nativeWalletExecution,

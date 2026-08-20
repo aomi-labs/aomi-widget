@@ -12,6 +12,7 @@ import type {
 import type { SvmNetworkOption } from "../types";
 import type { Chain } from "viem";
 import type { ResolvedEvmWalletsConfig } from "../catalog/evm-connector-catalog";
+import type { SafeSvmWalletState } from "../runtime/svm/wallet-runtime";
 
 /**
  * A wallet provider plugin. Knows how to render itself from the normalized
@@ -42,6 +43,7 @@ export type WalletProviderPlugin = {
     auth?: AuthConfig;
     children: ReactNode;
     execution?: ExecutionConfig;
+    externalSvmWallet: SafeSvmWalletState;
     providers?: ProvidersConfig;
     solanaRuntimeConfig?: {
       cluster: SvmNetworkOption["cluster"];

@@ -2,7 +2,7 @@
 // Client
 // =============================================================================
 
-export { AomiClient } from "./client";
+export { AomiClient, secretNamesFrom } from "./client";
 export {
   authorizationChallenge,
   authorizationCommit,
@@ -104,9 +104,8 @@ export type {
   AomiClientType,
   UserStateAAMode,
   UserStateAuthMethod,
-  UserStateWalletKind,
   UserStateWalletProvider,
-  UserStateSponsorProvider,
+  OwnedUserState,
 } from "./user-state";
 
 // =============================================================================
@@ -139,8 +138,8 @@ export type {
   SessionEventMap,
   SendResult,
   WalletRequest,
-  WalletAaSignPayload,
-  WalletAaSignatureRequest,
+  WalletSignablePayload,
+  WalletSigningPayload,
   WalletRequestKind,
   WalletRequestResult,
 } from "./session";
@@ -207,6 +206,8 @@ export type { ChainInfo } from "./chains";
 
 export {
   executeWalletCalls,
+  partialWalletExecution,
+  PartialWalletExecutionError,
   MAX_AUTO_FEE_WEI,
   normalizeSimulatedFee,
   buildFeeAAWalletCall,
@@ -224,6 +225,7 @@ export type {
   NativeWalletSponsorship,
   SponsorshipPaymasterServiceContext,
   ExecutionResult,
+  PartialWalletExecution,
   AtomicBatchArgs,
   ExecuteWalletCallsParams,
   NormalizedSimulatedFee,

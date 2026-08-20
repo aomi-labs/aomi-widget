@@ -11,7 +11,9 @@
   "dependencies": {
     "@aomi-labs/widget-lib": "workspace:*",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "viem": "^2.47.11",
+    "wagmi": "^2.19.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",

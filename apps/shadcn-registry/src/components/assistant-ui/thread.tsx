@@ -54,7 +54,6 @@ import { AppSelect } from "@/components/control-bar/app-select";
 import { ApiKeyInput } from "@/components/control-bar/api-key-input";
 import { NetworkSelect } from "@/components/control-bar/network-select";
 import { ConnectButton } from "@/components/control-bar/connect-button";
-import { SecretGate } from "@/components/control-bar/secret-gate";
 import { PaymentRequiredGate } from "@/components/control-bar/payment-required-gate";
 import { shouldShowThreadLoadingSkeleton } from "@/components/assistant-ui/thread-loading";
 import { useThread, useComposerRuntime, useMessage } from "@assistant-ui/react";
@@ -80,7 +79,6 @@ export const Thread: FC = () => {
             ["--thread-max-width" as string]: "45rem",
           }}
         >
-          <SecretGate />
           <PaymentRequiredGate />
           <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 pt-2 md:px-6">
             <ThreadPrimitive.If empty>

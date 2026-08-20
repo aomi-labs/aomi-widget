@@ -378,7 +378,7 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("preserves AA mode and smart account across partial backend user_state snapshots", async () => {
+  it("preserves owner/chain across partial backend snapshots without sending aa or pending", async () => {
     const { client, fetchState, sendMessage } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-unit-5c",
@@ -386,8 +386,6 @@ describe("ClientSession ext helpers", () => {
         address: "0xabc",
         chain_id: 8453,
         is_connected: true,
-        aa_mode: "4337",
-        smart_account: "0xsmart",
       },
     });
 
@@ -402,44 +400,37 @@ describe("ClientSession ext helpers", () => {
     } satisfies AomiStateResponse);
 
     await session.syncUserState();
-    await session.sendAsync("keep aa state");
+    await session.sendAsync("keep owner state");
 
-    expect(sendMessage.mock.calls[0][2]?.userState).toMatchObject({
+    const sent = sendMessage.mock.calls[0][2]?.userState;
+    expect(sent).toMatchObject({
       connection: { is_connected: true },
-      evm: {
-        address: "0xabc",
-        chain_id: 8453,
-        aa: {
-          mode: "4337",
-          smart_account: "0xsmart",
-        },
-      },
+      evm: { address: "0xabc", chain_id: 8453 },
     });
+    // AA / sponsorship are backend authority; `pending` is backend in-flight
+    // state. Neither is ever sent back.
+    expect(sent?.evm).not.toHaveProperty("aa");
+    expect(sent).not.toHaveProperty("pending");
 
     session.close();
   });
 
-  it("normalizes camelCase AA user_state aliases", () => {
-    expect(
-      UserState.normalize({
-        address: "0xabc",
-        aaMode: "4337",
-        smartAccount: "0xsmart",
-        walletKind: "smart-account",
-        walletProvider: "baseAccount",
-        authMethod: "google",
-        sponsorProvider: "coinbase",
-        sponsorAccount: "gp_test",
-      }),
-    ).toMatchObject({
-      evm: {
-        address: "0xabc",
-        aa: {
-          mode: "4337",
-          smart_account: "0xsmart",
-        },
-      },
+  it("strips backend-authority aa/sponsorship aliases while normalizing the rest", () => {
+    const normalized = UserState.normalize({
+      address: "0xabc",
+      aaMode: "4337",
+      smartAccount: "0xsmart",
+      walletProvider: "baseAccount",
+      authMethod: "google",
+      sponsorProvider: "coinbase",
+      sponsorAccount: "gp_test",
+    } as unknown as Parameters<typeof UserState.normalize>[0]);
+    expect(normalized).toMatchObject({
+      evm: { address: "0xabc" },
+      connection: { provider: "baseAccount", auth_method: "google" },
     });
+    expect(normalized?.evm).not.toHaveProperty("aa");
+    expect(normalized?.evm).not.toHaveProperty("sponsorship");
   });
 
   it("warns when backend user_state ext mismatches expected subset", async () => {
@@ -512,67 +503,7 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("surfaces pending svm_sigs from fetchState as solana message-sign wallet requests", async () => {
-    const { client, fetchState } = createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-unit-svm-sigs",
-      userState: {
-        connection: { is_connected: true },
-        solana: {
-          address: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
-          cluster: "solana:mainnet",
-          wallet_name: "Phantom",
-          transport: "extension",
-        },
-      },
-    });
-    const unsignedTx = createSerializedSolanaTransactionBase64();
-
-    fetchState.mockResolvedValueOnce({
-      is_processing: true,
-      messages: [],
-      user_state: {
-        connection: { is_connected: true },
-        solana: {
-          address: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
-          cluster: "solana:mainnet",
-          wallet_name: "Phantom",
-          transport: "extension",
-        },
-        pending: {
-          svm_sigs: {
-            1: {
-              signer: "4kbGbZtfkfkRVGunkbKX4M7dGPm9MghJZodjbnRZbmug",
-              description: "byreal AMM swap: 0.02 SOL -> ~1.67 USDC",
-              kind: "solana_sign",
-              requestKind: "sign_transaction",
-              unsignedTx,
-              pendingSvmSigId: 1,
-              cluster: "solana:mainnet",
-            },
-          },
-        },
-      },
-    } satisfies AomiStateResponse);
-
-    await session.syncUserState();
-
-    expect(session.getPendingRequests()).toEqual([
-      expect.objectContaining({
-        id: "solana_sign-1",
-        kind: "solana_sign",
-        payload: expect.objectContaining({
-          pendingSolanaId: 1,
-          description: "byreal AMM swap: 0.02 SOL -> ~1.67 USDC",
-          unsignedTx,
-        }),
-      }),
-    ]);
-
-    session.close();
-  });
-
-  it("hydrates pending wallet requests from backend user_state", async () => {
+  it("hydrates pending transaction requests from backend user_state", async () => {
     const { client, fetchState } = createMockClient();
     const session = new Session(client, { sessionId: "session-unit-7b" });
     const requestsChanged = vi.fn();
@@ -594,17 +525,6 @@ describe("ClientSession ext helpers", () => {
             chain_id: 8453,
           },
         },
-        pending_eip712s: {
-          7: {
-            description: "Permit2 signature",
-            typed_data: {
-              domain: { chainId: 8453, name: "Permit2" },
-              types: { Permit: [{ name: "owner", type: "address" }] },
-              primaryType: "Permit",
-              message: { owner: "0x123" },
-            },
-          },
-        },
       },
     } satisfies AomiStateResponse);
 
@@ -618,14 +538,6 @@ describe("ClientSession ext helpers", () => {
           txId: 1,
           txIds: [1],
           chainId: 8453,
-        }),
-      }),
-      expect.objectContaining({
-        id: "eip712-7",
-        kind: "eip712_sign",
-        payload: expect.objectContaining({
-          eip712Id: 7,
-          description: "Permit2 signature",
         }),
       }),
     ]);
@@ -885,12 +797,6 @@ describe("ClientSession ext helpers", () => {
     });
 
     expect(session.getUserState()).toMatchObject({
-      evm: {
-        aa: {
-          mode: "7702",
-          provider: "alchemy",
-        },
-      },
       pending: {
         evm_txs: {
           7: expect.objectContaining({
@@ -899,6 +805,9 @@ describe("ClientSession ext helpers", () => {
         },
       },
     });
+    // AA state is backend authority and is no longer written into user_state
+    // on tx completion.
+    expect(session.getUserState()?.evm?.aa).toBeUndefined();
 
     expect(sendSystemMessage).toHaveBeenCalledWith(
       "session-unit-8",
@@ -909,15 +818,9 @@ describe("ClientSession ext helpers", () => {
           status: "success",
           amount: undefined,
           pending_tx_ids: [7],
-          aa_requested_mode: "7702",
-          aa_resolved_mode: "7702",
-          aa_fallback_reason: undefined,
           execution_kind: undefined,
           batched: false,
           call_count: 1,
-          sponsored: undefined,
-          smart_account_address: undefined,
-          delegation_address: undefined,
         },
       }),
       { app: "default" },
@@ -926,84 +829,7 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("round-trips an ordered first-use 7702 signature handoff", async () => {
-    const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-unit-aa-sign" });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet_aa_sign_request",
-            payload: {
-              chain_family: "evm",
-              chain_id: 4326,
-              signer: "0x1111111111111111111111111111111111111111",
-              executor: "0x1111111111111111111111111111111111111111",
-              aa_mode: "7702",
-              tx_ids: [7, 8, 9],
-              signature_requests: [
-                {
-                  kind: "eip7702_authorization",
-                  contract_address:
-                    "0x0000000000000000000000000000000000007702",
-                  chain_id: 4326,
-                  nonce: 0,
-                  raw_payload: `0x${"11".repeat(32)}`,
-                },
-                {
-                  kind: "personal_sign",
-                  message: "0xprepared-user-operation",
-                  raw_payload: `0x${"22".repeat(32)}`,
-                },
-              ],
-              description: "Execute three calls",
-              sponsored: true,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_aa_sign_request", resolve);
-    });
-    await session.sendAsync("queue attended AA");
-    const request = await requestPromise;
-
-    expect(request).toMatchObject({
-      id: "aa-7-8-9",
-      kind: "aa_sign",
-      payload: {
-        chain_id: 4326,
-        aa_mode: "7702",
-        tx_ids: [7, 8, 9],
-      },
-    });
-
-    await session.resolve((request as { id: string }).id, {
-      kind: "aa_sign",
-      signatures: ["0xauthorization", "0xuserop"],
-    });
-
-    expect(sendSystemMessage).toHaveBeenCalledWith(
-      "session-unit-aa-sign",
-      JSON.stringify({
-        type: "wallet:aa_sign_complete",
-        payload: {
-          status: "signed",
-          tx_ids: [7, 8, 9],
-          signatures: ["0xauthorization", "0xuserop"],
-        },
-      }),
-      { app: "default" },
-    );
-    session.close();
-  });
-
-  it("rebuilds the attended AA request from a parked handoff", async () => {
+  it("does not rebuild AA authority from parked user state", async () => {
     const { client, fetchState } = createMockClient();
     const session = new Session(client, {
       sessionId: "session-unit-aa-resync",
@@ -1050,26 +876,7 @@ describe("ClientSession ext helpers", () => {
 
     await session.fetchCurrentState();
 
-    expect(session.getPendingRequests()).toEqual([
-      expect.objectContaining({
-        id: "aa-7",
-        kind: "aa_sign",
-        payload: expect.objectContaining({
-          chain_family: "evm",
-          chain_id: 4326,
-          signer: "0x1111111111111111111111111111111111111111",
-          executor: "0x1111111111111111111111111111111111111111",
-          aa_mode: "7702",
-          tx_ids: [7],
-          description: "Execute three calls",
-          sponsored: true,
-          signature_requests: [
-            expect.objectContaining({ kind: "eip7702_authorization" }),
-            expect.objectContaining({ kind: "personal_sign" }),
-          ],
-        }),
-      }),
-    ]);
+    expect(session.getPendingRequests()).toEqual([]);
     session.close();
   });
 
@@ -1097,749 +904,6 @@ describe("ClientSession ext helpers", () => {
     await session.fetchCurrentState();
 
     expect(session.getPendingRequests()).toEqual([]);
-    session.close();
-  });
-
-  it("forwards backend eip712 identifiers in wallet rejection callbacks", async () => {
-    const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-unit-9" });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet_eip712_request",
-            payload: {
-              eip712Id: 11,
-              description: "Permit2 signature",
-              typed_data: {
-                domain: { chainId: 8453, name: "Permit2" },
-                types: { Permit: [{ name: "owner", type: "address" }] },
-                primaryType: "Permit",
-                message: { owner: "0x123" },
-              },
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_eip712_request", resolve);
-    });
-
-    await session.sendAsync("queue signature");
-    const request = await requestPromise;
-
-    await session.reject((request as { id: string }).id, "User rejected");
-
-    expect(sendSystemMessage).toHaveBeenCalledWith(
-      "session-unit-9",
-      JSON.stringify({
-        type: "wallet_eip712_response",
-        payload: {
-          status: "failed",
-          error: "User rejected",
-          description: "Permit2 signature",
-          pending_eip712_id: 11,
-        },
-      }),
-      { app: "default" },
-    );
-
-    session.close();
-  });
-
-  it("emits ERC-191 signature requests and preserves non_typed_data on resolve", async () => {
-    const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-unit-erc191" });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet_eip712_request",
-            payload: {
-              pending_eip712_id: 12,
-              description: "SIWE login",
-              non_typed_data: "Sign in with Ethereum",
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_eip712_request", resolve);
-    });
-
-    await session.sendAsync("queue login signature");
-    const request = await requestPromise;
-
-    expect(request).toEqual(
-      expect.objectContaining({
-        id: "eip712-12",
-        kind: "eip712_sign",
-        payload: expect.objectContaining({
-          eip712Id: 12,
-          non_typed_data: "Sign in with Ethereum",
-          typed_data: undefined,
-        }),
-      }),
-    );
-
-    await session.resolve((request as { id: string }).id, {
-      kind: "eip712_sign",
-      signature: "0xerc191signature",
-    });
-
-    expect(sendSystemMessage).toHaveBeenCalledWith(
-      "session-unit-erc191",
-      JSON.stringify({
-        type: "wallet_eip712_response",
-        payload: {
-          status: "success",
-          signature: "0xerc191signature",
-          description: "SIWE login",
-          pending_eip712_id: 12,
-        },
-      }),
-      { app: "default" },
-    );
-
-    session.close();
-  });
-
-  it("emits wallet_solana_sign_request from a wallet::solana_sign_request InlineCall", async () => {
-    const { client, sendMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-solana-1" });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_request",
-            payload: {
-              unsigned_tx: "QkFTRTY0VFhCWVRFUw",
-              description: "swap 1 USDC for SOL",
-              cluster: "solana:devnet",
-              pending_solana_id: 7,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_solana_sign_request", resolve);
-    });
-
-    await session.sendAsync("queue solana signature");
-    const request = (await requestPromise) as {
-      id: string;
-      kind: string;
-      payload: {
-        unsignedTx?: string;
-        description?: string;
-        cluster?: string;
-        pendingSolanaId?: number;
-      };
-    };
-
-    expect(request.id).toBe("solana_sign-7");
-    expect(request.kind).toBe("solana_sign");
-    expect(request.payload.unsignedTx).toBe("QkFTRTY0VFhCWVRFUw");
-    expect(request.payload.description).toBe("swap 1 USDC for SOL");
-    expect(request.payload.cluster).toBe("solana:devnet");
-    expect(request.payload.pendingSolanaId).toBe(7);
-
-    session.close();
-  });
-
-  it("emits wallet_solana_sign_message_request from a wallet::solana_sign_request message_sign InlineCall", async () => {
-    const { client, sendMessage } = createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-solana-message-sign-1",
-    });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_request",
-            payload: {
-              chain_kind: "svm",
-              request_kind: "message_sign",
-              kind: "solana_sign_message",
-              message_base64: "TWVtbw==",
-              description: "sign login proof",
-              cluster: "solana:devnet",
-              pending_solana_id: 17,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_solana_sign_message_request", resolve);
-    });
-
-    await session.sendAsync("sign solana message");
-    const request = (await requestPromise) as {
-      id: string;
-      kind: string;
-      payload: {
-        message?: string;
-        description?: string;
-        cluster?: string;
-        pendingSolanaId?: number;
-      };
-    };
-
-    expect(request.id).toBe("solana_sign_message-17");
-    expect(request.kind).toBe("solana_sign_message");
-    expect(request.payload.message).toBe("TWVtbw==");
-    expect(request.payload.description).toBe("sign login proof");
-    expect(request.payload.cluster).toBe("solana:devnet");
-    expect(request.payload.pendingSolanaId).toBe(17);
-
-    session.close();
-  });
-
-  it("emits wallet_solana_sign_request from a wallet::solana_sign_request sign_transaction InlineCall", async () => {
-    const { client, sendMessage } = createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-solana-sign-tx-1",
-    });
-    const unsignedTx = createSerializedSolanaTransactionBase64();
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_request",
-            payload: {
-              chain_kind: "svm",
-              request_kind: "sign_transaction",
-              kind: "solana_sign",
-              unsigned_tx: unsignedTx,
-              description: "sign serialized swap tx",
-              cluster: "solana:mainnet",
-              pending_solana_id: 18,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_solana_sign_request", resolve);
-    });
-
-    await session.sendAsync("sign solana tx");
-    const request = (await requestPromise) as {
-      id: string;
-      kind: string;
-      payload: {
-        unsignedTx?: string;
-        description?: string;
-        cluster?: string;
-        pendingSolanaId?: number;
-      };
-    };
-
-    expect(request.id).toBe("solana_sign-18");
-    expect(request.kind).toBe("solana_sign");
-    expect(request.payload.unsignedTx).toBe(unsignedTx);
-    expect(request.payload.description).toBe("sign serialized swap tx");
-    expect(request.payload.cluster).toBe("solana:mainnet");
-    expect(request.payload.pendingSolanaId).toBe(18);
-
-    session.close();
-  });
-
-  it("preserves pendingSvmSigId from a wallet::solana_sign_request InlineCall and posts it on resolve", async () => {
-    const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-solana-sign-tx-svm-id-1",
-    });
-    const unsignedTx = createSerializedSolanaTransactionBase64();
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_request",
-            payload: {
-              chain_kind: "svm",
-              request_kind: "sign_transaction",
-              kind: "solana_sign",
-              unsigned_tx: unsignedTx,
-              description: "sign serialized swap tx",
-              cluster: "solana:mainnet",
-              pendingSvmSigId: 19,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_solana_sign_request", resolve);
-    });
-
-    await session.sendAsync("sign solana tx with svm sig id");
-    const request = (await requestPromise) as {
-      id: string;
-      kind: string;
-      payload: {
-        unsignedTx?: string;
-        description?: string;
-        cluster?: string;
-        pendingSolanaId?: number;
-      };
-    };
-
-    expect(request.id).toBe("solana_sign-19");
-    expect(request.kind).toBe("solana_sign");
-    expect(request.payload.unsignedTx).toBe(unsignedTx);
-    expect(request.payload.pendingSolanaId).toBe(19);
-
-    await session.resolve(request.id, {
-      kind: "solana_sign",
-      signedTx: "SIGNED:SVM:19",
-    });
-
-    expect(sendSystemMessage).toHaveBeenCalledWith(
-      "session-solana-sign-tx-svm-id-1",
-      JSON.stringify({
-        type: "wallet::solana_sign_complete",
-        payload: {
-          status: "signed",
-          signed_tx: "SIGNED:SVM:19",
-          unsigned_tx: unsignedTx,
-          description: "sign serialized swap tx",
-          pending_solana_id: 19,
-        },
-      }),
-      { app: "default" },
-    );
-
-    session.close();
-  });
-
-  it("posts wallet::solana_sign_complete with signed_tx on resolve", async () => {
-    const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-solana-2" });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_request",
-            payload: {
-              unsigned_tx: "AQAA",
-              description: "claim rewards",
-              pending_solana_id: 3,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_solana_sign_request", resolve);
-    });
-
-    await session.sendAsync("sign solana");
-    const request = (await requestPromise) as { id: string };
-
-    await session.resolve(request.id, {
-      kind: "solana_sign",
-      signedTx: "SIGNED:AQAA",
-    });
-
-    expect(sendSystemMessage).toHaveBeenCalledWith(
-      "session-solana-2",
-      JSON.stringify({
-        type: "wallet::solana_sign_complete",
-        payload: {
-          status: "signed",
-          signed_tx: "SIGNED:AQAA",
-          unsigned_tx: "AQAA",
-          description: "claim rewards",
-          pending_solana_id: 3,
-        },
-      }),
-      { app: "default" },
-    );
-
-    session.close();
-  });
-
-  it("does not resurrect a resolved solana_sign request when state polling still echoes pending.svm_sigs", async () => {
-    // Reproduces the byreal "polling never stops" loop: after the user signs,
-    // the wallet::solana_sign_complete event POST is in flight while the next
-    // pollTick fires. The polled state still carries the pending bucket entry,
-    // and without the resolved-id guard, syncWalletRequests re-adds the request
-    // and the preservation block keeps it forever — so `walletRequests.length`
-    // stays > 0 even after `is_processing` flips false.
-    const { client, sendMessage, fetchState, sendSystemMessage } =
-      createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-solana-resolve-race",
-    });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: true,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_request",
-            payload: {
-              unsigned_tx: "AQAA",
-              description: "byreal swap",
-              pending_solana_id: 1,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise<{ id: string }>((resolve) => {
-      session.once("wallet_solana_sign_request", resolve as never);
-    });
-
-    await session.sendAsync("swap 1 usdc to sol");
-    const request = await requestPromise;
-
-    await session.resolve(request.id, {
-      kind: "solana_sign",
-      signedTx: "SIGNED:AQAA",
-    });
-
-    expect(sendSystemMessage).toHaveBeenCalledTimes(1);
-
-    // A poll tick lands before the backend has processed the completion event:
-    // pending.svm_sigs[1] is still present and is_processing is still true.
-    fetchState.mockResolvedValueOnce({
-      is_processing: true,
-      messages: [],
-      user_state: {
-        pending: {
-          svm_sigs: {
-            1: {
-              request_kind: "sign_transaction",
-              description: "byreal swap",
-              unsigned_tx: "AQAA",
-            },
-          },
-        },
-      },
-    } satisfies AomiStateResponse);
-    await session.fetchCurrentState();
-
-    expect(session.getPendingRequests()).toEqual([]);
-
-    // Subsequent poll once the backend has caught up: pending is gone.
-    fetchState.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      user_state: { pending: {} },
-    } satisfies AomiStateResponse);
-    await session.fetchCurrentState();
-
-    expect(session.getPendingRequests()).toEqual([]);
-
-    session.close();
-  });
-
-  it("keeps a resolved solana_sign request cleared across repeated polls that never carry a pending bucket (byreal continuation)", async () => {
-    // Mirrors the byreal capture exactly: the sign request is delivered purely
-    // via a system event (no pending bucket), and during the ~15s backend
-    // continuation (submit_swap) every poll comes back with `is_processing:
-    // true` and NO `pending` field. A prior GC bug deleted the resolved-id
-    // tombstone on the first bucket-less poll, so the preservation block then
-    // re-added the zombie on the next poll and `is_processing: false` could
-    // never coincide with an empty queue — polling looped forever.
-    const { client, sendMessage, fetchState } = createMockClient();
-    const session = new Session(client, { sessionId: "session-byreal-loop" });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: true,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_request",
-            payload: {
-              unsigned_tx: "AQAA",
-              description: "byreal AMM swap",
-              pending_svm_sig_id: 1,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise<{ id: string }>((resolve) => {
-      session.once("wallet_solana_sign_request", resolve as never);
-    });
-    await session.sendAsync("swap 0.02 sol to usdc");
-    const request = await requestPromise;
-    expect(request.id).toBe("solana_sign-1");
-
-    await session.resolve(request.id, {
-      kind: "solana_sign",
-      signedTx: "SIGNED:AQAA",
-    });
-    expect(session.getPendingRequests()).toEqual([]);
-
-    // Backend continuation running: several polls, is_processing true, no bucket.
-    for (let i = 0; i < 3; i++) {
-      fetchState.mockResolvedValueOnce({
-        is_processing: true,
-        messages: [],
-        system_events: [],
-        user_state: {
-          connection: { is_connected: true },
-        },
-      } satisfies AomiStateResponse);
-      await session.fetchCurrentState();
-      expect(session.getPendingRequests()).toEqual([]);
-    }
-
-    // Turn complete: is_processing false, still no bucket. Queue must be empty
-    // so the pollTick stop gate (!is_processing && walletRequests.length === 0)
-    // can fire.
-    fetchState.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [],
-      user_state: {
-        connection: { is_connected: true },
-      },
-    } satisfies AomiStateResponse);
-    await session.fetchCurrentState();
-    expect(session.getPendingRequests()).toEqual([]);
-
-    session.close();
-  });
-
-  it("does not resurrect a resolved solana_sign request when the backend re-delivers the originating InlineCall", async () => {
-    // Defense in depth: even if the backend re-emits the wallet sign request in
-    // a later poll's system_events (before it processes the completion), the
-    // enqueue choke point must drop it — the user already signed it.
-    const { client, sendMessage, fetchState } = createMockClient();
-    const session = new Session(client, { sessionId: "session-redeliver" });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: true,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_request",
-            payload: {
-              unsigned_tx: "AQAA",
-              description: "byreal AMM swap",
-              pending_svm_sig_id: 1,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise<{ id: string }>((resolve) => {
-      session.once("wallet_solana_sign_request", resolve as never);
-    });
-    await session.sendAsync("swap 0.02 sol to usdc");
-    const request = await requestPromise;
-
-    await session.resolve(request.id, {
-      kind: "solana_sign",
-      signedTx: "SIGNED:AQAA",
-    });
-    expect(session.getPendingRequests()).toEqual([]);
-
-    // Poll re-delivers the same InlineCall — must be ignored.
-    let resurrected = false;
-    session.on("wallet_requests_changed", (reqs) => {
-      if (reqs.length > 0) resurrected = true;
-    });
-    fetchState.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_request",
-            payload: {
-              unsigned_tx: "AQAA",
-              description: "byreal AMM swap",
-              pending_svm_sig_id: 1,
-            },
-          },
-        },
-      ],
-    } satisfies AomiStateResponse);
-    await session.fetchCurrentState();
-
-    expect(session.getPendingRequests()).toEqual([]);
-    expect(resurrected).toBe(false);
-
-    session.close();
-  });
-
-  it("keeps the request queued when resolve receives the wrong result kind", async () => {
-    const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-solana-kind-mismatch",
-    });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_request",
-            payload: {
-              unsigned_tx: "AQAA",
-              description: "claim rewards",
-              pending_solana_id: 9,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_solana_sign_request", resolve);
-    });
-
-    await session.sendAsync("sign solana");
-    const request = (await requestPromise) as { id: string };
-
-    await expect(
-      session.resolve(request.id, {
-        kind: "eip712_sign",
-        signature: "0xdeadbeef",
-      }),
-    ).rejects.toThrow(/kind mismatch/i);
-
-    expect(sendSystemMessage).not.toHaveBeenCalled();
-    expect(session.getPendingRequests()).toEqual([
-      expect.objectContaining({
-        id: request.id,
-        kind: "solana_sign",
-      }),
-    ]);
-
-    session.close();
-  });
-
-  it("keeps a Solana request queued when the completion callback fails", async () => {
-    const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-solana-callback-failure",
-    });
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_request",
-            payload: {
-              unsigned_tx: "AQAA",
-              pending_solana_id: 9,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-    const requestPromise = new Promise<{ id: string }>((resolve) => {
-      session.once("wallet_solana_sign_request", resolve as never);
-    });
-    await session.sendAsync("sign solana");
-    const request = await requestPromise;
-    sendSystemMessage.mockRejectedValueOnce(new Error("callback unavailable"));
-
-    await expect(
-      session.resolve(request.id, {
-        kind: "solana_sign",
-        signedTx: "SIGNED:AQAA",
-      }),
-    ).rejects.toThrow("callback unavailable");
-
-    expect(session.getPendingRequests()).toEqual([
-      expect.objectContaining({ id: request.id, kind: "solana_sign" }),
-    ]);
-    session.close();
-  });
-
-  it("posts wallet::solana_sign_complete rejected on reject", async () => {
-    const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, { sessionId: "session-solana-3" });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_request",
-            payload: {
-              unsigned_tx: "AQAA",
-              description: "claim rewards",
-              pending_solana_id: 4,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_solana_sign_request", resolve);
-    });
-
-    await session.sendAsync("sign solana");
-    const request = (await requestPromise) as { id: string };
-
-    await session.reject(request.id, "User cancelled in Phantom");
-
-    expect(sendSystemMessage).toHaveBeenCalledWith(
-      "session-solana-3",
-      JSON.stringify({
-        type: "wallet::solana_sign_complete",
-        payload: {
-          status: "rejected",
-          error: "User cancelled in Phantom",
-          unsigned_tx: "AQAA",
-          description: "claim rewards",
-          pending_solana_id: 4,
-        },
-      }),
-      { app: "default" },
-    );
-
     session.close();
   });
 
@@ -2022,208 +1086,6 @@ describe("ClientSession ext helpers", () => {
           description: "transfer SOL",
           pending_solana_id: 14,
           pending_svm_tx_ids: [14, 15],
-        },
-      }),
-      { app: "default" },
-    );
-
-    session.close();
-  });
-
-  it("emits wallet_solana_sign_message_request from a wallet::solana_sign_message_request InlineCall", async () => {
-    const { client, sendMessage } = createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-solana-sign-message-1",
-    });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_message_request",
-            payload: {
-              message_base64: "TWVtbw==",
-              description: "sign login proof",
-              cluster: "solana:devnet",
-              pending_solana_id: 17,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_solana_sign_message_request", resolve);
-    });
-
-    await session.sendAsync("sign solana message");
-    const request = (await requestPromise) as {
-      id: string;
-      kind: string;
-      payload: {
-        message?: string;
-        description?: string;
-        cluster?: string;
-        pendingSolanaId?: number;
-      };
-    };
-
-    expect(request.id).toBe("solana_sign_message-17");
-    expect(request.kind).toBe("solana_sign_message");
-    expect(request.payload.message).toBe("TWVtbw==");
-    expect(request.payload.description).toBe("sign login proof");
-    expect(request.payload.cluster).toBe("solana:devnet");
-    expect(request.payload.pendingSolanaId).toBe(17);
-
-    session.close();
-  });
-
-  it("posts wallet::solana_sign_message_complete with signature on resolve", async () => {
-    const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-solana-sign-message-2",
-    });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_message_request",
-            payload: {
-              message_base64: "TWVtbw==",
-              description: "sign login proof",
-              cluster: "solana:devnet",
-              pending_solana_id: 17,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_solana_sign_message_request", resolve);
-    });
-
-    await session.sendAsync("sign solana message");
-    const request = (await requestPromise) as { id: string };
-
-    await session.resolve(request.id, {
-      kind: "solana_sign_message",
-      signature: "SIGN:MEMO",
-    });
-
-    expect(sendSystemMessage).toHaveBeenCalledWith(
-      "session-solana-sign-message-2",
-      JSON.stringify({
-        type: "wallet::solana_sign_message_complete",
-        payload: {
-          status: "signed",
-          signature: "SIGN:MEMO",
-          message: "TWVtbw==",
-          description: "sign login proof",
-          pending_solana_id: 17,
-        },
-      }),
-      { app: "default" },
-    );
-
-    session.close();
-  });
-
-  it("keeps the sign_message request queued when resolve receives the wrong result kind", async () => {
-    const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-solana-sign-message-kind-mismatch",
-    });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_message_request",
-            payload: {
-              message_base64: "TWVtbw==",
-              description: "sign login proof",
-              pending_solana_id: 17,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_solana_sign_message_request", resolve);
-    });
-
-    await session.sendAsync("sign solana message");
-    const request = (await requestPromise) as { id: string };
-
-    await expect(
-      session.resolve(request.id, {
-        kind: "solana_sign",
-        signedTx: "SIGNED:MEMO",
-      }),
-    ).rejects.toThrow(/kind mismatch/i);
-
-    expect(sendSystemMessage).not.toHaveBeenCalled();
-    expect(session.getPendingRequests()).toEqual([
-      expect.objectContaining({
-        id: request.id,
-        kind: "solana_sign_message",
-      }),
-    ]);
-
-    session.close();
-  });
-
-  it("posts wallet::solana_sign_message_complete rejected on reject", async () => {
-    const { client, sendMessage, sendSystemMessage } = createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-solana-sign-message-3",
-    });
-
-    sendMessage.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      system_events: [
-        {
-          InlineCall: {
-            type: "wallet::solana_sign_message_request",
-            payload: {
-              message_base64: "TWVtbw==",
-              description: "sign login proof",
-              pending_solana_id: 17,
-            },
-          },
-        },
-      ],
-    } satisfies AomiChatResponse);
-
-    const requestPromise = new Promise((resolve) => {
-      session.once("wallet_solana_sign_message_request", resolve);
-    });
-
-    await session.sendAsync("sign solana message");
-    const request = (await requestPromise) as { id: string };
-
-    await session.reject(request.id, "user cancel");
-
-    expect(sendSystemMessage).toHaveBeenCalledWith(
-      "session-solana-sign-message-3",
-      JSON.stringify({
-        type: "wallet::solana_sign_message_complete",
-        payload: {
-          status: "rejected",
-          error: "user cancel",
-          message: "TWVtbw==",
-          description: "sign login proof",
-          pending_solana_id: 17,
         },
       }),
       { app: "default" },
@@ -2437,59 +1299,6 @@ describe("ClientSession ext helpers", () => {
     session.close();
   });
 
-  it("rebuilds solana_sign requests from user_state.pending.svm_ixs", async () => {
-    const { client, fetchState } = createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-solana-4",
-      userState: {
-        address: "0xabc",
-        chainId: 1,
-        isConnected: true,
-        svmAddress: "So1aBcExampleSigner",
-      },
-    });
-
-    fetchState.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      user_state: {
-        address: "0xabc",
-        chain_id: 1,
-        is_connected: true,
-        svm_address: "So1aBcExampleSigner",
-        pending: {
-          svm_ixs: {
-            12: {
-              signer: "So1aBcExampleSigner",
-              cluster: "solana:mainnet",
-              description: "byreal swap",
-              unsigned_tx: "AQABAg",
-            },
-          },
-        },
-      },
-    } satisfies AomiStateResponse);
-
-    const changedPromise = new Promise<unknown>((resolve) => {
-      session.once("wallet_requests_changed", resolve);
-    });
-
-    await session.fetchCurrentState();
-    const requests = (await changedPromise) as Array<{
-      id: string;
-      kind: string;
-      payload: { unsignedTx?: string; pendingSolanaId?: number };
-    }>;
-
-    const solana = requests.find((r) => r.kind === "solana_sign");
-    expect(solana).toBeDefined();
-    expect(solana?.id).toBe("solana_sign-12");
-    expect(solana?.payload.unsignedTx).toBe("AQABAg");
-    expect(solana?.payload.pendingSolanaId).toBe(12);
-
-    session.close();
-  });
-
   it("rebuilds solana_send requests from nested user_state.pending.solana_txs", async () => {
     const { client, fetchState } = createMockClient();
     const session = new Session(client, {
@@ -2545,67 +1354,6 @@ describe("ClientSession ext helpers", () => {
     expect(solana?.id).toBe("solana_send-21");
     expect(solana?.payload.unsignedTx).toBe("U0VORE1F");
     expect(solana?.payload.pendingSolanaId).toBe(21);
-
-    session.close();
-  });
-
-  it("rebuilds eip712 requests from canonical user_state.pending.evm_sigs", async () => {
-    const { client, fetchState } = createMockClient();
-    const session = new Session(client, {
-      sessionId: "session-eip712-sigs-1",
-      userState: {
-        connection: {
-          is_connected: true,
-        },
-        evm: {
-          address: "0xabc",
-          chain_id: 8453,
-        },
-      },
-    });
-
-    fetchState.mockResolvedValueOnce({
-      is_processing: false,
-      messages: [],
-      user_state: {
-        connection: {
-          is_connected: true,
-        },
-        evm: {
-          address: "0xabc",
-          chain_id: 8453,
-        },
-        pending: {
-          evm_sigs: {
-            11: {
-              description: "Permit2 signature",
-              typed_data: {
-                domain: { chainId: 8453, name: "Permit2" },
-                types: { Permit: [{ name: "owner", type: "address" }] },
-                primaryType: "Permit",
-                message: { owner: "0xabc" },
-              },
-            },
-          },
-        },
-      },
-    } satisfies AomiStateResponse);
-
-    const changedPromise = new Promise<unknown>((resolve) => {
-      session.once("wallet_requests_changed", resolve);
-    });
-
-    await session.fetchCurrentState();
-    const requests = (await changedPromise) as Array<{
-      id: string;
-      kind: string;
-      payload: { eip712Id?: number };
-    }>;
-
-    const eip712 = requests.find((r) => r.kind === "eip712_sign");
-    expect(eip712).toBeDefined();
-    expect(eip712?.id).toBe("eip712-11");
-    expect(eip712?.payload.eip712Id).toBe(11);
 
     session.close();
   });

@@ -17,8 +17,6 @@ export function buildWalletKitIdentity({
   isBooting,
   isConnected,
   svm,
-  aa,
-  sponsorship,
   walletName,
   walletSource,
 }: {
@@ -28,11 +26,6 @@ export function buildWalletKitIdentity({
   isBooting: boolean;
   isConnected: boolean;
   svm?: SvmWalletRuntime;
-  aa: Pick<AomiSessionIdentity, "aaMode" | "SmartAccount4337" | "Delegation7702">;
-  sponsorship: Pick<
-    AomiSessionIdentity,
-    "sponsored" | "sponsorProvider" | "sponsorAccount"
-  >;
   walletName?: string;
   walletSource?: AomiSessionIdentity["walletSource"];
 }): AomiSessionIdentity {
@@ -66,8 +59,6 @@ export function buildWalletKitIdentity({
       isConnected: true,
       address,
       walletKind: "eoa",
-      ...aa,
-      ...sponsorship,
       chainId,
       sessionProvider: auth.sessionProvider,
       embeddedProvider: auth.embeddedProvider,
@@ -93,8 +84,6 @@ export function buildWalletKitIdentity({
       isConnected: true,
       address,
       walletKind: "eoa",
-      ...aa,
-      ...sponsorship,
       chainId,
       sessionProvider: auth.sessionProvider,
       embeddedProvider: auth.embeddedProvider,
@@ -119,7 +108,6 @@ export function buildWalletKitIdentity({
       status: "connected",
       isConnected: true,
       walletKind: undefined,
-      aaMode: undefined,
       chainId,
       svmAddress,
       sessionProvider: auth.sessionProvider,

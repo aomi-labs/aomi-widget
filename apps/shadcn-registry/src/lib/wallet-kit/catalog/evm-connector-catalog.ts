@@ -2,7 +2,12 @@
 
 import type { Chain, Transport } from "viem";
 import { http } from "viem";
-import { createConfig, type Config, type CreateConnectorFn } from "wagmi";
+import {
+  createConfig,
+  createStorage,
+  type Config,
+  type CreateConnectorFn,
+} from "wagmi";
 import {
   baseAccount,
   coinbaseWallet,
@@ -32,6 +37,7 @@ export type ResolvedEvmWalletsConfig = {
   transports?: Record<number, Transport>;
   ssr?: boolean;
   includeBaseAccount?: boolean;
+  persistConnections?: boolean;
 };
 
 function defaultHttpTransports(
@@ -59,6 +65,19 @@ function warnDuplicateWalletConnect(): void {
   console.warn(
     "[aomi-wallet-kit] wallets.evm.connectors included a WalletConnect-like connector. Aomi owns the WalletConnect connector; pass walletConnectProjectId instead.",
   );
+}
+
+function memoryStringStorage() {
+  const store = new Map<string, string>();
+  return {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      store.set(key, value);
+    },
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+  };
 }
 
 export function createAomiEvmConfig(input: ResolvedEvmWalletsConfig): Config {
@@ -109,6 +128,14 @@ export function createAomiEvmConfig(input: ResolvedEvmWalletsConfig): Config {
     transports: input.transports ?? defaultHttpTransports(input.chains),
     multiInjectedProviderDiscovery: true,
     ssr: input.ssr ?? true,
+    // Non-persistent mode still needs a real storage object: WagmiProvider
+    // unconditionally calls the persister's rehydrate hook, and `storage: null`
+    // leaves it undefined (uncaught error on mount). Memory-backed storage
+    // keeps hydration working while nothing survives a reload.
+    storage:
+      input.persistConnections === false
+        ? createStorage({ storage: memoryStringStorage() })
+        : undefined,
   });
   if (cacheKey) {
     evmConfigCache.set(cacheKey, config);
@@ -140,5 +167,6 @@ function evmConfigCacheKey(
     appLogoUrl: input.appLogoUrl ?? null,
     ssr: input.ssr ?? true,
     includeBaseAccount: input.includeBaseAccount ?? false,
+    persistConnections: input.persistConnections !== false,
   });
 }

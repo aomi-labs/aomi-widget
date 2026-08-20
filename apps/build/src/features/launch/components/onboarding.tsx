@@ -119,10 +119,20 @@ export function Onboarding({
     const redirect = readGithubRedirect(window.location.search);
     if (!redirect) {
       setInstalling(false);
-      setInstallError(null);
       const cur = loadLaunch();
       if (cur.pendingInstall) {
+        // We sent this browser to GitHub and it came back with no
+        // installation id. The common cause is an App that was already
+        // installed: GitHub renders its configure page rather than an
+        // install, and that page never redirects here. Say so and offer the
+        // authorize path, instead of silently resetting to the same button
+        // that just failed to get anywhere.
+        setInstallError(
+          "GitHub returned without completing an install. If the Aomi app is already installed on your account, use “Already installed — continue” below.",
+        );
         update(withPendingInstall(cur, null));
+      } else {
+        setInstallError(null);
       }
       return;
     }
@@ -170,6 +180,23 @@ export function Onboarding({
       window.history.replaceState({}, "", url.toString());
     }
   }, [state.oneshot.deploymentId]);
+
+  // --- bfcache restore ------------------------------------------------------
+  // `beginInstall` sets `installing` and then navigates to GitHub. When GitHub
+  // renders the *configure* page (App already installed) the user's only way
+  // back is Back, and a bfcache restore does NOT remount this component — the
+  // hydrate effect above never re-runs, so `installing` stays true and every
+  // install button, including the "Already installed — continue" recovery path
+  // this flow depends on, is disabled forever. `pageshow` with `persisted` is
+  // the only signal for that restore.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setInstalling(false);
+    };
+    window.addEventListener("pageshow", onPageShow);
+    return () => window.removeEventListener("pageshow", onPageShow);
+  }, []);
 
   // --- actions handed to the wizard -----------------------------------------
   const restart = useCallback(() => {
@@ -226,32 +253,47 @@ export function Onboarding({
     update(withProgress(state, PATH, { deploymentId: undefined, live: false }));
   }, [state, update]);
 
-  const beginInstall = useCallback(async () => {
-    const next = withPendingInstall(withPath(state, PATH), { path: PATH });
-    saveLaunch(next);
-    setState(next);
-    setInstallError(null);
-    setInstalling(true);
-    try {
-      // A return URL has to name an exact platform, and without one the
-      // backend falls back to the *portal's* settings page — a different app.
-      // An unscoped Build page is the Community platform, so say so and come
-      // back here.
-      const target = platform || readPlatform() || DEFAULT_DEPLOY_PLATFORM;
-      window.location.href = await githubAppInstallUrl({
-        app: 2,
-        platform: target,
-        returnTo: `${window.location.origin}/operate/deployments/new?platform=${encodeURIComponent(target)}`,
-      });
-    } catch (error) {
-      setInstalling(false);
-      setInstallError(
-        error instanceof Error
-          ? error.message
-          : "Failed to start GitHub App install.",
-      );
-    }
-  }, [platform, state]);
+  /**
+   * Send the browser to GitHub.
+   *
+   * `mode` picks the ceremony. The default install URL is
+   * `apps/<slug>/installations/new`, and GitHub only runs an install for an
+   * account that does not already have one — for an account that does, it
+   * renders the *configure* page, which carries no signed `state` and never
+   * returns here. That is a dead end the wizard cannot detect, so
+   * `mode: "authorize"` offers the OAuth consent leg instead, which does come
+   * back with an installation id.
+   */
+  const beginInstall = useCallback(
+    async (mode?: "install" | "authorize") => {
+      const next = withPendingInstall(withPath(state, PATH), { path: PATH });
+      saveLaunch(next);
+      setState(next);
+      setInstallError(null);
+      setInstalling(true);
+      try {
+        // A return URL has to name an exact platform, and without one the
+        // backend falls back to the *portal's* settings page — a different app.
+        // An unscoped Build page is the Community platform, so say so and come
+        // back here.
+        const target = platform || readPlatform() || DEFAULT_DEPLOY_PLATFORM;
+        window.location.href = await githubAppInstallUrl({
+          app: 2,
+          mode,
+          platform: target,
+          returnTo: `${window.location.origin}/operate/deployments/new?platform=${encodeURIComponent(target)}`,
+        });
+      } catch (error) {
+        setInstalling(false);
+        setInstallError(
+          error instanceof Error
+            ? error.message
+            : "Failed to start GitHub App install.",
+        );
+      }
+    },
+    [platform, state],
+  );
 
   // knownSources / hideWizardBack are accepted for parity with the dashboard's
   // call site; the one-click wizard derives everything it needs from `progress`.

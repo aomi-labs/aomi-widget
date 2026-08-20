@@ -1,0 +1,61 @@
+name: Production Frontend Smoke
+
+on:
+  push:
+    branches: [prod]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-frontend-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout deployed production source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event_name == 'push' && github.sha || 'prod' }}
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies and browser
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm exec playwright install --with-deps chromium
+
+      - name: Wait for canonical production and run smoke
+        env:
+          PORTAL_PREVIEW_URL: https://chat.aomi.dev
+          BUILD_PREVIEW_URL: https://build.aomi.dev
+        run: |
+          for _ in $(seq 1 20); do
+            if curl -fsS https://chat.aomi.dev/health >/dev/null 2>&1 || curl -fsS https://chat.aomi.dev/ >/dev/null; then
+              break
+            fi
+            sleep 15
+          done
+          pnpm exec playwright test
+
+      - name: Upload production diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-frontend-smoke-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: warn
+          retention-days: 30

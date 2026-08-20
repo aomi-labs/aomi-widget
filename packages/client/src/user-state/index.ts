@@ -2,14 +2,19 @@ import * as accessors from "./accessors";
 import {
   normalizeUserState,
   reconcileUserState,
+  toOwnedUserState,
 } from "./normalize";
 
 /**
  * Client-side user state synced with the backend.
  * Typically wallet connection info, but can be any key-value data.
+ *
+ * Account-abstraction and sponsorship are backend authority: they are resolved
+ * by the `execution-profile` endpoint and per-execution operation payloads, and
+ * are deliberately NOT part of this wire shape. The client never sends or stores
+ * them here.
  */
 export type UserStateAAMode = "none" | "4337" | "7702";
-export type UserStateWalletKind = "eoa" | "smart-account";
 export type UserStateWalletProvider = "para" | "privy" | "baseAccount";
 export type UserStateAuthMethod =
   | "google"
@@ -23,11 +28,6 @@ export type UserStateAuthMethod =
   | "email"
   | "phone"
   | "wagmi";
-export type UserStateSponsorProvider =
-  | "alchemy"
-  | "coinbase"
-  | "pimlico"
-  | "self";
 
 /** Session-level connection facts shared across chain families. */
 export interface UserStateConnection extends Record<string, unknown> {
@@ -40,34 +40,11 @@ export interface UserStateConnection extends Record<string, unknown> {
   auth_verified_at?: number | string | null;
 }
 
-/** EVM account-abstraction sub-state (`evm.aa`). */
-export interface UserStateEvmAa extends Record<string, unknown> {
-  mode?: UserStateAAMode | null;
-  /** Smart-account executor address (4337). */
-  smart_account?: string | null;
-  /** 7702 delegation contract address. */
-  delegation_7702?: string | null;
-  /** Bundler / AA infra provider, e.g. "alchemy". */
-  provider?: string | null;
-}
-
-/** EVM sponsorship sub-state (`evm.sponsorship`). */
-export interface UserStateEvmSponsorship extends Record<string, unknown> {
-  eligible?: boolean | null;
-  required?: boolean | null;
-  mode?: string | null;
-  sponsored?: boolean | null;
-  sponsor_provider?: UserStateSponsorProvider | null;
-  sponsor_account?: string | null;
-}
-
 /** EVM-family wallet block (`evm`). */
 export interface UserStateEvm extends Record<string, unknown> {
   address?: string | null;
   chain_id?: number | string | null;
   ens_name?: string | null;
-  aa?: UserStateEvmAa | null;
-  sponsorship?: UserStateEvmSponsorship | null;
 }
 
 /** Solana-family wallet block (`svm`). */
@@ -109,6 +86,14 @@ export interface UserState extends Record<string, unknown> {
 }
 
 /**
+ * The subset of `UserState` the client OWNS and may send to the backend.
+ * `pending` is backend-authority in-flight state; the client receives it but
+ * never echoes it back. Use {@link toOwnedUserState} to project a stored
+ * `UserState` down to this shape at the send boundary.
+ */
+export type OwnedUserState = Omit<UserState, "pending">;
+
+/**
  * Known client surfaces that may want backend-specific UX strategies.
  * Additional string values are allowed for forward compatibility.
  */
@@ -120,23 +105,17 @@ export const CLIENT_TYPE_WEB_UI: AomiClientType = "web_ui";
 export namespace UserState {
   export const normalize = normalizeUserState;
   export const reconcile = reconcileUserState;
+  export const toOwned = toOwnedUserState;
   export const address = accessors.address;
   export const evmAddress = accessors.evmAddress;
   export const svmAddress = accessors.svmAddress;
   export const chainId = accessors.chainId;
   export const ensName = accessors.ensName;
-  export const aaMode = accessors.aaMode;
-  export const SmartAccount4337 = accessors.SmartAccount4337;
-  export const Delegation7702 = accessors.Delegation7702;
-  export const walletKind = accessors.walletKind;
   export const isConnected = accessors.isConnected;
   export const walletProvider = accessors.walletProvider;
   export const walletProviderSubject = accessors.walletProviderSubject;
   export const authMethod = accessors.authMethod;
   export const authValue = accessors.authValue;
   export const authVerifiedAt = accessors.authVerifiedAt;
-  export const sponsored = accessors.sponsored;
-  export const sponsorProvider = accessors.sponsorProvider;
-  export const sponsorAccount = accessors.sponsorAccount;
   export const withExt = accessors.withExt;
 }

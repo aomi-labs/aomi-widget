@@ -1,9 +1,6 @@
 import type {
   UserState,
-  UserStateAAMode,
   UserStateAuthMethod,
-  UserStateSponsorProvider,
-  UserStateWalletKind,
   UserStateWalletProvider,
 } from "./index";
 import { normalizeUserState } from "./normalize";
@@ -26,15 +23,6 @@ function svmBlock(userState?: UserState | null): UnknownRecord | undefined {
 function connBlock(userState?: UserState | null): UnknownRecord | undefined {
   return asObject(normalizeUserState(userState)?.connection);
 }
-function aaBlock(userState?: UserState | null): UnknownRecord | undefined {
-  return asObject(evmBlock(userState)?.aa);
-}
-function sponsorshipBlock(
-  userState?: UserState | null,
-): UnknownRecord | undefined {
-  return asObject(evmBlock(userState)?.sponsorship);
-}
-
 function parseChainId(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isInteger(value) && value > 0) {
     return value;
@@ -51,11 +39,6 @@ function parseChainId(value: unknown): number | undefined {
 function optionalString(value: unknown): string | null | undefined {
   if (value === null) return null;
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
-}
-
-function optionalAddress(value: unknown): string | null | undefined {
-  if (value === null) return null;
-  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function timestamp(value: unknown): number | null | undefined {
@@ -101,39 +84,6 @@ export function ensName(userState?: UserState | null): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-export function aaMode(
-  userState?: UserState | null,
-): UserStateAAMode | null | undefined {
-  const value = aaBlock(userState)?.mode;
-  if (value === null) return null;
-  return value === "none" || value === "4337" || value === "7702"
-    ? value
-    : undefined;
-}
-
-export function SmartAccount4337(
-  userState?: UserState | null,
-): string | null | undefined {
-  return optionalAddress(aaBlock(userState)?.smart_account);
-}
-
-export function Delegation7702(
-  userState?: UserState | null,
-): string | null | undefined {
-  return optionalAddress(aaBlock(userState)?.delegation_7702);
-}
-
-export function walletKind(
-  userState?: UserState | null,
-): UserStateWalletKind | undefined {
-  const addr = address(userState);
-  if (!addr) return undefined;
-  const smartAccount = SmartAccount4337(userState);
-  return smartAccount && addr.toLowerCase() === smartAccount.toLowerCase()
-    ? "smart-account"
-    : "eoa";
-}
-
 export function isConnected(userState?: UserState | null): boolean | undefined {
   const value = connBlock(userState)?.is_connected;
   return typeof value === "boolean" ? value : undefined;
@@ -175,33 +125,6 @@ export function authVerifiedAt(
   userState?: UserState | null,
 ): number | null | undefined {
   return timestamp(connBlock(userState)?.auth_verified_at);
-}
-
-export function sponsored(
-  userState?: UserState | null,
-): boolean | null | undefined {
-  const value = sponsorshipBlock(userState)?.sponsored;
-  if (value === null) return null;
-  return typeof value === "boolean" ? value : undefined;
-}
-
-export function sponsorProvider(
-  userState?: UserState | null,
-): UserStateSponsorProvider | null | undefined {
-  const value = sponsorshipBlock(userState)?.sponsor_provider;
-  if (value === null) return null;
-  return value === "alchemy" ||
-    value === "coinbase" ||
-    value === "pimlico" ||
-    value === "self"
-    ? value
-    : undefined;
-}
-
-export function sponsorAccount(
-  userState?: UserState | null,
-): string | null | undefined {
-  return optionalAddress(sponsorshipBlock(userState)?.sponsor_account);
 }
 
 export function withExt(

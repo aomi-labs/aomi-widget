@@ -1,6 +1,6 @@
 {
   "name": "@aomi-labs/widget-lib",
-  "version": "1.4.29",
+  "version": "2.0.3",
   "description": "Shadcn registry for the Aomi widget.",
   "type": "module",
   "main": "./dist/index.js",
@@ -83,6 +83,7 @@
     "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
+    "@solana/spl-token": "^0.4.15",
     "postcss": "^8.5.6",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0"

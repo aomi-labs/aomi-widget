@@ -1,5 +1,106 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Build staging candidate-release secrets
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-19** —
+reconcile the Build deployment write-gate with the project Environment/Home
+read model. A candidate release's authoritative 409 missing-secret response is
+now retained (key names only) across a tab refresh, merged with the Manager's
+persisted declarations, and cleared as soon as the matching Environment value
+is saved. Deployment and promotion failures now surface the same actionable
+required-secret state instead of falling back to “No keys required”.
+
+## MCP to CLI partial-execution recovery
+
+Current session goal: **IMPLEMENTED AND LIVE-CHAIN VERIFIED 2026-08-19** — make
+sequential external signing outcome-aware when a requested action confirms but
+an appended service-fee transfer fails. The CLI journals confirmed staged IDs
+before backend callbacks, reports fee outcomes separately with exact wei,
+replays callbacks without rebroadcasting, and preserves the MCP/OAuth boundary:
+only the local CLI signs and broadcasts. The published package tuple is
+`@aomi-labs/client@0.5.1`, `@aomi-labs/react@0.6.2`, and
+`@aomi-labs/widget-lib@2.0.3`, so React/widget consumers resolve the updated
+wallet executor as well as direct CLI users. A fresh staging MCP request completed after action hash
+`0xcefe1911f4986b941be5e6e6c5b9bef7495af4d2b51ad661204172561c3c8ef2`
+confirmed and its delegated-account fee leg failed; the retry did not increase
+the wallet nonce or rebroadcast the action.
+
+## Generic Solana wallet restoration
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-17** —
+keep Wallet Standard Solana adapters available in the shared wallet kit
+regardless of whether Para or Privy supplies embedded wallets.
+
+- Para and Privy now compose their embedded Solana wallet state with the
+  provider-level Wallet Standard state instead of replacing it.
+- Solana options are deduplicated and routed to their owning provider, so a
+  user can switch between generic and embedded wallets.
+- Wallet Standard auto-connect is given one opportunity to begin before the
+  runtime calls `connect`, preventing the Phantom double-connect failure.
+- The publishable widget package is patch-bumped to
+  `@aomi-labs/widget-lib@2.0.2`.
+- Verified the 351-test registry suite, focused runtime regressions,
+  regenerated the affected Landing registry mirrors, and passed
+  registry/Portal/landing typechecks and builds, 27 TypeScript CLI Solana
+  tests, 200 backend SVM tests, and a local Portal browser smoke with an
+  injected Phantom Wallet Standard adapter.
+
+## Backend-Owned Sponsored ERC-4337
+
+Current session goal: **CI REPAIR LOCALLY VERIFIED; MERGE AND END-TO-END SMOKE IN
+PROGRESS 2026-08-13**
+— make the cross-origin widget an authentication and owner-signing client while
+the backend owns smart-account provisioning, mandatory Aomi fee construction,
+sponsorship, broadcast, confirmation, and revenue receipts.
+
+- Replaced partner-controlled AA/paymaster configuration with the required
+  `applicationId`, `apiUrl`, and authentication-only browser/Para/Privy
+  contract.
+- Added a single ordered `WalletOwnerSigner` boundary for browser EOAs and
+  Para/Privy embedded EOAs; the widget receives only display-safe calls and
+  signing messages, never Alchemy preparation blobs or credentials.
+- Added explicit origin-bound operation signature/reject requests with
+  `credentials: "omit"`, plus automatic backend provisioning after owner and
+  chain resolution.
+- Removed legacy `aa_handoff` rehydration and generic thread callbacks for AA;
+  operation replay now resolves against backend state.
+- Versioned the breaking publishable packages and proved the server-owned
+  prepare/sign/send path with sponsored Base Sepolia transaction
+  `0xb426a23e41ccba02a11fc2346992fd6fbd449e59f26d6a0c6d7c2c9ea4cb14bd`.
+- Reconciled PR #469 with current `main`, including staged EVM chain selection;
+  retained durable provider-registration, missing-provider,
+  network-preference, signer/address, authorization, fee-path, and chain-switch
+  regressions while deleting the obsolete legacy EIP-712 orchestrator test.
+- Verified 1,476 root tests and 347 registry tests, root lint/typecheck, Portal
+  typecheck, Telegram and widget-consumer production builds, and all changed
+  publishable package builds.
+- After backend PR #947 merged, isolated the Portal proxy regression from local
+  signing-key configuration by mocking the proxy's actual bearer dependency.
+  Migrated all three landing Solana runtime drivers from the deleted
+  `solana_sign` arm to the generic `signing` envelope through one shared,
+  type-safe request builder, and supplied the runtime's dismiss contract.
+- Re-verified all five app typechecks and production builds, package
+  typecheck/builds, 1,477 root tests, 396 Portal tests, and 6 Telegram tests
+  with `PORTAL_SERVICE_PRIVATE_KEY` explicitly absent. The remaining workflow,
+  frontend merge, and local backend-driven AA smoke are in progress.
+
+## MCP explicit chain context
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-13** —
+remove fabricated Ethereum and Solana mainnet state from headless MCP chat.
+`aomi_chat` accepts an optional explicit EVM chain or supported Solana cluster;
+omission retains account wallet identity without claiming an active network.
+
+## Cross-chain wallet approval review
+
+Current session goal: **IMPLEMENTED AND REVIEW CLEANUP COMPLETE 2026-08-13** —
+switch staged EVM transactions before simulation and signing without issuing a
+second switch request from the lower executor. The handler now passes an explicit
+already-selected chain into native execution, direct executor callers retain their
+own switch behavior, the stale implementation plan was removed, the checked-in
+registry mirror was regenerated, and publishable versions are
+`@aomi-labs/client@0.4.7` and `@aomi-labs/widget-lib@1.4.30`.
+
 ## Agentic Payments Execution-Harness Research
 
 Current session goal: **REWRITTEN AS A RESEARCH PAPER AND LOCALLY VERIFIED
@@ -132,6 +233,24 @@ through the canonical Session contract.
 - Kept the public BotFather contract aligned to `/start`, `/thread`,
   `/wallet`, `/permission`, `/tx`, `/app`, `/model`, `/network`, and
   `/disconnect`.
+
+## MCP Chat Parity
+
+Current session goal: **IMPLEMENTED AND LIVE-CHAIN VERIFIED 2026-08-13** — make
+the OAuth MCP surface supervise the same asynchronous Aomi
+agent turns as the TS CLI. `/api/mcp` now has four chat/session tools with rich
+cursor deltas, task/tool narration, wallet-request handoff, and account-wallet
+hydration; the prior direct tool funnel remains at `/api/mcp/direct` behind the
+same OAuth resource metadata. SIWE → dynamic registration → PKCE/consent →
+refresh-token OAuth, real agent replies, resume/list/interrupt, a locally
+staged manual-wallet transaction, and the browser handoff into its exact
+conversation are all covered by the local smoke.
+The funded-wallet follow-up attached the local OAuth server to a fresh Codex
+process, made progress cursors self-contained after that client exposed a
+missing-session retry loop, imported the account-owned MCP thread into the CLI,
+and signed its one-wei Base self-transfer. Both the requested transaction and
+service-fee transaction confirmed, and a later MCP check returned an empty
+pending queue plus both hashes.
 
 ## Chat Composer Parity
 
@@ -1121,3 +1240,14 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   through the normal signing API, verifies session-thread/app-scoped callback
   delivery, and observes the resumed final state. Client build/declarations,
   library typecheck, and all 59 focused tests passed.
+- 2026-08-13 launch install recovery, bfcache branch: the "Already installed —
+  continue" escape hatch was disabled by the very state it exists to escape.
+  `beginInstall` sets `installing` and navigates to GitHub; when the App is
+  already installed GitHub renders its configure page, which never redirects
+  back, so the only way out is Back — and a bfcache restore does not remount
+  Onboarding, leaving the hydrate effect unrun and `installing` stuck true.
+  Added a `pageshow`/`persisted` handler that clears the in-flight install on
+  restore only, plus a colocated RTL spec covering both branches (restore
+  clears it; an ordinary non-persisted pageshow does not). The spec was
+  mutation-tested: neutering the handler fails the restore case and passes the
+  control case. Verified with the full launch suite, 32 files / 191 tests.

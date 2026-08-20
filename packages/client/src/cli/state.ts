@@ -38,6 +38,8 @@ export type PendingTx = {
 export type SignedTx = {
   id: string;
   kind: "transaction" | "eip712_sign";
+  /** Authoritative backend staging id used to make callback recovery safe. */
+  pendingTxId?: number;
   txHash?: string;
   txHashes?: string[];
   executionKind?: string;
@@ -53,6 +55,13 @@ export type SignedTx = {
   value?: string;
   chainId?: number;
   description?: string;
+  /** True once the backend acknowledged this confirmed transaction. */
+  backendNotified?: boolean;
+  serviceFeeStatus?: "confirmed" | "failed" | "not_attempted";
+  serviceFeeAmountWei?: string;
+  serviceFeeRecipient?: string;
+  serviceFeeTxHash?: string;
+  serviceFeeError?: string;
   timestamp: number;
 };
 
@@ -678,7 +687,26 @@ export function removePendingTx(
 
 export function addSignedTx(state: CliSessionState, tx: SignedTx): void {
   if (!state.signedTxs) state.signedTxs = [];
-  state.signedTxs.push(tx);
+  const index = state.signedTxs.findIndex(
+    (existing) =>
+      (tx.pendingTxId !== undefined &&
+        existing.pendingTxId === tx.pendingTxId &&
+        existing.kind === tx.kind) ||
+      (existing.id === tx.id && existing.kind === tx.kind),
+  );
+  if (index === -1) {
+    state.signedTxs.push(tx);
+  } else {
+    state.signedTxs[index] = { ...state.signedTxs[index], ...tx };
+  }
+  state.pendingTxs = (state.pendingTxs ?? []).filter(
+    (pending) =>
+      !(
+        pending.kind === tx.kind &&
+        ((tx.pendingTxId !== undefined && pending.txId === tx.pendingTxId) ||
+          pending.id === tx.id)
+      ),
+  );
   writeState(state);
 }
 
@@ -754,17 +782,8 @@ export function syncPendingTxsFromUserState(
     state.chainId = undefined;
   }
 
-  if (walletSnapshot.aaMode !== undefined) {
-    state.aaMode = walletSnapshot.aaMode;
-  } else if (isConnected === false) {
-    state.aaMode = null;
-  }
-
-  if (walletSnapshot.smartAccount !== undefined) {
-    state.smartAccount = walletSnapshot.smartAccount;
-  } else if (isConnected === false) {
-    state.smartAccount = null;
-  }
+  // AA mode / smart account are backend authority and no longer round-tripped
+  // through user_state; the CLI keeps its own `--aa` preference locally.
 
   state.pendingTxs = pendingTxsFromBackendUserState(
     normalizedUserState,

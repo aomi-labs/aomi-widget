@@ -50,21 +50,3 @@ export function resolveConfiguredNativeWalletExecutionPolicy(
   };
 }
 
-export function resolveExecutionSponsorshipIdentity(
-  execution: ExecutionConfig | undefined,
-) {
-  const sponsorship = execution?.sponsorship;
-  if (!isEnabledSponsorship(sponsorship)) {
-    return {};
-  }
-
-  const sponsorAccount =
-    typeof sponsorship.paymasterServiceUrl === "string"
-      ? sponsorship.paymasterServiceUrl
-      : undefined;
-
-  return {
-    sponsored: sponsorship.mode === "required" ? true : undefined,
-    sponsorAccount,
-  } as const;
-}

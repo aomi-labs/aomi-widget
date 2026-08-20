@@ -12,6 +12,13 @@ const polyfillShim = (name: "buffer" | "global" | "process") =>
   );
 
 export default defineConfig({
+  define: {
+    // Para's project key is public browser configuration. Keep it in the host
+    // build, matching how a real cross-origin integrator supplies its provider.
+    "process.env.NEXT_PUBLIC_PARA_API_KEY": JSON.stringify(
+      process.env.NEXT_PUBLIC_PARA_API_KEY ?? "",
+    ),
+  },
   plugins: [
     react(),
     nodePolyfills({

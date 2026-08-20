@@ -59,6 +59,7 @@ export function toSignedTxMetadata(tx: SignedTx): Record<string, unknown> {
   return {
     id: tx.id,
     kind: tx.kind,
+    pendingTxId: tx.pendingTxId ?? null,
     txHash: tx.txHash ?? null,
     txHashes: tx.txHashes ?? null,
     executionKind: tx.executionKind ?? null,
@@ -74,6 +75,12 @@ export function toSignedTxMetadata(tx: SignedTx): Record<string, unknown> {
     value: tx.value ?? null,
     chainId: tx.chainId ?? null,
     description: tx.description ?? null,
+    backendNotified: tx.backendNotified ?? null,
+    serviceFeeStatus: tx.serviceFeeStatus ?? null,
+    serviceFeeAmountWei: tx.serviceFeeAmountWei ?? null,
+    serviceFeeRecipient: tx.serviceFeeRecipient ?? null,
+    serviceFeeTxHash: tx.serviceFeeTxHash ?? null,
+    serviceFeeError: tx.serviceFeeError ?? null,
     timestamp: toIsoTimestamp(tx.timestamp),
   };
 }
@@ -87,8 +94,14 @@ export function printKeyValueTable(
     truncateCell(value, MAX_TABLE_VALUE_WIDTH),
   );
 
-  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
-  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
+  const keyWidth = Math.max(
+    "field".length,
+    ...labels.map((label) => label.length),
+  );
+  const valueWidth = Math.max(
+    "value".length,
+    ...values.map((value) => value.length),
+  );
   const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
 
   console.log(`${color}${border}${RESET}`);
@@ -139,7 +152,10 @@ export function printTransactionTable(
   const jsonCells = visibleRows.map((row) =>
     truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH),
   );
-  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
+  const jsonWidth = Math.max(
+    "metadata_json".length,
+    ...jsonCells.map((v) => v.length),
+  );
   const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
 
   console.log(`${color}${border}${RESET}`);

@@ -482,6 +482,17 @@ export interface ExchangeGitHubCodeInput extends BearerOverride {
   redirectUri?: string;
 }
 
+export interface ClaimGitHubProjectInput extends BearerOverride {
+  code: string;
+  projectId: number;
+  redirectUri?: string;
+}
+
+export interface ClaimGitHubProjectResult {
+  githubUserId: string;
+  project: UserProject;
+}
+
 export interface GitHubIdentity {
   githubUserId: string;
   githubLogin: string;
@@ -490,16 +501,20 @@ export interface GitHubIdentity {
    * Lets the portal skip the install step when the App is already installed.
    */
   installationId: string | null;
+  /** Opaque Manager-signed, 10-minute installation visibility snapshot. */
+  visibilityGrant?: string | null;
 }
 
 export interface ListUserProjectsInput extends BearerOverride {
   githubUserId: string;
   platform?: string;
+  visibilityGrant?: string;
 }
 
 export interface GetUserProjectInput extends BearerOverride {
   githubUserId: string;
   projectId: number;
+  visibilityGrant?: string;
 }
 
 export interface GetBuilderApplicationInput extends BearerOverride {

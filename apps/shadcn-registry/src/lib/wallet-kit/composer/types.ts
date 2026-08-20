@@ -2,15 +2,12 @@
 
 import type { Chain } from "viem";
 import type { Connector } from "wagmi";
-import type {
-  WalletAaSignPayload,
-  WalletEip712Payload,
-  WalletTxPayload,
-} from "@aomi-labs/react";
+import type { WalletEip712Payload, WalletTxPayload } from "@aomi-labs/react";
 import type {
   AomiAccount,
   AomiAccountCredential,
   AomiSessionIdentity,
+  AomiTransactionExecution,
   AomiLoginMethod,
   AomiTxResult,
   AuthProviderId,
@@ -84,12 +81,12 @@ export type SvmWalletRuntime = WalletRuntime<"svm"> & {
 };
 
 export type EvmExecutionRuntime = {
-  sendTransaction?: (p: WalletTxPayload) => Promise<AomiTxResult>;
+  sendTransaction?: (
+    payload: WalletTxPayload,
+    execution?: AomiTransactionExecution,
+  ) => Promise<AomiTxResult>;
   signTypedData?: (p: WalletEip712Payload) => Promise<{ signature: string }>;
   signMessage?: (p: WalletEip712Payload) => Promise<{ signature: string }>;
-  signAaRequests?: (
-    p: WalletAaSignPayload,
-  ) => Promise<{ signatures: string[] }>;
   activeConnector?: Connector;
   capabilities?: WalletExecutionKitState["capabilities"];
   chainsById: Record<number, Chain>;
@@ -109,10 +106,6 @@ export type SvmExecutionRuntime = ReturnType<typeof buildSvmTransactionMethods>;
 
 export type ExecutionRuntime = {
   evm: EvmExecutionRuntime;
-  sponsorship: Pick<
-    AomiSessionIdentity,
-    "sponsored" | "sponsorProvider" | "sponsorAccount"
-  >;
 };
 
 export type AccountTransform = (accounts: AomiAccount[]) => AomiAccount[];

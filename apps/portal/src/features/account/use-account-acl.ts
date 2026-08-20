@@ -227,7 +227,9 @@ export function useAccountAcl(): AccountAcl {
         authorizationChallenge(post, {
           chain_type: wallet.chain,
           wallet: wallet.address,
-          mode,
+          // The view's "auto" rung is `server_auto` on the wire (the kernel's
+          // canonical spelling; the permit echoes it back through commit).
+          mode: mode === "auto" ? "server_auto" : mode,
         }),
       );
 

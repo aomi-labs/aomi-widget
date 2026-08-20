@@ -41,6 +41,22 @@ export function SettingsTab({ detail }: { detail: Detail }) {
         <SdkBadge stamped={stamped} required={required} />
       </div>
       <div className="border-border border-t px-4 py-4">
+        <div className="text-foreground text-sm font-medium">
+          Operator access
+        </div>
+        <p className="text-dim mt-1 text-xs leading-5">
+          Claim operator access transfers project writes and its project bots
+          from the current operator to you. GitHub will verify that you are a
+          repository administrator before the transfer.
+        </p>
+        <a
+          href={`/api/bff/auth/github/claim?projectId=${source.id}`}
+          className="border-border text-foreground mt-3 inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium hover:bg-muted"
+        >
+          Claim operator access
+        </a>
+      </div>
+      <div className="border-border border-t px-4 py-4">
         <div className="text-foreground text-sm font-medium">Danger zone</div>
         <p className="text-dim mt-1 text-xs">
           Disconnect project is coming soon.

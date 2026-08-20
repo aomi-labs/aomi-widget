@@ -124,13 +124,45 @@ export function newSessionCommand(config: CliConfig): void {
   printDataFileLocation();
 }
 
-export function resumeSessionCommand(selector: string): void {
+export async function resumeSessionCommand(selector: string): Promise<void> {
   const resumed = setActiveSession(selector);
-  if (!resumed) {
-    fatal(`No local session found for selector "${selector}".`);
+  if (resumed) {
+    console.log(
+      `Active session set to ${resumed.sessionId} (session-${resumed.localId}).`,
+    );
+    printDataFileLocation();
+    return;
   }
+
+  const current = CliSession.load();
+  if (!current) {
+    fatal(
+      `No local session found for selector "${selector}" and no authenticated session is available to import it.`,
+    );
+  }
+
+  const session = current.createClientSession();
+  try {
+    await session.client.fetchState(
+      selector,
+      undefined,
+      current.ensureClientId(),
+    );
+  } catch {
+    fatal(
+      `No account-owned local or remote session found for selector "${selector}".`,
+    );
+  } finally {
+    session.close();
+  }
+
+  const imported = CliSession.create(
+    { secrets: {} },
+    current.toState(),
+    selector,
+  );
   console.log(
-    `Active session set to ${resumed.sessionId} (session-${resumed.localId}).`,
+    `Active session set to ${imported.sessionId} (imported remote session).`,
   );
   printDataFileLocation();
 }

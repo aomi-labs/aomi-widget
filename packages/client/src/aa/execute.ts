@@ -7,12 +7,66 @@ import type {
   ExecuteWalletCallsParams,
   ExecutionResult,
   NativeWalletExecutionPolicy,
+  PartialWalletExecution,
   SponsorshipPaymasterServiceContext,
   WalletCapabilities,
 } from "./types";
 
 const ERC20_PAYMENT_CONTEXT_KEYS = new Set(["erc20", "paymasterAddress"]);
 const AA_DEBUG_STORAGE_KEYS = ["aomi:debug-aa", "AOMI_DEBUG_AA"];
+
+export class PartialWalletExecutionError extends Error {
+  readonly partial: PartialWalletExecution;
+
+  constructor(
+    error: unknown,
+    completedTxHashes: string[],
+    failedCallIndex: number,
+  ) {
+    const failureReason = walletExecutionFailureReason(error);
+    super(failureReason);
+    this.name = "PartialWalletExecutionError";
+    this.partial = {
+      completedTxHashes: [...completedTxHashes],
+      failedCallIndex,
+      failureReason,
+    };
+  }
+}
+
+function walletExecutionFailureReason(error: unknown): string {
+  if (error && typeof error === "object") {
+    for (const field of ["details", "shortMessage"] as const) {
+      const value = (error as Record<string, unknown>)[field];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .split(/\n(?:\n|URL:|Request body:|Request Arguments:)/, 1)[0]
+    .trim();
+}
+
+export function partialWalletExecution(
+  error: unknown,
+): PartialWalletExecution | undefined {
+  if (!error || typeof error !== "object" || !("partial" in error)) {
+    return undefined;
+  }
+  const partial = (error as { partial?: Partial<PartialWalletExecution> })
+    .partial;
+  if (
+    !partial ||
+    !Array.isArray(partial.completedTxHashes) ||
+    partial.completedTxHashes.length === 0 ||
+    !partial.completedTxHashes.every((hash) => typeof hash === "string") ||
+    !Number.isInteger(partial.failedCallIndex) ||
+    typeof partial.failureReason !== "string"
+  ) {
+    return undefined;
+  }
+  return partial as PartialWalletExecution;
+}
 
 function normalizeRpcCallData(data: Hex | undefined): Hex | undefined {
   return data === "0x" ? undefined : data;
@@ -93,34 +147,44 @@ export async function executeWalletCalls(
       throw new Error("wallet_atomic_batch_required");
     }
 
-    for (const call of normalizedCalls) {
-      const chain = chainsById[call.chainId];
-      if (!chain) {
-        throw new Error(`Unsupported chain ${call.chainId}`);
-      }
-      const rpcUrl = getPreferredRpcUrl(chain);
-      if (!rpcUrl) {
-        throw new Error(`No RPC for chain ${call.chainId}`);
-      }
+    for (const [callIndex, call] of normalizedCalls.entries()) {
+      try {
+        const chain = chainsById[call.chainId];
+        if (!chain) {
+          throw new Error(`Unsupported chain ${call.chainId}`);
+        }
+        const rpcUrl = getPreferredRpcUrl(chain);
+        if (!rpcUrl) {
+          throw new Error(`No RPC for chain ${call.chainId}`);
+        }
 
-      const account = privateKeyToAccount(localPrivateKey);
-      const walletClient = createWalletClient({
-        account,
-        chain,
-        transport: http(rpcUrl),
-      });
-      const hash = await walletClient.sendTransaction({
-        account,
-        to: call.to,
-        value: call.value,
-        data: call.data,
-      });
-      const publicClient = createPublicClient({
-        chain,
-        transport: http(rpcUrl),
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-      hashes.push(hash);
+        const account = privateKeyToAccount(localPrivateKey);
+        const walletClient = createWalletClient({
+          account,
+          chain,
+          transport: http(rpcUrl),
+        });
+        const hash = await walletClient.sendTransaction({
+          account,
+          to: call.to,
+          value: call.value,
+          data: call.data,
+        });
+        const publicClient = createPublicClient({
+          chain,
+          transport: http(rpcUrl),
+        });
+        const receipt = await publicClient.waitForTransactionReceipt({ hash });
+        if (receipt.status !== "success") {
+          throw new Error(`Transaction ${hash} reverted`);
+        }
+        hashes.push(hash);
+      } catch (error) {
+        if (hashes.length > 0) {
+          throw new PartialWalletExecutionError(error, hashes, callIndex);
+        }
+        throw error;
+      }
     }
 
     return {

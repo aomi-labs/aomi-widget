@@ -50,43 +50,43 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // src/index.ts
 var index_exports = {};
 __export(index_exports, {
-  AOMI_TASK_EVENT_TYPES: () => import_client11.AOMI_TASK_EVENT_TYPES,
-  AomiClient: () => import_client9.AomiClient,
+  AOMI_TASK_EVENT_TYPES: () => import_client12.AOMI_TASK_EVENT_TYPES,
+  AomiClient: () => import_client10.AomiClient,
   AomiRuntimeApiProvider: () => AomiRuntimeApiProvider,
   AomiRuntimeProvider: () => AomiRuntimeProvider,
   ControlContextProvider: () => ControlContextProvider,
   EMPTY_TASK_RUNS: () => EMPTY_TASK_RUNS,
   EventContextProvider: () => EventContextProvider,
   ExtUserProvider: () => ExtUserProvider,
-  MAX_AUTO_FEE_WEI: () => import_client10.MAX_AUTO_FEE_WEI,
+  MAX_AUTO_FEE_WEI: () => import_client11.MAX_AUTO_FEE_WEI,
   NotificationContextProvider: () => NotificationContextProvider,
   RuntimeUserStateProvider: () => RuntimeUserStateProvider,
   SUPPORTED_CHAINS: () => SUPPORTED_CHAINS,
   ThreadContextProvider: () => ThreadContextProvider,
-  UserState: () => import_client3.UserState,
-  aaModeFromExecutionKind: () => import_client10.aaModeFromExecutionKind,
-  appIdentityKey: () => import_client10.appIdentityKey,
-  appendFeeCallToPayload: () => import_client10.appendFeeCallToPayload,
-  buildFeeAAWalletCall: () => import_client10.buildFeeAAWalletCall,
+  UserState: () => import_client4.UserState,
+  aaModeFromExecutionKind: () => import_client11.aaModeFromExecutionKind,
+  appIdentityKey: () => import_client11.appIdentityKey,
+  appendFeeCallToPayload: () => import_client11.appendFeeCallToPayload,
+  buildFeeAAWalletCall: () => import_client11.buildFeeAAWalletCall,
   cn: () => cn,
-  executeWalletCalls: () => import_client10.executeWalletCalls,
+  executeWalletCalls: () => import_client11.executeWalletCalls,
   formatAddress: () => formatAddress,
   getChainInfo: () => getChainInfo,
   getNetworkName: () => getNetworkName,
-  hydrateTxPayloadFromUserState: () => import_client10.hydrateTxPayloadFromUserState,
+  hydrateTxPayloadFromUserState: () => import_client11.hydrateTxPayloadFromUserState,
   initThreadControl: () => initThreadControl,
-  isAomiTaskEventType: () => import_client11.isAomiTaskEventType,
-  normalizeAppDescriptor: () => import_client10.normalizeAppDescriptor,
-  normalizeSimulatedFee: () => import_client10.normalizeSimulatedFee,
-  parseAomiTaskEvent: () => import_client11.parseAomiTaskEvent,
-  parseChainId: () => import_client10.parseChainId,
+  isAomiTaskEventType: () => import_client12.isAomiTaskEventType,
+  normalizeAppDescriptor: () => import_client11.normalizeAppDescriptor,
+  normalizeSimulatedFee: () => import_client11.normalizeSimulatedFee,
+  parseAomiTaskEvent: () => import_client12.parseAomiTaskEvent,
+  parseChainId: () => import_client11.parseChainId,
   readTaskPartAgentId: () => readTaskPartAgentId,
   reduceTaskRuns: () => reduceTaskRuns,
   resolveAutoModel: () => resolveAutoModel,
-  toAAWalletCall: () => import_client10.toAAWalletCall,
-  toAAWalletCalls: () => import_client10.toAAWalletCalls,
-  toViemSignMessageArgs: () => import_client10.toViemSignMessageArgs,
-  toViemSignTypedDataArgs: () => import_client10.toViemSignTypedDataArgs,
+  toAAWalletCall: () => import_client11.toAAWalletCall,
+  toAAWalletCalls: () => import_client11.toAAWalletCalls,
+  toViemSignMessageArgs: () => import_client11.toViemSignMessageArgs,
+  toViemSignTypedDataArgs: () => import_client11.toViemSignTypedDataArgs,
   useAomiRuntime: () => useAomiRuntime,
   useApiKey: () => useApiKey,
   useAuthEndpoints: () => useAuthEndpoints,
@@ -106,12 +106,12 @@ __export(index_exports, {
   useWalletHandler: () => useWalletHandler
 });
 module.exports = __toCommonJS(index_exports);
-var import_client9 = require("@aomi-labs/client");
 var import_client10 = require("@aomi-labs/client");
+var import_client11 = require("@aomi-labs/client");
 
 // src/runtime/aomi-runtime.tsx
 var import_react16 = require("react");
-var import_client8 = require("@aomi-labs/client");
+var import_client9 = require("@aomi-labs/client");
 
 // src/contexts/control-context.tsx
 var import_react5 = require("react");
@@ -177,6 +177,7 @@ function useApiKeyImpl() {
 
 // src/control/byok.ts
 var import_react2 = require("react");
+var import_client = require("@aomi-labs/client");
 var BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
 var BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
 function useByokImpl({
@@ -223,53 +224,50 @@ function useByokImpl({
     });
   }, [aomiClientRef, byokKeys, getControlSessionId2]);
   const ingestSecrets = (0, import_react2.useCallback)(
-    async (secrets, app) => {
+    async (secrets) => {
       const clientId = clientIdRef.current;
       if (!clientId) throw new Error("clientId not initialized");
       const { handles } = await aomiClientRef.current.ingestSecrets(
         getControlSessionId2(),
         clientId,
-        secrets,
-        app
+        secrets
       );
       return handles;
     },
     [aomiClientRef, clientIdRef, getControlSessionId2]
   );
   const clearSecrets = (0, import_react2.useCallback)(
-    async (app) => {
+    async () => {
       var _a, _b;
       const clientId = clientIdRef.current;
       if (!clientId) return;
       await ((_b = (_a = aomiClientRef.current).clearSecrets) == null ? void 0 : _b.call(
         _a,
         getControlSessionId2(),
-        clientId,
-        app
+        clientId
       ));
     },
     [aomiClientRef, clientIdRef, getControlSessionId2]
   );
   const deleteSecret = (0, import_react2.useCallback)(
-    async (name, app) => {
+    async (name) => {
       const clientId = clientIdRef.current;
       if (!clientId) return;
       await aomiClientRef.current.deleteSecret(
         getControlSessionId2(),
         clientId,
-        name,
-        app
+        name
       );
     },
     [aomiClientRef, clientIdRef, getControlSessionId2]
   );
   const listSecrets = (0, import_react2.useCallback)(async () => {
     var _a;
-    const { by_app } = await aomiClientRef.current.listSecrets(
+    const response = await aomiClientRef.current.listSecrets(
       getControlSessionId2(),
       (_a = clientIdRef.current) != null ? _a : void 0
     );
-    return by_app;
+    return (0, import_client.secretNamesFrom)(response);
   }, [aomiClientRef, clientIdRef, getControlSessionId2]);
   const setByok = (0, import_react2.useCallback)(
     async (provider, apiKey, label) => {
@@ -487,10 +485,10 @@ function generateUUID() {
 }
 
 // src/utils/env.ts
-var import_client = require("@aomi-labs/client");
+var import_client2 = require("@aomi-labs/client");
 
 // src/state/thread-store.ts
-var threadLogEnv = (0, import_client.safeEnv)(() => process.env.NODE_ENV);
+var threadLogEnv = (0, import_client2.safeEnv)(() => process.env.NODE_ENV);
 var shouldLogThreadUpdates = threadLogEnv !== void 0 && threadLogEnv !== "production";
 var logThreadMetadataChange = (source, threadId, prev, next) => {
   if (!shouldLogThreadUpdates) return;
@@ -1489,8 +1487,8 @@ function useTaskRun(agentId, threadId) {
 
 // src/contexts/ext-user-context.tsx
 var import_react9 = require("react");
-var import_client2 = require("@aomi-labs/client");
 var import_client3 = require("@aomi-labs/client");
+var import_client4 = require("@aomi-labs/client");
 var import_jsx_runtime5 = require("react/jsx-runtime");
 function asRecord(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -1513,8 +1511,8 @@ function mergeRecords(previous, incoming) {
 }
 function dropWalletBlocks(state) {
   var _a;
-  const chainId = import_client2.UserState.chainId(state);
-  return (_a = import_client2.UserState.normalize({
+  const chainId = import_client3.UserState.chainId(state);
+  return (_a = import_client3.UserState.normalize({
     connection: { is_connected: false },
     evm: chainId === void 0 ? void 0 : { chain_id: chainId },
     pending: state.pending,
@@ -1536,11 +1534,11 @@ function dropAddressScopedState(state) {
   } else {
     delete next.evm;
   }
-  return (_a = import_client2.UserState.normalize(next)) != null ? _a : {};
+  return (_a = import_client3.UserState.normalize(next)) != null ? _a : {};
 }
 function stableStateString(state) {
   var _a;
-  return JSON.stringify((_a = import_client2.UserState.normalize(state)) != null ? _a : {});
+  return JSON.stringify((_a = import_client3.UserState.normalize(state)) != null ? _a : {});
 }
 var UserContext = (0, import_react9.createContext)(void 0);
 function useUser() {
@@ -1584,19 +1582,19 @@ function ExtUserProviderImpl({ children }) {
     (data) => {
       setUserState((prev) => {
         var _a, _b, _c;
-        const normalizedData = (_a = import_client2.UserState.normalize(data)) != null ? _a : {};
-        const merged = (_c = import_client2.UserState.normalize(
+        const normalizedData = (_a = import_client3.UserState.normalize(data)) != null ? _a : {};
+        const merged = (_c = import_client3.UserState.normalize(
           mergeRecords(
-            (_b = import_client2.UserState.normalize(prev)) != null ? _b : {},
+            (_b = import_client3.UserState.normalize(prev)) != null ? _b : {},
             normalizedData
           )
         )) != null ? _c : prev;
         let next;
-        if (import_client2.UserState.isConnected(normalizedData) === false) {
+        if (import_client3.UserState.isConnected(normalizedData) === false) {
           next = dropWalletBlocks(merged);
         } else {
-          const prevAddress = import_client2.UserState.address(prev);
-          const nextAddress = import_client2.UserState.address(merged);
+          const prevAddress = import_client3.UserState.address(prev);
+          const nextAddress = import_client3.UserState.address(merged);
           const addressChanged = prevAddress !== void 0 && nextAddress !== void 0 && prevAddress.toLowerCase() !== nextAddress.toLowerCase();
           next = addressChanged ? dropAddressScopedState(merged) : merged;
         }
@@ -1612,7 +1610,7 @@ function ExtUserProviderImpl({ children }) {
   const addExtValue = (0, import_react9.useCallback)(
     (key, value) => {
       setUserState((prev) => {
-        const next = import_client2.UserState.withExt(prev, key, value);
+        const next = import_client3.UserState.withExt(prev, key, value);
         notifyStateChange(next);
         return next;
       });
@@ -1669,10 +1667,10 @@ var import_react15 = require("@assistant-ui/react");
 
 // src/runtime/orchestrator.ts
 var import_react10 = require("react");
-var import_client6 = require("@aomi-labs/client");
+var import_client7 = require("@aomi-labs/client");
 
 // src/runtime/session-manager.ts
-var import_client4 = require("@aomi-labs/client");
+var import_client5 = require("@aomi-labs/client");
 var SessionManager = class {
   constructor(clientFactory) {
     this.clientFactory = clientFactory;
@@ -1681,7 +1679,7 @@ var SessionManager = class {
   getOrCreate(threadId, opts) {
     let session = this.sessions.get(threadId);
     if (session) return session;
-    session = new import_client4.Session(this.clientFactory(), __spreadProps(__spreadValues({}, opts), {
+    session = new import_client5.Session(this.clientFactory(), __spreadProps(__spreadValues({}, opts), {
       sessionId: threadId
     }));
     this.sessions.set(threadId, session);
@@ -1729,7 +1727,7 @@ var SessionManager = class {
 };
 
 // src/runtime/utils.ts
-var import_client5 = require("@aomi-labs/client");
+var import_client6 = require("@aomi-labs/client");
 var import_clsx = require("clsx");
 var import_tailwind_merge = require("tailwind-merge");
 function cn(...inputs) {
@@ -1927,7 +1925,7 @@ var getNetworkName = (chainId) => {
   }
 };
 var formatAddress = (addr) => addr ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : "Connect Wallet";
-var SUPPORTED_CHAINS = [...import_client5.SUPPORTED_CHAINS];
+var SUPPORTED_CHAINS = [...import_client6.SUPPORTED_CHAINS];
 var getChainInfo = (chainId) => chainId === void 0 ? void 0 : SUPPORTED_CHAINS.find((c) => c.id === chainId);
 
 // src/runtime/merge-turns.ts
@@ -2326,7 +2324,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         applicationId: nextApplicationId,
         apiKey: nextApiKey,
         clientId: nextClientId,
-        clientType: import_client6.CLIENT_TYPE_WEB_UI,
+        clientType: import_client7.CLIENT_TYPE_WEB_UI,
         syncPendingTxRequestsFromUserState: false,
         userState: nextUserState
       });
@@ -2902,6 +2900,19 @@ function useWalletHandler({
     },
     [getSession, startRequest, syncVisibleRequests]
   );
+  const dismissRequest = (0, import_react12.useCallback)(
+    (id) => {
+      var _a;
+      (_a = getSession()) == null ? void 0 : _a.dismiss(id);
+      requestsRef.current = requestsRef.current.filter(
+        (request) => request.id !== id
+      );
+      inFlightRequestSetRef.current.delete(id);
+      suppressedRequestSetRef.current.add(id);
+      syncVisibleRequests();
+    },
+    [getSession, syncVisibleRequests]
+  );
   const rejectRequest = (0, import_react12.useCallback)(
     async (id, error) => {
       const session = getSession();
@@ -2931,6 +2942,7 @@ function useWalletHandler({
     hasBlockingWalletRequests,
     setRequests,
     startRequest,
+    dismissRequest,
     resolveRequest,
     rejectRequest
   };
@@ -2938,7 +2950,7 @@ function useWalletHandler({
 
 // src/runtime/user-state-provider.tsx
 var import_react13 = require("react");
-var import_client7 = require("@aomi-labs/client");
+var import_client8 = require("@aomi-labs/client");
 
 // src/runtime/http-status.ts
 function getHttpStatus2(error) {
@@ -2995,38 +3007,28 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = (0, import_react13.useCallback)(
     (nextUser) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
       return {
         connection: {
-          is_connected: (_a = import_client7.UserState.isConnected(nextUser)) != null ? _a : false,
+          is_connected: (_a = import_client8.UserState.isConnected(nextUser)) != null ? _a : false,
           primary_family: (_b = nextUser.connection) == null ? void 0 : _b.primary_family,
-          provider: (_c = import_client7.UserState.walletProvider(nextUser)) != null ? _c : void 0,
-          wallet_provider_subject: (_d = import_client7.UserState.walletProviderSubject(nextUser)) != null ? _d : void 0,
-          auth_method: (_e = import_client7.UserState.authMethod(nextUser)) != null ? _e : void 0,
-          auth_value: (_f = import_client7.UserState.authValue(nextUser)) != null ? _f : void 0,
-          auth_verified_at: (_g = import_client7.UserState.authVerifiedAt(nextUser)) != null ? _g : void 0
+          provider: (_c = import_client8.UserState.walletProvider(nextUser)) != null ? _c : void 0,
+          wallet_provider_subject: (_d = import_client8.UserState.walletProviderSubject(nextUser)) != null ? _d : void 0,
+          auth_method: (_e = import_client8.UserState.authMethod(nextUser)) != null ? _e : void 0,
+          auth_value: (_f = import_client8.UserState.authValue(nextUser)) != null ? _f : void 0,
+          auth_verified_at: (_g = import_client8.UserState.authVerifiedAt(nextUser)) != null ? _g : void 0
         },
         evm: {
-          address: import_client7.UserState.address(nextUser),
-          chain_id: import_client7.UserState.chainId(nextUser),
-          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0,
-          aa: {
-            mode: (_i = import_client7.UserState.aaMode(nextUser)) != null ? _i : void 0,
-            smart_account: (_j = import_client7.UserState.SmartAccount4337(nextUser)) != null ? _j : void 0,
-            delegation_7702: (_k = import_client7.UserState.Delegation7702(nextUser)) != null ? _k : void 0
-          },
-          sponsorship: {
-            sponsored: (_l = import_client7.UserState.sponsored(nextUser)) != null ? _l : void 0,
-            sponsor_provider: (_m = import_client7.UserState.sponsorProvider(nextUser)) != null ? _m : void 0,
-            sponsor_account: (_n = import_client7.UserState.sponsorAccount(nextUser)) != null ? _n : void 0
-          }
+          address: import_client8.UserState.address(nextUser),
+          chain_id: import_client8.UserState.chainId(nextUser),
+          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0
         },
         svm: {
-          address: import_client7.UserState.svmAddress(nextUser),
-          cluster: (_o = nextUser.svm) == null ? void 0 : _o.cluster,
-          wallet_name: (_p = nextUser.svm) == null ? void 0 : _p.wallet_name,
-          transport: (_q = nextUser.svm) == null ? void 0 : _q.transport,
-          capabilities: (_r = nextUser.svm) == null ? void 0 : _r.capabilities
+          address: import_client8.UserState.svmAddress(nextUser),
+          cluster: (_i = nextUser.svm) == null ? void 0 : _i.cluster,
+          wallet_name: (_j = nextUser.svm) == null ? void 0 : _j.wallet_name,
+          transport: (_k = nextUser.svm) == null ? void 0 : _k.transport,
+          capabilities: (_l = nextUser.svm) == null ? void 0 : _l.capabilities
         }
       };
     },
@@ -3091,7 +3093,7 @@ function useUserStateRequestResponder(context, sessions) {
       var _a, _b;
       const sessionId = threadContextRef.current.currentThreadId;
       const session = getSession(sessionId);
-      const payload = (_b = (_a = import_client7.UserState.reconcile(session.getUserState(), getUserState())) != null ? _a : session.getUserState()) != null ? _b : getUserState();
+      const payload = (_b = (_a = import_client8.UserState.reconcile(session.getUserState(), getUserState())) != null ? _a : session.getUserState()) != null ? _b : getUserState();
       eventContext.sendOutboundSystem({
         type: "user_state_response",
         sessionId,
@@ -3120,7 +3122,7 @@ function useRemoteThreadListSync(context, sessions, remoteThreads, accountSessio
     warmedThreadIdsRef,
     warmThread
   } = remoteThreads;
-  const isConnected = import_client7.UserState.isConnected(user) === true;
+  const isConnected = import_client8.UserState.isConnected(user) === true;
   const canLoadThreads = isConnected || accountSessionAvailable;
   const restoredThreadId = threadPersistence == null ? void 0 : threadPersistence.restoredThreadId;
   const listThreadsWithAuthRetry = (0, import_react13.useCallback)(
@@ -3966,6 +3968,7 @@ function AomiRuntimeCore({
       pendingWalletRequests: walletHandler.pendingRequests,
       hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
       startWalletRequest: walletHandler.startRequest,
+      dismissWalletRequest: walletHandler.dismissRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
       simulateBatchTransactions,
@@ -4055,7 +4058,7 @@ function AomiRuntimeProvider({
     [clientOptions]
   );
   const aomiClient = (0, import_react16.useMemo)(
-    () => new import_client8.AomiClient(__spreadValues({
+    () => new import_client9.AomiClient(__spreadValues({
       baseUrl: backendUrl
     }, resolvedClientOptions)),
     [backendUrl, resolvedClientOptions]
@@ -4156,7 +4159,7 @@ function useNotificationHandler({
 }
 
 // src/index.ts
-var import_client11 = require("@aomi-labs/client");
+var import_client12 = require("@aomi-labs/client");
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   AOMI_TASK_EVENT_TYPES,

@@ -85,6 +85,28 @@ describe("OneshotWizard", () => {
     expect(screen.getByText("Install on GitHub")).toBeInTheDocument();
   });
 
+  // GitHub renders its configure page — which never redirects back — instead
+  // of re-running an install for an account that already has one. Without a
+  // second door, "Install on GitHub" is a dead end for those users.
+  it("offers the authorize ceremony for an already-installed account", () => {
+    const beginInstall = vi.fn();
+    render(<OneshotWizard {...defaultProps} beginInstall={beginInstall} />);
+    fireEvent.click(screen.getByText("Already installed — continue"));
+    expect(beginInstall).toHaveBeenCalledWith("authorize");
+  });
+
+  it("asks for the install ceremony from the primary button", () => {
+    const beginInstall = vi.fn();
+    render(<OneshotWizard {...defaultProps} beginInstall={beginInstall} />);
+    fireEvent.click(screen.getByText("Install on GitHub"));
+    expect(beginInstall).toHaveBeenCalledWith("install");
+  });
+
+  it("disables both install doors while a redirect is in flight", () => {
+    render(<OneshotWizard {...defaultProps} installing />);
+    expect(screen.getByText("Already installed — continue")).toBeDisabled();
+  });
+
   it("shows live panel when live", () => {
     render(
       <OneshotWizard

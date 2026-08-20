@@ -17,6 +17,8 @@ import {
  * browser control-plane request from it.
  */
 export const GITHUB_SESSION_COOKIE = "aomi_github";
+/** Opaque Manager-signed grant, intentionally separate from the session. */
+export const GITHUB_VISIBILITY_GRANT_COOKIE = "aomi_github_visibility";
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 const CLI_SESSION_AUDIENCE = "aomi-build-cli";
 const CLI_EXCHANGE_TYPE = "aomi-build-cli-exchange";
@@ -47,6 +49,7 @@ export interface GitHubCliLoginRequest {
 
 export type GitHubOAuthContinuation =
   | { kind: "browser" }
+  | { kind: "claim"; projectId: number }
   | ({ kind: "cli" } & GitHubCliLoginRequest);
 
 export interface GitHubOAuthRequest {
@@ -130,6 +133,14 @@ function cliContinuation(value: unknown): GitHubOAuthContinuation | null {
   const candidate = value as Record<string, unknown>;
   if (candidate.kind === "browser") return { kind: "browser" };
   if (
+    candidate.kind === "claim" &&
+    typeof candidate.projectId === "number" &&
+    Number.isSafeInteger(candidate.projectId) &&
+    candidate.projectId > 0
+  ) {
+    return { kind: "claim", projectId: candidate.projectId };
+  }
+  if (
     candidate.kind !== "cli" ||
     typeof candidate.redirectUri !== "string" ||
     typeof candidate.state !== "string" ||
@@ -158,6 +169,20 @@ export async function readGitHubSession(
 ): Promise<GitHubSession | null> {
   const payload = await verify(token);
   return payload ? sessionFromPayload(payload) : null;
+}
+
+export function setGitHubVisibilityGrantCookie(
+  response: NextResponse,
+  grant: string | null | undefined,
+): void {
+  response.cookies.set(GITHUB_VISIBILITY_GRANT_COOKIE, grant?.trim() ?? "", {
+    ...SESSION_COOKIE_OPTIONS,
+    maxAge: grant?.trim() ? 10 * 60 : 0,
+  });
+}
+
+export async function getGitHubVisibilityGrant(): Promise<string | null> {
+  return (await cookies()).get(GITHUB_VISIBILITY_GRANT_COOKIE)?.value?.trim() || null;
 }
 
 export async function issueGitHubCliSession(

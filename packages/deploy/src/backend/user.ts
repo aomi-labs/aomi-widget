@@ -10,6 +10,8 @@ import type {
   DeleteUserBotInput,
   DeleteUserProjectBotInput,
   ExchangeGitHubCodeInput,
+  ClaimGitHubProjectInput,
+  ClaimGitHubProjectResult,
   GetBuilderApplicationDetailInput,
   GetBuilderApplicationInput,
   GetUserProjectInput,
@@ -120,6 +122,7 @@ export class BackendClient extends BackendPlatformClient {
       github_user_id?: string;
       github_login?: string;
       installation_id?: number | string | null;
+      visibility_grant?: string | null;
     }>(
       `/api/integrations/github-app/oauth/exchange?${params.toString()}`,
       "exchange_github_code",
@@ -132,6 +135,31 @@ export class BackendClient extends BackendPlatformClient {
         raw.installation_id === null || raw.installation_id === undefined
           ? null
           : String(raw.installation_id),
+      visibilityGrant:
+        typeof raw.visibility_grant === "string" ? raw.visibility_grant : null,
+    };
+  }
+
+  async claimGitHubProject(
+    input: ClaimGitHubProjectInput,
+  ): Promise<ClaimGitHubProjectResult> {
+    if (!Number.isSafeInteger(input.projectId) || input.projectId <= 0) {
+      throw new Error("projectId must be a positive integer");
+    }
+    const bearer = this.resolveBearer(input.bearer);
+    const raw = await this.post<Record<string, unknown>>(
+      "/api/integrations/github-app/oauth/claim",
+      {
+        code: required(input.code, "code"),
+        project_id: input.projectId,
+        redirect_uri: input.redirectUri,
+      },
+      "claim_github_project",
+      bearer,
+    );
+    return {
+      githubUserId: String(raw.github_user_id ?? ""),
+      project: camelUserProject((raw.project ?? {}) as Record<string, unknown>),
     };
   }
 
@@ -164,6 +192,9 @@ export class BackendClient extends BackendPlatformClient {
       this.ownedProjectBasePath(input.projectId, params),
       "get_user_project",
       bearer,
+      input.visibilityGrant?.trim()
+        ? { "X-Aomi-Visibility-Grant": input.visibilityGrant.trim() }
+        : undefined,
     );
     await this.audit("get_user_project", input.actor, {
       projectId: input.projectId,

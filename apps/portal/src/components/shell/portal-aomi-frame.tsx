@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { useAomiRuntime, usePerThreadControl } from "@aomi-labs/react";
-import { RequiredSecretsGate } from "@portal/components/shell/required-secrets-gate";
 import { HeaderControls } from "@portal/components/shell/header-controls";
 import { PackagesModal } from "@portal/components/shell/packages-modal";
 import { SettingsModal } from "@portal/components/settings/settings-modal";
@@ -98,6 +97,32 @@ function AppSelectUrlBootstrap({
   return null;
 }
 
+/** Open an account-owned thread linked by MCP wallet-approval handoff. */
+export function ThreadUrlBootstrap() {
+  const { currentThreadId, selectThread, threadMetadata } = useAomiRuntime();
+  const appliedRef = useRef(false);
+
+  useEffect(() => {
+    if (appliedRef.current) return;
+    const threadId = new URLSearchParams(window.location.search)
+      .get("thread")
+      ?.trim();
+    if (!threadId) return;
+    if (threadId === currentThreadId) {
+      appliedRef.current = true;
+      return;
+    }
+    // selectThread intentionally creates a new local thread for unknown ids.
+    // Wait for the authenticated remote-thread list to hydrate first so an
+    // MCP handoff cannot race startup and silently land on a blank chat.
+    if (!threadMetadata.has(threadId)) return;
+    appliedRef.current = true;
+    selectThread(threadId);
+  }, [currentThreadId, selectThread, threadMetadata]);
+
+  return null;
+}
+
 export function PortalAomiFrame() {
   const { accountStatus, accountUser } = useAomiWalletKit();
   const accountUserId = accountUser?.id;
@@ -154,7 +179,10 @@ export function PortalAomiFrame() {
   }
 
   return (
-    <main className="bg-background relative h-full w-full overflow-hidden">
+    <main
+      data-testid="portal-shell"
+      className="bg-background relative h-full w-full overflow-hidden"
+    >
       <AomiFrame.Root
         key={accountFrameScope.revision}
         width="100%"
@@ -169,6 +197,7 @@ export function PortalAomiFrame() {
         className="portal-aomi-frame aui-suggestions-marquee rounded-none border-0 shadow-none"
         clientOptions={clientOptions}
       >
+        <ThreadUrlBootstrap />
         <AppSelectUrlBootstrap
           requestedApp={requestedApp.app}
           requestedApplicationId={requestedApp.applicationId}
@@ -189,7 +218,6 @@ export function PortalAomiFrame() {
             hideNetwork: true,
           }}
         />
-        <RequiredSecretsGate />
         <SvmWalletBindingGate />
       </AomiFrame.Root>
       {overlay === "settings" && (

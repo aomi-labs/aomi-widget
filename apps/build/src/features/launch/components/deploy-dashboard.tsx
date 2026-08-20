@@ -46,6 +46,7 @@ import {
 } from "@aomi-labs/deploy/lifecycle";
 import { chatAppUrl } from "@build/lib/chat-url";
 import { useProjectDetail } from "@build/features/launch/hooks/use-project-detail";
+import { RequiredSecretsPanel } from "@build/features/launch/components/required-secrets-panel";
 import { DeployStep } from "./deploy-step";
 import { Onboarding } from "./onboarding";
 
@@ -59,6 +60,14 @@ export type SecretsGateDetail = {
     { applicationId: number; slots: SecretSlot[]; missing: string[] }
   > | null;
   loadRequiredSecrets: () => void;
+  // Writing the values is part of the gate contract now: Activate used to
+  // stop at a disabled button pointing at another tab, and the builder had no
+  // way to act on it from here.
+  setEnvVars?: (
+    applicationId: number,
+    values: Record<string, string>,
+  ) => Promise<unknown>;
+  ensureRequiredSecrets?: (apps: string[]) => Promise<unknown>;
 };
 
 type SessionState =
@@ -653,6 +662,29 @@ export function LifecyclePanel({
     (n, app) => n + (detail.requiredSecrets?.[app]?.missing.length ?? 0),
     0,
   );
+  const missingSecretSlots = blockedApps.flatMap((app) =>
+    (detail.requiredSecrets?.[app]?.slots ?? [])
+      .filter((slot) =>
+        detail.requiredSecrets?.[app]?.missing.includes(slot.name),
+      )
+      .map((slot) => ({
+        app,
+        slot,
+        applicationId: detail.requiredSecrets?.[app]?.applicationId,
+      })),
+  );
+
+  const saveRequiredSecrets = useCallback(
+    async (valuesByApplication: Map<number, Record<string, string>>) => {
+      await Promise.all(
+        Array.from(valuesByApplication, ([applicationId, values]) =>
+          detail.setEnvVars?.(applicationId, values),
+        ),
+      );
+      await detail.ensureRequiredSecrets?.(lifecycle.appNames);
+    },
+    [detail, lifecycle.appNames],
+  );
 
   const activate = useCallback(async () => {
     if (lifecycle.releaseTags.length === 0 || lifecycle.appNames.length === 0) {
@@ -743,6 +775,15 @@ export function LifecyclePanel({
         </div>
       )}
 
+      {canActivate && secretsBlocked && (
+        <RequiredSecretsPanel
+          slots={missingSecretSlots}
+          missingCount={missingCount}
+          onSave={saveRequiredSecrets}
+          actionLabel="Activate"
+        />
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         {canActivate && (
           <Button
@@ -758,12 +799,7 @@ export function LifecyclePanel({
             Activate
           </Button>
         )}
-        {canActivate && secretsBlocked && (
-          <span className="text-xs text-amber-700">
-            {missingCount} required secret{missingCount === 1 ? "" : "s"}{" "}
-            missing — set them in the Environment tab.
-          </span>
-        )}
+
         {canRedeploy && (
           <Button
             onClick={redeploy}

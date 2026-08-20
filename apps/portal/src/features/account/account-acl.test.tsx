@@ -69,7 +69,7 @@ const WALLETS = {
       wallet_provider: "privy",
       signing: "delegated",
       is_primary: false,
-      signing_mode: "auto",
+      signing_mode: "server_auto",
       authorization_version: 4,
       has_delegated_grant: true,
       provider_managed: false,

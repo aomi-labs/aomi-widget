@@ -11,7 +11,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(139);
+    expect(routeKeys).toHaveLength(155);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/account/statement [account]");
     // Public placement probe. Kept distinct from GET /health, which stays a
@@ -62,6 +62,18 @@ describe("AomiClient route manifest", () => {
     );
     expect(routeKeys).toContain(
       "POST /api/platforms/:name/telegram/handover/:bot/:id/revoke [activation]",
+    );
+    // Routes production still serves that the candidate backend no longer
+    // exports. The promotion gate requires the manifest to cover every live
+    // route, so these stay until prod stops serving them.
+    expect(routeKeys).toContain("GET /api/secrets [thread]");
+    expect(routeKeys).toContain("POST /api/secrets [thread]");
+    expect(routeKeys).toContain("DELETE /api/secrets/:name [thread]");
+    expect(routeKeys).toContain(
+      "GET /api/widget/v1/execution-profile [account, thread]",
+    );
+    expect(routeKeys).toContain(
+      "PUT /api/widget/v1/aa-accounts/:chain_id [account, thread]",
     );
     expect(routeKeys).not.toContain("GET /api/control/apps [session]");
     expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
@@ -902,7 +914,7 @@ describe("AomiClient transport selection", () => {
     }
   });
 
-  it("canonicalizes legacy solana_sigs into svm_sigs and strips bulky svm sign payloads during fetchState", async () => {
+  it("forwards the owned user_state on fetchState without a backend-authority pending block", async () => {
     const nativeResponse = {
       ok: true,
       status: 200,
@@ -918,18 +930,7 @@ describe("AomiClient transport selection", () => {
 
       await client.fetchState("session-1", {
         connection: { is_connected: true },
-        solana: { address: "Bv9abc", cluster: "solana:mainnet" },
-        pending: {
-          solana_sigs: {
-            1: {
-              signer: "Bv9abc",
-              description: "swap",
-              unsignedTx: "AQID",
-              pendingSvmSigId: 1,
-              kind: "solana_sign",
-            },
-          },
-        },
+        svm: { address: "Bv9abc", cluster: "solana:mainnet" },
       });
 
       const url = String(nativeFetch.mock.calls[0]?.[0]);
@@ -937,19 +938,17 @@ describe("AomiClient transport selection", () => {
       const userState = JSON.parse(
         parsed.searchParams.get("user_state") ?? "{}",
       );
-      // Legacy `solana_sigs` is canonicalized into `svm_sigs`; the bulky
-      // `unsignedTx` is stripped while correlation ids are preserved.
-      expect(userState.pending.solana_sigs).toBeUndefined();
-      // Bucket entries are snake-cased to match the backend input contract.
-      expect(userState.pending.svm_sigs["1"].unsigned_tx).toBeUndefined();
-      expect(userState.pending.svm_sigs["1"].unsignedTx).toBeUndefined();
-      expect(userState.pending.svm_sigs["1"].pending_svm_sig_id).toBe(1);
+      // `pending` is backend-authority in-flight state; the outbound payload
+      // (OwnedUserState) never carries it back.
+      expect(userState).not.toHaveProperty("pending");
+      expect(userState.connection.is_connected).toBe(true);
+      expect(userState.svm.address).toBe("Bv9abc");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
   });
 
-  it("strips bulky pending payloads from sendMessage user_state URLs", async () => {
+  it("forwards the owned user_state on sendMessage without a backend-authority pending block", async () => {
     const chatResponse = {
       ok: true,
       status: 200,
@@ -966,29 +965,14 @@ describe("AomiClient transport selection", () => {
       userState: {
         connection: { is_connected: true },
         evm: { address: "0xabc", chain_id: 1 },
-        pending: {
-          evm_sigs: {
-            7: {
-              signer: "0xabc",
-              description: "permit",
-              typed_data: {
-                primaryType: "Permit",
-                message: { nonce: "large-payload" },
-              },
-              pendingEip712Id: 7,
-            },
-          },
-        },
       },
     });
 
     const url = String(customFetch.mock.calls[0]?.[0]);
-    expect(url).not.toContain("large-payload");
-
     const parsed = new URL(url);
     const userState = JSON.parse(parsed.searchParams.get("user_state") ?? "{}");
-    expect(userState.pending.evm_sigs["7"].typed_data).toBeUndefined();
-    expect(userState.pending.evm_sigs["7"].pending_eip712_id).toBe(7);
+    expect(userState).not.toHaveProperty("pending");
+    expect(userState.evm.address).toBe("0xabc");
   });
 
   it("reuses one SSE connection for multiple listeners on the same session", async () => {

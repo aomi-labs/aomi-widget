@@ -126,6 +126,7 @@ function useApiKeyImpl() {
 
 // src/control/byok.ts
 import { useCallback as useCallback2, useEffect as useEffect2, useState as useState2 } from "react";
+import { secretNamesFrom } from "@aomi-labs/client";
 var BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
 var BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
 function useByokImpl({
@@ -172,53 +173,50 @@ function useByokImpl({
     });
   }, [aomiClientRef, byokKeys, getControlSessionId2]);
   const ingestSecrets = useCallback2(
-    async (secrets, app) => {
+    async (secrets) => {
       const clientId = clientIdRef.current;
       if (!clientId) throw new Error("clientId not initialized");
       const { handles } = await aomiClientRef.current.ingestSecrets(
         getControlSessionId2(),
         clientId,
-        secrets,
-        app
+        secrets
       );
       return handles;
     },
     [aomiClientRef, clientIdRef, getControlSessionId2]
   );
   const clearSecrets = useCallback2(
-    async (app) => {
+    async () => {
       var _a, _b;
       const clientId = clientIdRef.current;
       if (!clientId) return;
       await ((_b = (_a = aomiClientRef.current).clearSecrets) == null ? void 0 : _b.call(
         _a,
         getControlSessionId2(),
-        clientId,
-        app
+        clientId
       ));
     },
     [aomiClientRef, clientIdRef, getControlSessionId2]
   );
   const deleteSecret = useCallback2(
-    async (name, app) => {
+    async (name) => {
       const clientId = clientIdRef.current;
       if (!clientId) return;
       await aomiClientRef.current.deleteSecret(
         getControlSessionId2(),
         clientId,
-        name,
-        app
+        name
       );
     },
     [aomiClientRef, clientIdRef, getControlSessionId2]
   );
   const listSecrets = useCallback2(async () => {
     var _a;
-    const { by_app } = await aomiClientRef.current.listSecrets(
+    const response = await aomiClientRef.current.listSecrets(
       getControlSessionId2(),
       (_a = clientIdRef.current) != null ? _a : void 0
     );
-    return by_app;
+    return secretNamesFrom(response);
   }, [aomiClientRef, clientIdRef, getControlSessionId2]);
   const setByok = useCallback2(
     async (provider, apiKey, label) => {
@@ -2881,6 +2879,19 @@ function useWalletHandler({
     },
     [getSession, startRequest, syncVisibleRequests]
   );
+  const dismissRequest = useCallback10(
+    (id) => {
+      var _a;
+      (_a = getSession()) == null ? void 0 : _a.dismiss(id);
+      requestsRef.current = requestsRef.current.filter(
+        (request) => request.id !== id
+      );
+      inFlightRequestSetRef.current.delete(id);
+      suppressedRequestSetRef.current.add(id);
+      syncVisibleRequests();
+    },
+    [getSession, syncVisibleRequests]
+  );
   const rejectRequest = useCallback10(
     async (id, error) => {
       const session = getSession();
@@ -2910,6 +2921,7 @@ function useWalletHandler({
     hasBlockingWalletRequests,
     setRequests,
     startRequest,
+    dismissRequest,
     resolveRequest,
     rejectRequest
   };
@@ -2979,7 +2991,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = useCallback11(
     (nextUser) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
       return {
         connection: {
           is_connected: (_a = UserStateHelpers.isConnected(nextUser)) != null ? _a : false,
@@ -2993,24 +3005,14 @@ function useWalletStateSync(context, sessions, remoteThreads) {
         evm: {
           address: UserStateHelpers.address(nextUser),
           chain_id: UserStateHelpers.chainId(nextUser),
-          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0,
-          aa: {
-            mode: (_i = UserStateHelpers.aaMode(nextUser)) != null ? _i : void 0,
-            smart_account: (_j = UserStateHelpers.SmartAccount4337(nextUser)) != null ? _j : void 0,
-            delegation_7702: (_k = UserStateHelpers.Delegation7702(nextUser)) != null ? _k : void 0
-          },
-          sponsorship: {
-            sponsored: (_l = UserStateHelpers.sponsored(nextUser)) != null ? _l : void 0,
-            sponsor_provider: (_m = UserStateHelpers.sponsorProvider(nextUser)) != null ? _m : void 0,
-            sponsor_account: (_n = UserStateHelpers.sponsorAccount(nextUser)) != null ? _n : void 0
-          }
+          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0
         },
         svm: {
           address: UserStateHelpers.svmAddress(nextUser),
-          cluster: (_o = nextUser.svm) == null ? void 0 : _o.cluster,
-          wallet_name: (_p = nextUser.svm) == null ? void 0 : _p.wallet_name,
-          transport: (_q = nextUser.svm) == null ? void 0 : _q.transport,
-          capabilities: (_r = nextUser.svm) == null ? void 0 : _r.capabilities
+          cluster: (_i = nextUser.svm) == null ? void 0 : _i.cluster,
+          wallet_name: (_j = nextUser.svm) == null ? void 0 : _j.wallet_name,
+          transport: (_k = nextUser.svm) == null ? void 0 : _k.transport,
+          capabilities: (_l = nextUser.svm) == null ? void 0 : _l.capabilities
         }
       };
     },
@@ -3950,6 +3952,7 @@ function AomiRuntimeCore({
       pendingWalletRequests: walletHandler.pendingRequests,
       hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
       startWalletRequest: walletHandler.startRequest,
+      dismissWalletRequest: walletHandler.dismissRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
       simulateBatchTransactions,

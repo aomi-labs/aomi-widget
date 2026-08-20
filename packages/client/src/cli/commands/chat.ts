@@ -167,9 +167,6 @@ export async function syncWalletStateForChat(
   // would silently overwrite the correctly-set user state with an empty one.
   const userState = buildCliUserState(next.publicKey, next.chainId, {
     app: config.app,
-    aaProvider: next.aaProvider ?? config.aaProvider ?? null,
-    aaMode: next.aaMode ?? null,
-    smartAccount: next.smartAccount ?? null,
     svmAddress: next.svmAddress,
     // An EVM-only command must not silently reset a persisted devnet/testnet
     // Solana wallet to mainnet in the shared default-runtime context.

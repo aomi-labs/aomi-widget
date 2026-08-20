@@ -31,7 +31,7 @@ import type {
   AomiHttpMethod,
   AomiPlatformFilter,
 } from "./types";
-import { UserState, type UserState as UserStateShape } from "./user-state";
+import { UserState, type OwnedUserState } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
 import { normalizeAppDescriptor } from "./app-descriptor";
 
@@ -53,71 +53,6 @@ function previewText(value: string, max = 80): string {
   return `${singleLine.slice(0, max - 1)}…`;
 }
 
-// Fields the server originated and stores authoritatively. The client only
-// echoes pending state back to identify which entries it knows about; the
-// payload bodies (raw tx bytes, signing messages, etc.) should not travel
-// back across the wire.
-const BULKY_PENDING_FIELDS = new Set<string>([
-  "messageBase64",
-  "message_base64",
-  "messageSha256",
-  "message_sha256",
-  "unsignedTx",
-  "unsigned_tx",
-  "typed_data",
-  "typedData",
-  "tx_data",
-  "txData",
-  "transaction",
-  "transactionBase64",
-  "transaction_base64",
-]);
-
-function pruneBucket(
-  bucket: Record<string, unknown> | null | undefined,
-): Record<string, unknown> | undefined {
-  if (!bucket) return undefined;
-  const out: Record<string, unknown> = {};
-  for (const [id, entry] of Object.entries(bucket)) {
-    if (entry && typeof entry === "object" && !Array.isArray(entry)) {
-      const rec = entry as Record<string, unknown>;
-      const pruned: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(rec)) {
-        if (!BULKY_PENDING_FIELDS.has(k)) pruned[k] = v;
-      }
-      out[id] = pruned;
-    } else {
-      out[id] = entry;
-    }
-  }
-  return out;
-}
-
-function stripBulkyPendingFields(
-  userState: UserStateShape | undefined,
-): UserStateShape | undefined {
-  if (!userState?.pending) return userState;
-  const pending = userState.pending;
-  const legacyPending = pending as Record<string, unknown>;
-  return {
-    ...userState,
-    pending: {
-      ...pending,
-      evm_txs: pruneBucket(pending.evm_txs),
-      evm_sigs: pruneBucket(pending.evm_sigs),
-      svm_ixs: pruneBucket(pending.svm_ixs),
-      solana_txs: pruneBucket(
-        legacyPending.solana_txs as Record<string, unknown> | null | undefined,
-      ),
-      solana_sigs: pruneBucket(
-        legacyPending.solana_sigs as Record<string, unknown> | null | undefined,
-      ),
-      svm_sigs: pruneBucket(
-        legacyPending.svm_sigs as Record<string, unknown> | null | undefined,
-      ),
-    },
-  };
-}
 
 function joinApiPath(baseUrl: string, path: string): string {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
@@ -355,6 +290,21 @@ async function postState<T>(
 // AomiClient
 // =============================================================================
 
+/**
+ * Read secret names out of a {@link AomiListSecretsResponse} whichever shape
+ * the backend sent.
+ *
+ * A backend from before per-user app secrets were retired answers
+ * `{ by_app: { <app>: [names] } }`; the one after answers `{ names: [...] }`
+ * (plus an empty `by_app` for one release). This client ships ahead of the
+ * backend, so it has to read both — and a browser tab cached across the
+ * cutover will hit each of them in turn.
+ */
+export function secretNamesFrom(response: AomiListSecretsResponse): string[] {
+  if (response.names) return response.names;
+  return Object.values(response.by_app ?? {}).flat();
+}
+
 export class AomiClient {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
@@ -457,13 +407,11 @@ export class AomiClient {
    */
   async fetchState(
     sessionId: string,
-    userState?: UserStateShape,
+    userState?: OwnedUserState,
     clientId?: string,
     options?: { app?: string; applicationId?: number | string | null },
   ): Promise<AomiStateResponse> {
-    const normalizedUserState = stripBulkyPendingFields(
-      UserState.normalize(userState),
-    );
+    const normalizedUserState = UserState.normalize(userState);
     const applicationId = options?.applicationId?.toString().trim();
     const stateContext = {
       app: options?.app,
@@ -542,7 +490,7 @@ export class AomiClient {
       app?: string;
       applicationId?: number | string | null;
       apiKey?: string;
-      userState?: UserStateShape;
+      userState?: OwnedUserState;
       clientId?: string;
       paymentMethod?: string | null;
       /** @deprecated Accepted as a no-op for compatibility with client 0.4.3. */
@@ -551,9 +499,7 @@ export class AomiClient {
   ): Promise<AomiChatResponse> {
     const app = options?.app ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
-    const normalizedUserState = stripBulkyPendingFields(
-      UserState.normalize(options?.userState),
-    );
+    const normalizedUserState = UserState.normalize(options?.userState);
     const applicationId = options?.applicationId?.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
       app,
@@ -672,31 +618,27 @@ export class AomiClient {
   // ===========================================================================
 
   /**
-   * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+   * Ingest client-scoped secrets. Returns opaque `$SECRET:<name>` handles.
    *
-   * When `app` is provided, the values land in the per-app store keyed by
-   * `(client_id, app)` — this is the path the Secrets settings page uses
-   * (one app at a time). When `app` is omitted, secrets land in the flat
-   * client store (used by BYOK and other cross-app pools).
+   * There is no app scope. A hosted app's Environment belongs to its Builder
+   * and is configured in Aomi Build; a per-user copy of it was a second,
+   * process-local store that answered the same handle differently depending on
+   * which fleet host served the turn. The backend answers 410 to any request
+   * that still carries one.
    */
   async ingestSecrets(
     sessionId: string,
     clientId: string,
     secrets: Record<string, string>,
-    app?: string,
   ): Promise<AomiIngestSecretsResponse> {
     const url = joinApiPath(this.baseUrl, "/api/secrets");
     const body: {
       client_id: string;
-      app?: string;
       secrets: Record<string, string>;
     } = {
       client_id: clientId,
       secrets,
     };
-    if (app && app.trim().length > 0) {
-      body.app = app.trim();
-    }
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId, {
@@ -712,21 +654,14 @@ export class AomiClient {
     return (await response.json()) as AomiIngestSecretsResponse;
   }
 
-  /**
-   * Clear secrets for a client. With `app`, removes every slot under that
-   * app. Without `app`, clears the entire client (legacy behavior — wipes
-   * both stores and unbinds the session).
-   */
+  /** Clear every client-scoped secret and unbind the session. */
   async clearSecrets(
     sessionId: string,
     clientId: string,
-    app?: string,
   ): Promise<AomiClearSecretsResponse> {
-    const params: Record<string, string> = { client_id: clientId };
-    if (app && app.trim().length > 0) {
-      params.app = app.trim();
-    }
-    const url = buildApiUrl(this.baseUrl, "/api/secrets", params);
+    const url = buildApiUrl(this.baseUrl, "/api/secrets", {
+      client_id: clientId,
+    });
     const response = await this.fetchImpl(url, {
       method: "DELETE",
       headers: withSessionHeader(sessionId),
@@ -739,20 +674,13 @@ export class AomiClient {
     return (await response.json()) as AomiClearSecretsResponse;
   }
 
-  /**
-   * Remove a single named secret. With `app`, targets the per-app store
-   * under that scope; without, targets the flat store.
-   */
+  /** Remove a single named client-scoped secret. */
   async deleteSecret(
     sessionId: string,
     clientId: string,
     name: string,
-    app?: string,
   ): Promise<AomiDeleteSecretResponse> {
     const params: Record<string, string> = { client_id: clientId };
-    if (app && app.trim().length > 0) {
-      params.app = app.trim();
-    }
     const url = buildApiUrl(
       this.baseUrl,
       `/api/secrets/${encodeURIComponent(name)}`,
@@ -771,9 +699,10 @@ export class AomiClient {
   }
 
   /**
-   * List currently stored secret names per app for this client. The
-   * backend never returns raw values; the settings page uses this as the
-   * source of truth instead of trusting localStorage.
+   * List the stored secret NAMES for this client — never values.
+   *
+   * Read the result with {@link secretNamesFrom}, which tolerates the
+   * pre-cutover `by_app` shape as well as the flat `names` list.
    */
   async listSecrets(
     sessionId: string,

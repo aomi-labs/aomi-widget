@@ -2,118 +2,228 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
-      - prod
+    branches: [main, prod]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  build-and-lint:
+  packages:
+    name: Packages · lint, types, tests, builds
     runs-on: ubuntu-latest
-    environment: ${{ github.ref == 'refs/heads/prod' && 'Production' || 'Preview' }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Enable corepack
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint (library)
-        run: pnpm run lint
+      - name: Lint and typecheck workspace
+        run: pnpm run lint && pnpm run typecheck
 
-      - name: Build library bundle
-        run: pnpm run build:lib
+      - name: Build every publishable package
+        run: pnpm run build:packages
 
-      - name: Build @aomi-labs/deploy
-        run: pnpm run build:deploy
+      - name: Run workspace tests and committed OpenAPI contract
+        run: pnpm exec vitest run
 
-      # Must precede the test steps: the Aomi Build suites import
-      # `@aomi-labs/widget-lib`, which only resolves once the registry is built.
-      - name: Build registry
-        run: pnpm run build:registry
+  apps:
+    name: Apps · Portal, Build, Base, Landing, Telegram
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Run library tests
-        run: pnpm run test
+      - name: Enable corepack
+        run: corepack enable
 
-      - name: Check live backend OpenAPI contract
-        # Pull requests are checked against the exact combined backend/manager
-        # fixture above. Staging can legitimately lag a coordinated backend PR,
-        # so compare with the deployed API only after a branch is merged.
-        if: github.event_name == 'push' && vars.NEXT_PUBLIC_BACKEND_URL != ''
-        run: pnpm run test:openapi:live
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build package prerequisites
+        run: pnpm run build:packages
+
+      - name: Typecheck and test every app
+        run: pnpm run typecheck:apps && pnpm run test:portal && pnpm run test:telegram
+
+      - name: Build every deployed app
         env:
-          NEXT_PUBLIC_BACKEND_URL: ${{ vars.NEXT_PUBLIC_BACKEND_URL }}
-
-      - name: Run registry tests
-        run: pnpm --dir apps/shadcn-registry exec vitest run
-
-      - name: Build landing app
-        run: pnpm --filter landing build
-        env:
+          BETTER_AUTH_SECRET: ci-build-only-secret-at-least-32-bytes-long
+          BETTER_AUTH_URL: http://localhost:3000
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aomi_ci_build
           NEXT_PUBLIC_PROJECT_ID: 000000000000000000000000000000000000000000
+          NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: 000000000000000000000000000000000000000000
+          NEXT_PUBLIC_PARA_API_KEY: ci-fixture-not-a-secret
+          NEXT_PUBLIC_PARA_ENVIRONMENT: BETA
+          NEXT_PUBLIC_BACKEND_URL: ${{ github.ref == 'refs/heads/prod' && 'https://api.aomi.dev' || 'https://api-staging.aomi.dev' }}
+        run: pnpm run build:apps
 
-  publish-npm:
-    name: Publish to npm
-    needs: build-and-lint
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+  promotion-policy:
+    name: Production Promotion Policy
+    if: github.event_name == 'pull_request' && github.base_ref == 'prod'
     runs-on: ubuntu-latest
-    concurrency:
-      group: npm-publish-${{ github.ref }}
-      cancel-in-progress: false
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout exact PR head
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Require a soaked release candidate and no unreturned production hotfix
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          case "$HEAD_REF" in release/*) ;; *)
+            echo "Production promotion PR head must be release/*" >&2
+            exit 1
+          esac
+          git fetch origin main prod --quiet
+          git merge-base --is-ancestor HEAD origin/main || {
+            echo "Release candidate must be an ancestor of main" >&2
+            exit 1
+          }
+          merge_base="$(git merge-base origin/main origin/prod)"
+          merge_base_tree="$(git show -s --format=%T "$merge_base")"
+          prod_tree="$(git show -s --format=%T origin/prod)"
+          if ! git diff --quiet "$merge_base_tree" "$prod_tree"; then
+            echo "prod contains a tree change that has not been back-merged to main" >&2
+            git diff --stat "$merge_base_tree" "$prod_tree"
+            exit 1
+          fi
+          git fetch origin "pull/$PR_NUMBER/merge:refs/remotes/origin/promotion-merge" --quiet
+          git diff --quiet "$(git show -s --format=%T HEAD)" "$(git show -s --format=%T origin/promotion-merge)" || {
+            echo "The resulting prod merge tree differs from the soaked release candidate" >&2
+            exit 1
+          }
 
       - name: Enable corepack
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
-          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build @aomi-labs/client
-        run: pnpm run build:client
-
-      - name: Build @aomi-labs/react
-        run: pnpm run build:lib
-
-      - name: Build @aomi-labs/widget-lib (shadcn registry)
-        run: pnpm run build:registry
-
-      - name: Build @aomi-labs/deploy
-        run: pnpm run build:deploy
-
-      - name: Publish @aomi-labs/client
-        run: node scripts/publish-package-if-needed.mjs packages/client
+      - name: Gate frontend promotion on the deployed production API
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NEXT_PUBLIC_BACKEND_URL: https://api.aomi.dev
+        run: pnpm run test:openapi:live
 
-      - name: Publish @aomi-labs/deploy
-        run: node scripts/publish-package-if-needed.mjs packages/deploy
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  hotfix-divergence:
+    name: Production Hotfix Divergence
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
 
-      - name: Publish @aomi-labs/react
-        run: node scripts/publish-package-if-needed.mjs packages/react
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Require production-only fixes to be back-merged
+        run: |
+          set -euo pipefail
+          git fetch origin main prod --quiet
+          # Compare against HEAD — the pull_request merge ref — not origin/main.
+          # Reading origin/main made the guard blind to what the PR itself does,
+          # so the back-merge that clears a divergence could never pass the check
+          # demanding it. A PR that does not carry prod still fails here.
+          merge_base="$(git merge-base HEAD origin/prod)"
+          merge_base_tree="$(git show -s --format=%T "$merge_base")"
+          prod_tree="$(git show -s --format=%T origin/prod)"
+          git diff --quiet "$merge_base_tree" "$prod_tree" || {
+            echo "prod has a tree change absent from main; merge the production hotfix first" >&2
+            git diff --stat "$merge_base_tree" "$prod_tree"
+            exit 1
+          }
 
-      - name: Publish @aomi-labs/widget-lib
-        run: node scripts/publish-package-if-needed.mjs apps/shadcn-registry
+  live-production-contract:
+    name: Production Backend Contract
+    if: github.event_name == 'push' && github.ref == 'refs/heads/prod'
+    needs: [packages, apps]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout production source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify committed frontend contract against api.aomi.dev
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NEXT_PUBLIC_BACKEND_URL: https://api.aomi.dev
+        run: pnpm run test:openapi:live
+
+  workflow-policy:
+    name: Workflow Security Policy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install policy tools
+        run: |
+          python3 -m venv /tmp/aomi-workflow-policy
+          /tmp/aomi-workflow-policy/bin/pip install --disable-pip-version-check \
+            'PyYAML==6.0.2' 'zizmor==1.29.0'
+          GOBIN=/tmp/aomi-workflow-policy/bin go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+
+      - name: Enforce workflow policy
+        run: /tmp/aomi-workflow-policy/bin/python .github/scripts/check-workflow-policy.py
+
+      - name: Validate workflow syntax
+        run: /tmp/aomi-workflow-policy/bin/actionlint
+
+      - name: Reject high-severity workflow findings
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: /tmp/aomi-workflow-policy/bin/zizmor --min-severity high .github/workflows
+
+  all-checks:
+    name: Frontend CI Passed
+    if: always()
+    needs: [packages, apps, promotion-policy, hotfix-divergence, workflow-policy]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Aggregate required checks
+        run: |
+          set -euo pipefail
+          test '${{ needs.packages.result }}' = success
+          test '${{ needs.apps.result }}' = success
+          case '${{ needs.promotion-policy.result }}' in success|skipped) ;; *) exit 1 ;; esac
+          case '${{ needs.hotfix-divergence.result }}' in success|skipped) ;; *) exit 1 ;; esac
+          test '${{ needs.workflow-policy.result }}' = success

@@ -25,12 +25,12 @@ import { REGISTRY_STORAGE_KEY } from "../../registry/types";
 import { walletDebug } from "../../wallet-debug";
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import type { AomiAccount, SvmNetworkOption } from "../../types";
-import { resolveExecutionSponsorshipIdentity } from "../../config/execution";
 import { PARA_BRAND_KEY, PARA_SESSION_UID } from "./para-brand";
 import {
   DEFAULT_SVM_ENDPOINT,
   useSafeSvmWallet,
   useSvmWalletRuntime,
+  type SafeSvmWalletState,
 } from "../../runtime/svm/wallet-runtime";
 import { useParaSessionSource } from "./sources/para-session-source";
 import { isParaEmbeddedAccount } from "./para-embedded-wallet";
@@ -66,6 +66,7 @@ export type AomiParaPluginProviderProps = {
   oAuthMethods?: readonly TOAuthMethod[];
   execution?: ExecutionConfig;
   account?: AccountConfig;
+  externalSvmWallet?: SafeSvmWalletState;
 };
 
 const PARA_EVM_CONNECT_RETRY_COOLDOWN_MS = 30_000;
@@ -99,6 +100,7 @@ export function AomiParaPluginProvider({
   oAuthMethods = defaultOAuthMethods,
   execution,
   account,
+  externalSvmWallet,
 }: AomiParaPluginProviderProps) {
   const paraAccount = useSafeParaAccount();
   const paraSession = useSafeParaClient();
@@ -108,7 +110,8 @@ export function AomiParaPluginProvider({
   );
   const paraLogout = useSafeLogout();
   const paraModal = useSafeParaModal();
-  const svmWallet = useSafeSvmWallet();
+  const contextSvmWallet = useSafeSvmWallet();
+  const svmWallet = externalSvmWallet ?? contextSvmWallet;
   const logoutParaSession = useCallback(async () => {
     if (paraLogout) {
       try {
@@ -396,16 +399,11 @@ export function AomiParaPluginProvider({
       Boolean(paraModal) && exposeParaSession && isParaEmbeddedAccount(account),
     [exposeParaSession, paraModal],
   );
-  const sponsorship = useMemo(
-    () => resolveExecutionSponsorshipIdentity(execution),
-    [execution],
-  );
   const executionRuntime = useMemo<ExecutionRuntime>(
     () => ({
-      sponsorship,
       evm: buildEvmExecutionRuntime(evmRuntime),
     }),
-    [evmRuntime, sponsorship],
+    [evmRuntime],
   );
   const accountRuntime = useResolvedAccountRuntime({
     account,
