@@ -58,6 +58,13 @@ export interface ExecutionResult {
   sponsored: boolean | undefined;
 }
 
+/** A sequential executor confirmed a prefix before a later call failed. */
+export type PartialWalletExecution = {
+  completedTxHashes: string[];
+  failedCallIndex: number;
+  failureReason: string;
+};
+
 export interface AtomicBatchArgs {
   calls: AACallPayload[];
   chainId?: number;

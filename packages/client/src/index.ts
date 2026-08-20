@@ -206,6 +206,8 @@ export type { ChainInfo } from "./chains";
 
 export {
   executeWalletCalls,
+  partialWalletExecution,
+  PartialWalletExecutionError,
   MAX_AUTO_FEE_WEI,
   normalizeSimulatedFee,
   buildFeeAAWalletCall,
@@ -223,6 +225,7 @@ export type {
   NativeWalletSponsorship,
   SponsorshipPaymasterServiceContext,
   ExecutionResult,
+  PartialWalletExecution,
   AtomicBatchArgs,
   ExecuteWalletCallsParams,
   NormalizedSimulatedFee,

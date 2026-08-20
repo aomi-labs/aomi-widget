@@ -2,8 +2,9 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
-// Local MCP acceptance smoke. It never prints credentials. Optional local
-// isolation knobs:
+// MCP acceptance smoke. It never prints credentials. Optional target and
+// local-isolation knobs:
+//   AOMI_MCP_E2E_ORIGIN — Portal origin (default: http://localhost:3000).
 //   AOMI_MCP_E2E_LOCAL_DB_URL — mirror the generated canonical user into the
 //     explicitly local `aomi_local` backend database.
 //   AOMI_MCP_E2E_PRIVATE_KEY — use an existing EVM test wallet for SIWE instead
@@ -11,16 +12,27 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 //   AOMI_MCP_E2E_CHAIN_ID — SIWE chain id for that wallet (default: 31337).
 //   AOMI_MCP_E2E_ANVIL_URL + AOMI_MCP_E2E_WALLET_PROMPT — fund the generated
 //     wallet on local Anvil and require a real `awaiting_user` wallet handoff.
+//   AOMI_MCP_E2E_CHECK_SESSION — require an existing session to reach complete
+//     with no pending request after the regular smoke.
 //   AOMI_MCP_E2E_COOKIE_FILE — write a mode-0600 Cookie header for a separate
 //     agent-browser pass; delete it immediately after the browser run.
-const origin = "http://localhost:3000";
+const origin =
+  process.env.AOMI_MCP_E2E_ORIGIN?.trim() || "http://localhost:3000";
 const redirectUri = "http://127.0.0.1:49152/callback";
 const chainId = Number(process.env.AOMI_MCP_E2E_CHAIN_ID?.trim() || "31337");
 const localBackendDb = process.env.AOMI_MCP_E2E_LOCAL_DB_URL?.trim();
 const browserCookieFile = process.env.AOMI_MCP_E2E_COOKIE_FILE?.trim();
 const localAnvilUrl = process.env.AOMI_MCP_E2E_ANVIL_URL?.trim();
 const walletPrompt = process.env.AOMI_MCP_E2E_WALLET_PROMPT?.trim();
+const checkSession = process.env.AOMI_MCP_E2E_CHECK_SESSION?.trim();
 const configuredPrivateKey = process.env.AOMI_MCP_E2E_PRIVATE_KEY?.trim();
+
+const originUrl = new URL(origin);
+assert(
+  originUrl.protocol === "https:" ||
+    ["127.0.0.1", "localhost"].includes(originUrl.hostname),
+  "AOMI_MCP_E2E_ORIGIN must use HTTPS unless it targets localhost",
+);
 
 assert(
   Number.isSafeInteger(chainId) && chainId > 0,
@@ -451,7 +463,34 @@ async function testMcp(accessToken) {
   );
   console.log("ok existing-session resume and aomi_interrupt");
   if (walletPrompt) await testPendingWalletRequest(accessToken);
+  if (checkSession) await checkCompletedSession(accessToken, checkSession);
   console.log(`MCP_E2E_SESSION=${started.session_id}`);
+}
+
+async function checkCompletedSession(accessToken, sessionId) {
+  let state;
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    state = toolJson(
+      await rpc(accessToken, "/api/mcp", "tools/call", {
+        name: "aomi_check",
+        arguments: {
+          session_id: sessionId,
+          ...(state?.cursor ? { cursor: state.cursor } : {}),
+        },
+      }),
+    );
+    console.log(
+      `ok completion aomi_check ${attempt + 1}: status=${state.status} pending=${state.pending_requests.length}`,
+    );
+    if (state.status !== "processing") break;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  assert(state?.status === "complete", `session ended as ${state?.status}`);
+  assert(
+    state.pending_requests.length === 0,
+    "completed session retained a pending request",
+  );
+  console.log(`MCP_E2E_COMPLETED_SESSION=${sessionId}`);
 }
 
 async function fundLocalWallet(address) {
@@ -516,6 +555,13 @@ async function testPendingWalletRequest(accessToken) {
   assert(state.handoff?.portal_url, "pending request omitted portal handoff");
   console.log(
     "ok real staged transaction surfaced as a redacted wallet handoff",
+  );
+  console.log(`MCP_E2E_WALLET_SESSION=${state.session_id}`);
+  console.log(
+    `MCP_E2E_PENDING_REQUESTS=${state.pending_requests
+      .map((request) => request.id)
+      .filter(Boolean)
+      .join(",")}`,
   );
 }
 
