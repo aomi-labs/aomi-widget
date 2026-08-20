@@ -1,15 +1,11 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useRef,
-} from "react";
+import { createContext, useCallback, useContext, useRef } from "react";
 import type { ReactNode } from "react";
 
 import type { AomiClient } from "@aomi-labs/client";
 import { useControl } from "./control-context";
+import { sendLegacySystemEvent } from "../runtime/legacy-agent-rollback";
 
 // =============================================================================
 // Lightweight event subscriber types (replaces event-buffer.ts)
@@ -34,8 +30,12 @@ export type EventContext = {
   subscribe: (type: string, callback: EventSubscriber) => () => void;
   /** Dispatch an event to all matching subscribers (used by orchestrator) */
   dispatch: (event: InboundEvent) => void;
-  /** Send an outbound system message to backend */
-  sendOutboundSystem: (event: { type: string; sessionId: string; payload: unknown }) => Promise<void>;
+  /** Explicit rollback API for legacy free-form system commands. */
+  sendOutboundSystem: (event: {
+    type: string;
+    sessionId: string;
+    payload: unknown;
+  }) => Promise<void>;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };
@@ -76,7 +76,7 @@ export type EventContextProviderProps = {
  *
  * SSE subscription and system event unwrapping are now handled by ClientSession
  * in the orchestrator. This provider just maintains the subscriber registry
- * and sendOutboundSystem for direct system messages.
+ * and an explicit rollback seam for legacy direct system messages.
  */
 export function EventContextProvider({
   children,
@@ -86,19 +86,16 @@ export function EventContextProvider({
   const { getCurrentThreadApp } = useControl();
   const subscribersRef = useRef<Map<string, Set<EventSubscriber>>>(new Map());
 
-  const subscribe = useCallback(
-    (type: string, callback: EventSubscriber) => {
-      const subs = subscribersRef.current;
-      if (!subs.has(type)) {
-        subs.set(type, new Set());
-      }
-      subs.get(type)!.add(callback);
-      return () => {
-        subs.get(type)?.delete(callback);
-      };
-    },
-    [],
-  );
+  const subscribe = useCallback((type: string, callback: EventSubscriber) => {
+    const subs = subscribersRef.current;
+    if (!subs.has(type)) {
+      subs.set(type, new Set());
+    }
+    subs.get(type)!.add(callback);
+    return () => {
+      subs.get(type)?.delete(callback);
+    };
+  }, []);
 
   const dispatchEvent = useCallback((event: InboundEvent) => {
     const subs = subscribersRef.current;
@@ -119,13 +116,7 @@ export function EventContextProvider({
   const sendOutbound = useCallback(
     async (event: { type: string; sessionId: string; payload: unknown }) => {
       try {
-        const message = JSON.stringify({
-          type: event.type,
-          payload: event.payload,
-        });
-        await aomiClient.sendSystemMessage(event.sessionId, message, {
-          app: getCurrentThreadApp(),
-        });
+        await sendLegacySystemEvent(aomiClient, event, getCurrentThreadApp());
       } catch (error) {
         console.error("Failed to send outbound event:", error);
       }

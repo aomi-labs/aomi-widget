@@ -6,9 +6,10 @@ import { handlePaymentChallenges, parseChainId } from "@aomi-labs/client";
 import { getAddress, isAddress } from "viem";
 
 function isChatPost(request: Request): boolean {
+  const pathname = new URL(request.url).pathname;
   return (
     request.method.toUpperCase() === "POST" &&
-    new URL(request.url).pathname === "/api/thread/chat"
+    (pathname === "/v1/agent/chat" || pathname === "/api/thread/chat")
   );
 }
 

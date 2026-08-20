@@ -9,4 +9,5 @@ export type {
   WalletSigningPayload,
   WalletRequestKind,
   WalletRequestResult,
+  WalletSolanaLegResult,
 } from "./session/index";

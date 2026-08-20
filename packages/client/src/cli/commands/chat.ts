@@ -18,16 +18,16 @@ import {
   printToolUpdate,
   toToolResultKey,
 } from "../output";
-import {
-  applyRequestedModelIfPresent,
-  ingestSecretsForSession,
-} from "../context";
+import { applyRequestedModelIfPresent, ingestSecretsForSession } from "../context";
 import { fatal } from "../errors";
 import type { CliConfig } from "../types";
 import { buildCliUserState } from "../user-state";
 import type { UserStateAAMode } from "../../user-state";
 import { parseSolanaKeypairSecret } from "../solana-signer";
-import { walletRequestToPendingSolTx } from "../transactions";
+import {
+  walletRequestToPendingSolTx,
+  walletRequestToPendingTx,
+} from "../transactions";
 
 type WalletSnapshot = {
   publicKey?: string;
@@ -46,26 +46,6 @@ function extractMentionedTxIds(content: string | undefined): string[] {
   if (!content) return [];
   const matches = content.match(/\btx-\d+\b/gi) ?? [];
   return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
-}
-
-function hasAccountCredential(cli: CliSession): boolean {
-  const state = cli.toState();
-  return Boolean(
-    state.auth?.sessionToken || state.accountBearer || state.sessionCookie,
-  );
-}
-
-async function ensureAccountBoundThread(
-  cli: CliSession,
-  session: ReturnType<CliSession["createClientSession"]>,
-): Promise<void> {
-  if (!hasAccountCredential(cli)) return;
-  try {
-    await session.client.createThread(cli.sessionId);
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    fatal(`Failed to create account-bound backend thread: ${detail}`);
-  }
 }
 
 /**
@@ -127,14 +107,6 @@ export async function syncWalletStateForChat(
   cli: CliSession,
   session: {
     resolveUserState: (userState: ReturnType<typeof buildCliUserState>) => void;
-    syncUserState: () => Promise<unknown>;
-    client: {
-      sendSystemMessage: (
-        sessionId: string,
-        message: string,
-        options?: { app?: string; applicationId?: string },
-      ) => Promise<unknown>;
-    };
   },
 ): Promise<void> {
   if (
@@ -157,20 +129,6 @@ export async function syncWalletStateForChat(
   });
 
   session.resolveUserState(userState);
-  await session.syncUserState();
-
-  if (!hasAccountCredential(cli)) {
-    return;
-  }
-
-  await session.client.sendSystemMessage(
-    cli.sessionId,
-    JSON.stringify({
-      type: "wallet:state_changed",
-      payload: userState,
-    }),
-    { app: config.app, applicationId: config.applicationId },
-  );
 }
 
 export async function chatCommand(
@@ -208,7 +166,6 @@ export async function chatCommand(
   );
 
   try {
-    await ensureAccountBoundThread(cli, session);
     await ingestSecretsForSession(config, cli, session.client);
     await applyRequestedModelIfPresent(config, cli, session);
     await syncWalletStateForChat(
@@ -302,7 +259,10 @@ export async function chatCommand(
       });
     }
 
-    if (session.getIsProcessing()) {
+    if (
+      session.getIsProcessing() &&
+      session.getPendingRequests().length === 0
+    ) {
       await new Promise<void>((resolve) => {
         // Wait for the backend to finish its turn so ALL system events
         // (including every wallet request) have been delivered.
@@ -349,6 +309,10 @@ export async function chatCommand(
 
     cli.syncPendingFromUserState(session.getUserState());
     for (const request of session.getPendingRequests()) {
+      if (request.kind === "transaction" || request.kind === "signing") {
+        const pending = walletRequestToPendingTx(request);
+        if (pending) cli.addPendingTx(pending);
+      }
       const pending = walletRequestToPendingSolTx(request);
       if (pending) cli.addPendingSolTx(pending);
     }

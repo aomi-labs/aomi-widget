@@ -168,10 +168,16 @@ describe("CLI session lifecycle", () => {
 
   it("imports an account-owned remote session when resume has no local match", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-    const { AomiClient } = await import("../../src/client");
-    const fetchState = vi
-      .spyOn(AomiClient.prototype, "fetchState")
-      .mockResolvedValue({ messages: [], system_events: [] } as never);
+    const { AgentSessionsTransport } =
+      await import("../../src/agent/transport");
+    const getSession = vi
+      .spyOn(AgentSessionsTransport.prototype, "get")
+      .mockResolvedValue({
+        id: "mcp-remote-thread",
+        title: null,
+        updatedAt: 1,
+        archived: false,
+      });
     const { CliSession } = await import("../../src/cli/cli-session");
     const { resumeSessionCommand } =
       await import("../../src/cli/commands/sessions");
@@ -189,11 +195,7 @@ describe("CLI session lifecycle", () => {
 
     await resumeSessionCommand("mcp-remote-thread");
 
-    expect(fetchState).toHaveBeenCalledWith(
-      "mcp-remote-thread",
-      undefined,
-      expect.any(String),
-    );
+    expect(getSession).toHaveBeenCalledWith("mcp-remote-thread");
     expect(readState()?.sessionId).toBe("mcp-remote-thread");
     expect(readState()?.auth?.sessionToken).toBe("bff-session-token");
     expect(logSpy).toHaveBeenCalledWith(

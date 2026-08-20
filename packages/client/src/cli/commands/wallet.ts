@@ -16,6 +16,7 @@ import {
   type WalletEip712Payload,
 } from "../../wallet-utils";
 import type { AomiSimulateFee, AomiSimulateResponse } from "../../types";
+import type { WalletRequestResult, WalletSolanaLegResult } from "../../session";
 import { CliSession } from "../cli-session";
 import { CliExit, fatal } from "../errors";
 import {
@@ -26,12 +27,18 @@ import {
 import { DIM, RESET, printDataFileLocation, printJson } from "../output";
 import type { PendingSolTx, PendingTx, SignedTx } from "../state";
 import {
+  fetchLegacyAgentState,
+  sendLegacyAgentSystemMessage,
+} from "../legacy-agent-rollback";
+import {
   formatPendingSolTxLine,
   formatSignedSolTxLine,
   formatSignedTxLine,
   formatTxLine,
   pendingTxToCallList,
   toSignedTransactionRecord,
+  walletRequestToPendingSolTx,
+  walletRequestToPendingTx,
 } from "../transactions";
 import type { CliConfig } from "../types";
 import { toPendingTxMetadata, toSignedTxMetadata } from "../tables";
@@ -50,12 +57,13 @@ export async function txCommand(config: CliConfig): Promise<void> {
 
   const session = cli.createClientSession(config);
   try {
-    const apiState = await session.client.fetchState(
-      cli.sessionId,
-      undefined,
-      cli.clientId,
-    );
-    cli.syncPendingFromUserState(apiState.user_state);
+    await session.fetchCurrentState();
+    for (const request of session.getPendingRequests()) {
+      const evm = walletRequestToPendingTx(request);
+      if (evm) cli.addPendingTx(evm);
+      const svm = walletRequestToPendingSolTx(request);
+      if (svm) cli.addPendingSolTx(svm);
+    }
   } catch {
     // Fall back to the last persisted local view if the backend is unavailable.
   } finally {
@@ -270,25 +278,34 @@ async function signSolanaPending(params: {
     console.log(
       `✅ Signed message! signature: ${outcome.signatureBase64.slice(0, 24)}...`,
     );
-    await session.client.sendSystemMessage(
-      cli.sessionId,
-      JSON.stringify({
-        type: "wallet::solana_sign_complete",
-        payload: {
-          status: "signed",
-          signature: outcome.signatureBase64,
-          signed_message_base64: pendingTx.message,
-          signature_type: "ed25519",
-          description: pendingTx.description,
-          pending_svm_sig_id: pendingTx.solanaId,
-        },
-      }),
-      { app: cli.app },
-    );
-    const syncedState = await session.syncUserState();
-    cli.syncPendingFromUserState(syncedState.user_state);
+    if (pendingTx.agentRequestId) {
+      await session.resolve(pendingTx.agentRequestId, {
+        kind: "signing",
+        signatures: [outcome.signatureBase64],
+      });
+    } else {
+      await sendLegacyAgentSystemMessage(
+        session.client,
+        cli.sessionId,
+        JSON.stringify({
+          type: "wallet::solana_sign_complete",
+          payload: {
+            status: "signed",
+            signature: outcome.signatureBase64,
+            signed_message_base64: pendingTx.message,
+            signature_type: "ed25519",
+            description: pendingTx.description,
+            pending_svm_sig_id: pendingTx.solanaId,
+          },
+        }),
+        cli.app,
+      );
+      const syncedState = await session.syncUserState();
+      cli.syncPendingFromUserState(syncedState.user_state);
+    }
     cli.addSignedSolTx({
       id: pendingTx.id,
+      agentRequestId: pendingTx.agentRequestId,
       requestKind,
       signer: outcome.signer,
       signature: outcome.signatureBase64,
@@ -296,6 +313,103 @@ async function signSolanaPending(params: {
       description: pendingTx.description,
       timestamp: Date.now(),
     });
+    if (pendingTx.agentRequestId) cli.removePendingSolTx(pendingTx.id);
+    console.log("Backend notified.");
+    return;
+  }
+
+  const batchTransactions = (
+    pendingTx.payload as {
+      transactions?: Array<{
+        id: string;
+        unsignedTx: string;
+        description?: string;
+      }>;
+    }
+  ).transactions;
+  if (
+    pendingTx.agentRequestId &&
+    (requestKind === "solana_send" || requestKind === "solana_sign_and_send") &&
+    batchTransactions &&
+    batchTransactions.length > 1
+  ) {
+    const rpcUrl = config.chainRpcUrl ?? defaultSolanaRpcUrl(pendingTx.cluster);
+    const connection = new Connection(rpcUrl, "confirmed");
+    const legs: WalletSolanaLegResult[] = [];
+    let lastSubmitted:
+      | { signature: string; signedTx: string; signer: string }
+      | undefined;
+
+    for (const [index, transaction] of batchTransactions.entries()) {
+      try {
+        const outcome = signSolanaTransaction(transaction.unsignedTx, keypair);
+        const signature = await connection.sendRawTransaction(
+          Buffer.from(outcome.signedTxBase64, "base64"),
+          { skipPreflight: false, maxRetries: 3 },
+        );
+        const confirmation = await connection.confirmTransaction(
+          signature,
+          "confirmed",
+        );
+        if (confirmation.value.err) {
+          throw new Error(
+            `Solana transaction ${signature} failed: ${JSON.stringify(confirmation.value.err)}`,
+          );
+        }
+        legs.push({
+          id: transaction.id,
+          status: "submitted",
+          signature,
+          signedTx: outcome.signedTxBase64,
+        });
+        lastSubmitted = {
+          signature,
+          signedTx: outcome.signedTxBase64,
+          signer: outcome.signer,
+        };
+        cli.addSignedSolTx({
+          id: `${pendingTx.id}:${transaction.id}`,
+          agentRequestId: pendingTx.agentRequestId,
+          requestKind,
+          signedTx: outcome.signedTxBase64,
+          signer: outcome.signer,
+          signature,
+          cluster: pendingTx.cluster,
+          description: transaction.description ?? pendingTx.description,
+          timestamp: Date.now(),
+        });
+      } catch (error) {
+        legs.push({
+          id: transaction.id,
+          status: "failed",
+          reason: error instanceof Error ? error.message : "Request failed",
+        });
+        legs.push(
+          ...batchTransactions.slice(index + 1).map((remaining) => ({
+            id: remaining.id,
+            status: "skipped" as const,
+          })),
+        );
+        break;
+      }
+    }
+
+    if (!lastSubmitted) {
+      throw new Error(
+        legs.find((leg) => leg.reason)?.reason ??
+          "No Solana batch transaction confirmed",
+      );
+    }
+    await session.resolve(pendingTx.agentRequestId, {
+      kind: requestKind,
+      signature: lastSubmitted.signature,
+      signedTx: lastSubmitted.signedTx,
+      legs,
+    });
+    cli.removePendingSolTx(pendingTx.id);
+    console.log(
+      `✅ Confirmed ${legs.filter((leg) => leg.status === "submitted").length}/${batchTransactions.length} Solana batch transactions.`,
+    );
     console.log("Backend notified.");
     return;
   }
@@ -328,22 +442,37 @@ async function signSolanaPending(params: {
       );
     }
     console.log(`✅ Confirmed! signature: ${signature}`);
-    await session.client.sendSystemMessage(
-      cli.sessionId,
-      JSON.stringify({
-        type: "wallet:tx_complete",
-        payload: {
-          status: "confirmed",
-          identifier: { kind: "signature", value: signature },
-          pending_svm_tx_ids: pendingTx.solanaIds?.length
-            ? pendingTx.solanaIds
-            : [pendingTx.solanaId],
-        },
-      }),
-      { app: cli.app },
-    );
+    if (pendingTx.agentRequestId) {
+      await session.resolve(pendingTx.agentRequestId, {
+        kind: requestKind,
+        signature,
+        signedTx: outcome.signedTxBase64,
+      });
+    } else {
+      await sendLegacyAgentSystemMessage(
+        session.client,
+        cli.sessionId,
+        JSON.stringify({
+          type: "wallet:tx_complete",
+          payload: {
+            status: "confirmed",
+            identifier: { kind: "signature", value: signature },
+            pending_svm_tx_ids: pendingTx.solanaIds?.length
+              ? pendingTx.solanaIds
+              : [pendingTx.solanaId],
+          },
+        }),
+        cli.app,
+      );
+    }
+  } else if (pendingTx.agentRequestId) {
+    await session.resolve(pendingTx.agentRequestId, {
+      kind: "signing",
+      signatures: [outcome.signedTxBase64],
+    });
   } else {
-    await session.client.sendSystemMessage(
+    await sendLegacyAgentSystemMessage(
+      session.client,
       cli.sessionId,
       JSON.stringify({
         type: "wallet::solana_sign_complete",
@@ -354,16 +483,19 @@ async function signSolanaPending(params: {
           pending_solana_id: pendingTx.solanaId,
         },
       }),
-      { app: cli.app },
+      cli.app,
     );
   }
 
   // Re-sync to drop the now-discarded pending entry on the host side.
-  const syncedState = await session.syncUserState();
-  cli.syncPendingFromUserState(syncedState.user_state);
+  if (!pendingTx.agentRequestId) {
+    const syncedState = await session.syncUserState();
+    cli.syncPendingFromUserState(syncedState.user_state);
+  }
 
   cli.addSignedSolTx({
     id: pendingTx.id,
+    agentRequestId: pendingTx.agentRequestId,
     requestKind,
     signedTx: outcome.signedTxBase64,
     signer: outcome.signer,
@@ -372,6 +504,7 @@ async function signSolanaPending(params: {
     description: pendingTx.description,
     timestamp: Date.now(),
   });
+  if (pendingTx.agentRequestId) cli.removePendingSolTx(pendingTx.id);
 
   console.log("Backend notified.");
 }
@@ -454,6 +587,26 @@ async function recoverConfirmedTransactions(params: {
   const { cli, session, records } = params;
   let replayed = 0;
   for (const record of records) {
+    if (record.agentRequestId && record.txHash) {
+      await session.fetchCurrentState();
+      const pending = session
+        .getPendingRequests()
+        .find((request) => request.id === record.agentRequestId);
+      if (pending) {
+        const hashes = record.txHashes?.length
+          ? record.txHashes
+          : [record.txHash];
+        await session.resolve(record.agentRequestId, {
+          kind: "transaction",
+          txHash: record.txHash,
+          txHashes: hashes,
+          completedTxIds: hashes.map((_, index) => index + 1),
+        });
+        replayed += 1;
+      }
+      cli.markSignedAgentActionNotified(record.agentRequestId);
+      continue;
+    }
     if (record.pendingTxId === undefined || !record.txHash) continue;
     const pending = cli.pendingTxs.some(
       (tx) => tx.kind === "transaction" && tx.txId === record.pendingTxId,
@@ -462,13 +615,14 @@ async function recoverConfirmedTransactions(params: {
       cli.markSignedTxBackendNotified(record.pendingTxId);
       continue;
     }
-    await session.client.sendSystemMessage(
+    await sendLegacyAgentSystemMessage(
+      session.client,
       cli.sessionId,
       JSON.stringify({
         type: "wallet:tx_complete",
         payload: transactionCompletionPayload(record),
       }),
-      { app: cli.app },
+      cli.app,
     );
     cli.markSignedTxBackendNotified(record.pendingTxId);
     replayed += 1;
@@ -525,12 +679,24 @@ export async function signCommand(
   const session = cli.createClientSession(config);
 
   try {
-    const initialState = await session.client.fetchState(
-      cli.sessionId,
-      undefined,
-      cli.clientId,
+    const targetsAgentAction = uniqueIds.some(
+      (id) =>
+        Boolean(cli.findPendingTx(id)?.agentRequestId) ||
+        Boolean(cli.findPendingSolTx(id)?.agentRequestId) ||
+        Boolean(cli.findSignedTransaction(id)?.agentRequestId),
     );
-    cli.syncPendingFromUserState(initialState.user_state);
+    if (targetsAgentAction) {
+      await session.fetchCurrentState();
+    } else {
+      // Explicit rollback/migration adapter for pending records created before
+      // the Agent transport cutover.
+      const initialState = await fetchLegacyAgentState(
+        session.client,
+        cli.sessionId,
+        cli.clientId,
+      );
+      cli.syncPendingFromUserState(initialState.user_state);
+    }
 
     // EVM and SVM have independent backend id spaces, so the default dual-chain
     // runtime can legitimately have both `evm:tx-1` and `svm:tx-1` pending.
@@ -609,6 +775,23 @@ export async function signCommand(
 
     // EVM / EIP-712 branch.
     const pendingTxs = cli.requirePendingTxs(uniqueIds);
+    const agentRequestIds = Array.from(
+      new Set(
+        pendingTxs.flatMap((tx) =>
+          tx.agentRequestId ? [tx.agentRequestId] : [],
+        ),
+      ),
+    );
+    if (
+      agentRequestIds.length > 1 ||
+      (agentRequestIds.length === 1 &&
+        pendingTxs.some((tx) => !tx.agentRequestId))
+    ) {
+      fatal(
+        "Agent and legacy wallet requests cannot be mixed in one sign call.",
+      );
+    }
+    const agentRequestId = agentRequestIds[0];
     if (!privateKey) {
       fatal(
         [
@@ -650,6 +833,7 @@ export async function signCommand(
     console.log(`IDs:     ${pendingTxs.map((tx) => tx.id).join(", ")}`);
 
     let signedRecords: SignedTx[] = [];
+    let agentResult: WalletRequestResult | undefined;
     let backendNotifications: Array<{
       type: string;
       payload: Record<string, unknown>;
@@ -811,6 +995,7 @@ export async function signCommand(
             Date.now(),
           ),
           backendNotified: false,
+          agentRequestId: tx.agentRequestId,
           ...(normalizedFee && feeStatus
             ? {
                 serviceFeeStatus: feeStatus,
@@ -823,15 +1008,33 @@ export async function signCommand(
             : {}),
         };
       });
-      backendNotifications = signedRecords.map((record) => ({
-        type: "wallet:tx_complete",
-        payload: transactionCompletionPayload(record),
-      }));
+      if (agentRequestId) {
+        const completedTxIds = actionTxHashes.map((_, index) => index + 1);
+        const failedTxIds = baseCallList
+          .slice(actionTxHashes.length)
+          .map((_, index) => actionTxHashes.length + index + 1);
+        agentResult = {
+          kind: "transaction",
+          txHash: actionTxHashes[actionTxHashes.length - 1],
+          txHashes: actionTxHashes,
+          completedTxIds,
+          failedTxIds,
+          failureReason: partialFailureReason,
+          batched: baseCallList.length > 1,
+          callCount: baseCallList.length,
+        };
+      }
+      backendNotifications = agentRequestId
+        ? []
+        : signedRecords.map((record) => ({
+            type: "wallet:tx_complete",
+            payload: transactionCompletionPayload(record),
+          }));
 
       const remainingTxIds = pendingTxs
         .slice(confirmedPendingTxs.length)
         .flatMap((tx) => (tx.txId === undefined ? [] : [tx.txId]));
-      if (remainingTxIds.length > 0) {
+      if (!agentRequestId && remainingTxIds.length > 0) {
         backendNotifications.push({
           type: "wallet:tx_complete",
           payload: {
@@ -874,9 +1077,9 @@ export async function signCommand(
       ) {
         try {
           const session = cli.createClientSession(config);
-          const apiState = await session.client.fetchState(
+          const apiState = await fetchLegacyAgentState(
+            session.client,
             cli.sessionId,
-            undefined,
             cli.clientId,
           );
           session.close();
@@ -948,6 +1151,7 @@ export async function signCommand(
       signedRecords = [
         {
           id: pendingTx.id,
+          agentRequestId: pendingTx.agentRequestId,
           kind: "eip712_sign",
           signature,
           from: account.address,
@@ -955,6 +1159,9 @@ export async function signCommand(
           timestamp: Date.now(),
         },
       ];
+      if (agentRequestId) {
+        agentResult = { kind: "signing", signatures: [signature] };
+      }
       backendNotifications = [
         {
           type: "wallet_eip712_response",
@@ -979,11 +1186,19 @@ export async function signCommand(
       cli.addSignedTx(signedRecord);
     }
 
-    for (const backendNotification of backendNotifications) {
-      await session.client.sendSystemMessage(
+    if (agentRequestId && agentResult) {
+      await session.resolve(agentRequestId, agentResult);
+      cli.markSignedAgentActionNotified(agentRequestId);
+    }
+
+    for (const backendNotification of agentRequestId
+      ? []
+      : backendNotifications) {
+      await sendLegacyAgentSystemMessage(
+        session.client,
         cli.sessionId,
         JSON.stringify(backendNotification),
-        { app: cli.app },
+        cli.app,
       );
       const pendingTxIds = backendNotification.payload.pending_tx_ids;
       if (
@@ -998,8 +1213,10 @@ export async function signCommand(
       }
     }
 
-    const syncedState = await session.syncUserState();
-    cli.syncPendingFromUserState(syncedState.user_state);
+    if (!agentRequestId) {
+      const syncedState = await session.syncUserState();
+      cli.syncPendingFromUserState(syncedState.user_state);
+    }
     console.log("Backend notified.");
     const failedFee = signedRecords.find(
       (record) => record.serviceFeeStatus === "failed",

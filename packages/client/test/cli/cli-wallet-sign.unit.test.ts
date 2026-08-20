@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
   sendSystemMessage: vi.fn(),
   syncUserState: vi.fn(),
   resolveWallet: vi.fn(),
+  fetchCurrentState: vi.fn(),
+  getPendingRequests: vi.fn(),
+  resolve: vi.fn(),
   close: vi.fn(),
   executeWalletCalls: vi.fn(),
   readState: vi.fn(),
@@ -35,6 +38,9 @@ vi.mock("../../src/session", () => ({
 
     resolveUserState = vi.fn();
     resolveWallet = mocks.resolveWallet;
+    fetchCurrentState = mocks.fetchCurrentState;
+    getPendingRequests = mocks.getPendingRequests;
+    resolve = mocks.resolve;
     syncUserState = mocks.syncUserState;
     close = mocks.close;
   },
@@ -128,6 +134,9 @@ describe("CLI wallet sign simulation integration", () => {
       batched: true,
       sponsored: false,
     });
+    mocks.fetchCurrentState.mockResolvedValue(undefined);
+    mocks.getPendingRequests.mockReturnValue([]);
+    mocks.resolve.mockResolvedValue(undefined);
 
     mocks.readState.mockReturnValue({
       sessionId: "session-1",
@@ -154,6 +163,91 @@ describe("CLI wallet sign simulation integration", () => {
       ],
       signedTxs: [],
     });
+  });
+
+  it("submits Agent batch hashes through ClientSession without a legacy callback", async () => {
+    mocks.simulateBatch.mockResolvedValue({
+      result: {
+        batch_success: true,
+        stateful: true,
+        from: MOCK_ADDRESS,
+        network: "mainnet",
+        total_gas: 42_000,
+        steps: [],
+      },
+    });
+    mocks.executeWalletCalls.mockResolvedValue({
+      txHash: "0xleg2",
+      txHashes: ["0xleg1", "0xleg2"],
+      executionKind: "eoa",
+      batched: true,
+      sponsored: false,
+    });
+    mocks.readState.mockReturnValue({
+      sessionId: "session-1",
+      baseUrl: "http://127.0.0.1:8080",
+      app: "default",
+      publicKey: MOCK_ADDRESS,
+      privateKey:
+        "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      chainId: 1,
+      pendingTxs: [
+        {
+          id: "tx-1",
+          agentRequestId: "act_batch",
+          kind: "transaction",
+          to: "0x1111111111111111111111111111111111111111",
+          value: "0",
+          data: "0x",
+          chainId: 1,
+          timestamp: Date.now(),
+          payload: {
+            requestId: "act_batch",
+            calls: [
+              {
+                txId: 1,
+                to: "0x1111111111111111111111111111111111111111",
+                value: "0",
+                data: "0x",
+                chainId: 1,
+              },
+              {
+                txId: 2,
+                to: "0x2222222222222222222222222222222222222222",
+                value: "0",
+                data: "0x",
+                chainId: 1,
+              },
+            ],
+          },
+        },
+      ],
+      signedTxs: [],
+    });
+
+    await signCommand(
+      {
+        privateKey:
+          "0x0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        secrets: {},
+      },
+      ["tx-1"],
+    );
+
+    expect(mocks.fetchCurrentState).toHaveBeenCalledTimes(1);
+    expect(mocks.resolve).toHaveBeenCalledWith("act_batch", {
+      kind: "transaction",
+      txHash: "0xleg2",
+      txHashes: ["0xleg1", "0xleg2"],
+      completedTxIds: [1, 2],
+      failedTxIds: [],
+      failureReason: undefined,
+      batched: true,
+      callCount: 2,
+    });
+    expect(mocks.sendSystemMessage).not.toHaveBeenCalled();
   });
 
   it("aborts when fee recipient is an invalid address", async () => {

@@ -16,7 +16,8 @@ function createSession(id: string) {
   const complete = vi.spyOn(client, "request").mockResolvedValue({});
   return {
     client,
-    session: new Session(client, { sessionId: id }),
+    // Frozen compatibility fixture for pre-Agent free-form signing events.
+    session: new Session(client, { sessionId: id, transport: "legacy" }),
     sendMessage,
     complete,
   };

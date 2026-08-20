@@ -151,7 +151,7 @@ describe("User API", () => {
       });
     });
 
-    it("prewarms empty drafts and syncs wallet state after materialization", async () => {
+    it("prewarms empty drafts without a legacy wallet callback", async () => {
       const createThread = vi.fn(async (threadId: string) => ({
         session_id: threadId,
       }));
@@ -173,13 +173,17 @@ describe("User API", () => {
       });
 
       expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
-      await waitFor(() => expect(postSystemMessage).toHaveBeenCalled());
+      expect(postSystemMessage).not.toHaveBeenCalled();
     });
 
-    it("sends wallet state changes to materialized threads", async () => {
+    it("carries the latest wallet state on the next Agent send", async () => {
       const postSystemMessage = vi.fn(async () => ({ res: null }));
+      const postChatMessage = vi.fn(async () => ({
+        is_processing: false,
+        messages: [],
+      }));
 
-      setAomiClientConfig({ postSystemMessage });
+      setAomiClientConfig({ postSystemMessage, postChatMessage });
 
       const { api } = renderRuntime();
 
@@ -209,9 +213,6 @@ describe("User API", () => {
         await flushPromises();
       });
 
-      await waitFor(() => expect(postSystemMessage).toHaveBeenCalled());
-      postSystemMessage.mockClear();
-
       await act(async () => {
         await api.sendMessage("Materialize this thread");
         await flushPromises();
@@ -222,43 +223,31 @@ describe("User API", () => {
         await flushPromises();
       });
 
-      await waitFor(() => {
-        expect(postSystemMessage).toHaveBeenCalled();
+      await act(async () => {
+        await api.sendMessage("Use the updated wallet");
       });
 
-      // Check the system message contains wallet state
-      const call = postSystemMessage.mock.calls[0] as unknown as [
-        string,
-        string,
-        { app?: string } | undefined,
-      ];
-      const messageJson = JSON.parse(call[1]);
-      expect(messageJson.type).toBe("wallet:state_changed");
-      expect(call[2]).toEqual({ app: "default" });
-      expect(messageJson.payload.evm.address).toBe("0x789");
-      expect(messageJson.payload.ext).toBeUndefined();
-      expect(messageJson.payload.evm.chain_id).toBe(137);
-      expect(messageJson.payload.connection).toEqual({
-        is_connected: true,
-        provider: "para",
-        provider_label: "Para",
-        auth_method: "email",
-      });
-      expect(messageJson.payload.svm).toEqual({
-        address: "Bv9abc",
-        cluster: "solana:mainnet",
-        wallet_name: "Phantom",
-        transport: "extension",
-        capabilities: ["can_sign_message", "can_sign_transaction"],
-      });
+      expect(postSystemMessage).not.toHaveBeenCalled();
+      expect(postChatMessage).toHaveBeenLastCalledWith(
+        api.currentThreadId,
+        "Use the updated wallet",
+        expect.objectContaining({
+          userState: expect.objectContaining({
+            connection: expect.objectContaining({ is_connected: true }),
+            evm: expect.objectContaining({ address: "0x789", chain_id: 137 }),
+            svm: expect.objectContaining({
+              address: "Bv9abc",
+              cluster: "solana:mainnet",
+            }),
+          }),
+        }),
+      );
     });
 
-    it("contains rejected wallet state syncs", async () => {
-      const syncError = new Error("HTTP 401");
+    it("does not issue a legacy callback for wallet-only updates", async () => {
       const postSystemMessage = vi.fn(async () => {
-        throw syncError;
+        throw new Error("legacy callback must remain unused");
       });
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       setAomiClientConfig({ postSystemMessage });
 
@@ -269,13 +258,7 @@ describe("User API", () => {
         await flushPromises();
       });
 
-      await waitFor(() => {
-        expect(warn).toHaveBeenCalledWith(
-          "Failed to sync wallet state:",
-          syncError,
-        );
-      });
-      warn.mockRestore();
+      expect(postSystemMessage).not.toHaveBeenCalled();
     });
 
     it("keeps a materialized thread remote after a stale list fetch resolves", async () => {
@@ -292,11 +275,16 @@ describe("User API", () => {
         session_id: threadId,
       }));
       const postSystemMessage = vi.fn(async () => ({ res: null }));
+      const postChatMessage = vi.fn(async () => ({
+        is_processing: false,
+        messages: [],
+      }));
 
       setAomiClientConfig({
         listThreads,
         createThread,
         postSystemMessage,
+        postChatMessage,
       });
 
       const { api, getApi } = renderRuntime();
@@ -329,15 +317,20 @@ describe("User API", () => {
       await act(async () => {
         getApi().setUser({ chainId: 137 });
         await flushPromises();
+        await getApi().sendMessage("Continue after stale list");
       });
 
-      await waitFor(() => {
-        expect(postSystemMessage).toHaveBeenCalledWith(
-          materializedThreadId,
-          expect.any(String),
-          { app: "default" },
-        );
-      });
+      expect(getApi().currentThreadId).toBe(materializedThreadId);
+      expect(postSystemMessage).not.toHaveBeenCalled();
+      expect(postChatMessage).toHaveBeenLastCalledWith(
+        materializedThreadId,
+        "Continue after stale list",
+        expect.objectContaining({
+          userState: expect.objectContaining({
+            evm: expect.objectContaining({ chain_id: 137 }),
+          }),
+        }),
+      );
     });
 
     it("lists EVM remote threads without calling stale account ensure", async () => {

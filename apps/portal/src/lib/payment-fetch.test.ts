@@ -7,7 +7,8 @@ import {
   x402EvmChainId,
 } from "./payment-fetch";
 
-const CHAT_URL = "https://chat-staging.aomi.dev/api/thread/chat";
+const CHAT_URL = "https://chat-staging.aomi.dev/v1/agent/chat";
+const LEGACY_CHAT_URL = "https://chat-staging.aomi.dev/api/thread/chat";
 
 function paymentRequiredHeader(): string {
   return btoa(
@@ -41,6 +42,19 @@ describe("createPortalPaymentFetch", () => {
 
     expect(response).toBe(expected);
     expect(rawFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("retains payment handling on the explicit legacy chat rollback path", async () => {
+    const challenge = new Response(null, {
+      status: 402,
+      headers: { "www-authenticate": 'Payment id="mpp-challenge"' },
+    });
+    const rawFetch = vi.fn(async () => challenge);
+    const expected = Response.json({ ok: true });
+    const mppFetch = vi.fn(async () => expected);
+    const fetch = createPortalPaymentFetch({ fetch: rawFetch, mppFetch });
+
+    expect(await fetch(LEGACY_CHAT_URL, { method: "POST" })).toBe(expected);
   });
 
   it("settles chained x402 challenges without an unsigned replay", async () => {

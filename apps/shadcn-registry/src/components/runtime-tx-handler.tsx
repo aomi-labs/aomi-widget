@@ -15,6 +15,8 @@ import {
   parseChainId,
   useAomiRuntime,
   type WalletRequest,
+  type WalletSolanaLegResult,
+  type WalletSolanaSignPayload,
   type WalletTxPayload,
 } from "@aomi-labs/react";
 import { useAomiWalletKit } from "../lib/wallet-kit";
@@ -448,65 +450,96 @@ export function RuntimeTxHandler() {
         }
 
         if (req.kind === "solana_send" || req.kind === "solana_sign_and_send") {
-          if (!req.payload.unsignedTx) {
-            await rejectWalletRequest(req.id, "Missing unsigned_tx payload");
-            return;
-          }
-          await maybeSwitchSolanaCluster(req.payload.cluster);
-
-          if (
-            req.kind === "solana_sign_and_send" &&
-            adapter.signAndSendSolanaTransaction
-          ) {
-            const result = await adapter.signAndSendSolanaTransaction(
-              req.payload,
+          const execute = async (payload: WalletSolanaSignPayload) => {
+            if (!payload.unsignedTx) {
+              throw new Error("Missing unsigned_tx payload");
+            }
+            await maybeSwitchSolanaCluster(payload.cluster);
+            if (
+              req.kind === "solana_sign_and_send" &&
+              adapter.signAndSendSolanaTransaction
+            ) {
+              return adapter.signAndSendSolanaTransaction(payload);
+            }
+            if (adapter.sendSolanaTransaction) {
+              return adapter.sendSolanaTransaction(payload);
+            }
+            if (!adapter.signSolanaTransaction) {
+              throw new Error("Solana wallet provider is not ready");
+            }
+            if (!adapter.solanaRpcHttpUrl) {
+              throw new Error("Solana RPC is not configured for broadcast");
+            }
+            const signed = await adapter.signSolanaTransaction(payload);
+            const connection = new SolanaConnection(
+              adapter.solanaRpcHttpUrl,
+              "confirmed",
             );
-            await resolveWalletRequest(req.id, {
-              kind: "solana_sign_and_send",
-              ...result,
-            });
-            return;
-          }
+            const signature = await connection.sendRawTransaction(
+              decodeBase64(signed.signedTx),
+            );
+            await connection.confirmTransaction(signature, "confirmed");
+            return { signature, signedTx: signed.signedTx };
+          };
 
-          if (adapter.sendSolanaTransaction) {
-            const result = await adapter.sendSolanaTransaction(req.payload);
+          const transactions = req.payload.transactions ?? [];
+          if (transactions.length > 1) {
+            const legs: WalletSolanaLegResult[] = [];
+            for (const [index, transaction] of transactions.entries()) {
+              try {
+                const result = await execute({
+                  ...req.payload,
+                  unsignedTx: transaction.unsignedTx,
+                  description:
+                    transaction.description ?? req.payload.description,
+                  transactions: undefined,
+                });
+                legs.push({
+                  id: transaction.id,
+                  status: "submitted",
+                  signature: result.signature,
+                  signedTx: result.signedTx,
+                });
+              } catch (error) {
+                legs.push({
+                  id: transaction.id,
+                  status: "failed",
+                  reason:
+                    error instanceof Error ? error.message : "Request failed",
+                });
+                legs.push(
+                  ...transactions.slice(index + 1).map((remaining) => ({
+                    id: remaining.id,
+                    status: "skipped" as const,
+                  })),
+                );
+                break;
+              }
+            }
+            const submitted = legs.filter(
+              (leg) => leg.status === "submitted" && leg.signature,
+            );
+            if (submitted.length === 0) {
+              await rejectWalletRequest(
+                req.id,
+                legs.find((leg) => leg.reason)?.reason ?? "Request failed",
+              );
+              return;
+            }
+            const last = submitted.at(-1)!;
             await resolveWalletRequest(req.id, {
               kind: req.kind,
-              ...result,
+              signature: last.signature!,
+              signedTx: last.signedTx,
+              legs,
             });
             return;
           }
 
-          if (!adapter.signSolanaTransaction) {
-            await rejectWalletRequest(
-              req.id,
-              "Solana wallet provider is not ready",
-            );
-            return;
-          }
-
-          if (!adapter.solanaRpcHttpUrl) {
-            await rejectWalletRequest(
-              req.id,
-              "Solana RPC is not configured for broadcast",
-            );
-            return;
-          }
-
-          const signResult = await adapter.signSolanaTransaction(req.payload);
-          const connection = new SolanaConnection(
-            adapter.solanaRpcHttpUrl,
-            "confirmed",
-          );
-          const signature = await connection.sendRawTransaction(
-            decodeBase64(signResult.signedTx),
-          );
-          await connection.confirmTransaction(signature, "confirmed");
-
+          const result = await execute(req.payload);
           await resolveWalletRequest(req.id, {
             kind: req.kind,
-            signature,
-            signedTx: signResult.signedTx,
+            ...result,
           });
           return;
         }

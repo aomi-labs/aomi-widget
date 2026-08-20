@@ -218,4 +218,90 @@ describe("ClientSession Agent transport", () => {
     });
     session.close();
   });
+
+  it("preserves per-leg SVM batch outcomes", async () => {
+    const api = client();
+    const svm: AgentAction = {
+      id: "act_svm",
+      type: "external_transaction",
+      chainFamily: "svm",
+      executionKind: "wallet",
+      cluster: "solana:devnet",
+      signer: "Signer1111111111111111111111111111111111111",
+      broadcaster: "wallet",
+      generation: 1,
+      contextGeneration: 0,
+      revision: 2,
+      status: "pending",
+      createdAt: "2026-08-20T00:00:00Z",
+      expiresAt: null,
+      description: "Approve SVM batch",
+      transactions: [
+        {
+          id: "leg_1",
+          unsignedTransactionBase64: "dHgx",
+          recentBlockhash: "blockhash-1",
+          lastValidBlockHeight: null,
+          preserveBlockhash: true,
+          description: "First",
+          intentHash: `0x${"4".repeat(64)}`,
+        },
+        {
+          id: "leg_2",
+          unsignedTransactionBase64: "dHgy",
+          recentBlockhash: "blockhash-2",
+          lastValidBlockHeight: null,
+          preserveBlockhash: true,
+          description: "Second",
+          intentHash: `0x${"5".repeat(64)}`,
+        },
+      ],
+    };
+    vi.spyOn(api.agent, "start").mockResolvedValue(
+      delta({ status: "awaiting_user", actions: [svm] }),
+    );
+    const resolveAction = vi
+      .spyOn(api.agent, "resolveAction")
+      .mockResolvedValue({ ...svm, status: "submitted", revision: 3 });
+    const session = new Session(api, { sessionId: "session-agent" });
+
+    await session.sendAsync("execute svm batch");
+    expect(session.getPendingRequests()[0]).toMatchObject({
+      id: "act_svm",
+      payload: {
+        transactions: [
+          { id: "leg_1", unsignedTx: "dHgx" },
+          { id: "leg_2", unsignedTx: "dHgy" },
+        ],
+      },
+    });
+    await session.resolve("act_svm", {
+      kind: "solana_sign_and_send",
+      signature: "sig-1",
+      legs: [
+        {
+          id: "leg_1",
+          status: "submitted",
+          signature: "sig-1",
+          signedTx: "c2lnbmVkLTE=",
+        },
+        { id: "leg_2", status: "failed", reason: "expired blockhash" },
+      ],
+    });
+
+    expect(resolveAction).toHaveBeenCalledWith("session-agent", "act_svm", {
+      status: "submitted",
+      revision: 2,
+      legs: [
+        {
+          id: "leg_1",
+          status: "submitted",
+          transactionId: "sig-1",
+          signedTransactionBase64: "c2lnbmVkLTE=",
+        },
+        { id: "leg_2", status: "failed", reason: "expired blockhash" },
+      ],
+    });
+    session.close();
+  });
 });

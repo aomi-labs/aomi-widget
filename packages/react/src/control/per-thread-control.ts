@@ -8,19 +8,14 @@
 //   - The auto-effect that fills in a missing model from stored preference
 //     OR re-aligns "auto" threads to the latest available default.
 //   - The two user-facing setters (onModelSelect, onAppSelect).
-//   - The pending-control sync to the backend before sending (the actual
-//     send path calls this via prepareThreadForSend).
+//   - The pending-control state carried by the next canonical Agent start.
 //
 // State that isn't per-thread (apiKey, available models, authorized apps)
 // is read via refs — this hook depends on but doesn't own them.
 
 import { useCallback, useEffect } from "react";
 import type { MutableRefObject } from "react";
-import type {
-  AomiAppDescriptor,
-  AomiClient,
-  ApplicationId,
-} from "@aomi-labs/client";
+import type { AomiAppDescriptor, ApplicationId } from "@aomi-labs/client";
 import {
   initThreadControl,
   type ThreadControlState,
@@ -186,10 +181,7 @@ export type PerThreadControlActions = {
 };
 
 type UsePerThreadControlOptions = {
-  aomiClientRef: MutableRefObject<AomiClient>;
   sessionIdRef: MutableRefObject<string>;
-  apiKeyRef: MutableRefObject<string | null>;
-  clientIdRef: MutableRefObject<string | null>;
   getThreadMetadataRef: MutableRefObject<
     (threadId: string) => ThreadMetadata | undefined
   >;
@@ -212,10 +204,7 @@ type UsePerThreadControlOptions = {
 /** Provider-internal: owns per-thread control wiring. Consumers should use
  *  the `usePerThreadControl` slice reader from contexts/control-context.tsx. */
 export function usePerThreadControlImpl({
-  aomiClientRef,
   sessionIdRef,
-  apiKeyRef,
-  clientIdRef,
   getThreadMetadataRef,
   updateThreadMetadataRef,
   availableModels,
@@ -317,39 +306,13 @@ export function usePerThreadControlImpl({
         },
       });
 
-      try {
-        await aomiClientRef.current.setModel(threadId, model, {
-          app: selectedApp.name,
-          applicationId: normalizeApplicationId(selectedApp.applicationId),
-          apiKey: apiKeyRef.current ?? undefined,
-          clientId: clientIdRef.current ?? undefined,
-        });
-        writeStoredModelPreference({
-          mode: modelMode,
-          model: modelMode === "manual" ? model : null,
-        });
-        const latestControl =
-          getThreadMetadataRef.current(threadId)?.control ?? currentControl;
-        if (
-          latestControl.model === model &&
-          latestControl.app === selectedApp.name &&
-          sameApplicationId(
-            latestControl.applicationId,
-            selectedApp.applicationId,
-          )
-        ) {
-          updateThreadMetadataRef.current(threadId, {
-            control: {
-              ...latestControl,
-              modelMode,
-              controlDirty: false,
-            },
-          });
-        }
-      } catch (err) {
-        console.error("[per-thread-control] setModel failed:", err);
-        throw err;
-      }
+      // Agent start is the single session/turn mutation. Keep selection local
+      // until the next send; the runtime passes it into ClientSession and
+      // clears controlDirty only after that start succeeds.
+      writeStoredModelPreference({
+        mode: modelMode,
+        model: modelMode === "manual" ? model : null,
+      });
     },
     [],
   );
@@ -406,65 +369,9 @@ export function usePerThreadControlImpl({
 
   const syncCurrentThreadControl = useCallback(
     async (options?: { ignoreProcessing?: boolean }) => {
-      const threadId = sessionIdRef.current;
-      const currentControl =
-        getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
-
-      if (
-        !currentControl.controlDirty ||
-        (!options?.ignoreProcessing && currentControl.isProcessing) ||
-        !currentControl.model
-      ) {
-        return;
-      }
-
-      const selectedApp = resolveAuthorizedApp(
-        currentControl.app,
-        currentControl.applicationId,
-        authorizedAppsRef.current,
-        appDescriptorsRef.current,
-        defaultAppRef.current,
-      ) ?? { name: "default" };
-
-      try {
-        await aomiClientRef.current.setModel(threadId, currentControl.model, {
-          app: selectedApp.name,
-          applicationId: normalizeApplicationId(selectedApp.applicationId),
-          apiKey: apiKeyRef.current ?? undefined,
-          clientId: clientIdRef.current ?? undefined,
-        });
-      } catch (error) {
-        if (currentControl.modelMode === "manual") throw error;
-
-        // Auto is a presentation preference, not a prerequisite for a chat
-        // turn. The backend already owns the default model and the chat request
-        // carries the selected application, so a transient model-sync failure
-        // must not discard the user's message.
-        console.warn(
-          "[per-thread-control] auto model sync failed; using backend default",
-          error,
-        );
-      }
-
-      const latestControl =
-        getThreadMetadataRef.current(threadId)?.control ?? currentControl;
-      if (
-        latestControl.model === currentControl.model &&
-        latestControl.app === currentControl.app &&
-        sameApplicationId(
-          latestControl.applicationId,
-          currentControl.applicationId,
-        )
-      ) {
-        updateThreadMetadataRef.current(threadId, {
-          control: {
-            ...latestControl,
-            app: selectedApp.name,
-            applicationId: normalizeApplicationId(selectedApp.applicationId),
-            controlDirty: false,
-          },
-        });
-      }
+      void options;
+      // Retained as a source-compatible local seam. Canonical Agent transport
+      // carries model/app on the next start; there is no separate model RPC.
     },
     [],
   );

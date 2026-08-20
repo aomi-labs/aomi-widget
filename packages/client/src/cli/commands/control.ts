@@ -20,11 +20,7 @@ export async function statusCommand(config: CliConfig): Promise<void> {
 
   const session = cli.createClientSession(config);
   try {
-    const apiState = await session.client.fetchState(
-      cli.sessionId,
-      undefined,
-      cli.clientId,
-    );
+    await session.fetchCurrentState();
     console.log(
       JSON.stringify(
         {
@@ -33,9 +29,9 @@ export async function statusCommand(config: CliConfig): Promise<void> {
           app: cli.app,
           model: cli.model ?? null,
           chainId: cli.chainId ?? null,
-          isProcessing: apiState.is_processing ?? false,
-          messageCount: apiState.messages?.length ?? 0,
-          title: apiState.title ?? null,
+          isProcessing: session.getIsProcessing(),
+          messageCount: session.getMessages().length,
+          title: session.getTitle() ?? null,
           pendingTxs: cli.pendingTxs.length,
           signedTxs: cli.signedTxs.length,
         },
@@ -59,8 +55,8 @@ export async function eventsCommand(config: CliConfig): Promise<void> {
 
   const session = cli.createClientSession(config);
   try {
-    const events = await session.client.getSystemEvents(cli.sessionId);
-    console.log(JSON.stringify(events, null, 2));
+    const delta = await session.client.agent.check(cli.sessionId);
+    console.log(JSON.stringify(delta.activity, null, 2));
   } finally {
     session.close();
   }
@@ -277,20 +273,10 @@ export async function setModelCommand(
   options?: { printLocation?: boolean },
 ): Promise<void> {
   const cli = CliSession.loadOrCreate(config);
-  const session = cli.createClientSession(config);
-  try {
-    await session.client.setModel(cli.sessionId, model, {
-      app: cli.app,
-      applicationId: config.applicationId,
-      apiKey: cli.apiKey,
-    });
-    cli.setModel(model);
-    console.log(`Model set to ${model}`);
-    if (options?.printLocation !== false) {
-      printDataFileLocation({ verbose: config.verbose });
-    }
-  } finally {
-    session.close();
+  cli.setModel(model);
+  console.log(`Model set to ${model}`);
+  if (options?.printLocation !== false) {
+    printDataFileLocation({ verbose: config.verbose });
   }
 }
 

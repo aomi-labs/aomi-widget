@@ -289,10 +289,7 @@ export function ControlContextProvider({
   defaultAppRef.current = authEndpoints.state.defaultApp;
 
   const perThread = usePerThreadControlImpl({
-    aomiClientRef,
     sessionIdRef,
-    apiKeyRef,
-    clientIdRef,
     getThreadMetadataRef,
     updateThreadMetadataRef,
     availableModels: authEndpoints.state.availableModels,

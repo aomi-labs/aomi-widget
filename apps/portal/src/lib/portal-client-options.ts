@@ -180,6 +180,7 @@ export async function applyLockedAppScope(
   if (
     !url ||
     ![
+      "/v1/agent/chat",
       "/api/thread/chat",
       "/api/system",
       "/api/thread/model",

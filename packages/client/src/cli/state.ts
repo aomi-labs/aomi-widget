@@ -23,6 +23,8 @@ import type { CliAAProvider, CliEmbeddedProvider } from "./types";
 
 export type PendingTx = {
   id: string;
+  /** Shared-client request id for a canonical Agent action. */
+  agentRequestId?: string;
   kind: "transaction" | "eip712_sign";
   txId?: number;
   eip712Id?: number;
@@ -37,6 +39,7 @@ export type PendingTx = {
 
 export type SignedTx = {
   id: string;
+  agentRequestId?: string;
   kind: "transaction" | "eip712_sign";
   /** Authoritative backend staging id used to make callback recovery safe. */
   pendingTxId?: number;
@@ -68,8 +71,9 @@ export type SignedTx = {
 /** Solana wallet request waiting for the local CLI signer. */
 export type PendingSolTx = {
   id: string;
+  agentRequestId?: string;
   /** Backend-assigned id for the staged Solana sign request. */
-  solanaId: number;
+  solanaId?: number;
   /** All staged backend ids covered by this transaction. */
   solanaIds?: number[];
   /** Wallet operation requested by the backend. */
@@ -99,6 +103,7 @@ export type PendingSolTx = {
  */
 export type SignedSolTx = {
   id: string;
+  agentRequestId?: string;
   requestKind?: PendingSolTx["requestKind"];
   signedTx?: string;
   signer: string;
@@ -172,7 +177,11 @@ export function hasSameBackendPendingId(
   const existingBackendId = getBackendPendingId(existing);
   const nextBackendId = getBackendPendingId(next);
 
-  return (
+  return Boolean(
+    existing.agentRequestId &&
+      next.agentRequestId &&
+      existing.agentRequestId === next.agentRequestId,
+  ) || (
     existing.kind === next.kind &&
     existingBackendId !== undefined &&
     nextBackendId !== undefined &&
@@ -714,7 +723,12 @@ export function hasSameSolanaPendingId(
   existing: PendingSolTx,
   next: Omit<PendingSolTx, "id">,
 ): boolean {
-  return existing.solanaId === next.solanaId;
+  if (existing.agentRequestId && next.agentRequestId) {
+    return existing.agentRequestId === next.agentRequestId;
+  }
+  return (
+    existing.solanaId !== undefined && existing.solanaId === next.solanaId
+  );
 }
 
 export function addPendingSolTx(
@@ -732,7 +746,10 @@ export function addPendingSolTx(
 
   const pending: PendingSolTx = {
     ...tx,
-    id: `tx-${tx.solanaId}`,
+    id:
+      tx.solanaId === undefined
+        ? `tx-${state.pendingSolTxs.length + 1}`
+        : `tx-${tx.solanaId}`,
   };
   state.pendingSolTxs.push(pending);
   writeState(state);

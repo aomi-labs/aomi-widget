@@ -103,7 +103,6 @@ type RuntimeUserStateEffectsOptions = {
 
 type RuntimeUserStateContext = {
   getControlState: () => ControlState;
-  getCurrentThreadApp: () => string;
   getUserState: () => UserState;
   onUserStateChange: (callback: (user: UserState) => void) => () => void;
   threadContextRef: MutableRefObject<ThreadContext>;
@@ -114,31 +113,11 @@ function stableStateString(state: UserState): string {
   return JSON.stringify(state ?? {});
 }
 
-function normalizeWalletId(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  return value.startsWith("0x") ? value.toLowerCase() : value;
-}
-
-function useWalletStateSync(
-  context: Pick<
-    RuntimeUserStateContext,
-    | "getCurrentThreadApp"
-    | "getUserState"
-    | "onUserStateChange"
-    | "threadContextRef"
-  >,
-  sessions: Pick<RuntimeSessionBridge, "aomiClientRef">,
-  remoteThreads: Pick<RemoteThreadRegistry, "remoteThreadIdsRef">,
+function useWalletStateNotifications(
+  context: Pick<RuntimeUserStateContext, "getUserState" | "onUserStateChange">,
 ) {
   const { showNotification } = useNotification();
-  const {
-    getCurrentThreadApp,
-    getUserState,
-    onUserStateChange,
-    threadContextRef,
-  } = context;
-  const { aomiClientRef } = sessions;
-  const { remoteThreadIdsRef } = remoteThreads;
+  const { getUserState, onUserStateChange } = context;
 
   const walletSnapshot = useCallback(
     (nextUser: ReturnType<typeof getUserState>) => ({
@@ -180,8 +159,6 @@ function useWalletStateSync(
     const unsubscribe = onUserStateChange((newUser) => {
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
-      const previousAddress = normalizeWalletId(prevWalletState.evm?.address);
-      const nextAddress = normalizeWalletId(nextWalletState.evm?.address);
       const wasConnected = prevWalletState.connection.is_connected;
       const isConnected = nextWalletState.connection.is_connected;
       if (
@@ -198,43 +175,10 @@ function useWalletStateSync(
           title: isConnected ? "Wallet connected" : "Wallet disconnected",
         });
       }
-      if (
-        previousAddress !== undefined &&
-        nextAddress !== undefined &&
-        previousAddress !== nextAddress
-      ) {
-        return;
-      }
-
-      const sessionId = threadContextRef.current.currentThreadId;
-      if (!remoteThreadIdsRef.current.has(sessionId)) {
-        return;
-      }
-
-      const message = JSON.stringify({
-        type: "wallet:state_changed",
-        payload: nextWalletState,
-      });
-      void aomiClientRef.current
-        .sendSystemMessage(sessionId, message, {
-          app: getCurrentThreadApp(),
-        })
-        .catch((error) => {
-          console.warn("Failed to sync wallet state:", error);
-        });
     });
 
     return unsubscribe;
-  }, [
-    aomiClientRef,
-    getCurrentThreadApp,
-    getUserState,
-    onUserStateChange,
-    remoteThreadIdsRef,
-    showNotification,
-    threadContextRef,
-    walletSnapshot,
-  ]);
+  }, [getUserState, onUserStateChange, showNotification, walletSnapshot]);
 }
 
 function useUserStateRequestResponder(
@@ -590,13 +534,12 @@ export function useRuntimeUserStateEffects({
 } {
   const threadContext = useThreadContext();
   const { user, getUserState, onUserStateChange } = useUser();
-  const { getControlState, getCurrentThreadApp } = useControl();
+  const { getControlState } = useControl();
   const threadContextRef = useRef(threadContext);
   threadContextRef.current = threadContext;
 
   const context: RuntimeUserStateContext = {
     getControlState,
-    getCurrentThreadApp,
     getUserState,
     onUserStateChange,
     threadContextRef,
@@ -611,7 +554,7 @@ export function useRuntimeUserStateEffects({
     setIsThreadLoading,
   };
 
-  useWalletStateSync(context, sessions, remoteThreads);
+  useWalletStateNotifications(context);
   useUserStateRequestResponder(context, sessions);
   return useRemoteThreadListSync(
     context,

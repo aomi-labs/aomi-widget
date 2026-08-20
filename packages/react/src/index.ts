@@ -86,6 +86,7 @@ export type {
   WalletSigningPayload,
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
+  WalletSolanaLegResult,
   WalletRequestKind,
   WalletRequestStatus,
   WalletRequestResult,

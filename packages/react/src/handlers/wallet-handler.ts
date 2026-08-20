@@ -7,6 +7,7 @@ import type {
   WalletSigningPayload,
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
+  WalletSolanaLegResult,
   WalletTxPayload,
   WalletRequest,
   WalletRequestKind,
@@ -27,6 +28,7 @@ export type {
   WalletSigningPayload,
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
+  WalletSolanaLegResult,
   ViemSignMessageArgs,
 };
 

@@ -35,11 +35,11 @@ export type AomiClientConfig = {
     message: string,
     options?: {
       app?: string;
+      model?: string;
       applicationId?: number | string | null;
       apiKey?: string;
       clientId?: string;
       userState?: Record<string, unknown>;
-      clientId?: string;
     },
   ) => Promise<AomiChatResponse>;
   sendSystemMessage?: (
@@ -192,11 +192,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
         message: string,
         options?: {
           app?: string;
+          model?: string;
           applicationId?: number | string | null;
           apiKey?: string;
           clientId?: string;
           userState?: Record<string, unknown>;
-          clientId?: string;
         },
       ) => {
         const fn =
@@ -323,6 +323,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     private _isSSEActive = false;
 
     private _app?: string;
+    private _model?: string;
     private _applicationId?: number | string | null;
     private _apiKey?: string;
     private _userState?: Record<string, unknown>;
@@ -339,6 +340,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       opts?: {
         sessionId?: string;
         app?: string;
+        model?: string;
         applicationId?: number | string | null;
         apiKey?: string;
         clientId?: string;
@@ -360,6 +362,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       }
       this.sessionId = opts?.sessionId ?? "mock-session";
       this._app = opts?.app;
+      this._model = opts?.model;
       this._applicationId = opts?.applicationId;
       this._apiKey = opts?.apiKey;
       this._clientId = opts?.clientId;
@@ -384,6 +387,7 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     async sendAsync(message: string) {
       const response = await this.client.sendMessage(this.sessionId, message, {
         app: this._app,
+        model: this._model,
         applicationId: this._applicationId,
         apiKey: this._apiKey,
         userState: this._userState,
@@ -429,12 +433,14 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     }
     syncRuntimeOptions(options: {
       app: string;
+      model?: string;
       applicationId?: number | string | null;
       apiKey?: string;
       clientId?: string;
       userState?: Record<string, unknown>;
     }) {
       this._app = options.app;
+      this._model = options.model;
       this._applicationId = options.applicationId;
       this._apiKey = options.apiKey;
       this._clientId = options.clientId ?? this._clientId;

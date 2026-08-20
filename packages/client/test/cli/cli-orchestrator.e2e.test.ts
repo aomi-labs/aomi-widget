@@ -121,6 +121,7 @@ describe("orchestrator CLI mother wallet flow", () => {
       const session = new Session(
         new AomiClient({ baseUrl: `http://127.0.0.1:${address.port}` }),
         {
+          transport: "legacy",
           sessionId: SESSION_ID,
           app: "orchestrator",
           pollIntervalMs: 5,

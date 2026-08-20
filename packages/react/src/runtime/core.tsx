@@ -93,10 +93,11 @@ export function AomiRuntimeCore({
   const { getUserState } = useUser();
   const {
     getControlState,
+    getCurrentThreadControl,
     getCurrentThreadApplicationId,
     getCurrentThreadApp,
     getPreferredThreadControl,
-    syncCurrentThreadControl,
+    markControlSynced,
   } = useControl();
 
   // ---------------------------------------------------------------------------
@@ -130,6 +131,7 @@ export function AomiRuntimeCore({
   } = useRuntimeOrchestrator(aomiClient, {
     getUserState,
     getApp: getCurrentThreadApp,
+    getModel: () => getCurrentThreadControl().model,
     getApplicationId: () => getCurrentThreadApplicationId() ?? applicationId,
     getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
@@ -144,9 +146,7 @@ export function AomiRuntimeCore({
         writePersistedThreadId(threadPersistenceKey, threadId);
       }
       if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
-        void syncCurrentThreadControl().catch((error) => {
-          console.error("Failed to sync thread controls:", error);
-        });
+        markControlSynced();
       }
     },
     onSendError: (_threadId, error) => {
@@ -209,12 +209,11 @@ export function AomiRuntimeCore({
       if (remoteThreadIdsRef.current.has(threadId)) return;
 
       await runSingleFlight(warmPromisesRef.current, threadId, async () => {
-        // Fast path: carry the selected model/app on create so a fresh chat
-        // normally binds in one round trip. The control sync below remains a
-        // compatibility fallback for older backends.
+        // This is a local prewarm seam. The first canonical Agent start creates
+        // the remote session and carries model/app in that same request.
         const control =
           threadContextRef.current.getThreadMetadata(threadId)?.control;
-        const created = await aomiClientRef.current.createThread(threadId, {
+        await aomiClientRef.current.createThread(threadId, {
           rig: control?.model ?? undefined,
           app: control?.app ?? undefined,
           applicationId: control?.applicationId ?? undefined,
@@ -222,20 +221,6 @@ export function AomiRuntimeCore({
         });
         remoteThreadIdsRef.current.add(threadId);
         warmedThreadIdsRef.current.add(threadId);
-
-        if (created?.rig && control?.model) {
-          const latest = threadContextRef.current.getThreadMetadata(threadId);
-          if (
-            latest?.control.controlDirty &&
-            latest.control.model === control.model &&
-            latest.control.app === control.app &&
-            latest.control.applicationId === control.applicationId
-          ) {
-            threadContextRef.current.updateThreadMetadata(threadId, {
-              control: { ...latest.control, controlDirty: false },
-            });
-          }
-        }
       });
     },
     [aomiClientRef, getControlState],
@@ -245,20 +230,9 @@ export function AomiRuntimeCore({
     async (threadId: string) => {
       await runSingleFlight(preparePromisesRef.current, threadId, async () => {
         await ensureBackendThread(threadId);
-        if (threadContextRef.current.currentThreadId !== threadId) return;
-
-        // If the selection changes during the first sync, apply the newest
-        // value once more before admitting chat.
-        await syncCurrentThreadControl({ ignoreProcessing: true });
-        if (threadContextRef.current.currentThreadId !== threadId) return;
-        const latest =
-          threadContextRef.current.getThreadMetadata(threadId)?.control;
-        if (latest?.controlDirty && latest.model) {
-          await syncCurrentThreadControl({ ignoreProcessing: true });
-        }
       });
     },
-    [ensureBackendThread, syncCurrentThreadControl],
+    [ensureBackendThread],
   );
 
   const getRuntimeSession = useCallback(

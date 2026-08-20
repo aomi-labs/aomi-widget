@@ -795,10 +795,7 @@ function resolveAuthorizedApp(app, applicationId, authorizedApps, appDescriptors
   };
 }
 function usePerThreadControlImpl({
-  aomiClientRef,
   sessionIdRef,
-  apiKeyRef,
-  clientIdRef,
   getThreadMetadataRef,
   updateThreadMetadataRef,
   availableModels,
@@ -855,7 +852,7 @@ function usePerThreadControlImpl({
   }, []);
   const onModelSelect = useCallback4(
     async (model, options) => {
-      var _a2, _b2, _c, _d, _e, _f, _g, _h;
+      var _a2, _b2, _c, _d;
       const threadId = sessionIdRef.current;
       const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
       if (currentControl.isProcessing) {
@@ -881,33 +878,10 @@ function usePerThreadControlImpl({
           controlDirty: true
         })
       });
-      try {
-        await aomiClientRef.current.setModel(threadId, model, {
-          app: selectedApp.name,
-          applicationId: normalizeApplicationId(selectedApp.applicationId),
-          apiKey: (_e = apiKeyRef.current) != null ? _e : void 0,
-          clientId: (_f = clientIdRef.current) != null ? _f : void 0
-        });
-        writeStoredModelPreference({
-          mode: modelMode,
-          model: modelMode === "manual" ? model : null
-        });
-        const latestControl = (_h = (_g = getThreadMetadataRef.current(threadId)) == null ? void 0 : _g.control) != null ? _h : currentControl;
-        if (latestControl.model === model && latestControl.app === selectedApp.name && sameApplicationId(
-          latestControl.applicationId,
-          selectedApp.applicationId
-        )) {
-          updateThreadMetadataRef.current(threadId, {
-            control: __spreadProps(__spreadValues({}, latestControl), {
-              modelMode,
-              controlDirty: false
-            })
-          });
-        }
-      } catch (err) {
-        console.error("[per-thread-control] setModel failed:", err);
-        throw err;
-      }
+      writeStoredModelPreference({
+        mode: modelMode,
+        model: modelMode === "manual" ? model : null
+      });
     },
     []
   );
@@ -958,46 +932,7 @@ function usePerThreadControlImpl({
   }, []);
   const syncCurrentThreadControl = useCallback4(
     async (options) => {
-      var _a2, _b2, _c, _d, _e, _f, _g;
-      const threadId = sessionIdRef.current;
-      const currentControl = (_b2 = (_a2 = getThreadMetadataRef.current(threadId)) == null ? void 0 : _a2.control) != null ? _b2 : initThreadControl();
-      if (!currentControl.controlDirty || !(options == null ? void 0 : options.ignoreProcessing) && currentControl.isProcessing || !currentControl.model) {
-        return;
-      }
-      const selectedApp = (_c = resolveAuthorizedApp(
-        currentControl.app,
-        currentControl.applicationId,
-        authorizedAppsRef.current,
-        appDescriptorsRef.current,
-        defaultAppRef.current
-      )) != null ? _c : { name: "default" };
-      try {
-        await aomiClientRef.current.setModel(threadId, currentControl.model, {
-          app: selectedApp.name,
-          applicationId: normalizeApplicationId(selectedApp.applicationId),
-          apiKey: (_d = apiKeyRef.current) != null ? _d : void 0,
-          clientId: (_e = clientIdRef.current) != null ? _e : void 0
-        });
-      } catch (error) {
-        if (currentControl.modelMode === "manual") throw error;
-        console.warn(
-          "[per-thread-control] auto model sync failed; using backend default",
-          error
-        );
-      }
-      const latestControl = (_g = (_f = getThreadMetadataRef.current(threadId)) == null ? void 0 : _f.control) != null ? _g : currentControl;
-      if (latestControl.model === currentControl.model && latestControl.app === currentControl.app && sameApplicationId(
-        latestControl.applicationId,
-        currentControl.applicationId
-      )) {
-        updateThreadMetadataRef.current(threadId, {
-          control: __spreadProps(__spreadValues({}, latestControl), {
-            app: selectedApp.name,
-            applicationId: normalizeApplicationId(selectedApp.applicationId),
-            controlDirty: false
-          })
-        });
-      }
+      void options;
     },
     []
   );
@@ -1185,10 +1120,7 @@ function ControlContextProvider({
   const defaultAppRef = useRef(authEndpoints.state.defaultApp);
   defaultAppRef.current = authEndpoints.state.defaultApp;
   const perThread = usePerThreadControlImpl({
-    aomiClientRef,
     sessionIdRef,
-    apiKeyRef,
-    clientIdRef,
     getThreadMetadataRef,
     updateThreadMetadataRef,
     availableModels: authEndpoints.state.availableModels,
@@ -1222,12 +1154,18 @@ function ControlContextProvider({
 }
 
 // src/contexts/event-context.tsx
-import {
-  createContext as createContext2,
-  useCallback as useCallback6,
-  useContext as useContext2,
-  useRef as useRef2
-} from "react";
+import { createContext as createContext2, useCallback as useCallback6, useContext as useContext2, useRef as useRef2 } from "react";
+
+// src/runtime/legacy-agent-rollback.ts
+async function sendLegacySystemEvent(client, event, app) {
+  await client.sendSystemMessage(
+    event.sessionId,
+    JSON.stringify({ type: event.type, payload: event.payload }),
+    { app }
+  );
+}
+
+// src/contexts/event-context.tsx
 import { jsx as jsx2 } from "react/jsx-runtime";
 var EventContextState = createContext2(null);
 function useEventContext() {
@@ -1246,20 +1184,17 @@ function EventContextProvider({
 }) {
   const { getCurrentThreadApp } = useControl();
   const subscribersRef = useRef2(/* @__PURE__ */ new Map());
-  const subscribe = useCallback6(
-    (type, callback) => {
-      const subs = subscribersRef.current;
-      if (!subs.has(type)) {
-        subs.set(type, /* @__PURE__ */ new Set());
-      }
-      subs.get(type).add(callback);
-      return () => {
-        var _a;
-        (_a = subs.get(type)) == null ? void 0 : _a.delete(callback);
-      };
-    },
-    []
-  );
+  const subscribe = useCallback6((type, callback) => {
+    const subs = subscribersRef.current;
+    if (!subs.has(type)) {
+      subs.set(type, /* @__PURE__ */ new Set());
+    }
+    subs.get(type).add(callback);
+    return () => {
+      var _a;
+      (_a = subs.get(type)) == null ? void 0 : _a.delete(callback);
+    };
+  }, []);
   const dispatchEvent = useCallback6((event) => {
     const subs = subscribersRef.current;
     const typeSubs = subs.get(event.type);
@@ -1274,13 +1209,7 @@ function EventContextProvider({
   const sendOutbound = useCallback6(
     async (event) => {
       try {
-        const message = JSON.stringify({
-          type: event.type,
-          payload: event.payload
-        });
-        await aomiClient.sendSystemMessage(event.sessionId, message, {
-          app: getCurrentThreadApp()
-        });
+        await sendLegacySystemEvent(aomiClient, event, getCurrentThreadApp());
       } catch (error) {
         console.error("Failed to send outbound event:", error);
       }
@@ -2271,18 +2200,20 @@ function useRuntimeOrchestrator(aomiClient, options) {
   }, [cleanupSessionListeners]);
   const getSession = useCallback9(
     (threadId) => {
-      var _a, _b, _c, _d, _e;
+      var _a, _b, _c, _d, _e, _f, _g;
       const manager = sessionManagerRef.current;
       const nextOptions = optionsRef.current;
       const nextApp = nextOptions.getApp();
-      const nextApplicationId = (_a = nextOptions.getApplicationId) == null ? void 0 : _a.call(nextOptions);
-      const nextApiKey = (_c = (_b = nextOptions.getApiKey) == null ? void 0 : _b.call(nextOptions)) != null ? _c : void 0;
-      const nextClientId = (_d = nextOptions.getClientId) == null ? void 0 : _d.call(nextOptions);
-      const nextUserState = (_e = nextOptions.getUserState) == null ? void 0 : _e.call(nextOptions);
+      const nextModel = (_b = (_a = nextOptions.getModel) == null ? void 0 : _a.call(nextOptions)) != null ? _b : void 0;
+      const nextApplicationId = (_c = nextOptions.getApplicationId) == null ? void 0 : _c.call(nextOptions);
+      const nextApiKey = (_e = (_d = nextOptions.getApiKey) == null ? void 0 : _d.call(nextOptions)) != null ? _e : void 0;
+      const nextClientId = (_f = nextOptions.getClientId) == null ? void 0 : _f.call(nextOptions);
+      const nextUserState = (_g = nextOptions.getUserState) == null ? void 0 : _g.call(nextOptions);
       const existing = manager.get(threadId);
       if (existing) {
         existing.syncRuntimeOptions({
           app: nextApp,
+          model: nextModel,
           applicationId: nextApplicationId,
           apiKey: nextApiKey,
           clientId: nextClientId,
@@ -2295,6 +2226,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       }
       const session = manager.getOrCreate(threadId, {
         app: nextApp,
+        model: nextModel,
         applicationId: nextApplicationId,
         apiKey: nextApiKey,
         clientId: nextClientId,
@@ -2970,20 +2902,9 @@ function delay(ms) {
 function stableStateString2(state) {
   return JSON.stringify(state != null ? state : {});
 }
-function normalizeWalletId(value) {
-  if (!value) return void 0;
-  return value.startsWith("0x") ? value.toLowerCase() : value;
-}
-function useWalletStateSync(context, sessions, remoteThreads) {
+function useWalletStateNotifications(context) {
   const { showNotification } = useNotification();
-  const {
-    getCurrentThreadApp,
-    getUserState,
-    onUserStateChange,
-    threadContextRef
-  } = context;
-  const { aomiClientRef } = sessions;
-  const { remoteThreadIdsRef } = remoteThreads;
+  const { getUserState, onUserStateChange } = context;
   const walletSnapshot = useCallback11(
     (nextUser) => {
       var _a, _b, _c, _d, _e, _f, _g, _h, _i;
@@ -3016,11 +2937,8 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   useEffect7(() => {
     lastWalletStateRef.current = walletSnapshot(getUserState());
     const unsubscribe = onUserStateChange((newUser) => {
-      var _a, _b;
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
-      const previousAddress = normalizeWalletId((_a = prevWalletState.evm) == null ? void 0 : _a.address);
-      const nextAddress = normalizeWalletId((_b = nextWalletState.evm) == null ? void 0 : _b.address);
       const wasConnected = prevWalletState.connection.is_connected;
       const isConnected = nextWalletState.connection.is_connected;
       if (stableStateString2(prevWalletState) === stableStateString2(nextWalletState)) {
@@ -3033,34 +2951,9 @@ function useWalletStateSync(context, sessions, remoteThreads) {
           title: isConnected ? "Wallet connected" : "Wallet disconnected"
         });
       }
-      if (previousAddress !== void 0 && nextAddress !== void 0 && previousAddress !== nextAddress) {
-        return;
-      }
-      const sessionId = threadContextRef.current.currentThreadId;
-      if (!remoteThreadIdsRef.current.has(sessionId)) {
-        return;
-      }
-      const message = JSON.stringify({
-        type: "wallet:state_changed",
-        payload: nextWalletState
-      });
-      void aomiClientRef.current.sendSystemMessage(sessionId, message, {
-        app: getCurrentThreadApp()
-      }).catch((error) => {
-        console.warn("Failed to sync wallet state:", error);
-      });
     });
     return unsubscribe;
-  }, [
-    aomiClientRef,
-    getCurrentThreadApp,
-    getUserState,
-    onUserStateChange,
-    remoteThreadIdsRef,
-    showNotification,
-    threadContextRef,
-    walletSnapshot
-  ]);
+  }, [getUserState, onUserStateChange, showNotification, walletSnapshot]);
 }
 function useUserStateRequestResponder(context, sessions) {
   const eventContext = useEventContext();
@@ -3347,12 +3240,11 @@ function useRuntimeUserStateEffects({
 }) {
   const threadContext = useThreadContext();
   const { user, getUserState, onUserStateChange } = useUser();
-  const { getControlState, getCurrentThreadApp } = useControl();
+  const { getControlState } = useControl();
   const threadContextRef = useRef8(threadContext);
   threadContextRef.current = threadContext;
   const context = {
     getControlState,
-    getCurrentThreadApp,
     getUserState,
     onUserStateChange,
     threadContextRef,
@@ -3366,7 +3258,7 @@ function useRuntimeUserStateEffects({
     ensureInitialState,
     setIsThreadLoading
   };
-  useWalletStateSync(context, sessions, remoteThreads);
+  useWalletStateNotifications(context);
   useUserStateRequestResponder(context, sessions);
   return useRemoteThreadListSync(
     context,
@@ -3494,10 +3386,11 @@ function AomiRuntimeCore({
   const { getUserState } = useUser();
   const {
     getControlState,
+    getCurrentThreadControl,
     getCurrentThreadApplicationId,
     getCurrentThreadApp,
     getPreferredThreadControl,
-    syncCurrentThreadControl
+    markControlSynced
   } = useControl();
   const sessionManagerRef = useRef9(null);
   const walletHandler = useWalletHandler({
@@ -3522,6 +3415,7 @@ function AomiRuntimeCore({
   } = useRuntimeOrchestrator(aomiClient, {
     getUserState,
     getApp: getCurrentThreadApp,
+    getModel: () => getCurrentThreadControl().model,
     getApplicationId: () => {
       var _a2;
       return (_a2 = getCurrentThreadApplicationId()) != null ? _a2 : applicationId;
@@ -3542,9 +3436,7 @@ function AomiRuntimeCore({
         writePersistedThreadId(threadPersistenceKey, threadId);
       }
       if (!wasRemote && threadContextRef.current.currentThreadId === threadId) {
-        void syncCurrentThreadControl().catch((error) => {
-          console.error("Failed to sync thread controls:", error);
-        });
+        markControlSynced();
       }
     },
     onSendError: (_threadId, error) => {
@@ -3586,7 +3478,7 @@ function AomiRuntimeCore({
       await runSingleFlight(warmPromisesRef.current, threadId, async () => {
         var _a2, _b, _c, _d, _e;
         const control = (_a2 = threadContextRef.current.getThreadMetadata(threadId)) == null ? void 0 : _a2.control;
-        const created = await aomiClientRef.current.createThread(threadId, {
+        await aomiClientRef.current.createThread(threadId, {
           rig: (_b = control == null ? void 0 : control.model) != null ? _b : void 0,
           app: (_c = control == null ? void 0 : control.app) != null ? _c : void 0,
           applicationId: (_d = control == null ? void 0 : control.applicationId) != null ? _d : void 0,
@@ -3594,14 +3486,6 @@ function AomiRuntimeCore({
         });
         remoteThreadIdsRef.current.add(threadId);
         warmedThreadIdsRef.current.add(threadId);
-        if ((created == null ? void 0 : created.rig) && (control == null ? void 0 : control.model)) {
-          const latest = threadContextRef.current.getThreadMetadata(threadId);
-          if ((latest == null ? void 0 : latest.control.controlDirty) && latest.control.model === control.model && latest.control.app === control.app && latest.control.applicationId === control.applicationId) {
-            threadContextRef.current.updateThreadMetadata(threadId, {
-              control: __spreadProps(__spreadValues({}, latest.control), { controlDirty: false })
-            });
-          }
-        }
       });
     },
     [aomiClientRef, getControlState]
@@ -3609,18 +3493,10 @@ function AomiRuntimeCore({
   const prepareBackendThread = useCallback12(
     async (threadId) => {
       await runSingleFlight(preparePromisesRef.current, threadId, async () => {
-        var _a2;
         await ensureBackendThread(threadId);
-        if (threadContextRef.current.currentThreadId !== threadId) return;
-        await syncCurrentThreadControl({ ignoreProcessing: true });
-        if (threadContextRef.current.currentThreadId !== threadId) return;
-        const latest = (_a2 = threadContextRef.current.getThreadMetadata(threadId)) == null ? void 0 : _a2.control;
-        if ((latest == null ? void 0 : latest.controlDirty) && latest.model) {
-          await syncCurrentThreadControl({ ignoreProcessing: true });
-        }
       });
     },
-    [ensureBackendThread, syncCurrentThreadControl]
+    [ensureBackendThread]
   );
   const getRuntimeSession = useCallback12(
     (threadId) => {

@@ -95,7 +95,7 @@ describe("CLI chat wallet sync", () => {
     ).toBe(false);
   });
 
-  it("syncs user_state and emits wallet:state_changed before chat", async () => {
+  it("stages wallet state locally for the canonical Agent start", async () => {
     const resolveUserState = vi.fn();
     const syncUserState = vi.fn().mockResolvedValue(undefined);
     const sendSystemMessage = vi.fn().mockResolvedValue(undefined);
@@ -126,27 +126,8 @@ describe("CLI chat wallet sync", () => {
       },
       ext: { client_type: "ts_cli" },
     });
-    expect(syncUserState).toHaveBeenCalledTimes(1);
-    expect(sendSystemMessage).toHaveBeenCalledTimes(1);
-    expect(sendSystemMessage.mock.calls[0]?.[0]).toBe("session-1");
-    // Payload mirrors the canonical nested UserState the backend
-    // deserializes (not the legacy flat {address, chainId, isConnected}
-    // shape, which would silently overwrite user_state with an empty
-    // one).
-    expect(JSON.parse(sendSystemMessage.mock.calls[0]?.[1] as string)).toEqual({
-      type: "wallet:state_changed",
-      payload: {
-        connection: {
-          is_connected: true,
-        },
-        evm: {
-          address: "0xnew",
-          chain_id: 8453,
-        },
-        ext: { client_type: "ts_cli" },
-      },
-    });
-    expect(sendSystemMessage.mock.calls[0]?.[2]).toEqual({ app: "default" });
+    expect(syncUserState).not.toHaveBeenCalled();
+    expect(sendSystemMessage).not.toHaveBeenCalled();
   });
 
   it("preserves the saved SVM cluster during an EVM-only chat command", async () => {
@@ -188,7 +169,7 @@ describe("CLI chat wallet sync", () => {
     );
   });
 
-  it("does not emit wallet:state_changed through /api/system without account credentials", async () => {
+  it("never emits the legacy wallet:state_changed callback", async () => {
     const resolveUserState = vi.fn();
     const syncUserState = vi.fn().mockResolvedValue(undefined);
     const sendSystemMessage = vi.fn().mockResolvedValue(undefined);
@@ -210,7 +191,7 @@ describe("CLI chat wallet sync", () => {
     );
 
     expect(resolveUserState).toHaveBeenCalledTimes(1);
-    expect(syncUserState).toHaveBeenCalledTimes(1);
+    expect(syncUserState).not.toHaveBeenCalled();
     expect(sendSystemMessage).not.toHaveBeenCalled();
   });
 

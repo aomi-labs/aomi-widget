@@ -28,14 +28,13 @@ export async function logCommand(config: CliConfig): Promise<void> {
 
   const session = cli.createClientSession(config);
   try {
-    const apiState = await session.client.fetchState(cli.sessionId, undefined, cli.clientId);
-    cli.syncPendingFromUserState(apiState.user_state);
-    const messages = apiState.messages ?? [];
+    await session.fetchCurrentState();
+    const messages = session.getMessages();
     const pendingTxs = [...cli.pendingTxs];
     const signedTxs = [...cli.signedTxs];
     const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
     const tokenCountEstimate = estimateTokenCount(messages);
-    const topic = apiState.title ?? "Untitled Session";
+    const topic = session.getTitle() ?? "Untitled Session";
 
     if (messages.length === 0) {
       console.log("No messages in this session.");

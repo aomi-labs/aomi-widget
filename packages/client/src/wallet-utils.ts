@@ -45,6 +45,8 @@ type HydrateTxPayloadOptions = {
 };
 
 export type WalletEip712Payload = {
+  /** Stable public Agent action id when projected from the canonical API. */
+  requestId?: string;
   typed_data?: {
     domain?: { chainId?: number | string };
     types?: Record<string, Array<{ name: string; type: string }>>;
@@ -82,6 +84,12 @@ export type WalletSolanaSignPayload = {
   pendingSolanaId?: number;
   /** All staged instruction/transaction ids resolved by this wallet request. */
   pendingSolanaIds?: number[];
+  /** Canonical multi-leg Agent action, in execution order. */
+  transactions?: Array<{
+    id: string;
+    unsignedTx: string;
+    description?: string;
+  }>;
 };
 
 export type WalletSolanaSignMessagePayload = {

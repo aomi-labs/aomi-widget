@@ -23,6 +23,7 @@ import { mergeAssistantTurns } from "./merge-turns";
 type OrchestratorOptions = {
   getUserState?: () => UserState;
   getApp: () => string;
+  getModel?: () => string | null | undefined;
   getApplicationId?: () => number | string | null | undefined;
   getApiKey?: () => string | null;
   getClientId?: () => string | undefined;
@@ -462,6 +463,7 @@ export function useRuntimeOrchestrator(
       const manager = sessionManagerRef.current!;
       const nextOptions = optionsRef.current;
       const nextApp = nextOptions.getApp();
+      const nextModel = nextOptions.getModel?.() ?? undefined;
       const nextApplicationId = nextOptions.getApplicationId?.();
       const nextApiKey = nextOptions.getApiKey?.() ?? undefined;
       const nextClientId = nextOptions.getClientId?.();
@@ -470,6 +472,7 @@ export function useRuntimeOrchestrator(
       if (existing) {
         existing.syncRuntimeOptions({
           app: nextApp,
+          model: nextModel,
           applicationId: nextApplicationId,
           apiKey: nextApiKey,
           clientId: nextClientId,
@@ -483,6 +486,7 @@ export function useRuntimeOrchestrator(
 
       const session = manager.getOrCreate(threadId, {
         app: nextApp,
+        model: nextModel,
         applicationId: nextApplicationId,
         apiKey: nextApiKey,
         clientId: nextClientId,

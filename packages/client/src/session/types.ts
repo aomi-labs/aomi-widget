@@ -102,6 +102,8 @@ export type WalletRequestResult =
   | {
       kind: "transaction";
       txHash: string;
+      /** Per-leg hashes for sequential/batched execution, in action order. */
+      txHashes?: string[];
       amount?: string;
       aaRequestedMode?: "4337" | "7702" | "none";
       aaResolvedMode?: "4337" | "7702" | "none";
@@ -137,12 +139,22 @@ export type WalletRequestResult =
       kind: "solana_send";
       signature: string;
       signedTx?: string;
+      legs?: WalletSolanaLegResult[];
     }
   | {
       kind: "solana_sign_and_send";
       signature: string;
       signedTx?: string;
+      legs?: WalletSolanaLegResult[];
     };
+
+export type WalletSolanaLegResult = {
+  id: string;
+  status: "submitted" | "rejected" | "failed" | "skipped";
+  signature?: string;
+  signedTx?: string;
+  reason?: string;
+};
 
 export type SendResult = {
   messages: AomiMessage[];

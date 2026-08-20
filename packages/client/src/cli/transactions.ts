@@ -11,25 +11,48 @@ import type { PendingSolTx, PendingTx, SignedSolTx, SignedTx } from "./state";
 
 export function walletRequestToPendingTx(
   request: WalletRequest,
-): Omit<PendingTx, "id"> {
+): Omit<PendingTx, "id"> | null {
   if (request.kind === "transaction") {
     const payload = request.payload as WalletTxPayload;
+    const first = payload.calls?.[0];
     return {
       kind: "transaction",
+      agentRequestId: payload.requestId,
       txId: payload.txId,
-      to: payload.to,
-      value: payload.value,
-      data: payload.data,
-      chainId: payload.chainId,
+      to: payload.to ?? first?.to,
+      value: payload.value ?? first?.value,
+      data: payload.data ?? first?.data,
+      chainId: payload.chainId ?? first?.chainId,
+      description: first?.description,
       timestamp: request.timestamp,
       payload: request.payload as unknown as Record<string, unknown>,
     };
   }
 
-  if (request.kind === "eip712_sign") {
-    const payload = request.payload as WalletEip712Payload;
+  if (request.kind === "signing" && request.payload.chainFamily === "evm") {
+    const signable = request.payload.payloads[0];
+    if (
+      !signable ||
+      (signable.kind !== "evm_personal" &&
+        signable.kind !== "evm_typed_data")
+    ) {
+      return null;
+    }
+    const payload: WalletEip712Payload = {
+      requestId: request.id,
+      signer: request.payload.signer,
+      chainId: request.payload.chainId,
+      description: request.payload.description,
+      ...(signable.kind === "evm_personal"
+        ? { non_typed_data: signable.message }
+        : {
+            typed_data:
+              signable.typedData as WalletEip712Payload["typed_data"],
+          }),
+    };
     return {
       kind: "eip712_sign",
+      agentRequestId: request.id,
       eip712Id: payload.eip712Id,
       description: payload.description,
       timestamp: request.timestamp,
@@ -37,9 +60,7 @@ export function walletRequestToPendingTx(
     };
   }
 
-  throw new Error(
-    `walletRequestToPendingTx received non-EVM kind '${request.kind}'. Solana sign requests use walletRequestToPendingSolTx.`,
-  );
+  return null;
 }
 
 /**
@@ -51,6 +72,35 @@ export function walletRequestToPendingTx(
 export function walletRequestToPendingSolTx(
   request: WalletRequest,
 ): Omit<PendingSolTx, "id"> | null {
+  if (request.kind === "signing" && request.payload.chainFamily === "svm") {
+    const signable = request.payload.payloads[0];
+    if (!signable) return null;
+    if (signable.kind === "svm_message") {
+      return {
+        agentRequestId: request.id,
+        requestKind: "solana_sign_message",
+        message: signable.messageBase64,
+        cluster: request.payload.cluster,
+        signer: request.payload.signer,
+        description: request.payload.description,
+        timestamp: request.timestamp,
+        payload: request.payload as unknown as Record<string, unknown>,
+      };
+    }
+    if (signable.kind === "svm_transaction") {
+      return {
+        agentRequestId: request.id,
+        requestKind: "solana_sign",
+        unsignedTx: signable.transactionBase64,
+        cluster: request.payload.cluster,
+        signer: request.payload.signer,
+        description: request.payload.description,
+        timestamp: request.timestamp,
+        payload: request.payload as unknown as Record<string, unknown>,
+      };
+    }
+    return null;
+  }
   if (request.kind === "solana_sign_message") {
     const payload = request.payload as WalletSolanaSignMessagePayload;
     if (
@@ -78,13 +128,14 @@ export function walletRequestToPendingSolTx(
   }
   const payload = request.payload as WalletSolanaSignPayload;
   if (
-    payload.pendingSolanaId === undefined ||
+    (payload.pendingSolanaId === undefined && !payload.requestId) ||
     payload.unsignedTx === undefined
   ) {
     return null;
   }
 
   return {
+    agentRequestId: payload.requestId,
     solanaId: payload.pendingSolanaId,
     solanaIds: payload.pendingSolanaIds,
     requestKind: request.kind,
@@ -99,6 +150,18 @@ export function walletRequestToPendingSolTx(
 export function pendingTxToCallList(tx: PendingTx): AAWalletCall[] {
   if (tx.kind !== "transaction" || !tx.to) {
     throw new Error("pending_transaction_missing_call_data");
+  }
+
+  const calls = (tx.payload as { calls?: WalletTxPayload["calls"] }).calls;
+  if (calls?.length) {
+    return calls.map((call) =>
+      toAAWalletCall({
+        to: call.to,
+        value: call.value,
+        data: call.data,
+        chainId: call.chainId ?? tx.chainId,
+      }),
+    );
   }
 
   return [

@@ -45,19 +45,9 @@ export async function applyRequestedModelIfPresent(
     return;
   }
 
-  // Push the model to the backend unless it's already been synced this session.
-  // cli.modelSynced tracks whether we've actually called setModel on the current
-  // backend session. For a brand-new session the backend starts with the app's
-  // default model, so we must push even if cli.model already matches locally.
-  const alreadySynced = cli.modelSynced && requestedModel === cli.model;
-  if (alreadySynced) {
-    return;
-  }
-
-  await session.client.setModel(cli.sessionId, requestedModel, {
-    app: cli.app,
-    applicationId: config.applicationId,
-    apiKey: cli.apiKey,
-  });
+  // ClientSession carries the model on the canonical Agent start request.
+  // Retain this helper only to persist the CLI preference; it must not issue a
+  // second legacy control mutation before chat.
+  void session;
   cli.setModel(requestedModel);
 }

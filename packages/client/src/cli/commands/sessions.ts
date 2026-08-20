@@ -35,21 +35,20 @@ async function fetchRemoteSessionStats(
   });
 
   try {
-    const apiState = await client.fetchState(
-      record.sessionId,
-      undefined,
-      record.state.clientId,
-    );
-    const messages = apiState.messages ?? [];
+    const delta = await client.agent.check(record.sessionId);
+    const messages = delta.messages.map((message) => ({
+      id: message.id,
+      sender: message.role,
+      content: message.content,
+      timestamp: message.createdAt,
+      is_streaming: message.streaming,
+    }));
     return {
-      topic: apiState.title ?? "Untitled Session",
+      topic: delta.title ?? "Untitled Session",
       messageCount: messages.length,
       tokenCountEstimate: estimateTokenCount(messages),
       toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length,
-      pendingTxs: pendingTxsFromBackendUserState(
-        apiState.user_state,
-        record.state.pendingTxs ?? [],
-      ),
+      pendingTxs: record.state.pendingTxs ?? [],
     };
   } catch {
     return null;
@@ -143,11 +142,7 @@ export async function resumeSessionCommand(selector: string): Promise<void> {
 
   const session = current.createClientSession();
   try {
-    await session.client.fetchState(
-      selector,
-      undefined,
-      current.ensureClientId(),
-    );
+    await session.client.agent.sessions.get(selector);
   } catch {
     fatal(
       `No account-owned local or remote session found for selector "${selector}".`,

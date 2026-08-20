@@ -479,6 +479,15 @@ export class CliSession {
     this.save();
   }
 
+  markSignedAgentActionNotified(agentRequestId: string): void {
+    const record = [...(this.state.signedTxs ?? [])]
+      .reverse()
+      .find((tx) => tx.agentRequestId === agentRequestId);
+    if (!record || record.backendNotified === true) return;
+    record.backendNotified = true;
+    this.save();
+  }
+
   /** Add a pending Solana tx with dedup on `solanaId`. */
   addPendingSolTx(tx: Omit<PendingSolTx, "id">): PendingSolTx | null {
     if (!this.state.pendingSolTxs) this.state.pendingSolTxs = [];
@@ -490,7 +499,10 @@ export class CliSession {
 
     const pending: PendingSolTx = {
       ...tx,
-      id: `tx-${tx.solanaId}`,
+      id:
+        tx.solanaId === undefined
+          ? this.getNextSolTxId()
+          : `tx-${tx.solanaId}`,
     };
     this.state.pendingSolTxs.push(pending);
     this.save();
@@ -674,5 +686,16 @@ export class CliSession {
     });
     const max = allIds.length > 0 ? Math.max(...allIds) : 0;
     return `tx-${max + 1}`;
+  }
+
+  private getNextSolTxId(): string {
+    const allIds = [
+      ...(this.state.pendingSolTxs ?? []),
+      ...(this.state.signedSolTxs ?? []),
+    ].map((tx) => {
+      const match = tx.id.match(/^tx-(\d+)$/);
+      return match ? parseInt(match[1], 10) : 0;
+    });
+    return `tx-${allIds.length > 0 ? Math.max(...allIds) + 1 : 1}`;
   }
 }

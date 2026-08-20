@@ -182,14 +182,7 @@ describe("Control context", () => {
       await getControl().onModelSelect("auto-model");
     });
 
-    expect(setModel).toHaveBeenCalledWith(
-      expect.any(String),
-      "auto-model",
-      expect.objectContaining({
-        app: "analytics",
-        applicationId: 42,
-      }),
-    );
+    expect(setModel).not.toHaveBeenCalled();
 
     await act(async () => {
       await getApi().sendMessage("hello duplicate app");
@@ -200,12 +193,13 @@ describe("Control context", () => {
       "hello duplicate app",
       expect.objectContaining({
         app: "analytics",
+        model: "auto-model",
         applicationId: 42,
       }),
     );
   });
 
-  it("sends with the backend default when automatic model sync is unavailable", async () => {
+  it("carries the automatic model on Agent start without a model RPC", async () => {
     localStorage.removeItem("aomi_model_selection");
     const sendMessage = vi.fn(
       async (): Promise<AomiChatResponse> => ({
@@ -213,10 +207,7 @@ describe("Control context", () => {
         messages: [],
       }),
     );
-    const setModel = vi.fn(async () => {
-      throw new Error("HTTP 503");
-    });
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const setModel = vi.fn(async () => ({ rig: "auto-model" }));
 
     setAomiClientConfig({
       getApps: async () => [
@@ -241,27 +232,16 @@ describe("Control context", () => {
       await getApi().sendMessage("list your tools");
     });
 
-    expect(setModel).toHaveBeenCalledWith(
-      expect.any(String),
-      "auto-model",
-      expect.objectContaining({
-        app: "goal-digger",
-        applicationId: 2936682,
-      }),
-    );
+    expect(setModel).not.toHaveBeenCalled();
     expect(sendMessage).toHaveBeenCalledWith(
       expect.any(String),
       "list your tools",
       expect.objectContaining({
         app: "goal-digger",
+        model: "auto-model",
         applicationId: 2936682,
       }),
     );
-    expect(warn).toHaveBeenCalledWith(
-      "[per-thread-control] auto model sync failed; using backend default",
-      expect.any(Error),
-    );
-    warn.mockRestore();
   });
 
   it("does not select a hosted app by bare name when an application id is required", async () => {

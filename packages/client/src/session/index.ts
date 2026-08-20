@@ -19,6 +19,7 @@ import type {
   SessionRuntimeOptions,
   WalletSigningPayload,
   WalletRequest,
+  WalletSolanaLegResult,
   WalletRequestTarget,
   WalletRequestResult,
 } from "./types";
@@ -53,6 +54,7 @@ export type {
   WalletRequestKind,
   WalletRequestTarget,
   WalletRequestResult,
+  WalletSolanaLegResult,
 } from "./types";
 
 const SIGNING_RECOVERY_MIN_INTERVAL_MS = 5_000;
@@ -941,6 +943,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
           unsignedTx: transaction.unsignedTransactionBase64,
           description: typed.description,
           cluster: typed.cluster,
+          transactions: typed.transactions.map((item) => ({
+            id: item.id,
+            unsignedTx: item.unsignedTransactionBase64,
+            description: item.description,
+          })),
         });
       }
       return;
@@ -1023,7 +1030,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
             : failed.has(index + 1)
               ? "failed"
               : "skipped",
-          ...(completed.has(index + 1) ? { transactionId: result.txHash } : {}),
+          ...(completed.has(index + 1)
+            ? { transactionId: result.txHashes?.[index] ?? result.txHash }
+            : {}),
           ...(failed.has(index + 1)
             ? { reason: result.failureReason ?? "Transaction failed" }
             : {}),
@@ -1034,19 +1043,38 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       action.chainFamily === "svm" &&
       (result.kind === "solana_send" || result.kind === "solana_sign_and_send")
     ) {
+      const byId = new Map(
+        (result.legs ?? []).map((leg) => [leg.id, leg] as const),
+      );
+      if (action.transactions.length > 1 && byId.size === 0) {
+        throw new Error(
+          `SVM Agent batch "${action.id}" requires per-leg wallet results`,
+        );
+      }
       actionResult = {
         status: "submitted",
         revision: action.revision,
-        legs: action.transactions.map((transaction, index) => ({
-          id: transaction.id,
-          status: index === 0 ? "submitted" : "skipped",
-          ...(index === 0
-            ? {
-                transactionId: result.signature,
-                signedTransactionBase64: result.signedTx,
-              }
-            : {}),
-        })),
+        legs: action.transactions.map((transaction, index) => {
+          const leg: WalletSolanaLegResult | undefined =
+            byId.get(transaction.id) ??
+            (index === 0 && action.transactions.length === 1
+              ? {
+                  id: transaction.id,
+                  status: "submitted",
+                  signature: result.signature,
+                  signedTx: result.signedTx,
+                }
+              : undefined);
+          return {
+            id: transaction.id,
+            status: leg?.status ?? "skipped",
+            ...(leg?.signature ? { transactionId: leg.signature } : {}),
+            ...(leg?.signedTx
+              ? { signedTransactionBase64: leg.signedTx }
+              : {}),
+            ...(leg?.reason ? { reason: leg.reason } : {}),
+          };
+        }),
       };
     } else {
       throw new Error(`Agent action/result kind mismatch for "${request.id}"`);

@@ -6,6 +6,7 @@
 // browser — so pin this test to the node env.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  Connection,
   Keypair,
   PublicKey,
   SystemProgram,
@@ -56,6 +57,8 @@ const mocks = vi.hoisted(() => ({
   syncPendingTxsFromUserState: vi.fn(),
   writeState: vi.fn(),
   addSignedSolTx: vi.fn(),
+  fetchCurrentState: vi.fn(),
+  resolve: vi.fn(),
 }));
 
 vi.mock("../../src/session", () => ({
@@ -68,6 +71,8 @@ vi.mock("../../src/session", () => ({
     resolveUserState = vi.fn();
     resolveWallet = mocks.resolveWallet;
     syncUserState = mocks.syncUserState;
+    fetchCurrentState = mocks.fetchCurrentState;
+    resolve = mocks.resolve;
     close = mocks.close;
   },
 }));
@@ -297,6 +302,74 @@ describe("CLI wallet sign — solana_sign branch", () => {
     );
 
     expect(mocks.sendSystemMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports exact Agent SVM batch legs after a partial send", async () => {
+    const send = vi
+      .spyOn(Connection.prototype, "sendRawTransaction")
+      .mockResolvedValueOnce("first-signature")
+      .mockRejectedValueOnce(new Error("second transaction rejected"));
+    const confirm = vi
+      .spyOn(Connection.prototype, "confirmTransaction")
+      .mockResolvedValue({ context: { slot: 1 }, value: { err: null } });
+    const state = mocks.readState();
+    mocks.readState.mockReturnValue({
+      ...state,
+      pendingSolTxs: [
+        {
+          id: "agent-solana-batch",
+          agentRequestId: "action-request-1",
+          requestKind: "solana_sign_and_send",
+          unsignedTx: UNSIGNED_BASE64,
+          cluster: "solana:devnet",
+          signer: SIGNER_PUBKEY,
+          description: "three-leg batch",
+          timestamp: Date.now(),
+          payload: {
+            requestId: "action-request-1",
+            transactions: [
+              { id: "leg-1", unsignedTx: UNSIGNED_BASE64 },
+              { id: "leg-2", unsignedTx: UNSIGNED_BASE64 },
+              { id: "leg-3", unsignedTx: UNSIGNED_BASE64 },
+            ],
+          },
+        },
+      ],
+    });
+
+    await signCommand(
+      {
+        baseUrl: "http://127.0.0.1:8080",
+        app: "default",
+        solanaPrivateKey: SIGNER_SECRET_BS58,
+        secrets: {},
+      },
+      ["agent-solana-batch"],
+    );
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(mocks.resolve).toHaveBeenCalledTimes(1);
+    expect(mocks.resolve).toHaveBeenCalledWith("action-request-1", {
+      kind: "solana_sign_and_send",
+      signature: "first-signature",
+      signedTx: expect.any(String),
+      legs: [
+        {
+          id: "leg-1",
+          status: "submitted",
+          signature: "first-signature",
+          signedTx: expect.any(String),
+        },
+        {
+          id: "leg-2",
+          status: "failed",
+          reason: "second transaction rejected",
+        },
+        { id: "leg-3", status: "skipped" },
+      ],
+    });
+    expect(mocks.sendSystemMessage).not.toHaveBeenCalled();
   });
 
   it("reads SOLANA_PRIVATE_KEY from env when no flag is passed", async () => {

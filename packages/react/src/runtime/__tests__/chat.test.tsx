@@ -350,7 +350,9 @@ describe("Chat API", () => {
         await control.getAvailableModels();
       });
 
-      await waitFor(() => expect(setModel).toHaveBeenCalled());
+      await waitFor(() => {
+        expect(control.getCurrentThreadControl().model).toBe("auto-model");
+      });
 
       await act(async () => {
         await expect(api.sendMessage("Need quota")).rejects.toThrow("HTTP 402");
@@ -383,21 +385,19 @@ describe("Chat API", () => {
         },
       ]);
       expect(createThread).toHaveBeenCalledWith(api.currentThreadId);
-      expect(setModel).toHaveBeenCalledWith(
+      expect(setModel).not.toHaveBeenCalled();
+      expect(postChatMessage).toHaveBeenCalledWith(
         api.currentThreadId,
-        "auto-model",
-        expect.objectContaining({ app: "default" }),
+        "Need quota",
+        expect.objectContaining({ app: "default", model: "auto-model" }),
       );
       expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
-        setModel.mock.invocationCallOrder[0],
-      );
-      expect(setModel.mock.invocationCallOrder[0]).toBeLessThan(
         postChatMessage.mock.invocationCallOrder[0],
       );
       expect(deleteThread).not.toHaveBeenCalled();
     });
 
-    it("syncs dirty control state before the first message on a new thread", async () => {
+    it("carries dirty control state on the first Agent start", async () => {
       const createThread = vi.fn(async (threadId: string) => ({
         session_id: threadId,
       }));
@@ -421,22 +421,21 @@ describe("Chat API", () => {
         await control.getAvailableModels();
       });
 
-      await waitFor(() => expect(setModel).toHaveBeenCalled());
+      await waitFor(() => {
+        expect(control.getCurrentThreadControl().model).toBe("auto-model");
+      });
 
       await act(async () => {
         await api.sendMessage("Use selected model");
       });
 
-      expect(setModel).toHaveBeenCalledWith(
+      expect(setModel).not.toHaveBeenCalled();
+      expect(postChatMessage).toHaveBeenCalledWith(
         api.currentThreadId,
-        "auto-model",
-        expect.objectContaining({ app: "default" }),
+        "Use selected model",
+        expect.objectContaining({ app: "default", model: "auto-model" }),
       );
-      expect(postChatMessage).toHaveBeenCalled();
       expect(createThread.mock.invocationCallOrder[0]).toBeLessThan(
-        setModel.mock.invocationCallOrder[0],
-      );
-      expect(setModel.mock.invocationCallOrder[0]).toBeLessThan(
         postChatMessage.mock.invocationCallOrder[0],
       );
     });

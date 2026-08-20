@@ -326,6 +326,76 @@ describe("RuntimeTxHandler", () => {
     );
   });
 
+  it("reports exact SVM batch legs when a later transaction fails", async () => {
+    walletState.sendSolanaTransaction
+      .mockResolvedValueOnce({
+        signature: "first-signature",
+        signedTx: "first-signed",
+      })
+      .mockRejectedValueOnce(new Error("second transaction rejected"));
+    runtimeState.pendingWalletRequests = [
+      {
+        id: "solana-batch-1",
+        kind: "solana_sign_and_send",
+        payload: {
+          unsignedTx: "first-unsigned",
+          description: "Execute Solana batch",
+          cluster: "solana:devnet",
+          transactions: [
+            { id: "leg-1", unsignedTx: "first-unsigned" },
+            { id: "leg-2", unsignedTx: "second-unsigned" },
+            { id: "leg-3", unsignedTx: "third-unsigned" },
+          ],
+        },
+        timestamp: Date.now(),
+      },
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    await waitFor(() => {
+      expect(runtimeState.resolveWalletRequest).toHaveBeenCalledTimes(1);
+    });
+    expect(walletState.sendSolanaTransaction).toHaveBeenCalledTimes(2);
+    expect(walletState.sendSolanaTransaction).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        unsignedTx: "first-unsigned",
+        transactions: undefined,
+      }),
+    );
+    expect(walletState.sendSolanaTransaction).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        unsignedTx: "second-unsigned",
+        transactions: undefined,
+      }),
+    );
+    expect(runtimeState.resolveWalletRequest).toHaveBeenCalledWith(
+      "solana-batch-1",
+      {
+        kind: "solana_sign_and_send",
+        signature: "first-signature",
+        signedTx: "first-signed",
+        legs: [
+          {
+            id: "leg-1",
+            status: "submitted",
+            signature: "first-signature",
+            signedTx: "first-signed",
+          },
+          {
+            id: "leg-2",
+            status: "failed",
+            reason: "second transaction rejected",
+          },
+          { id: "leg-3", status: "skipped" },
+        ],
+      },
+    );
+    expect(runtimeState.rejectWalletRequest).not.toHaveBeenCalled();
+  });
+
   it("holds a sealed SVM operation for the approval dialog", async () => {
     const fixture = signedSvmFixture();
     walletState.identity.svmAddress = fixture.owner;

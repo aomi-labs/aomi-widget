@@ -3,6 +3,7 @@ import { CliSession } from "../cli-session";
 import { createCliClient } from "../client-factory";
 import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
+import { fetchLegacyAgentState } from "../legacy-agent-rollback";
 
 const SUPPORTED_PROVIDERS = new Set(["openai", "anthropic", "openrouter"]);
 
@@ -12,9 +13,7 @@ function parseByokKeyArg(input: string): { provider: string; byokKey: string } {
   const byokKey = byokKeyPart?.trim();
 
   if (!provider || !byokKey) {
-    fatal(
-      "Invalid format. Use: <provider>:<key> (e.g. anthropic:sk-ant-...)",
-    );
+    fatal("Invalid format. Use: <provider>:<key> (e.g. anthropic:sk-ant-...)");
   }
 
   if (!SUPPORTED_PROVIDERS.has(provider)) {
@@ -37,7 +36,7 @@ async function createByokKeyClient(
 
   // Bind the active session to the stable client id in the backend vault so
   // BYOK-key endpoints can resolve the right SecretVault namespace.
-  await client.fetchState(cli.sessionId, undefined, cli.ensureClientId());
+  await fetchLegacyAgentState(client, cli.sessionId, cli.ensureClientId());
 
   return { cli, client };
 }
