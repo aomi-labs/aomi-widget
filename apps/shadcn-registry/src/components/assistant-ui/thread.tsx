@@ -43,6 +43,7 @@ import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button
 
 import {
   cn,
+  useOptionalAomiRuntime,
   useCurrentThreadMetadata,
   useThreadContext,
   useThreadTaskRuns,
@@ -287,6 +288,7 @@ const Composer: FC = () => {
 
 const ComposerAction: FC = () => {
   const composerControl = useComposerControl();
+  const aomiRuntime = useOptionalAomiRuntime();
   const controlBarProps = composerControl.controlBarProps ?? {};
   const hideModel = controlBarProps.hideModel ?? false;
   const hideApp = controlBarProps.hideApp ?? false;
@@ -333,6 +335,14 @@ const ComposerAction: FC = () => {
               size="icon"
               className="aui-composer-cancel bg-aomi-fg text-aomi-bg hover:bg-aomi-fg mr-2 size-8 shrink-0 rounded-full transition-opacity hover:opacity-90 md:mr-2.5"
               aria-label="Stop generating"
+              onClick={
+                aomiRuntime
+                  ? (event) => {
+                      event.preventDefault();
+                      aomiRuntime.cancelGeneration();
+                    }
+                  : undefined
+              }
             >
               <Square className="aui-composer-cancel-icon fill-aomi-bg size-3" />
             </Button>

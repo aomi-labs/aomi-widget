@@ -62,6 +62,27 @@ export async function eventsCommand(config: CliConfig): Promise<void> {
   }
 }
 
+export async function interruptCommand(config: CliConfig): Promise<void> {
+  const cli = CliSession.load();
+  if (!cli) {
+    fatal("No active session to interrupt.");
+  }
+  cli.mergeConfig(config);
+
+  const session = cli.createClientSession(config);
+  try {
+    await session.interrupt();
+    if (config.json) {
+      printJson({ sessionId: cli.sessionId, interrupted: true });
+      return;
+    }
+    console.log(`Interrupted session ${cli.sessionId}.`);
+    printDataFileLocation({ verbose: config.verbose });
+  } finally {
+    session.close();
+  }
+}
+
 export async function appsCommand(config: CliConfig): Promise<void> {
   const client = createControlClient(config);
   const cli = CliSession.load();

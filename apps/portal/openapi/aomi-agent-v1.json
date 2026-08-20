@@ -1221,6 +1221,16 @@
         "parameters": [
           {
             "$ref": "#/components/parameters/SessionId"
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            }
           }
         ],
         "responses": {

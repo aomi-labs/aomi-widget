@@ -203,6 +203,40 @@ describe("CLI session lifecycle", () => {
     );
   });
 
+  it("interrupts the active session through the shared Agent transport", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const { AgentTransport } = await import("../../src/agent/transport");
+    const interrupt = vi
+      .spyOn(AgentTransport.prototype, "interrupt")
+      .mockResolvedValue({
+        sessionId: "cli-interrupt-session",
+        status: "interrupted",
+        cursor: "cursor-1",
+        messages: [],
+        activity: [],
+        actions: [],
+      });
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { interruptCommand } = await import("../../src/cli/commands/control");
+
+    CliSession.create(
+      {
+        baseUrl: "https://chat.aomi.dev",
+        accountBearer: "bff-session-token",
+        secrets: {},
+      },
+      undefined,
+      "cli-interrupt-session",
+    );
+
+    await interruptCommand({ secrets: {} });
+
+    expect(interrupt).toHaveBeenCalledWith("cli-interrupt-session");
+    expect(logSpy).toHaveBeenCalledWith(
+      "Interrupted session cli-interrupt-session.",
+    );
+  });
+
   it("persists explicit wallet, chain, and backend settings on the active session", async () => {
     const { setWalletCommand, setChainCommand, setBackendCommand } =
       await import("../../src/cli/commands/preferences");

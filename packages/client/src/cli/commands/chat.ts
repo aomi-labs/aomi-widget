@@ -18,7 +18,10 @@ import {
   printToolUpdate,
   toToolResultKey,
 } from "../output";
-import { applyRequestedModelIfPresent, ingestSecretsForSession } from "../context";
+import {
+  applyRequestedModelIfPresent,
+  ingestSecretsForSession,
+} from "../context";
 import { fatal } from "../errors";
 import type { CliConfig } from "../types";
 import { buildCliUserState } from "../user-state";
@@ -352,6 +355,8 @@ export async function chatCommand(
 
       if (last?.content) {
         console.log(last.content);
+      } else if (session.getAgentStatus() === "interrupted") {
+        console.log("(interrupted)");
       } else if (newPendingTxs.length === 0) {
         console.log("(no response)");
         fatal("Backend returned an empty agent message.");

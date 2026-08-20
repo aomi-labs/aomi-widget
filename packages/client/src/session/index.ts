@@ -37,6 +37,7 @@ import type {
   AgentActionResult,
   AgentDelta,
   AgentMessage,
+  AgentStatus,
   EvmExternalTransactionAction,
   SigningRequestAction,
   SvmExternalTransactionAction,
@@ -75,6 +76,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private logger?: { debug: (...args: unknown[]) => void };
   private readonly transport: "agent" | "legacy";
   private agentCursor?: string;
+  private agentStatus?: AgentStatus;
   private agentActions = new Map<string, AgentAction>();
 
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -306,6 +308,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   /** Whether the AI is currently processing. */
   getIsProcessing(): boolean {
     return this._isProcessing;
+  }
+
+  /** Last status observed from the canonical Agent transport. */
+  getAgentStatus(): AgentStatus | undefined {
+    return this.agentStatus;
   }
 
   getIsSSEActive(): boolean {
@@ -850,6 +857,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       throw new TypeError("Agent response session does not match the request");
     }
     this.agentCursor = delta.cursor;
+    this.agentStatus = delta.status;
     let messagesChanged = false;
     for (const incoming of delta.messages) {
       const message = this.agentMessage(incoming);
@@ -1069,9 +1077,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
             id: transaction.id,
             status: leg?.status ?? "skipped",
             ...(leg?.signature ? { transactionId: leg.signature } : {}),
-            ...(leg?.signedTx
-              ? { signedTransactionBase64: leg.signedTx }
-              : {}),
+            ...(leg?.signedTx ? { signedTransactionBase64: leg.signedTx } : {}),
             ...(leg?.reason ? { reason: leg.reason } : {}),
           };
         }),

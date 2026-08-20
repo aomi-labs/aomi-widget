@@ -120,6 +120,7 @@ describe("ClientSession Agent transport", () => {
       }),
     ]);
     expect(messages).toHaveBeenCalledTimes(1);
+    expect(session.getAgentStatus()).toBe("complete");
     session.close();
   });
 
