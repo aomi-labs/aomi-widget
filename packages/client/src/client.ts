@@ -212,13 +212,8 @@ export function wrapFetchWithAccountBearer(
 
 function supportsTokenRefreshSubscription(
   provider: GetAccountBearer | undefined,
-): provider is GetAccountBearer & {
-  subscribe: (listener: () => void) => () => void;
-} {
-  return (
-    typeof (provider as { subscribe?: unknown } | undefined)?.subscribe ===
-    "function"
-  );
+): provider is GetAccountBearer & Required<Pick<GetAccountBearer, "subscribe">> {
+  return typeof provider?.subscribe === "function";
 }
 
 async function postState<T>(
@@ -364,11 +359,11 @@ export class AomiClient {
    * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
    *
    * Historically evaluated ONCE in the constructor, which silently dropped
-   * reconnect for any provider whose `subscribe` appears after construction —
-   * a host bridge that late-binds the kit's provider, or a provider that is
-   * undefined until credentials are ready. Re-attempted lazily on every SSE
-   * subscription so a late-arriving `subscribe` is picked up on the next
-   * stream instead of never.
+   * reconnect for a stable bearer whose `subscribe` appears after construction.
+   * Re-attempted lazily on every SSE subscription so that shape is picked up on
+   * the next stream instead of never. Replacing the bearer function itself still
+   * requires a stable host/widget bridge; AomiClient intentionally retains the
+   * source supplied at construction.
    */
   private tokenRefreshWired = false;
   private wireTokenRefreshReconnect(): void {

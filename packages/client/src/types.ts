@@ -52,6 +52,16 @@ export type GetAccountBearer = ((options?: {
    * (widget) session set this; additive account bearers leave it unset.
    */
   required?: boolean;
+  /**
+   * Notifies consumers when the bearer rotates or is revoked. AomiClient uses
+   * this to reconnect live SSE streams with the new credential.
+   *
+   * The property is optional because API-key and cookie-backed integrations do
+   * not own a refreshable account bearer. WidgetSessionProvider always exposes
+   * it. Wrappers around a widget provider must preserve this subscription or
+   * provide their own stable forwarding subscription.
+   */
+  subscribe?: (listener: () => void) => () => void;
 };
 
 export type AomiRequestQueryValue =

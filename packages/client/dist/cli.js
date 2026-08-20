@@ -1513,11 +1513,11 @@ var init_client = __esm({
          * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
          *
          * Historically evaluated ONCE in the constructor, which silently dropped
-         * reconnect for any provider whose `subscribe` appears after construction —
-         * a host bridge that late-binds the kit's provider, or a provider that is
-         * undefined until credentials are ready. Re-attempted lazily on every SSE
-         * subscription so a late-arriving `subscribe` is picked up on the next
-         * stream instead of never.
+         * reconnect for a stable bearer whose `subscribe` appears after construction.
+         * Re-attempted lazily on every SSE subscription so that shape is picked up on
+         * the next stream instead of never. Replacing the bearer function itself still
+         * requires a stable host/widget bridge; AomiClient intentionally retains the
+         * source supplied at construction.
          */
         this.tokenRefreshWired = false;
         var _a3, _b;
@@ -11340,7 +11340,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.5.1",
+  version: "0.5.2",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

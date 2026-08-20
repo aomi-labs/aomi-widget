@@ -1,8 +1,9 @@
 /**
  * The getAccountBearer subscribe contract (agentic-somm#322 review, Q4).
  *
- * `WidgetSessionProvider.subscribe` is public contract, but the client used to
- * duck-check it exactly once in the constructor: a host bridge whose
+ * `GetAccountBearer.subscribe` is public optional contract, and
+ * `WidgetSessionProvider.subscribe` is required. The client used to duck-check
+ * it exactly once in the constructor: a stable host bridge whose
  * `subscribe` appears after construction — or a wrapper that copied only
  * `required` — silently lost the token-refresh -> SSE-reconnect wiring, and
  * live streams stayed on a superseded bearer until they died upstream.
@@ -54,7 +55,7 @@ describe("getAccountBearer subscribe contract", () => {
       getAccountBearer: provider,
     });
 
-    // subscribe appears after construction — the host-bridge shape.
+    // subscribe appears after construction on the same stable bearer function.
     const subscribe = vi.fn(() => () => {});
     (provider as unknown as { subscribe: unknown }).subscribe = subscribe;
 

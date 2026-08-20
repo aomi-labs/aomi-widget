@@ -10,6 +10,8 @@ import { buildSiwsMessage, type SiwsChainId } from "./siws";
  * seconds value the refresh math assumes. Mirrors account-session.ts.
  */
 const EXPIRES_AT_MILLISECONDS_THRESHOLD = 100_000_000_000;
+const MAX_WIDGET_CHALLENGE_LIFETIME_MS = 10 * 60 * 1000;
+const MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS = 60 * 1000;
 
 export type WidgetAuthSession = {
   accessToken: string;
@@ -155,7 +157,7 @@ function createSignedChallengeAdapter<
         joinUrl(baseUrl, config.noncePath),
         { wallet_address: signer.address, chain_id: signer.chainId },
       );
-      assertChallengeBinding(challenge, baseUrl);
+      assertChallengeBinding(challenge);
       const message = config.buildMessage({ signer, challenge });
       const signature = await signer.signMessage(message);
       return exchangeJson(fetchImpl, joinUrl(baseUrl, config.verifyPath), {
@@ -247,6 +249,14 @@ export function createWidgetSessionProvider(input: {
   let latestResolvedFingerprint:
     | { requestId: number; fingerprint: string }
     | null = null;
+  // A generic HTTP 401 does not prove the WST is expired. Both AomiClient and
+  // widget-lib's account client retry 401s with `forceRefresh: true`; without a
+  // generation guard, a persistent authorization/configuration 401 revokes a
+  // perfectly fresh WST and opens another wallet signature prompt on every
+  // request. Remember the token minted by the last forced renewal and reuse it
+  // until natural expiry. This preserves one recovery attempt for a genuinely
+  // revoked token while bounding an unrelated persistent 401 to one prompt.
+  let lastForcedAccessToken: string | null = null;
   const listeners = new Set<() => void>();
 
   const notify = () => {
@@ -291,9 +301,20 @@ export function createWidgetSessionProvider(input: {
       };
     }
     latestFingerprint = fingerprint;
+    if (pending?.fingerprint === fingerprint) {
+      return (await pending.promise).accessToken;
+    }
     const refreshAt = cached
       ? cached.expiresAt * 1000 - refreshBeforeExpiryMs
       : 0;
+    if (
+      forceRefresh &&
+      cached?.fingerprint === fingerprint &&
+      cached.accessToken === lastForcedAccessToken &&
+      now() < refreshAt
+    ) {
+      return cached.accessToken;
+    }
     if (
       !forceRefresh &&
       cached?.fingerprint === fingerprint &&
@@ -301,12 +322,23 @@ export function createWidgetSessionProvider(input: {
     ) {
       return cached.accessToken;
     }
-    if (cached) {
-      const stale = cached;
+    const stale = cached;
+    const retainStaleDuringForcedExchange = Boolean(
+      forceRefresh &&
+        stale?.fingerprint === fingerprint &&
+        now() < refreshAt,
+    );
+    if (retainStaleDuringForcedExchange && stale) {
+      // Mark the attempt before prompting. If signing or verification fails,
+      // the old cache stays in place and another generic 401 cannot immediately
+      // open the same prompt again.
+      lastForcedAccessToken = stale.accessToken;
+    } else if (stale) {
       cached = null;
       void revokeSession(stale);
     }
     if (!pending || pending.fingerprint !== fingerprint) {
+      const forcedExchange = forceRefresh;
       const promise = adapter
         .exchange({ baseUrl: input.baseUrl, fetch: fetchImpl })
         .then(async (session) => {
@@ -323,6 +355,10 @@ export function createWidgetSessionProvider(input: {
             throw new Error("Widget session exchange was superseded");
           }
           cached = { ...session, fingerprint };
+          lastForcedAccessToken = forcedExchange ? session.accessToken : null;
+          if (retainStaleDuringForcedExchange && stale) {
+            void revokeSession(stale);
+          }
           notify();
           return session;
         });
@@ -345,6 +381,7 @@ export function createWidgetSessionProvider(input: {
     cached = null;
     pending = null;
     latestResolvedFingerprint = null;
+    lastForcedAccessToken = null;
     notify();
     if (session) await revokeSession(session);
   };
@@ -362,6 +399,7 @@ export function createWidgetSessionProvider(input: {
       cached = null;
       pending = null;
       latestResolvedFingerprint = null;
+      lastForcedAccessToken = null;
       notify();
       listeners.clear();
     },
@@ -397,7 +435,10 @@ type Challenge = {
  *   In a browser that is `window.location`; in non-browser runtimes (tests,
  *   node scripts) there is no ambient origin to bind to, so the origin checks
  *   are skipped and only nonce/expiry hold.
- * - `nonce` must be present; `expirationTime` must parse and be in the future.
+ * - `nonce` must be present; `issuedAt` / `expirationTime` must describe a
+ *   currently valid, bounded challenge window. Portal issues five-minute
+ *   challenges; ten minutes leaves deployment skew without accepting an
+ *   attacker-controlled long-lived signing request.
  *
  * Throwing here means the wallet prompt never appears — strictly better than
  * a signed-then-rejected round trip, and it restores default-on the guard
@@ -411,9 +452,19 @@ export class WidgetChallengeBindingError extends Error {
   }
 }
 
-function assertChallengeBinding(challenge: Challenge, baseUrl: string): void {
+function assertChallengeBinding(challenge: Challenge): void {
   if (!challenge.nonce?.trim()) {
     throw new WidgetChallengeBindingError("challenge has no nonce");
+  }
+  const now = Date.now();
+  const issued = Date.parse(challenge.issuedAt);
+  if (Number.isNaN(issued)) {
+    throw new WidgetChallengeBindingError(
+      "challenge has no parseable issuedAt",
+    );
+  }
+  if (issued > now + MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS) {
+    throw new WidgetChallengeBindingError("challenge was issued in the future");
   }
   const expires = Date.parse(challenge.expirationTime);
   if (Number.isNaN(expires)) {
@@ -421,8 +472,16 @@ function assertChallengeBinding(challenge: Challenge, baseUrl: string): void {
       "challenge has no parseable expirationTime",
     );
   }
-  if (expires <= Date.now()) {
+  if (expires <= now) {
     throw new WidgetChallengeBindingError("challenge is already expired");
+  }
+  if (
+    expires <= issued ||
+    expires - issued > MAX_WIDGET_CHALLENGE_LIFETIME_MS
+  ) {
+    throw new WidgetChallengeBindingError(
+      "challenge validity window is not bounded",
+    );
   }
 
   const pageOrigin =

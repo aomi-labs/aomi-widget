@@ -78,8 +78,14 @@ describe("widget challenge binding", () => {
     ["foreign uri", { uri: "https://evil.example" }],
     ["foreign domain", { domain: "evil.example" }],
     ["missing nonce", { nonce: "  " }],
+    ["unparseable issued time", { issued_at: "not-a-date" }],
+    ["future issued time", { issued_at: new Date(Date.now() + 120_000).toISOString() }],
     ["expired", { expiration_time: new Date(Date.now() - 1_000).toISOString() }],
     ["unparseable expiry", { expiration_time: "not-a-date" }],
+    [
+      "unbounded lifetime",
+      { expiration_time: new Date(Date.now() + 11 * 60_000).toISOString() },
+    ],
   ])("refuses to sign on %s", async (_label, overrides) => {
     await expect(
       adapter().exchange({

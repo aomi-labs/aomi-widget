@@ -146,6 +146,16 @@ type GetAccountBearer = ((options?: {
      * (widget) session set this; additive account bearers leave it unset.
      */
     required?: boolean;
+    /**
+     * Notifies consumers when the bearer rotates or is revoked. AomiClient uses
+     * this to reconnect live SSE streams with the new credential.
+     *
+     * The property is optional because API-key and cookie-backed integrations do
+     * not own a refreshable account bearer. WidgetSessionProvider always exposes
+     * it. Wrappers around a widget provider must preserve this subscription or
+     * provide their own stable forwarding subscription.
+     */
+    subscribe?: (listener: () => void) => () => void;
 };
 type AomiRequestQueryValue = string | number | boolean | readonly (string | number | boolean)[] | null | undefined;
 type AomiPlatformFilter = string | readonly string[] | null | undefined;
@@ -560,11 +570,11 @@ declare class AomiClient {
      * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
      *
      * Historically evaluated ONCE in the constructor, which silently dropped
-     * reconnect for any provider whose `subscribe` appears after construction —
-     * a host bridge that late-binds the kit's provider, or a provider that is
-     * undefined until credentials are ready. Re-attempted lazily on every SSE
-     * subscription so a late-arriving `subscribe` is picked up on the next
-     * stream instead of never.
+     * reconnect for a stable bearer whose `subscribe` appears after construction.
+     * Re-attempted lazily on every SSE subscription so that shape is picked up on
+     * the next stream instead of never. Replacing the bearer function itself still
+     * requires a stable host/widget bridge; AomiClient intentionally retains the
+     * source supplied at construction.
      */
     private tokenRefreshWired;
     private wireTokenRefreshReconnect;
@@ -905,7 +915,10 @@ declare function createWidgetSessionProvider(input: {
  *   In a browser that is `window.location`; in non-browser runtimes (tests,
  *   node scripts) there is no ambient origin to bind to, so the origin checks
  *   are skipped and only nonce/expiry hold.
- * - `nonce` must be present; `expirationTime` must parse and be in the future.
+ * - `nonce` must be present; `issuedAt` / `expirationTime` must describe a
+ *   currently valid, bounded challenge window. Portal issues five-minute
+ *   challenges; ten minutes leaves deployment skew without accepting an
+ *   attacker-controlled long-lived signing request.
  *
  * Throwing here means the wallet prompt never appears — strictly better than
  * a signed-then-rejected round trip, and it restores default-on the guard
