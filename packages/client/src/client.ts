@@ -157,6 +157,19 @@ function normalizeThreadWire(wire: ThreadWire): AomiThread {
   } as AomiThread;
 }
 
+/**
+ * Upstream statuses worth retrying on thread creation. Strictly transient
+ * ones only: a 4xx (a 402 quota failure especially, which routes to the
+ * payment gate) is a decision, not a hiccup, and must surface immediately.
+ */
+const CREATE_THREAD_RETRY_STATUSES = new Set([502, 503, 504]);
+
+/** Backoff between thread-creation attempts. Length sets the retry count. */
+const CREATE_THREAD_RETRY_DELAYS_MS = [400, 1_000, 2_000];
+
+const delay = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
@@ -821,10 +834,27 @@ export class AomiClient {
       platform: options?.platform,
       client_id: options?.clientId,
     });
-    const response = await this.fetchImpl(url, {
+    let response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId),
     });
+
+    // A cold app 503s at the edge until some origin has its artifact loaded —
+    // a warm-up race the very first request of a session is most likely to
+    // lose. Retrying it beats surfacing a hard failure for a state the system
+    // already knows is temporary.
+    for (
+      let attempt = 0;
+      attempt < CREATE_THREAD_RETRY_DELAYS_MS.length &&
+      CREATE_THREAD_RETRY_STATUSES.has(response.status);
+      attempt += 1
+    ) {
+      await delay(CREATE_THREAD_RETRY_DELAYS_MS[attempt]!);
+      response = await this.fetchImpl(url, {
+        method: "POST",
+        headers: withSessionHeader(threadId),
+      });
+    }
 
     if (!response.ok) {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
