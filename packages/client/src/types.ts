@@ -86,7 +86,21 @@ export interface AomiRequestOptions {
 // =============================================================================
 
 export interface AomiMessage {
-  sender?: "user" | "agent" | "system" | string;
+  /**
+   * `notice` is a durable runtime record — today, a turn the provider refused.
+   * Unlike `system`, which the projection drops, a notice is shown to the user
+   * and survives a reload.
+   */
+  sender?: "user" | "agent" | "system" | "notice" | string;
+  /**
+   * Backend-allocated identity for this message, stable across polls and
+   * reloads. Absent on legacy rows the runtime hydrated without one.
+   *
+   * The only sound id for a rendered notice: every failure notice carries the
+   * same copy, so anything derived from content collides across distinct
+   * failures in one thread.
+   */
+  message_key?: string;
   content?: string;
   timestamp?: string;
   is_streaming?: boolean;

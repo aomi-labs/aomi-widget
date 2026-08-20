@@ -411,7 +411,12 @@ const AssistantMessage: FC = () => {
   const notice = useMessage((state) => state.metadata?.custom) as
     | { aomiNoticeKind?: string; aomiNoticeTitle?: string }
     | undefined;
-  const isPaymentRequiredNotice = notice?.aomiNoticeKind === "payment_required";
+  // Notices are runtime records, not model turns: a payment gate, or a turn
+  // the app failed to answer. They share one card treatment; only the accent
+  // and the default title differ.
+  const noticeKind = notice?.aomiNoticeKind;
+  const isNotice = noticeKind === "payment_required" || noticeKind === "error";
+  const isErrorNotice = noticeKind === "error";
   // A live delegation must always reach AssistantTurnParts (which renders the
   // agent row from the taskRuns sidecar even with no transcript parts). The
   // turnPhase gate alone is not enough: on a thread whose metadata is not
@@ -454,12 +459,20 @@ const AssistantMessage: FC = () => {
             />
           )}
           <div className="aui-assistant-message-col min-w-0 flex-1">
-            {!showFinishedEmptyMessage && isPaymentRequiredNotice && (
-              <div className="aui-assistant-payment-required bg-aomi-surface text-aomi-fg border-aomi-border rounded-2xl border px-4 py-3 text-sm">
-                <div className="aui-assistant-payment-required-title mb-1 font-medium">
-                  {notice?.aomiNoticeTitle ?? "Credits needed"}
+            {!showFinishedEmptyMessage && isNotice && (
+              <div
+                className={cn(
+                  "aui-assistant-notice bg-aomi-surface text-aomi-fg rounded-2xl border px-4 py-3 text-sm",
+                  isErrorNotice
+                    ? "aui-assistant-notice-error border-destructive/40"
+                    : "aui-assistant-payment-required border-aomi-border",
+                )}
+              >
+                <div className="aui-assistant-notice-title mb-1 font-medium">
+                  {notice?.aomiNoticeTitle ??
+                    (isErrorNotice ? "Error" : "Credits needed")}
                 </div>
-                <div className="aui-assistant-payment-required-message text-aomi-muted leading-5">
+                <div className="aui-assistant-notice-message text-aomi-muted leading-5">
                   <MessagePrimitive.Parts
                     components={{
                       Text: MarkdownText,
@@ -470,7 +483,7 @@ const AssistantMessage: FC = () => {
               </div>
             )}
 
-            {!showFinishedEmptyMessage && !isPaymentRequiredNotice && (
+            {!showFinishedEmptyMessage && !isNotice && (
               <div className="aui-assistant-message-content text-aomi-fg break-words text-[15px] leading-[23px]">
                 {showLoadingDot ? (
                   <AssistantLoadingDot />

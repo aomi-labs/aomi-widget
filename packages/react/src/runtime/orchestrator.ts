@@ -122,11 +122,11 @@ const projectInboundMessages = (
   // it reports on.
   const txOutcomes = collectTxOutcomes(messages);
   const projectedMessages: ThreadMessageLike[] = [];
-  for (const { message } of selectProjectedMessageEntries(
+  for (const { message, rawIndex } of selectProjectedMessageEntries(
     messages,
     projection,
   )) {
-    const converted = toInboundMessage(message, txOutcomes);
+    const converted = toInboundMessage(message, txOutcomes, rawIndex);
     if (converted) projectedMessages.push(converted);
   }
   return mergeAssistantTurns(projectedMessages);
@@ -175,23 +175,37 @@ const isPaymentRequiredError = (error: unknown) => getHttpStatus(error) === 402;
 const PAYMENT_REQUIRED_MESSAGE =
   "You're out of funds, please set up a payment method.";
 
-const buildPaymentRequiredMessage = (): ThreadMessageLike => ({
-  id: `aomi-payment-required-${Date.now()}`,
+/**
+ * Shown when a turn ends without an answer. Matches the backend's durable
+ * notice copy: the provider's envelope names tools and schemas, which is
+ * material for the app builder's log, not for the person in the chat.
+ */
+const TURN_ERROR_MESSAGE = "This app hit an error and couldn't respond.";
+
+/** A non-model message shown in the transcript: a runtime notice, not a turn. */
+const buildNoticeMessage = (
+  kind: string,
+  title: string,
+  text: string,
+): ThreadMessageLike => ({
+  id: `aomi-${kind}-${Date.now()}`,
   role: "assistant",
-  content: [
-    {
-      type: "text",
-      text: PAYMENT_REQUIRED_MESSAGE,
-    },
-  ],
+  content: [{ type: "text", text }],
   createdAt: new Date(),
   metadata: {
     custom: {
-      aomiNoticeKind: "payment_required",
-      aomiNoticeTitle: "Credits needed",
+      aomiNoticeKind: kind,
+      aomiNoticeTitle: title,
     },
   },
 });
+
+const buildPaymentRequiredMessage = (): ThreadMessageLike =>
+  buildNoticeMessage(
+    "payment_required",
+    "Credits needed",
+    PAYMENT_REQUIRED_MESSAGE,
+  );
 
 const previewText = (value: string, max = 80) => {
   const singleLine = value.replace(/\s+/g, " ").trim();
@@ -296,35 +310,52 @@ const updateTurnPhase = (
   });
 };
 
-const appendPaymentRequiredMessage = (
+/**
+ * Append a notice to `threadId`, unless one of the same kind already trails the
+ * transcript.
+ *
+ * Walks back to the most recent assistant message rather than checking the last
+ * one. A "last message" check fails for back-to-back 402s because the second
+ * failed send inserts an optimistic user message between the existing notice
+ * and the new notice call, so the last message is always a user message and the
+ * dedupe misses. Skipping over user messages also gives the correct "fresh
+ * notice after a successful reply" behavior: if a successful assistant message
+ * landed since the last notice, we want a new notice.
+ *
+ * `threadId` is always explicit — a notice must land on the thread whose
+ * session raised it, which for a warmed or background session is not the
+ * thread the user is looking at.
+ */
+export const appendNoticeMessage = (
   threadContext: ThreadContext,
   threadId: string,
+  message: ThreadMessageLike,
 ) => {
+  const kind = message.metadata?.custom?.aomiNoticeKind;
   const messages = threadContext.getThreadMessages(threadId);
 
-  // Walk back to the most recent assistant message. A "last message" check
-  // fails for back-to-back 402s because the second failed send inserts an
-  // optimistic user message between the existing notice and the new notice
-  // call, so the last message is always a user message and the dedupe
-  // misses. Skipping over user messages also gives the correct "fresh notice
-  // after a successful reply" behavior: if a successful assistant message
-  // landed since the last notice, we want a new notice.
-  let hasPaymentNotice = false;
+  let hasNotice = false;
   for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message.role !== "assistant") continue;
-    hasPaymentNotice =
-      message.metadata?.custom?.aomiNoticeKind === "payment_required";
+    const existing = messages[i];
+    if (existing.role !== "assistant") continue;
+    hasNotice = existing.metadata?.custom?.aomiNoticeKind === kind;
     break;
   }
 
-  if (hasPaymentNotice) return;
+  if (hasNotice) return;
 
-  threadContext.setThreadMessages(threadId, [
-    ...messages,
-    buildPaymentRequiredMessage(),
-  ]);
+  threadContext.setThreadMessages(threadId, [...messages, message]);
 };
+
+/** The transient half of a failed turn; see `buildTurnErrorMessage`. */
+export const buildTurnErrorMessage = (): ThreadMessageLike =>
+  buildNoticeMessage("error", "Error", TURN_ERROR_MESSAGE);
+
+const appendPaymentRequiredMessage = (
+  threadContext: ThreadContext,
+  threadId: string,
+) =>
+  appendNoticeMessage(threadContext, threadId, buildPaymentRequiredMessage());
 
 export function useRuntimeOrchestrator(
   aomiClient: AomiClient,

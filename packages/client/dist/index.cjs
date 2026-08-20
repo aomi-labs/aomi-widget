@@ -874,6 +874,9 @@ function normalizeThreadWire(wire) {
     last_active_at: normalizedLastActiveAt === void 0 || Number.isNaN(normalizedLastActiveAt) ? void 0 : normalizedLastActiveAt
   });
 }
+var CREATE_THREAD_RETRY_STATUSES = /* @__PURE__ */ new Set([502, 503, 504]);
+var CREATE_THREAD_RETRY_DELAYS_MS = [400, 1e3, 2e3];
+var delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
@@ -1353,10 +1356,17 @@ ${body}` : ""}`
       platform: options == null ? void 0 : options.platform,
       client_id: options == null ? void 0 : options.clientId
     });
-    const response = await this.fetchImpl(url, {
+    let response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId)
     });
+    for (let attempt = 0; attempt < CREATE_THREAD_RETRY_DELAYS_MS.length && CREATE_THREAD_RETRY_STATUSES.has(response.status); attempt += 1) {
+      await delay(CREATE_THREAD_RETRY_DELAYS_MS[attempt]);
+      response = await this.fetchImpl(url, {
+        method: "POST",
+        headers: withSessionHeader(threadId)
+      });
+    }
     if (!response.ok) {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
     }
@@ -3897,8 +3907,8 @@ var ClientSession = class extends TypedEventEmitter {
   scheduleSigningRequestRecovery(immediate = false) {
     if (this.closed || this.signingRecoveryInFlight) return;
     const elapsed = Date.now() - this.lastSigningRecoveryAt;
-    const delay = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
-    if (delay === 0) {
+    const delay2 = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
+    if (delay2 === 0) {
       void this.recoverSigningRequests();
       return;
     }
@@ -3906,7 +3916,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.signingRecoveryTimer = setTimeout(() => {
       this.signingRecoveryTimer = null;
       if (!this.closed) void this.recoverSigningRequests();
-    }, delay);
+    }, delay2);
   }
   /**
    * A signing event is transient, but its backend-owned operation is durable.

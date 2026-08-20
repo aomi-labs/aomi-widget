@@ -356,3 +356,45 @@ describe("toInboundMessage tx outcome enrichment", () => {
     expect(part?.result).not.toHaveProperty("tx_outcome");
   });
 });
+
+describe("notice projection", () => {
+  const notice = (message_key?: string) => ({
+    sender: "notice",
+    content: "This app hit an error and couldn't respond.",
+    message_key,
+  });
+
+  it("gives two failures distinct ids even though their copy is identical", () => {
+    // Every failure notice carries the same words by design, so a
+    // content-derived id would collide and let one failure overwrite — or
+    // remount — the other in the transcript.
+    const first = toInboundMessage(notice("turn-failure:turn-a:notice"), null, 0);
+    const second = toInboundMessage(notice("turn-failure:turn-b:notice"), null, 1);
+
+    expect(first?.id).not.toEqual(second?.id);
+  });
+
+  it("keeps the id stable across re-projection of the same notice", () => {
+    // The projection reruns on every poll; an unstable id remounts the card.
+    const key = "turn-failure:turn-a:notice";
+    expect(toInboundMessage(notice(key), null, 3)?.id).toEqual(
+      toInboundMessage(notice(key), null, 3)?.id,
+    );
+  });
+
+  it("falls back to position for legacy rows carrying no key", () => {
+    const first = toInboundMessage(notice(), null, 0);
+    const second = toInboundMessage(notice(), null, 1);
+
+    expect(first?.id).not.toEqual(second?.id);
+  });
+
+  it("renders as an error notice card", () => {
+    const projected = toInboundMessage(notice("k"), null, 0);
+    expect(projected?.role).toBe("assistant");
+    expect(
+      (projected?.metadata?.custom as { aomiNoticeKind?: string } | undefined)
+        ?.aomiNoticeKind,
+    ).toBe("error");
+  });
+});
