@@ -124,6 +124,79 @@ describe("ClientSession Agent transport", () => {
     session.close();
   });
 
+  it("applies a progressive tool trace before the final without interrupting", async () => {
+    vi.useFakeTimers();
+    const api = client();
+    vi.spyOn(api.agent, "start").mockResolvedValue(
+      delta({
+        status: "processing",
+        cursor: "stream-v1.cursor-3",
+        messages: [
+          {
+            id: "msg_user",
+            role: "user",
+            content: "Check ETH price",
+            createdAt: "2026-08-21T00:00:00Z",
+            streaming: false,
+          },
+          {
+            id: "msg_tool",
+            role: "agent",
+            content: "",
+            createdAt: "2026-08-21T00:00:01Z",
+            streaming: false,
+            toolResult: ["Check ETH price", '{"price":2352}'],
+            toolName: "web_search",
+            toolArguments: { query: "ETH price" },
+          },
+        ],
+      }),
+    );
+    vi.spyOn(api.agent, "check").mockResolvedValue(
+      delta({
+        cursor: "stream-v1.cursor-5",
+        messages: [
+          {
+            id: "msg_final",
+            role: "agent",
+            content: "ETH is $2,352.",
+            createdAt: "2026-08-21T00:00:02Z",
+            streaming: false,
+          },
+        ],
+      }),
+    );
+    const interrupt = vi.spyOn(api.agent, "interrupt");
+    const session = new Session(api, {
+      sessionId: "session-agent",
+      pollIntervalMs: 10,
+    });
+
+    await session.sendAsync("Check ETH price");
+    expect(session.getIsProcessing()).toBe(true);
+    expect(session.getMessages()[1]).toMatchObject({
+      id: "msg_tool",
+      tool_result: ["Check ETH price", '{"price":2352}'],
+      tool_name: "web_search",
+      tool_arguments: { query: "ETH price" },
+    });
+
+    await vi.advanceTimersByTimeAsync(10);
+    expect(api.agent.check).toHaveBeenCalledWith("session-agent", {
+      cursor: "stream-v1.cursor-3",
+      waitMs: 25_000,
+    });
+    expect(session.getMessages().at(-1)).toMatchObject({
+      id: "msg_final",
+      content: "ETH is $2,352.",
+    });
+    expect(session.getIsProcessing()).toBe(false);
+    expect(interrupt).not.toHaveBeenCalled();
+
+    session.close();
+    vi.useRealTimers();
+  });
+
   it("reconstructs an awaiting EVM action and preserves partial batch truth", async () => {
     const api = client();
     vi.spyOn(api.agent, "start").mockResolvedValue(

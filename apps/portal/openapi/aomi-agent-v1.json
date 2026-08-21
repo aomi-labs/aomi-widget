@@ -315,6 +315,23 @@
           },
           "streaming": {
             "type": "boolean"
+          },
+          "toolArguments": {},
+          "toolName": {
+            "type": "string"
+          },
+          "toolResult": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array"
           }
         },
         "required": [

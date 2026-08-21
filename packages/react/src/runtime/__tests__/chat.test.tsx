@@ -606,6 +606,84 @@ describe("Chat API", () => {
       ]);
     });
 
+    it("projects a working trace before the final answer without Stop", async () => {
+      vi.useFakeTimers();
+      let turnStarted = false;
+      const postInterrupt = vi.fn(async () => ({
+        is_processing: false,
+        messages: [],
+      }));
+      setAomiClientConfig({
+        postChatMessage: vi.fn(async () => {
+          turnStarted = true;
+          return {
+            is_processing: true,
+            messages: [
+              message("user", "Check ETH price"),
+              message("agent", "I’ll check a live source."),
+              {
+                sender: "agent",
+                content: "",
+                tool_result: ["Check ETH price", '{"price":2352}'],
+                tool_name: "web_search",
+                tool_arguments: { query: "ETH price" },
+                timestamp: new Date().toISOString(),
+                is_streaming: false,
+              },
+            ],
+          } as AomiChatResponse;
+        }),
+        fetchState: vi.fn(async () =>
+          turnStarted
+            ? {
+                is_processing: false,
+                messages: [
+                  message("user", "Check ETH price"),
+                  message("agent", "I’ll check a live source."),
+                  {
+                    sender: "agent",
+                    content: "",
+                    tool_result: ["Check ETH price", '{"price":2352}'],
+                    tool_name: "web_search",
+                    tool_arguments: { query: "ETH price" },
+                    timestamp: new Date().toISOString(),
+                    is_streaming: false,
+                  },
+                  message("agent", "ETH is $2,352."),
+                ],
+              }
+            : { is_processing: false, messages: [] },
+        ),
+        postInterrupt,
+      });
+
+      const { api } = renderRuntime();
+      await act(async () => {
+        await api.sendMessage("Check ETH price");
+      });
+
+      expect(api.getMessages().at(-1)?.content).toMatchObject([
+        { type: "text", text: "I’ll check a live source." },
+        { type: "tool-call", toolName: "web_search" },
+      ]);
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("working");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+      expect(api.getMessages().at(-1)?.content).toMatchObject([
+        { type: "text", text: "I’ll check a live source." },
+        { type: "tool-call", toolName: "web_search" },
+        { type: "text", text: "ETH is $2,352." },
+      ]);
+      expect(
+        api.getThreadMetadata(api.currentThreadId)?.control.turnPhase,
+      ).toBe("idle");
+      expect(postInterrupt).not.toHaveBeenCalled();
+    });
+
     it("sends ext values via userState in message options", async () => {
       const postChatMessage = vi.fn(
         async (): Promise<AomiChatResponse> => ({

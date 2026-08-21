@@ -884,6 +884,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       content: message.content,
       timestamp: message.createdAt,
       is_streaming: message.streaming,
+      tool_result: message.toolResult ?? null,
+      ...(message.toolName ? { tool_name: message.toolName } : {}),
+      ...(message.toolArguments !== undefined
+        ? { tool_arguments: message.toolArguments }
+        : {}),
     };
   }
 

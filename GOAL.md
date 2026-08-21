@@ -1,5 +1,16 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Canonical Agent working trace
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-21** — restore
+progressive tool activity in Portal turns using only the canonical Rust Agent
+transport. The durable projection now preserves tool metadata and advances its
+cursor only through returned backend events; the generated client contract and
+`ClientSession` carry those fields into React. Focused Rust, client, React, and
+Portal regressions pass, and an isolated SIWE-authenticated Playwright run showed
+a live `Search web` step before the final answer with zero interrupt requests.
+The publishable client is patch-bumped to `@aomi-labs/client@0.5.2`.
+
 ## Chain logo refresh
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-21** — add
