@@ -1,5 +1,13 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Chain logo refresh
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-21** — add
+official monochrome MegaETH and Arc Testnet SVG marks to the shared chain icon
+registry and ship the generated widget artifacts. The widget-lib package is
+patch-bumped to `@aomi-labs/widget-lib@2.0.4`; its 353-test registry suite,
+client registry-artifact test, package build, and repository lint pass.
+
 ## Build staging candidate-release secrets
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-19** —
