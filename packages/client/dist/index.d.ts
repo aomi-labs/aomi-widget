@@ -159,8 +159,6 @@ type GetAccountBearer = ((options?: {
 };
 type AomiRequestQueryValue = string | number | boolean | readonly (string | number | boolean)[] | null | undefined;
 type AomiPlatformFilter = string | readonly string[] | null | undefined;
-/** Stable id of a hosted app; null/empty means "not app-scoped". */
-type ApplicationId = number | string | null;
 type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 interface AomiRequestOptions {
     /** Thread id for thread-scoped routes. Kept as sessionId for SDK compatibility. */
@@ -177,6 +175,8 @@ interface AomiRequestOptions {
     raw?: boolean;
 }
 interface AomiMessage {
+    /** Stable public Agent message identity when available. */
+    id?: string;
     /**
      * `notice` is a durable runtime record — today, a turn the provider refused.
      * Unlike `system`, which the projection drops, a notice is shown to the user
@@ -562,6 +562,315 @@ declare function isAsyncCallback(event: AomiSystemEvent): event is {
     AsyncCallback: Record<string, unknown>;
 };
 
+interface components {
+    schemas: {
+        ActionResult: {
+            legs: {
+                id: string;
+                reason?: string;
+                signedTransactionBase64?: string;
+                /** @enum {unknown} */
+                status: "submitted" | "rejected" | "failed" | "skipped";
+                transactionId?: string;
+            }[];
+            revision: number;
+            /** @constant */
+            status: "submitted";
+        } | {
+            outputs: {
+                id: string;
+                signature?: string;
+                signedTransactionBase64?: string;
+            }[];
+            revision: number;
+            /** @constant */
+            status: "signed";
+        } | {
+            reason: string;
+            revision: number;
+            /** @constant */
+            status: "rejected";
+        };
+        AgentAction: components["schemas"]["EvmExternalTransactionAction"] | components["schemas"]["SvmExternalTransactionAction"] | components["schemas"]["SigningRequestAction"];
+        AgentActionBase: {
+            contextGeneration: number;
+            /** Format: date-time */
+            createdAt: string;
+            description: string;
+            /** Format: date-time */
+            expiresAt: string | null;
+            generation: number;
+            id: string;
+            revision: number;
+            /** @enum {string} */
+            status: "pending" | "signed" | "submitted" | "finalized" | "rejected" | "failed" | "expired" | "superseded";
+        };
+        AgentActivity: {
+            /** @enum {string} */
+            type: "tool_complete" | "task_started" | "task_activity" | "task_completed";
+        } & {
+            [key: string]: unknown;
+        };
+        AgentDelta: {
+            actions: components["schemas"]["AgentAction"][];
+            activity: components["schemas"]["AgentActivity"][];
+            cursor: string;
+            hasMore: boolean;
+            messages: components["schemas"]["AgentMessage"][];
+            sessionId: string;
+            /** @enum {string} */
+            status: "processing" | "awaiting_user" | "complete" | "interrupted" | "failed";
+            title?: string | null;
+        };
+        AgentMessage: {
+            content: string;
+            createdAt: string;
+            id: string;
+            /** @enum {string} */
+            role: "user" | "agent" | "system";
+            streaming: boolean;
+            toolArguments?: unknown;
+            toolName?: string;
+            toolResult?: [string, string];
+        };
+        AgentSession: {
+            archived: boolean;
+            id: string;
+            title?: string | null;
+            updatedAt: number;
+        };
+        ErrorEnvelope: {
+            error: {
+                code: string;
+                details?: unknown;
+                message: string;
+                requestId?: string;
+            };
+        };
+        EvmExternalTransactionAction: components["schemas"]["AgentActionBase"] & {
+            /** @constant */
+            broadcaster: "wallet";
+            /** @constant */
+            chainFamily: "evm";
+            chainId: number;
+            /** @constant */
+            executionKind: "eoa";
+            signer: string;
+            transactions: components["schemas"]["EvmTransactionIntent"][];
+            /** @constant */
+            type: "external_transaction";
+        };
+        EvmTransactionIntent: {
+            accessList: unknown[];
+            data: string;
+            description: string;
+            from: string;
+            gas: string | null;
+            gasPrice: string | null;
+            id: string;
+            intentHash: string;
+            maxFeePerGas: string | null;
+            maxPriorityFeePerGas: string | null;
+            nonce: string | null;
+            simulation: {
+                error: string | null;
+                gasUsed: string | null;
+                success: boolean;
+            };
+            to: string;
+            transactionType: string | null;
+            value: string;
+        };
+        EvmWallet: {
+            address: string;
+            chainId?: number;
+        };
+        SessionPage: {
+            nextCursor?: string | null;
+            sessions: components["schemas"]["AgentSession"][];
+        };
+        SignablePayload: {
+            digest: string;
+            id: string;
+            /** @constant */
+            kind: "evm_personal";
+            message: string;
+        } | {
+            digest: string;
+            id: string;
+            /** @constant */
+            kind: "evm_typed_data";
+            typedData: {
+                [key: string]: unknown;
+            };
+        } | {
+            digest: string;
+            id: string;
+            /** @constant */
+            kind: "svm_message";
+            messageBase64: string;
+        } | {
+            digest: string;
+            id: string;
+            /** @constant */
+            kind: "svm_transaction";
+            transactionBase64: string;
+        };
+        SigningCall: {
+            data?: string;
+            to: string;
+            value: string;
+        };
+        SigningFee: {
+            amount: string;
+            asset: {
+                address?: string;
+                /** @enum {string} */
+                kind: "native" | "token";
+            };
+            recipient: string;
+        };
+        SigningRequestAction: components["schemas"]["AgentActionBase"] & {
+            /** @enum {string} */
+            broadcaster: "wallet" | "venue" | "backend";
+            calls: components["schemas"]["SigningCall"][];
+            callsDigest: string | null;
+            /** @enum {string} */
+            chainFamily: "evm" | "svm";
+            chainId: number | null;
+            cluster: string | null;
+            /** @enum {string} */
+            executionKind: "message" | "transaction" | "account_abstraction" | "hosted";
+            executor: string | null;
+            fees: components["schemas"]["SigningFee"][];
+            operationId: string | null;
+            payloads: components["schemas"]["SignablePayload"][];
+            signer: string;
+            /** @enum {string|null} */
+            sponsorship: "required" | null;
+            /** @constant */
+            type: "signing_request";
+        };
+        StartTurnRequest: {
+            app?: string | null;
+            applicationId?: number | null;
+            message: string;
+            model?: string | null;
+            sessionId?: string | null;
+            wallets?: components["schemas"]["WalletContext"] | null;
+        };
+        SvmExternalTransactionAction: components["schemas"]["AgentActionBase"] & {
+            /** @constant */
+            broadcaster: "wallet";
+            /** @constant */
+            chainFamily: "svm";
+            cluster: string;
+            /** @constant */
+            executionKind: "wallet";
+            signer: string;
+            transactions: components["schemas"]["SvmTransactionIntent"][];
+            /** @constant */
+            type: "external_transaction";
+        };
+        SvmTransactionIntent: {
+            description: string;
+            id: string;
+            intentHash: string;
+            lastValidBlockHeight: number | null;
+            preserveBlockhash: boolean;
+            recentBlockhash: string;
+            unsignedTransactionBase64: string;
+        };
+        SvmWallet: {
+            address: string;
+            cluster?: string;
+        };
+        UpdateSessionRequest: {
+            archived?: boolean | null;
+            title?: string | null;
+        };
+        WalletContext: {
+            evm?: components["schemas"]["EvmWallet"];
+            svm?: components["schemas"]["SvmWallet"];
+        };
+    };
+    responses: {
+        /** @description Stable public error */
+        Error: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ErrorEnvelope"];
+            };
+        };
+    };
+    parameters: {
+        ActionId: string;
+        SessionId: string;
+    };
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
+}
+
+type Schemas = components["schemas"];
+type AgentStatus = Schemas["AgentDelta"]["status"];
+type AgentMessage = Schemas["AgentMessage"];
+type AgentActivity = Schemas["AgentActivity"];
+type EvmExternalTransactionAction = Schemas["EvmExternalTransactionAction"];
+type SvmExternalTransactionAction = Schemas["SvmExternalTransactionAction"];
+type SigningRequestAction = Schemas["SigningRequestAction"];
+type AgentAction = Schemas["AgentAction"];
+type AgentDelta = Schemas["AgentDelta"];
+type AgentWalletContext = Schemas["WalletContext"];
+type AgentStartRequest = Schemas["StartTurnRequest"];
+type AgentActionResult = Schemas["ActionResult"];
+type AgentSessionRecord = Schemas["AgentSession"];
+type AgentSessionPage = Schemas["SessionPage"];
+
+type RequestResponse = (method: AomiHttpMethod, path: string, options?: AomiRequestOptions) => Promise<Response>;
+declare class AgentApiError extends Error {
+    readonly status: number;
+    readonly code: string;
+    readonly retryable: boolean;
+    readonly requestId?: string | undefined;
+    readonly details?: unknown | undefined;
+    constructor(status: number, code: string, message: string, retryable: boolean, requestId?: string | undefined, details?: unknown | undefined);
+}
+/** The single typed transport for every first-party Agent consumer. */
+declare class AgentTransport {
+    private readonly requestResponse;
+    readonly sessions: AgentSessionsTransport;
+    constructor(requestResponse: RequestResponse);
+    start(request: AgentStartRequest, options?: {
+        idempotencyKey?: string;
+        paymentSignature?: string;
+    }): Promise<AgentDelta>;
+    check(sessionId: string, options?: {
+        cursor?: string;
+        waitMs?: number;
+    }): Promise<AgentDelta>;
+    interrupt(sessionId: string): Promise<AgentDelta>;
+    resolveAction(sessionId: string, actionId: string, result: AgentActionResult, idempotencyKey?: string): Promise<AgentAction>;
+    private json;
+}
+declare class AgentSessionsTransport {
+    private readonly requestResponse;
+    constructor(requestResponse: RequestResponse);
+    list(options?: {
+        cursor?: string;
+        limit?: number;
+    }): Promise<AgentSessionPage>;
+    get(sessionId: string): Promise<AgentSessionRecord>;
+    update(sessionId: string, patch: {
+        title?: string;
+        archived?: boolean;
+    }): Promise<AgentSessionRecord>;
+    delete(sessionId: string): Promise<void>;
+    private json;
+}
+
 /**
  * Read secret names out of a {@link AomiListSecretsResponse} whichever shape
  * the backend sent.
@@ -574,6 +883,7 @@ declare function isAsyncCallback(event: AomiSystemEvent): event is {
  */
 declare function secretNamesFrom(response: AomiListSecretsResponse): string[];
 declare class AomiClient {
+    readonly agent: AgentTransport;
     private readonly baseUrl;
     private readonly apiKey?;
     private readonly fetchImpl;
@@ -599,19 +909,21 @@ declare class AomiClient {
      * Prefer the typed helpers below for common chat/session/account flows.
      */
     request<T = unknown>(method: AomiHttpMethod, path: string, options?: AomiRequestOptions): Promise<T>;
+    /** Raw authenticated response transport shared by JSON, SSE, and MCP clients. */
+    requestResponse(method: AomiHttpMethod, path: string, options?: AomiRequestOptions): Promise<Response>;
     /**
      * Fetch current session state (messages, processing status, title).
      */
     fetchState(sessionId: string, userState?: OwnedUserState, clientId?: string, options?: {
         app?: string;
-        applicationId?: ApplicationId;
+        applicationId?: number | string | null;
     }): Promise<AomiStateResponse>;
     /**
      * Send a chat message and return updated session state.
      */
     sendMessage(sessionId: string, message: string, options?: {
         app?: string;
-        applicationId?: ApplicationId;
+        applicationId?: number | string | null;
         apiKey?: string;
         userState?: OwnedUserState;
         clientId?: string;
@@ -626,14 +938,14 @@ declare class AomiClient {
      */
     sendSystemMessage(sessionId: string, message: string, options?: {
         app?: string;
-        applicationId?: ApplicationId;
+        applicationId?: number | string | null;
     }): Promise<AomiSystemResponse>;
     /**
      * Interrupt the AI's current response.
      */
     interrupt(sessionId: string, options?: {
         app?: string;
-        applicationId?: ApplicationId;
+        applicationId?: number | string | null;
     }): Promise<AomiInterruptResponse>;
     /**
      * Ingest client-scoped secrets. Returns opaque `$SECRET:<name>` handles.
@@ -662,7 +974,7 @@ declare class AomiClient {
      * Returns an unsubscribe function.
      */
     subscribeSSE(sessionId: string, onUpdate: (event: AomiSSEEvent) => void, onError?: (error: unknown) => void, options?: {
-        applicationId?: ApplicationId;
+        applicationId?: number | string | null;
     }): () => void;
     /**
      * @deprecated Account bootstrap is handled by session create/chat requests and
@@ -711,9 +1023,7 @@ declare class AomiClient {
     /**
      * Get system events for a session.
      */
-    getSystemEvents(sessionId: string, count?: number, options?: {
-        applicationId?: ApplicationId;
-    }): Promise<AomiSystemEvent[]>;
+    getSystemEvents(sessionId: string, count?: number): Promise<AomiSystemEvent[]>;
     /**
      * Get available apps as full descriptors (name + declared secret slots).
      * The settings page consumes the slot info to render per-app inputs and
@@ -722,7 +1032,6 @@ declare class AomiClient {
     getApps(sessionId: string, options?: {
         apiKey?: string;
         platforms?: AomiPlatformFilter;
-        applicationId?: ApplicationId;
     }): Promise<AomiAppDescriptor[]>;
     /**
      * Fetch the account bound to the authenticated request (resolved from the
@@ -760,14 +1069,13 @@ declare class AomiClient {
      */
     getModels(sessionId: string, options?: {
         apiKey?: string;
-        applicationId?: ApplicationId;
     }): Promise<string[]>;
     /**
      * Set the model for a session.
      */
     setModel(sessionId: string, rig: string, options?: {
         app?: string;
-        applicationId?: ApplicationId;
+        applicationId?: number | string | null;
         apiKey?: string;
         clientId?: string;
     }): Promise<{
@@ -1198,6 +1506,8 @@ type HydrateTxPayloadOptions = {
     strict?: boolean;
 };
 type WalletEip712Payload = {
+    /** Stable public Agent action id when projected from the canonical API. */
+    requestId?: string;
     typed_data?: {
         domain?: {
             chainId?: number | string;
@@ -1227,6 +1537,8 @@ type WalletEip712Payload = {
  * decode it; the wallet adapter handles deserialization.
  */
 type WalletSolanaSignPayload = {
+    /** Stable public Agent action id when projected from the canonical API. */
+    requestId?: string;
     /** Base64 of the unsigned Solana transaction. */
     unsignedTx?: string;
     /** Human-readable summary shown alongside the wallet's decoded preview. */
@@ -1237,8 +1549,16 @@ type WalletSolanaSignPayload = {
     pendingSolanaId?: number;
     /** All staged instruction/transaction ids resolved by this wallet request. */
     pendingSolanaIds?: number[];
+    /** Canonical multi-leg Agent action, in execution order. */
+    transactions?: Array<{
+        id: string;
+        unsignedTx: string;
+        description?: string;
+    }>;
 };
 type WalletSolanaSignMessagePayload = {
+    /** Stable public Agent action id when projected from the canonical API. */
+    requestId?: string;
     /** Base64 of the raw message bytes to sign. */
     message?: string;
     /** Human-readable summary shown alongside the wallet's decoded preview. */
@@ -1385,6 +1705,8 @@ type WalletRequest = {
 type WalletRequestResult = {
     kind: "transaction";
     txHash: string;
+    /** Per-leg hashes for sequential/batched execution, in action order. */
+    txHashes?: string[];
     amount?: string;
     aaRequestedMode?: "4337" | "7702" | "none";
     aaResolvedMode?: "4337" | "7702" | "none";
@@ -1418,20 +1740,33 @@ type WalletRequestResult = {
     kind: "solana_send";
     signature: string;
     signedTx?: string;
+    legs?: WalletSolanaLegResult[];
 } | {
     kind: "solana_sign_and_send";
     signature: string;
     signedTx?: string;
+    legs?: WalletSolanaLegResult[];
+};
+type WalletSolanaLegResult = {
+    id: string;
+    status: "submitted" | "rejected" | "failed" | "skipped";
+    signature?: string;
+    signedTx?: string;
+    reason?: string;
 };
 type SendResult = {
     messages: AomiMessage[];
     title?: string;
 };
 type SessionOptions = {
+    /** Agent is the permanent transport; legacy is an explicit rollback adapter. */
+    transport?: "agent" | "legacy";
     /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
     sessionId?: string;
     /** App for chat messages. Default: "default" */
     app?: string;
+    /** Optional model selected for the next Agent turn. */
+    model?: string | null;
     /** Optional concrete application row to route chat/model calls to. */
     applicationId?: number | string | null;
     /** API key override. */
@@ -1459,6 +1794,7 @@ type SessionOptions = {
 };
 type SessionRuntimeOptions = {
     app: string;
+    model?: string | null;
     applicationId?: number | string | null;
     apiKey?: string;
     clientId?: string;
@@ -1505,6 +1841,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     readonly client: AomiClient;
     readonly sessionId: string;
     private app;
+    private model?;
     private applicationId?;
     private apiKey?;
     private userState?;
@@ -1513,6 +1850,11 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private syncPendingTxRequestsFromUserState;
     private pollIntervalMs;
     private logger?;
+    private readonly transport;
+    private agentCursor?;
+    private agentStatus?;
+    private agentActions;
+    private agentStartOperation?;
     private pollTimer;
     private pollingActive;
     private pollInFlight;
@@ -1582,6 +1924,8 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     getPendingRequests(): WalletRequest[];
     /** Whether the AI is currently processing. */
     getIsProcessing(): boolean;
+    /** Last status observed from the canonical Agent transport. */
+    getAgentStatus(): AgentStatus | undefined;
     getIsSSEActive(): boolean;
     setSSEActive(active: boolean): void;
     syncRuntimeOptions(options: SessionRuntimeOptions): void;
@@ -1635,6 +1979,17 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private completeSigningRequest;
     /** Shared completion path for send()/sendAsync() after the chat POST. */
     private submitChat;
+    private agentActive;
+    private agentState;
+    private agentWallets;
+    private applyAgentDelta;
+    private agentMessage;
+    private applyAgentActivity;
+    private syncAgentActions;
+    private enqueueAgentAction;
+    private resolveAgentAction;
+    private rejectAgentAction;
+    private actionIdForRequest;
     private resumeAfterWalletResponse;
     private resolvePending;
     private assertOpen;
@@ -1977,4 +2332,4 @@ declare function appendFeeCallToPayload(payload: WalletTxPayload, fee: AomiSimul
     strictAa?: boolean;
 }): WalletTxPayload;
 
-export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type ApplicationId, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type OwnedUserState, type PartialWalletExecution, PartialWalletExecutionError, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSignablePayload, type WalletSigningPayload, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, WidgetChallengeBindingError, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, partialWalletExecution, posterFromClient, robinhood, safeEnv, secretNamesFrom, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };
+export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AgentAction, type AgentActionResult, type AgentActivity, AgentApiError, type AgentDelta, type AgentMessage, type AgentSessionPage, type AgentSessionRecord, type AgentStartRequest, type AgentStatus, AgentTransport, type AgentWalletContext, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type EvmExternalTransactionAction, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type OwnedUserState, type PartialWalletExecution, PartialWalletExecutionError, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SigningRequestAction, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, type SvmExternalTransactionAction, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSignablePayload, type WalletSigningPayload, type WalletSolanaLegResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, WidgetChallengeBindingError, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, partialWalletExecution, posterFromClient, robinhood, safeEnv, secretNamesFrom, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };

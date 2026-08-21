@@ -42,6 +42,7 @@ import type {
   SigningRequestAction,
   SvmExternalTransactionAction,
 } from "../agent/types";
+import { AgentApiError } from "../agent/transport";
 
 export { aaModeFromExecutionKind } from "../aa/policy";
 export type {
@@ -78,6 +79,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private agentCursor?: string;
   private agentStatus?: AgentStatus;
   private agentActions = new Map<string, AgentAction>();
+  private agentStartOperation?: { message: string; idempotencyKey: string };
 
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private pollingActive = false;
@@ -787,15 +789,35 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private async submitChat(message: string): Promise<AomiChatResponse> {
     if (this.transport === "agent") {
       const applicationId = Number(this.applicationId);
-      const delta = await this.client.agent.start({
-        sessionId: this.sessionId,
-        message,
-        ...(Number.isSafeInteger(applicationId) && applicationId > 0
-          ? { applicationId }
-          : { app: this.app }),
-        ...(this.model ? { model: this.model } : {}),
-        wallets: this.agentWallets(),
-      });
+      const operation =
+        this.agentStartOperation?.message === message
+          ? this.agentStartOperation
+          : {
+              message,
+              idempotencyKey: `idem_${crypto.randomUUID().replaceAll("-", "")}`,
+            };
+      this.agentStartOperation = operation;
+      let delta: AgentDelta;
+      try {
+        delta = await this.client.agent.start(
+          {
+            sessionId: this.sessionId,
+            message,
+            ...(Number.isSafeInteger(applicationId) && applicationId > 0
+              ? { applicationId }
+              : { app: this.app }),
+            ...(this.model ? { model: this.model } : {}),
+            wallets: this.agentWallets(),
+          },
+          { idempotencyKey: operation.idempotencyKey },
+        );
+      } catch (error) {
+        if (error instanceof AgentApiError && !error.retryable) {
+          this.agentStartOperation = undefined;
+        }
+        throw error;
+      }
+      this.agentStartOperation = undefined;
       this.applyAgentDelta(delta);
       return this.agentState(delta);
     }

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AomiClient, Session } from "../src";
+import { AgentApiError, AomiClient, Session } from "../src";
 import type { AgentAction, AgentDelta } from "../src";
 
 function delta(overrides: Partial<AgentDelta> = {}): AgentDelta {
@@ -111,6 +111,7 @@ describe("ClientSession Agent transport", () => {
         message: "hello",
         app: "default",
       }),
+      { idempotencyKey: expect.stringMatching(/^idem_[a-f0-9]{32}$/) },
     );
     expect(session.getMessages()).toEqual([
       expect.objectContaining({
@@ -121,6 +122,26 @@ describe("ClientSession Agent transport", () => {
     ]);
     expect(messages).toHaveBeenCalledTimes(1);
     expect(session.getAgentStatus()).toBe("complete");
+    session.close();
+  });
+
+  it("reuses the start operation key after an uncertain response", async () => {
+    const api = client();
+    const start = vi
+      .spyOn(api.agent, "start")
+      .mockRejectedValueOnce(
+        new AgentApiError(503, "upstream_unavailable", "try again", true),
+      )
+      .mockResolvedValue(delta());
+    const session = new Session(api, { sessionId: "session-agent" });
+
+    await expect(session.send("hello")).rejects.toThrow("try again");
+    await expect(session.send("hello")).resolves.toBeDefined();
+
+    expect(start).toHaveBeenCalledTimes(2);
+    expect(start.mock.calls[0]?.[1]?.idempotencyKey).toBe(
+      start.mock.calls[1]?.[1]?.idempotencyKey,
+    );
     session.close();
   });
 

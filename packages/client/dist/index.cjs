@@ -52,6 +52,8 @@ __export(index_exports, {
   ALCHEMY_CHAIN_SLUGS: () => ALCHEMY_CHAIN_SLUGS,
   AOMI_TASK_EVENT_TYPES: () => AOMI_TASK_EVENT_TYPES,
   AccountCredentialUnavailableError: () => AccountCredentialUnavailableError,
+  AgentApiError: () => AgentApiError,
+  AgentTransport: () => AgentTransport,
   AomiClient: () => AomiClient,
   CHAINS_BY_ID: () => CHAINS_BY_ID,
   CHAIN_NAMES: () => CHAIN_NAMES,
@@ -812,6 +814,126 @@ function appIdentityKey(descriptor) {
   return `name:${descriptor.name}`;
 }
 
+// src/agent/transport.ts
+var AgentApiError = class extends Error {
+  constructor(status, code, message, retryable, requestId, details) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.retryable = retryable;
+    this.requestId = requestId;
+    this.details = details;
+    this.name = "AgentApiError";
+  }
+};
+var AgentTransport = class {
+  constructor(requestResponse) {
+    this.requestResponse = requestResponse;
+    this.sessions = new AgentSessionsTransport(requestResponse);
+  }
+  start(request, options = {}) {
+    return this.json("POST", "/v1/agent/chat", {
+      headers: mutationHeaders(options),
+      body: request
+    });
+  }
+  check(sessionId, options = {}) {
+    var _a;
+    return this.json("GET", `/v1/agent/chat/${encodeURIComponent(sessionId)}`, {
+      query: {
+        cursor: options.cursor,
+        wait: Math.min(Math.max((_a = options.waitMs) != null ? _a : 0, 0), 3e4)
+      }
+    });
+  }
+  interrupt(sessionId) {
+    return this.json(
+      "POST",
+      `/v1/agent/chat/${encodeURIComponent(sessionId)}/interrupt`,
+      { headers: mutationHeaders() }
+    );
+  }
+  async resolveAction(sessionId, actionId, result, idempotencyKey = randomIdempotencyKey()) {
+    const response = await this.json(
+      "POST",
+      `/v1/agent/chat/${encodeURIComponent(sessionId)}/actions/${encodeURIComponent(actionId)}/result`,
+      { headers: { "idempotency-key": idempotencyKey }, body: result }
+    );
+    return response.action;
+  }
+  async json(method, path, options) {
+    return parseAgentResponse(
+      await this.requestResponse(method, path, options)
+    );
+  }
+};
+var AgentSessionsTransport = class {
+  constructor(requestResponse) {
+    this.requestResponse = requestResponse;
+  }
+  async list(options = {}) {
+    return this.json("GET", "/v1/agent/sessions", {
+      query: { cursor: options.cursor, limit: options.limit }
+    });
+  }
+  get(sessionId) {
+    return this.json(
+      "GET",
+      `/v1/agent/sessions/${encodeURIComponent(sessionId)}`
+    );
+  }
+  update(sessionId, patch) {
+    return this.json(
+      "PATCH",
+      `/v1/agent/sessions/${encodeURIComponent(sessionId)}`,
+      {
+        headers: mutationHeaders(),
+        body: patch
+      }
+    );
+  }
+  async delete(sessionId) {
+    await parseAgentResponse(
+      await this.requestResponse(
+        "DELETE",
+        `/v1/agent/sessions/${encodeURIComponent(sessionId)}`,
+        { headers: mutationHeaders() }
+      )
+    );
+  }
+  async json(method, path, options) {
+    return parseAgentResponse(
+      await this.requestResponse(method, path, options)
+    );
+  }
+};
+async function parseAgentResponse(response) {
+  var _a, _b, _c, _d, _e, _f, _g, _h;
+  if (response.ok) {
+    if (response.status === 204) return void 0;
+    return await response.json();
+  }
+  const body = await response.json().catch(() => null);
+  const code = (_b = (_a = body == null ? void 0 : body.error) == null ? void 0 : _a.code) != null ? _b : "agent_request_failed";
+  throw new AgentApiError(
+    response.status,
+    code,
+    (_d = (_c = body == null ? void 0 : body.error) == null ? void 0 : _c.message) != null ? _d : `Agent request failed with HTTP ${response.status}`,
+    response.status === 408 || response.status === 429 || response.status >= 500,
+    (_g = (_f = (_e = body == null ? void 0 : body.error) == null ? void 0 : _e.requestId) != null ? _f : response.headers.get("x-request-id")) != null ? _g : void 0,
+    (_h = body == null ? void 0 : body.error) == null ? void 0 : _h.details
+  );
+}
+function mutationHeaders(options = {}) {
+  var _a;
+  return __spreadValues({
+    "idempotency-key": (_a = options.idempotencyKey) != null ? _a : randomIdempotencyKey()
+  }, options.paymentSignature ? { "payment-signature": options.paymentSignature } : {});
+}
+function randomIdempotencyKey() {
+  return `idem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
+}
+
 // src/client.ts
 var SESSION_ID_HEADER = "X-Session-Id";
 var THREAD_ID_HEADER = "X-Thread-Id";
@@ -1004,6 +1126,9 @@ var AomiClient = class {
     );
     this.logger = options.logger;
     this.accountBearer = options.getAccountBearer;
+    this.agent = new AgentTransport(
+      (method, path, requestOptions) => this.requestResponse(method, path, requestOptions)
+    );
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
       getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
@@ -1036,7 +1161,22 @@ var AomiClient = class {
    * Prefer the typed helpers below for common chat/session/account flows.
    */
   async request(method, path, options) {
-    var _a, _b;
+    var _a;
+    const response = await this.requestResponse(method, path, options);
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`
+      );
+    }
+    if (response.status === 204) return void 0;
+    const contentType = (_a = response.headers.get("content-type")) != null ? _a : "";
+    return contentType.includes("application/json") ? await response.json() : await response.text();
+  }
+  /** Raw authenticated response transport shared by JSON, SSE, and MCP clients. */
+  async requestResponse(method, path, options) {
+    var _a;
     const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
     const headers = new Headers(options == null ? void 0 : options.headers);
     if (options == null ? void 0 : options.sessionId) {
@@ -1058,21 +1198,7 @@ var AomiClient = class {
         body: encodeJsonBody(options == null ? void 0 : options.body)
       }
     );
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(
-        `HTTP ${response.status}: ${response.statusText}${body ? `
-${body}` : ""}`
-      );
-    }
-    if (response.status === 204) {
-      return void 0;
-    }
-    const contentType = (_b = response.headers.get("content-type")) != null ? _b : "";
-    if (contentType.includes("application/json")) {
-      return await response.json();
-    }
-    return await response.text();
+    return response;
   }
   /**
    * Fetch current session state (messages, processing status, title).
@@ -1340,31 +1466,37 @@ ${body}` : ""}`
    * List all threads for the authenticated account.
    */
   async listThreads(sessionId) {
-    const url = buildApiUrl(this.baseUrl, "/api/threads");
-    const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId)
+    var _a;
+    void sessionId;
+    const sessions = [];
+    let cursor;
+    do {
+      const page = await this.agent.sessions.list({ cursor, limit: 100 });
+      sessions.push(...page.sessions);
+      cursor = (_a = page.nextCursor) != null ? _a : void 0;
+    } while (cursor);
+    return sessions.map((session) => {
+      var _a2;
+      return {
+        session_id: session.id,
+        title: (_a2 = session.title) != null ? _a2 : null,
+        is_archived: session.archived,
+        last_active_at: session.updatedAt
+      };
     });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
-    }
-    const threads = await response.json();
-    return threads.map(normalizeThreadWire);
   }
   /**
    * Get a single thread by ID.
    */
   async getThread(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}`
-    );
-    const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return normalizeThreadWire(await response.json());
+    var _a;
+    const session = await this.agent.sessions.get(sessionId);
+    return {
+      session_id: session.id,
+      title: (_a = session.title) != null ? _a : null,
+      is_archived: session.archived,
+      last_active_at: session.updatedAt
+    };
   }
   /**
    * Create a new thread. The client generates the session ID.
@@ -1401,68 +1533,25 @@ ${body}` : ""}`
    * Delete a thread by ID.
    */
   async deleteThread(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}`
-    );
-    const response = await this.fetchImpl(url, {
-      method: "DELETE",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to delete thread: HTTP ${response.status}`);
-    }
+    await this.agent.sessions.delete(sessionId);
   }
   /**
    * Rename a thread.
    */
   async renameThread(sessionId, newTitle) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}`
-    );
-    const response = await this.fetchImpl(url, {
-      method: "PATCH",
-      headers: withSessionHeader(sessionId, {
-        "Content-Type": "application/json"
-      }),
-      body: JSON.stringify({ title: newTitle })
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to rename thread: HTTP ${response.status}`);
-    }
+    await this.agent.sessions.update(sessionId, { title: newTitle });
   }
   /**
    * Archive a thread.
    */
   async archiveThread(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}/archive`
-    );
-    const response = await this.fetchImpl(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to archive thread: HTTP ${response.status}`);
-    }
+    await this.agent.sessions.update(sessionId, { archived: true });
   }
   /**
    * Unarchive a thread.
    */
   async unarchiveThread(sessionId) {
-    const url = buildApiUrl(
-      this.baseUrl,
-      `/api/threads/${encodeURIComponent(sessionId)}/unarchive`
-    );
-    const response = await this.fetchImpl(url, {
-      method: "POST",
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
-    }
+    await this.agent.sessions.update(sessionId, { archived: false });
   }
   // ===========================================================================
   // System Events
@@ -3319,6 +3408,11 @@ var SessionWalletController = class {
     if (this.resolvingRequestIds.has(requestId)) return;
     this.resolvingRequestIds.add(requestId);
     try {
+      if (this.deps.resolveAgentAction) {
+        await this.deps.resolveAgentAction(req, result);
+        this.finishRequest(req);
+        return;
+      }
       const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction" && result.kind === "transaction") {
         await this.resolveTransaction(req.payload, result);
@@ -3357,6 +3451,11 @@ var SessionWalletController = class {
     if (this.resolvingRequestIds.has(requestId)) return;
     this.resolvingRequestIds.add(requestId);
     try {
+      if (this.deps.rejectAgentAction) {
+        await this.deps.rejectAgentAction(req, reason);
+        this.finishRequest(req);
+        return;
+      }
       const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
       if (req.kind === "transaction") {
         const pendingTxIds = txIdsFromPayload(req.payload);
@@ -3535,8 +3634,9 @@ var SessionWalletController = class {
     } else if (kind === "signing") {
       id = payload.requestId;
     } else {
-      const { pendingSolanaId } = payload;
-      if (typeof pendingSolanaId === "number")
+      const { requestId, pendingSolanaId } = payload;
+      if (requestId) id = requestId;
+      if (!id && typeof pendingSolanaId === "number")
         id = `${kind}-${pendingSolanaId}`;
     }
     id != null ? id : id = `wreq-${this.nextId++}`;
@@ -3601,8 +3701,9 @@ function aaModeFromExecutionKind(executionKind) {
 var SIGNING_RECOVERY_MIN_INTERVAL_MS = 5e3;
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c, _d, _e;
+    var _a, _b, _c, _d, _e, _f;
     super();
+    this.agentActions = /* @__PURE__ */ new Map();
     this.pollTimer = null;
     this.pollingActive = false;
     this.pollInFlight = false;
@@ -3626,9 +3727,11 @@ var ClientSession = class extends TypedEventEmitter {
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
+    this.model = sessionOptions == null ? void 0 : sessionOptions.model;
     this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
     this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
     this.paymentMethod = sessionOptions == null ? void 0 : sessionOptions.paymentMethod;
+    this.transport = (_c = sessionOptions == null ? void 0 : sessionOptions.transport) != null ? _c : "agent";
     const initialUserState = UserState.reconcile(
       void 0,
       sessionOptions == null ? void 0 : sessionOptions.userState
@@ -3638,9 +3741,9 @@ var ClientSession = class extends TypedEventEmitter {
       "client_type",
       sessionOptions.clientType
     ) : initialUserState;
-    this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
-    this.syncPendingTxRequestsFromUserState = (_d = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _d : true;
-    this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
+    this.clientId = (_d = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _d : crypto.randomUUID();
+    this.syncPendingTxRequestsFromUserState = (_e = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _e : true;
+    this.pollIntervalMs = (_f = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _f : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.walletController = new SessionWalletController({
       getUserState: () => this.userState,
@@ -3648,9 +3751,13 @@ var ClientSession = class extends TypedEventEmitter {
       sendSystemEvent: (type, payload) => this.sendSystemEvent(type, payload),
       completeSigningRequest: (requestId, body) => this.completeSigningRequest(requestId, body),
       onChange: (requests) => this.emit("wallet_requests_changed", requests),
-      syncPendingTxRequestsFromUserState: this.syncPendingTxRequestsFromUserState
+      syncPendingTxRequestsFromUserState: this.syncPendingTxRequestsFromUserState,
+      resolveAgentAction: this.transport === "agent" ? (request, result) => this.resolveAgentAction(request, result) : void 0,
+      rejectAgentAction: this.transport === "agent" ? (request, reason) => this.rejectAgentAction(request, reason) : void 0
     });
-    queueMicrotask(() => this.scheduleSigningRequestRecovery(true));
+    if (this.transport === "legacy") {
+      queueMicrotask(() => this.scheduleSigningRequestRecovery(true));
+    }
   }
   // ===========================================================================
   // Public API — Chat
@@ -3728,11 +3835,15 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async interrupt() {
     this.stopPolling();
-    const response = await this.client.interrupt(this.sessionId, {
-      app: this.app,
-      applicationId: this.applicationId
-    });
-    this.applyState(response);
+    if (this.transport === "agent") {
+      this.applyAgentDelta(await this.client.agent.interrupt(this.sessionId));
+    } else {
+      const response = await this.client.interrupt(this.sessionId, {
+        app: this.app,
+        applicationId: this.applicationId
+      });
+      this.applyState(response);
+    }
     this._isProcessing = false;
     this.emit("processing_end", void 0);
     this.resolvePending();
@@ -3779,6 +3890,10 @@ var ClientSession = class extends TypedEventEmitter {
   getIsProcessing() {
     return this._isProcessing;
   }
+  /** Last status observed from the canonical Agent transport. */
+  getAgentStatus() {
+    return this.agentStatus;
+  }
   getIsSSEActive() {
     return this.isSSEActive;
   }
@@ -3800,6 +3915,7 @@ var ClientSession = class extends TypedEventEmitter {
     var _a, _b, _c, _d;
     const previousApplicationId = (_a = this.applicationId) == null ? void 0 : _a.toString();
     this.app = options.app;
+    this.model = options.model;
     this.applicationId = options.applicationId;
     this.apiKey = options.apiKey;
     this.clientId = (_b = options.clientId) != null ? _b : this.clientId;
@@ -3812,6 +3928,10 @@ var ClientSession = class extends TypedEventEmitter {
     }
   }
   startSSE() {
+    if (this.transport === "agent") {
+      if (this._isProcessing) this.startPolling();
+      return;
+    }
     this.unsubscribeSSE = this.client.subscribeSSE(
       this.sessionId,
       (event) => this.handleSSEEvent(event),
@@ -3855,6 +3975,13 @@ var ClientSession = class extends TypedEventEmitter {
   }
   async syncUserState() {
     this.assertOpen();
+    if (this.transport === "agent") {
+      const delta = await this.client.agent.check(this.sessionId, {
+        cursor: this.agentCursor
+      });
+      this.applyAgentDelta(delta);
+      return this.agentState(delta);
+    }
     const state = await this.client.fetchState(
       this.sessionId,
       this.outboundUserState(),
@@ -3878,6 +4005,21 @@ var ClientSession = class extends TypedEventEmitter {
    */
   async fetchCurrentState() {
     this.assertOpen();
+    if (this.transport === "agent") {
+      const delta = await this.client.agent.check(this.sessionId, {
+        cursor: this.agentCursor
+      });
+      this.applyAgentDelta(delta);
+      const active = this.agentActive(delta);
+      if (active && !this.pollingActive) {
+        this._isProcessing = true;
+        this.emit("processing_start", void 0);
+        this.startPolling();
+      } else if (!active) {
+        this._isProcessing = false;
+      }
+      return;
+    }
     const state = await this.client.fetchState(
       this.sessionId,
       this.outboundUserState(),
@@ -3934,6 +4076,27 @@ var ClientSession = class extends TypedEventEmitter {
     this.pollTimer = null;
     this.pollInFlight = true;
     try {
+      if (this.transport === "agent") {
+        const delta = await this.client.agent.check(this.sessionId, {
+          cursor: this.agentCursor,
+          waitMs: 25e3
+        });
+        if (!this.pollingActive) return;
+        this.pollFailureCount = 0;
+        this.applyAgentDelta(delta);
+        const active = this.agentActive(delta);
+        if (this._backendWasProcessing && !active) {
+          this.emit("backend_idle", void 0);
+        }
+        this._backendWasProcessing = active;
+        if (!active && this.walletController.length === 0) {
+          this.stopPolling();
+          this._isProcessing = false;
+          this.emit("processing_end", void 0);
+          this.resolvePending();
+        }
+        return;
+      }
       const state = await this.client.fetchState(
         this.sessionId,
         this.outboundUserState(),
@@ -4004,7 +4167,8 @@ var ClientSession = class extends TypedEventEmitter {
    * may run twice per second; durable handoff recovery does not need to.
    */
   scheduleSigningRequestRecovery(immediate = false) {
-    if (this.closed || this.signingRecoveryInFlight) return;
+    if (this.transport === "agent" || this.closed || this.signingRecoveryInFlight)
+      return;
     const elapsed = Date.now() - this.lastSigningRecoveryAt;
     const delay2 = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
     if (delay2 === 0) {
@@ -4106,6 +4270,35 @@ var ClientSession = class extends TypedEventEmitter {
   }
   /** Shared completion path for send()/sendAsync() after the chat POST. */
   async submitChat(message) {
+    var _a;
+    if (this.transport === "agent") {
+      const applicationId = Number(this.applicationId);
+      const operation = ((_a = this.agentStartOperation) == null ? void 0 : _a.message) === message ? this.agentStartOperation : {
+        message,
+        idempotencyKey: `idem_${crypto.randomUUID().replaceAll("-", "")}`
+      };
+      this.agentStartOperation = operation;
+      let delta;
+      try {
+        delta = await this.client.agent.start(
+          __spreadProps(__spreadValues(__spreadValues({
+            sessionId: this.sessionId,
+            message
+          }, Number.isSafeInteger(applicationId) && applicationId > 0 ? { applicationId } : { app: this.app }), this.model ? { model: this.model } : {}), {
+            wallets: this.agentWallets()
+          }),
+          { idempotencyKey: operation.idempotencyKey }
+        );
+      } catch (error) {
+        if (error instanceof AgentApiError && !error.retryable) {
+          this.agentStartOperation = void 0;
+        }
+        throw error;
+      }
+      this.agentStartOperation = void 0;
+      this.applyAgentDelta(delta);
+      return this.agentState(delta);
+    }
     const response = await this.client.sendMessage(this.sessionId, message, {
       app: this.app,
       applicationId: this.applicationId,
@@ -4117,6 +4310,241 @@ var ClientSession = class extends TypedEventEmitter {
     this.assertUserStateAligned(response.user_state);
     this.applyState(response);
     return response;
+  }
+  agentActive(delta) {
+    return delta.status === "processing" || delta.status === "awaiting_user";
+  }
+  agentState(delta) {
+    return {
+      messages: this._messages,
+      title: this._title,
+      is_processing: this.agentActive(delta)
+    };
+  }
+  agentWallets() {
+    var _a, _b, _c;
+    const normalized = UserState.normalize(this.userState);
+    const chainId3 = Number((_a = normalized == null ? void 0 : normalized.evm) == null ? void 0 : _a.chain_id);
+    return __spreadValues(__spreadValues({}, ((_b = normalized == null ? void 0 : normalized.evm) == null ? void 0 : _b.address) ? {
+      evm: __spreadValues({
+        address: normalized.evm.address
+      }, Number.isSafeInteger(chainId3) && chainId3 > 0 ? { chainId: chainId3 } : {})
+    } : {}), ((_c = normalized == null ? void 0 : normalized.svm) == null ? void 0 : _c.address) ? {
+      svm: __spreadValues({
+        address: normalized.svm.address
+      }, normalized.svm.cluster ? { cluster: normalized.svm.cluster } : {})
+    } : {});
+  }
+  applyAgentDelta(delta) {
+    if (delta.sessionId !== this.sessionId) {
+      throw new TypeError("Agent response session does not match the request");
+    }
+    this.agentCursor = delta.cursor;
+    this.agentStatus = delta.status;
+    let messagesChanged = false;
+    for (const incoming of delta.messages) {
+      const message = this.agentMessage(incoming);
+      const index = message.id ? this._messages.findIndex((current) => current.id === message.id) : -1;
+      if (index >= 0) this._messages[index] = message;
+      else this._messages.push(message);
+      messagesChanged = true;
+    }
+    if (messagesChanged) this.emit("messages", [...this._messages]);
+    if (delta.title && delta.title !== this._title) {
+      this._title = delta.title;
+      this.emit("title_changed", { title: delta.title });
+    }
+    this.applyAgentActivity(delta.activity);
+    this.syncAgentActions(delta.actions);
+  }
+  agentMessage(message) {
+    var _a;
+    return __spreadValues(__spreadValues({
+      id: message.id,
+      sender: message.role,
+      content: message.content,
+      timestamp: message.createdAt,
+      is_streaming: message.streaming,
+      tool_result: (_a = message.toolResult) != null ? _a : null
+    }, message.toolName ? { tool_name: message.toolName } : {}), message.toolArguments !== void 0 ? { tool_arguments: message.toolArguments } : {});
+  }
+  applyAgentActivity(activity) {
+    for (const event of activity) {
+      const type = typeof event.type === "string" ? event.type : void 0;
+      if (type === "tool_update" || type === "tool_complete" || type === "task_started" || type === "task_activity" || type === "task_completed") {
+        this.emit(type, event);
+      }
+    }
+  }
+  syncAgentActions(actions) {
+    const visible = /* @__PURE__ */ new Set();
+    for (const action of actions) {
+      this.agentActions.set(action.id, action);
+      if (action.status !== "pending") continue;
+      visible.add(action.id);
+      this.enqueueAgentAction(action);
+    }
+    for (const request of this.walletController.list()) {
+      const actionId = this.actionIdForRequest(request.id);
+      if (this.agentActions.has(actionId) && !visible.has(actionId)) {
+        this.walletController.dismiss(request.id);
+      }
+    }
+  }
+  enqueueAgentAction(action) {
+    var _a, _b, _c, _d, _e;
+    if (action.type === "external_transaction" && action.chainFamily === "evm") {
+      const typed2 = action;
+      this.walletController.enqueue("transaction", {
+        requestId: typed2.id,
+        chainId: typed2.chainId,
+        aaPreference: "none",
+        calls: typed2.transactions.map((transaction, index) => {
+          var _a2;
+          return {
+            txId: index + 1,
+            to: transaction.to,
+            value: transaction.value,
+            data: transaction.data,
+            chainId: typed2.chainId,
+            from: transaction.from,
+            gas: (_a2 = transaction.gas) != null ? _a2 : void 0,
+            description: transaction.description
+          };
+        }),
+        txIds: typed2.transactions.map((_, index) => index + 1)
+      });
+      return;
+    }
+    if (action.type === "external_transaction") {
+      const typed2 = action;
+      const transaction = typed2.transactions[0];
+      if (transaction) {
+        this.walletController.enqueue("solana_sign_and_send", {
+          requestId: typed2.id,
+          unsignedTx: transaction.unsignedTransactionBase64,
+          description: typed2.description,
+          cluster: typed2.cluster,
+          transactions: typed2.transactions.map((item) => ({
+            id: item.id,
+            unsignedTx: item.unsignedTransactionBase64,
+            description: item.description
+          }))
+        });
+      }
+      return;
+    }
+    const typed = action;
+    this.walletController.enqueue("signing", {
+      requestId: typed.id,
+      chainFamily: typed.chainFamily,
+      executionKind: typed.executionKind === "account_abstraction" || typed.executionKind === "hosted" ? "erc4337" : typed.executionKind,
+      signer: typed.signer,
+      chainId: (_a = typed.chainId) != null ? _a : void 0,
+      cluster: (_b = typed.cluster) != null ? _b : void 0,
+      description: typed.description,
+      payloads: typed.payloads.map((payload) => {
+        if (payload.kind === "evm_personal") {
+          return { kind: payload.kind, message: payload.message };
+        }
+        if (payload.kind === "evm_typed_data") {
+          return { kind: payload.kind, typedData: payload.typedData };
+        }
+        if (payload.kind === "svm_message") {
+          return { kind: payload.kind, messageBase64: payload.messageBase64 };
+        }
+        return {
+          kind: payload.kind,
+          transactionBase64: payload.transactionBase64
+        };
+      }),
+      broadcaster: typed.broadcaster,
+      operationId: (_c = typed.operationId) != null ? _c : void 0,
+      executor: typed.executor,
+      expiresAt: (_d = typed.expiresAt) != null ? _d : void 0,
+      callsDigest: typed.callsDigest,
+      calls: typed.calls,
+      fees: typed.fees,
+      sponsorship: (_e = typed.sponsorship) != null ? _e : void 0
+    });
+  }
+  async resolveAgentAction(request, result) {
+    var _a, _b, _c;
+    const action = this.agentActions.get(this.actionIdForRequest(request.id));
+    if (!action)
+      throw new Error(`No Agent action for wallet request "${request.id}"`);
+    let actionResult;
+    if (action.type === "signing_request" && result.kind === "signing") {
+      actionResult = {
+        status: "signed",
+        revision: action.revision,
+        outputs: action.payloads.map((payload, index) => __spreadValues({
+          id: payload.id
+        }, payload.kind === "svm_transaction" ? { signedTransactionBase64: result.signatures[index] } : { signature: result.signatures[index] }))
+      };
+    } else if (action.type === "external_transaction" && action.chainFamily === "evm" && result.kind === "transaction") {
+      const completed = new Set(
+        (_a = result.completedTxIds) != null ? _a : action.transactions.map((_, index) => index + 1)
+      );
+      const failed = new Set((_b = result.failedTxIds) != null ? _b : []);
+      actionResult = {
+        status: "submitted",
+        revision: action.revision,
+        legs: action.transactions.map((transaction, index) => {
+          var _a2, _b2, _c2;
+          return __spreadValues(__spreadValues({
+            id: transaction.id,
+            status: completed.has(index + 1) ? "submitted" : failed.has(index + 1) ? "failed" : "skipped"
+          }, completed.has(index + 1) ? { transactionId: (_b2 = (_a2 = result.txHashes) == null ? void 0 : _a2[index]) != null ? _b2 : result.txHash } : {}), failed.has(index + 1) ? { reason: (_c2 = result.failureReason) != null ? _c2 : "Transaction failed" } : {});
+        })
+      };
+    } else if (action.type === "external_transaction" && action.chainFamily === "svm" && (result.kind === "solana_send" || result.kind === "solana_sign_and_send")) {
+      const byId = new Map(
+        ((_c = result.legs) != null ? _c : []).map((leg) => [leg.id, leg])
+      );
+      if (action.transactions.length > 1 && byId.size === 0) {
+        throw new Error(
+          `SVM Agent batch "${action.id}" requires per-leg wallet results`
+        );
+      }
+      actionResult = {
+        status: "submitted",
+        revision: action.revision,
+        legs: action.transactions.map((transaction, index) => {
+          var _a2, _b2;
+          const leg = (_a2 = byId.get(transaction.id)) != null ? _a2 : index === 0 && action.transactions.length === 1 ? {
+            id: transaction.id,
+            status: "submitted",
+            signature: result.signature,
+            signedTx: result.signedTx
+          } : void 0;
+          return __spreadValues(__spreadValues(__spreadValues({
+            id: transaction.id,
+            status: (_b2 = leg == null ? void 0 : leg.status) != null ? _b2 : "skipped"
+          }, (leg == null ? void 0 : leg.signature) ? { transactionId: leg.signature } : {}), (leg == null ? void 0 : leg.signedTx) ? { signedTransactionBase64: leg.signedTx } : {}), (leg == null ? void 0 : leg.reason) ? { reason: leg.reason } : {});
+        })
+      };
+    } else {
+      throw new Error(`Agent action/result kind mismatch for "${request.id}"`);
+    }
+    await this.client.agent.resolveAction(
+      this.sessionId,
+      action.id,
+      actionResult
+    );
+  }
+  async rejectAgentAction(request, reason) {
+    const action = this.agentActions.get(this.actionIdForRequest(request.id));
+    if (!action)
+      throw new Error(`No Agent action for wallet request "${request.id}"`);
+    await this.client.agent.resolveAction(this.sessionId, action.id, {
+      status: "rejected",
+      revision: action.revision,
+      reason: reason != null ? reason : "Request rejected"
+    });
+  }
+  actionIdForRequest(requestId) {
+    return requestId.startsWith("txreq-") ? requestId.slice(6) : requestId;
   }
   resumeAfterWalletResponse() {
     if (!this._isProcessing) {
@@ -4701,6 +5129,8 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   ALCHEMY_CHAIN_SLUGS,
   AOMI_TASK_EVENT_TYPES,
   AccountCredentialUnavailableError,
+  AgentApiError,
+  AgentTransport,
   AomiClient,
   CHAINS_BY_ID,
   CHAIN_NAMES,

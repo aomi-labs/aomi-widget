@@ -763,14 +763,24 @@ describe("AomiClient transport selection", () => {
   });
 
   it("uses Agent sessions while preserving thread compatibility fields", async () => {
-    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(
-      Response.json({
-        sessions: [
-          { id: "thread-1", title: "One", updatedAt: 456, archived: false },
-        ],
-        nextCursor: null,
-      }),
-    );
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          thread_id: "thread-1",
+          title: null,
+          last_active_at: 123,
+          is_archived: false,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          sessions: [
+            { id: "thread-1", title: "One", updatedAt: 456, archived: false },
+          ],
+          nextCursor: null,
+        }),
+      );
     const client = new AomiClient({
       baseUrl: "http://unit.test",
       fetch,
@@ -789,9 +799,12 @@ describe("AomiClient transport selection", () => {
     ]);
 
     expect(String(fetch.mock.calls[0]?.[0])).toBe(
+      "http://unit.test/api/threads",
+    );
+    expect(String(fetch.mock.calls[1]?.[0])).toBe(
       "http://unit.test/v1/agent/sessions?limit=100",
     );
-    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   it("archives and unarchives through the Agent sessions endpoint", async () => {

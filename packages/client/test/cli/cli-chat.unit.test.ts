@@ -195,7 +195,7 @@ describe("CLI chat wallet sync", () => {
     expect(sendSystemMessage).not.toHaveBeenCalled();
   });
 
-  it("syncs an SVM-only session with no EVM key", async () => {
+  it("stages an SVM-only session with no EVM key", async () => {
     const resolveUserState = vi.fn();
     const syncUserState = vi.fn().mockResolvedValue(undefined);
 
@@ -227,7 +227,7 @@ describe("CLI chat wallet sync", () => {
       },
       ext: { client_type: "ts_cli" },
     });
-    expect(syncUserState).toHaveBeenCalledTimes(1);
+    expect(syncUserState).not.toHaveBeenCalled();
   });
 
   it("does not sync or emit wallet:state_changed when chainId is missing", async () => {

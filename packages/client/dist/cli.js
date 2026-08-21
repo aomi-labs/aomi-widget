@@ -1359,6 +1359,132 @@ var init_app_descriptor = __esm({
   }
 });
 
+// src/agent/transport.ts
+async function parseAgentResponse(response) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h;
+  if (response.ok) {
+    if (response.status === 204) return void 0;
+    return await response.json();
+  }
+  const body = await response.json().catch(() => null);
+  const code = (_b = (_a3 = body == null ? void 0 : body.error) == null ? void 0 : _a3.code) != null ? _b : "agent_request_failed";
+  throw new AgentApiError(
+    response.status,
+    code,
+    (_d = (_c = body == null ? void 0 : body.error) == null ? void 0 : _c.message) != null ? _d : `Agent request failed with HTTP ${response.status}`,
+    response.status === 408 || response.status === 429 || response.status >= 500,
+    (_g = (_f = (_e = body == null ? void 0 : body.error) == null ? void 0 : _e.requestId) != null ? _f : response.headers.get("x-request-id")) != null ? _g : void 0,
+    (_h = body == null ? void 0 : body.error) == null ? void 0 : _h.details
+  );
+}
+function mutationHeaders(options = {}) {
+  var _a3;
+  return __spreadValues({
+    "idempotency-key": (_a3 = options.idempotencyKey) != null ? _a3 : randomIdempotencyKey()
+  }, options.paymentSignature ? { "payment-signature": options.paymentSignature } : {});
+}
+function randomIdempotencyKey() {
+  return `idem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
+}
+var AgentApiError, AgentTransport, AgentSessionsTransport;
+var init_transport = __esm({
+  "src/agent/transport.ts"() {
+    "use strict";
+    AgentApiError = class extends Error {
+      constructor(status, code, message, retryable, requestId, details) {
+        super(message);
+        this.status = status;
+        this.code = code;
+        this.retryable = retryable;
+        this.requestId = requestId;
+        this.details = details;
+        this.name = "AgentApiError";
+      }
+    };
+    AgentTransport = class {
+      constructor(requestResponse) {
+        this.requestResponse = requestResponse;
+        this.sessions = new AgentSessionsTransport(requestResponse);
+      }
+      start(request, options = {}) {
+        return this.json("POST", "/v1/agent/chat", {
+          headers: mutationHeaders(options),
+          body: request
+        });
+      }
+      check(sessionId, options = {}) {
+        var _a3;
+        return this.json("GET", `/v1/agent/chat/${encodeURIComponent(sessionId)}`, {
+          query: {
+            cursor: options.cursor,
+            wait: Math.min(Math.max((_a3 = options.waitMs) != null ? _a3 : 0, 0), 3e4)
+          }
+        });
+      }
+      interrupt(sessionId) {
+        return this.json(
+          "POST",
+          `/v1/agent/chat/${encodeURIComponent(sessionId)}/interrupt`,
+          { headers: mutationHeaders() }
+        );
+      }
+      async resolveAction(sessionId, actionId, result, idempotencyKey = randomIdempotencyKey()) {
+        const response = await this.json(
+          "POST",
+          `/v1/agent/chat/${encodeURIComponent(sessionId)}/actions/${encodeURIComponent(actionId)}/result`,
+          { headers: { "idempotency-key": idempotencyKey }, body: result }
+        );
+        return response.action;
+      }
+      async json(method, path, options) {
+        return parseAgentResponse(
+          await this.requestResponse(method, path, options)
+        );
+      }
+    };
+    AgentSessionsTransport = class {
+      constructor(requestResponse) {
+        this.requestResponse = requestResponse;
+      }
+      async list(options = {}) {
+        return this.json("GET", "/v1/agent/sessions", {
+          query: { cursor: options.cursor, limit: options.limit }
+        });
+      }
+      get(sessionId) {
+        return this.json(
+          "GET",
+          `/v1/agent/sessions/${encodeURIComponent(sessionId)}`
+        );
+      }
+      update(sessionId, patch) {
+        return this.json(
+          "PATCH",
+          `/v1/agent/sessions/${encodeURIComponent(sessionId)}`,
+          {
+            headers: mutationHeaders(),
+            body: patch
+          }
+        );
+      }
+      async delete(sessionId) {
+        await parseAgentResponse(
+          await this.requestResponse(
+            "DELETE",
+            `/v1/agent/sessions/${encodeURIComponent(sessionId)}`,
+            { headers: mutationHeaders() }
+          )
+        );
+      }
+      async json(method, path, options) {
+        return parseAgentResponse(
+          await this.requestResponse(method, path, options)
+        );
+      }
+    };
+  }
+});
+
 // src/client.ts
 function previewText(value, max = 80) {
   const singleLine = value.replace(/\s+/g, " ").trim();
@@ -1519,6 +1645,7 @@ var init_client = __esm({
     init_user_state();
     init_sse();
     init_app_descriptor();
+    init_transport();
     SESSION_ID_HEADER = "X-Session-Id";
     THREAD_ID_HEADER = "X-Thread-Id";
     APP_KEY_HEADER = "Aomi-App-Key";
@@ -1553,6 +1680,9 @@ var init_client = __esm({
         );
         this.logger = options.logger;
         this.accountBearer = options.getAccountBearer;
+        this.agent = new AgentTransport(
+          (method, path, requestOptions) => this.requestResponse(method, path, requestOptions)
+        );
         this.sseSubscriber = createSseSubscriber({
           backendUrl: this.baseUrl,
           getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
@@ -1585,7 +1715,22 @@ var init_client = __esm({
        * Prefer the typed helpers below for common chat/session/account flows.
        */
       async request(method, path, options) {
-        var _a3, _b;
+        var _a3;
+        const response = await this.requestResponse(method, path, options);
+        if (!response.ok) {
+          const body = await response.text().catch(() => "");
+          throw new Error(
+            `HTTP ${response.status}: ${response.statusText}${body ? `
+${body}` : ""}`
+          );
+        }
+        if (response.status === 204) return void 0;
+        const contentType = (_a3 = response.headers.get("content-type")) != null ? _a3 : "";
+        return contentType.includes("application/json") ? await response.json() : await response.text();
+      }
+      /** Raw authenticated response transport shared by JSON, SSE, and MCP clients. */
+      async requestResponse(method, path, options) {
+        var _a3;
         const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
         const headers = new Headers(options == null ? void 0 : options.headers);
         if (options == null ? void 0 : options.sessionId) {
@@ -1607,21 +1752,7 @@ var init_client = __esm({
             body: encodeJsonBody(options == null ? void 0 : options.body)
           }
         );
-        if (!response.ok) {
-          const body = await response.text().catch(() => "");
-          throw new Error(
-            `HTTP ${response.status}: ${response.statusText}${body ? `
-${body}` : ""}`
-          );
-        }
-        if (response.status === 204) {
-          return void 0;
-        }
-        const contentType = (_b = response.headers.get("content-type")) != null ? _b : "";
-        if (contentType.includes("application/json")) {
-          return await response.json();
-        }
-        return await response.text();
+        return response;
       }
       /**
        * Fetch current session state (messages, processing status, title).
@@ -1889,31 +2020,37 @@ ${body}` : ""}`
        * List all threads for the authenticated account.
        */
       async listThreads(sessionId) {
-        const url = buildApiUrl(this.baseUrl, "/api/threads");
-        const response = await this.fetchImpl(url, {
-          headers: withSessionHeader(sessionId)
+        var _a3;
+        void sessionId;
+        const sessions = [];
+        let cursor;
+        do {
+          const page = await this.agent.sessions.list({ cursor, limit: 100 });
+          sessions.push(...page.sessions);
+          cursor = (_a3 = page.nextCursor) != null ? _a3 : void 0;
+        } while (cursor);
+        return sessions.map((session) => {
+          var _a4;
+          return {
+            session_id: session.id,
+            title: (_a4 = session.title) != null ? _a4 : null,
+            is_archived: session.archived,
+            last_active_at: session.updatedAt
+          };
         });
-        if (!response.ok) {
-          throw new Error(`Failed to fetch threads: HTTP ${response.status}`);
-        }
-        const threads = await response.json();
-        return threads.map(normalizeThreadWire);
       }
       /**
        * Get a single thread by ID.
        */
       async getThread(sessionId) {
-        const url = buildApiUrl(
-          this.baseUrl,
-          `/api/threads/${encodeURIComponent(sessionId)}`
-        );
-        const response = await this.fetchImpl(url, {
-          headers: withSessionHeader(sessionId)
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        return normalizeThreadWire(await response.json());
+        var _a3;
+        const session = await this.agent.sessions.get(sessionId);
+        return {
+          session_id: session.id,
+          title: (_a3 = session.title) != null ? _a3 : null,
+          is_archived: session.archived,
+          last_active_at: session.updatedAt
+        };
       }
       /**
        * Create a new thread. The client generates the session ID.
@@ -1950,68 +2087,25 @@ ${body}` : ""}`
        * Delete a thread by ID.
        */
       async deleteThread(sessionId) {
-        const url = buildApiUrl(
-          this.baseUrl,
-          `/api/threads/${encodeURIComponent(sessionId)}`
-        );
-        const response = await this.fetchImpl(url, {
-          method: "DELETE",
-          headers: withSessionHeader(sessionId)
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to delete thread: HTTP ${response.status}`);
-        }
+        await this.agent.sessions.delete(sessionId);
       }
       /**
        * Rename a thread.
        */
       async renameThread(sessionId, newTitle) {
-        const url = buildApiUrl(
-          this.baseUrl,
-          `/api/threads/${encodeURIComponent(sessionId)}`
-        );
-        const response = await this.fetchImpl(url, {
-          method: "PATCH",
-          headers: withSessionHeader(sessionId, {
-            "Content-Type": "application/json"
-          }),
-          body: JSON.stringify({ title: newTitle })
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to rename thread: HTTP ${response.status}`);
-        }
+        await this.agent.sessions.update(sessionId, { title: newTitle });
       }
       /**
        * Archive a thread.
        */
       async archiveThread(sessionId) {
-        const url = buildApiUrl(
-          this.baseUrl,
-          `/api/threads/${encodeURIComponent(sessionId)}/archive`
-        );
-        const response = await this.fetchImpl(url, {
-          method: "POST",
-          headers: withSessionHeader(sessionId)
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to archive thread: HTTP ${response.status}`);
-        }
+        await this.agent.sessions.update(sessionId, { archived: true });
       }
       /**
        * Unarchive a thread.
        */
       async unarchiveThread(sessionId) {
-        const url = buildApiUrl(
-          this.baseUrl,
-          `/api/threads/${encodeURIComponent(sessionId)}/unarchive`
-        );
-        const response = await this.fetchImpl(url, {
-          method: "POST",
-          headers: withSessionHeader(sessionId)
-        });
-        if (!response.ok) {
-          throw new Error(`Failed to unarchive thread: HTTP ${response.status}`);
-        }
+        await this.agent.sessions.update(sessionId, { archived: false });
       }
       // ===========================================================================
       // System Events
@@ -3199,6 +3293,11 @@ var init_wallet = __esm({
         if (this.resolvingRequestIds.has(requestId)) return;
         this.resolvingRequestIds.add(requestId);
         try {
+          if (this.deps.resolveAgentAction) {
+            await this.deps.resolveAgentAction(req, result);
+            this.finishRequest(req);
+            return;
+          }
           const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
           if (req.kind === "transaction" && result.kind === "transaction") {
             await this.resolveTransaction(req.payload, result);
@@ -3237,6 +3336,11 @@ var init_wallet = __esm({
         if (this.resolvingRequestIds.has(requestId)) return;
         this.resolvingRequestIds.add(requestId);
         try {
+          if (this.deps.rejectAgentAction) {
+            await this.deps.rejectAgentAction(req, reason);
+            this.finishRequest(req);
+            return;
+          }
           const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
           if (req.kind === "transaction") {
             const pendingTxIds = txIdsFromPayload(req.payload);
@@ -3415,8 +3519,9 @@ var init_wallet = __esm({
         } else if (kind === "signing") {
           id = payload.requestId;
         } else {
-          const { pendingSolanaId } = payload;
-          if (typeof pendingSolanaId === "number")
+          const { requestId, pendingSolanaId } = payload;
+          if (requestId) id = requestId;
+          if (!id && typeof pendingSolanaId === "number")
             id = `${kind}-${pendingSolanaId}`;
         }
         id != null ? id : id = `wreq-${this.nextId++}`;
@@ -3489,12 +3594,14 @@ var init_session = __esm({
     init_events();
     init_state();
     init_wallet();
+    init_transport();
     init_policy();
     SIGNING_RECOVERY_MIN_INTERVAL_MS = 5e3;
     ClientSession = class extends TypedEventEmitter {
       constructor(clientOrOptions, sessionOptions) {
-        var _a3, _b, _c, _d, _e;
+        var _a3, _b, _c, _d, _e, _f;
         super();
+        this.agentActions = /* @__PURE__ */ new Map();
         this.pollTimer = null;
         this.pollingActive = false;
         this.pollInFlight = false;
@@ -3518,9 +3625,11 @@ var init_session = __esm({
         this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
         this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
         this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
+        this.model = sessionOptions == null ? void 0 : sessionOptions.model;
         this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
         this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
         this.paymentMethod = sessionOptions == null ? void 0 : sessionOptions.paymentMethod;
+        this.transport = (_c = sessionOptions == null ? void 0 : sessionOptions.transport) != null ? _c : "agent";
         const initialUserState = UserState.reconcile(
           void 0,
           sessionOptions == null ? void 0 : sessionOptions.userState
@@ -3530,9 +3639,9 @@ var init_session = __esm({
           "client_type",
           sessionOptions.clientType
         ) : initialUserState;
-        this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
-        this.syncPendingTxRequestsFromUserState = (_d = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _d : true;
-        this.pollIntervalMs = (_e = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _e : 500;
+        this.clientId = (_d = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _d : crypto.randomUUID();
+        this.syncPendingTxRequestsFromUserState = (_e = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _e : true;
+        this.pollIntervalMs = (_f = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _f : 500;
         this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
         this.walletController = new SessionWalletController({
           getUserState: () => this.userState,
@@ -3540,9 +3649,13 @@ var init_session = __esm({
           sendSystemEvent: (type, payload) => this.sendSystemEvent(type, payload),
           completeSigningRequest: (requestId, body) => this.completeSigningRequest(requestId, body),
           onChange: (requests) => this.emit("wallet_requests_changed", requests),
-          syncPendingTxRequestsFromUserState: this.syncPendingTxRequestsFromUserState
+          syncPendingTxRequestsFromUserState: this.syncPendingTxRequestsFromUserState,
+          resolveAgentAction: this.transport === "agent" ? (request, result) => this.resolveAgentAction(request, result) : void 0,
+          rejectAgentAction: this.transport === "agent" ? (request, reason) => this.rejectAgentAction(request, reason) : void 0
         });
-        queueMicrotask(() => this.scheduleSigningRequestRecovery(true));
+        if (this.transport === "legacy") {
+          queueMicrotask(() => this.scheduleSigningRequestRecovery(true));
+        }
       }
       // ===========================================================================
       // Public API — Chat
@@ -3620,11 +3733,15 @@ var init_session = __esm({
        */
       async interrupt() {
         this.stopPolling();
-        const response = await this.client.interrupt(this.sessionId, {
-          app: this.app,
-          applicationId: this.applicationId
-        });
-        this.applyState(response);
+        if (this.transport === "agent") {
+          this.applyAgentDelta(await this.client.agent.interrupt(this.sessionId));
+        } else {
+          const response = await this.client.interrupt(this.sessionId, {
+            app: this.app,
+            applicationId: this.applicationId
+          });
+          this.applyState(response);
+        }
         this._isProcessing = false;
         this.emit("processing_end", void 0);
         this.resolvePending();
@@ -3671,6 +3788,10 @@ var init_session = __esm({
       getIsProcessing() {
         return this._isProcessing;
       }
+      /** Last status observed from the canonical Agent transport. */
+      getAgentStatus() {
+        return this.agentStatus;
+      }
       getIsSSEActive() {
         return this.isSSEActive;
       }
@@ -3692,6 +3813,7 @@ var init_session = __esm({
         var _a3, _b, _c, _d;
         const previousApplicationId = (_a3 = this.applicationId) == null ? void 0 : _a3.toString();
         this.app = options.app;
+        this.model = options.model;
         this.applicationId = options.applicationId;
         this.apiKey = options.apiKey;
         this.clientId = (_b = options.clientId) != null ? _b : this.clientId;
@@ -3704,6 +3826,10 @@ var init_session = __esm({
         }
       }
       startSSE() {
+        if (this.transport === "agent") {
+          if (this._isProcessing) this.startPolling();
+          return;
+        }
         this.unsubscribeSSE = this.client.subscribeSSE(
           this.sessionId,
           (event) => this.handleSSEEvent(event),
@@ -3747,6 +3873,13 @@ var init_session = __esm({
       }
       async syncUserState() {
         this.assertOpen();
+        if (this.transport === "agent") {
+          const delta = await this.client.agent.check(this.sessionId, {
+            cursor: this.agentCursor
+          });
+          this.applyAgentDelta(delta);
+          return this.agentState(delta);
+        }
         const state = await this.client.fetchState(
           this.sessionId,
           this.outboundUserState(),
@@ -3770,6 +3903,21 @@ var init_session = __esm({
        */
       async fetchCurrentState() {
         this.assertOpen();
+        if (this.transport === "agent") {
+          const delta = await this.client.agent.check(this.sessionId, {
+            cursor: this.agentCursor
+          });
+          this.applyAgentDelta(delta);
+          const active = this.agentActive(delta);
+          if (active && !this.pollingActive) {
+            this._isProcessing = true;
+            this.emit("processing_start", void 0);
+            this.startPolling();
+          } else if (!active) {
+            this._isProcessing = false;
+          }
+          return;
+        }
         const state = await this.client.fetchState(
           this.sessionId,
           this.outboundUserState(),
@@ -3826,6 +3974,27 @@ var init_session = __esm({
         this.pollTimer = null;
         this.pollInFlight = true;
         try {
+          if (this.transport === "agent") {
+            const delta = await this.client.agent.check(this.sessionId, {
+              cursor: this.agentCursor,
+              waitMs: 25e3
+            });
+            if (!this.pollingActive) return;
+            this.pollFailureCount = 0;
+            this.applyAgentDelta(delta);
+            const active = this.agentActive(delta);
+            if (this._backendWasProcessing && !active) {
+              this.emit("backend_idle", void 0);
+            }
+            this._backendWasProcessing = active;
+            if (!active && this.walletController.length === 0) {
+              this.stopPolling();
+              this._isProcessing = false;
+              this.emit("processing_end", void 0);
+              this.resolvePending();
+            }
+            return;
+          }
           const state = await this.client.fetchState(
             this.sessionId,
             this.outboundUserState(),
@@ -3896,7 +4065,8 @@ var init_session = __esm({
        * may run twice per second; durable handoff recovery does not need to.
        */
       scheduleSigningRequestRecovery(immediate = false) {
-        if (this.closed || this.signingRecoveryInFlight) return;
+        if (this.transport === "agent" || this.closed || this.signingRecoveryInFlight)
+          return;
         const elapsed = Date.now() - this.lastSigningRecoveryAt;
         const delay2 = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
         if (delay2 === 0) {
@@ -3998,6 +4168,35 @@ var init_session = __esm({
       }
       /** Shared completion path for send()/sendAsync() after the chat POST. */
       async submitChat(message) {
+        var _a3;
+        if (this.transport === "agent") {
+          const applicationId = Number(this.applicationId);
+          const operation = ((_a3 = this.agentStartOperation) == null ? void 0 : _a3.message) === message ? this.agentStartOperation : {
+            message,
+            idempotencyKey: `idem_${crypto.randomUUID().replaceAll("-", "")}`
+          };
+          this.agentStartOperation = operation;
+          let delta;
+          try {
+            delta = await this.client.agent.start(
+              __spreadProps(__spreadValues(__spreadValues({
+                sessionId: this.sessionId,
+                message
+              }, Number.isSafeInteger(applicationId) && applicationId > 0 ? { applicationId } : { app: this.app }), this.model ? { model: this.model } : {}), {
+                wallets: this.agentWallets()
+              }),
+              { idempotencyKey: operation.idempotencyKey }
+            );
+          } catch (error) {
+            if (error instanceof AgentApiError && !error.retryable) {
+              this.agentStartOperation = void 0;
+            }
+            throw error;
+          }
+          this.agentStartOperation = void 0;
+          this.applyAgentDelta(delta);
+          return this.agentState(delta);
+        }
         const response = await this.client.sendMessage(this.sessionId, message, {
           app: this.app,
           applicationId: this.applicationId,
@@ -4009,6 +4208,241 @@ var init_session = __esm({
         this.assertUserStateAligned(response.user_state);
         this.applyState(response);
         return response;
+      }
+      agentActive(delta) {
+        return delta.status === "processing" || delta.status === "awaiting_user";
+      }
+      agentState(delta) {
+        return {
+          messages: this._messages,
+          title: this._title,
+          is_processing: this.agentActive(delta)
+        };
+      }
+      agentWallets() {
+        var _a3, _b, _c;
+        const normalized = UserState.normalize(this.userState);
+        const chainId3 = Number((_a3 = normalized == null ? void 0 : normalized.evm) == null ? void 0 : _a3.chain_id);
+        return __spreadValues(__spreadValues({}, ((_b = normalized == null ? void 0 : normalized.evm) == null ? void 0 : _b.address) ? {
+          evm: __spreadValues({
+            address: normalized.evm.address
+          }, Number.isSafeInteger(chainId3) && chainId3 > 0 ? { chainId: chainId3 } : {})
+        } : {}), ((_c = normalized == null ? void 0 : normalized.svm) == null ? void 0 : _c.address) ? {
+          svm: __spreadValues({
+            address: normalized.svm.address
+          }, normalized.svm.cluster ? { cluster: normalized.svm.cluster } : {})
+        } : {});
+      }
+      applyAgentDelta(delta) {
+        if (delta.sessionId !== this.sessionId) {
+          throw new TypeError("Agent response session does not match the request");
+        }
+        this.agentCursor = delta.cursor;
+        this.agentStatus = delta.status;
+        let messagesChanged = false;
+        for (const incoming of delta.messages) {
+          const message = this.agentMessage(incoming);
+          const index = message.id ? this._messages.findIndex((current) => current.id === message.id) : -1;
+          if (index >= 0) this._messages[index] = message;
+          else this._messages.push(message);
+          messagesChanged = true;
+        }
+        if (messagesChanged) this.emit("messages", [...this._messages]);
+        if (delta.title && delta.title !== this._title) {
+          this._title = delta.title;
+          this.emit("title_changed", { title: delta.title });
+        }
+        this.applyAgentActivity(delta.activity);
+        this.syncAgentActions(delta.actions);
+      }
+      agentMessage(message) {
+        var _a3;
+        return __spreadValues(__spreadValues({
+          id: message.id,
+          sender: message.role,
+          content: message.content,
+          timestamp: message.createdAt,
+          is_streaming: message.streaming,
+          tool_result: (_a3 = message.toolResult) != null ? _a3 : null
+        }, message.toolName ? { tool_name: message.toolName } : {}), message.toolArguments !== void 0 ? { tool_arguments: message.toolArguments } : {});
+      }
+      applyAgentActivity(activity) {
+        for (const event of activity) {
+          const type = typeof event.type === "string" ? event.type : void 0;
+          if (type === "tool_update" || type === "tool_complete" || type === "task_started" || type === "task_activity" || type === "task_completed") {
+            this.emit(type, event);
+          }
+        }
+      }
+      syncAgentActions(actions) {
+        const visible = /* @__PURE__ */ new Set();
+        for (const action of actions) {
+          this.agentActions.set(action.id, action);
+          if (action.status !== "pending") continue;
+          visible.add(action.id);
+          this.enqueueAgentAction(action);
+        }
+        for (const request of this.walletController.list()) {
+          const actionId = this.actionIdForRequest(request.id);
+          if (this.agentActions.has(actionId) && !visible.has(actionId)) {
+            this.walletController.dismiss(request.id);
+          }
+        }
+      }
+      enqueueAgentAction(action) {
+        var _a3, _b, _c, _d, _e;
+        if (action.type === "external_transaction" && action.chainFamily === "evm") {
+          const typed2 = action;
+          this.walletController.enqueue("transaction", {
+            requestId: typed2.id,
+            chainId: typed2.chainId,
+            aaPreference: "none",
+            calls: typed2.transactions.map((transaction, index) => {
+              var _a4;
+              return {
+                txId: index + 1,
+                to: transaction.to,
+                value: transaction.value,
+                data: transaction.data,
+                chainId: typed2.chainId,
+                from: transaction.from,
+                gas: (_a4 = transaction.gas) != null ? _a4 : void 0,
+                description: transaction.description
+              };
+            }),
+            txIds: typed2.transactions.map((_, index) => index + 1)
+          });
+          return;
+        }
+        if (action.type === "external_transaction") {
+          const typed2 = action;
+          const transaction = typed2.transactions[0];
+          if (transaction) {
+            this.walletController.enqueue("solana_sign_and_send", {
+              requestId: typed2.id,
+              unsignedTx: transaction.unsignedTransactionBase64,
+              description: typed2.description,
+              cluster: typed2.cluster,
+              transactions: typed2.transactions.map((item) => ({
+                id: item.id,
+                unsignedTx: item.unsignedTransactionBase64,
+                description: item.description
+              }))
+            });
+          }
+          return;
+        }
+        const typed = action;
+        this.walletController.enqueue("signing", {
+          requestId: typed.id,
+          chainFamily: typed.chainFamily,
+          executionKind: typed.executionKind === "account_abstraction" || typed.executionKind === "hosted" ? "erc4337" : typed.executionKind,
+          signer: typed.signer,
+          chainId: (_a3 = typed.chainId) != null ? _a3 : void 0,
+          cluster: (_b = typed.cluster) != null ? _b : void 0,
+          description: typed.description,
+          payloads: typed.payloads.map((payload) => {
+            if (payload.kind === "evm_personal") {
+              return { kind: payload.kind, message: payload.message };
+            }
+            if (payload.kind === "evm_typed_data") {
+              return { kind: payload.kind, typedData: payload.typedData };
+            }
+            if (payload.kind === "svm_message") {
+              return { kind: payload.kind, messageBase64: payload.messageBase64 };
+            }
+            return {
+              kind: payload.kind,
+              transactionBase64: payload.transactionBase64
+            };
+          }),
+          broadcaster: typed.broadcaster,
+          operationId: (_c = typed.operationId) != null ? _c : void 0,
+          executor: typed.executor,
+          expiresAt: (_d = typed.expiresAt) != null ? _d : void 0,
+          callsDigest: typed.callsDigest,
+          calls: typed.calls,
+          fees: typed.fees,
+          sponsorship: (_e = typed.sponsorship) != null ? _e : void 0
+        });
+      }
+      async resolveAgentAction(request, result) {
+        var _a3, _b, _c;
+        const action = this.agentActions.get(this.actionIdForRequest(request.id));
+        if (!action)
+          throw new Error(`No Agent action for wallet request "${request.id}"`);
+        let actionResult;
+        if (action.type === "signing_request" && result.kind === "signing") {
+          actionResult = {
+            status: "signed",
+            revision: action.revision,
+            outputs: action.payloads.map((payload, index) => __spreadValues({
+              id: payload.id
+            }, payload.kind === "svm_transaction" ? { signedTransactionBase64: result.signatures[index] } : { signature: result.signatures[index] }))
+          };
+        } else if (action.type === "external_transaction" && action.chainFamily === "evm" && result.kind === "transaction") {
+          const completed = new Set(
+            (_a3 = result.completedTxIds) != null ? _a3 : action.transactions.map((_, index) => index + 1)
+          );
+          const failed = new Set((_b = result.failedTxIds) != null ? _b : []);
+          actionResult = {
+            status: "submitted",
+            revision: action.revision,
+            legs: action.transactions.map((transaction, index) => {
+              var _a4, _b2, _c2;
+              return __spreadValues(__spreadValues({
+                id: transaction.id,
+                status: completed.has(index + 1) ? "submitted" : failed.has(index + 1) ? "failed" : "skipped"
+              }, completed.has(index + 1) ? { transactionId: (_b2 = (_a4 = result.txHashes) == null ? void 0 : _a4[index]) != null ? _b2 : result.txHash } : {}), failed.has(index + 1) ? { reason: (_c2 = result.failureReason) != null ? _c2 : "Transaction failed" } : {});
+            })
+          };
+        } else if (action.type === "external_transaction" && action.chainFamily === "svm" && (result.kind === "solana_send" || result.kind === "solana_sign_and_send")) {
+          const byId = new Map(
+            ((_c = result.legs) != null ? _c : []).map((leg) => [leg.id, leg])
+          );
+          if (action.transactions.length > 1 && byId.size === 0) {
+            throw new Error(
+              `SVM Agent batch "${action.id}" requires per-leg wallet results`
+            );
+          }
+          actionResult = {
+            status: "submitted",
+            revision: action.revision,
+            legs: action.transactions.map((transaction, index) => {
+              var _a4, _b2;
+              const leg = (_a4 = byId.get(transaction.id)) != null ? _a4 : index === 0 && action.transactions.length === 1 ? {
+                id: transaction.id,
+                status: "submitted",
+                signature: result.signature,
+                signedTx: result.signedTx
+              } : void 0;
+              return __spreadValues(__spreadValues(__spreadValues({
+                id: transaction.id,
+                status: (_b2 = leg == null ? void 0 : leg.status) != null ? _b2 : "skipped"
+              }, (leg == null ? void 0 : leg.signature) ? { transactionId: leg.signature } : {}), (leg == null ? void 0 : leg.signedTx) ? { signedTransactionBase64: leg.signedTx } : {}), (leg == null ? void 0 : leg.reason) ? { reason: leg.reason } : {});
+            })
+          };
+        } else {
+          throw new Error(`Agent action/result kind mismatch for "${request.id}"`);
+        }
+        await this.client.agent.resolveAction(
+          this.sessionId,
+          action.id,
+          actionResult
+        );
+      }
+      async rejectAgentAction(request, reason) {
+        const action = this.agentActions.get(this.actionIdForRequest(request.id));
+        if (!action)
+          throw new Error(`No Agent action for wallet request "${request.id}"`);
+        await this.client.agent.resolveAction(this.sessionId, action.id, {
+          status: "rejected",
+          revision: action.revision,
+          reason: reason != null ? reason : "Request rejected"
+        });
+      }
+      actionIdForRequest(requestId) {
+        return requestId.startsWith("txreq-") ? requestId.slice(6) : requestId;
       }
       resumeAfterWalletResponse() {
         if (!this._isProcessing) {
@@ -4334,7 +4768,9 @@ function getBackendPendingId(tx) {
 function hasSameBackendPendingId(existing, next) {
   const existingBackendId = getBackendPendingId(existing);
   const nextBackendId = getBackendPendingId(next);
-  return existing.kind === next.kind && existingBackendId !== void 0 && nextBackendId !== void 0 && existingBackendId === nextBackendId;
+  return Boolean(
+    existing.agentRequestId && next.agentRequestId && existing.agentRequestId === next.agentRequestId
+  ) || existing.kind === next.kind && existingBackendId !== void 0 && nextBackendId !== void 0 && existingBackendId === nextBackendId;
 }
 function ensureStorageDirs() {
   mkdirSync(SESSIONS_DIR, { recursive: true, mode: STATE_DIR_MODE });
@@ -4663,7 +5099,10 @@ function clearState() {
   writeActiveLocalId(null);
 }
 function hasSameSolanaPendingId(existing, next) {
-  return existing.solanaId === next.solanaId;
+  if (existing.agentRequestId && next.agentRequestId) {
+    return existing.agentRequestId === next.agentRequestId;
+  }
+  return existing.solanaId !== void 0 && existing.solanaId === next.solanaId;
 }
 function syncPendingTxsFromUserState(state, userState) {
   var _a3, _b;
@@ -5699,6 +6138,13 @@ var init_cli_session = __esm({
         record.backendNotified = true;
         this.save();
       }
+      markSignedAgentActionNotified(agentRequestId) {
+        var _a3;
+        const record = [...(_a3 = this.state.signedTxs) != null ? _a3 : []].reverse().find((tx) => tx.agentRequestId === agentRequestId);
+        if (!record || record.backendNotified === true) return;
+        record.backendNotified = true;
+        this.save();
+      }
       /** Add a pending Solana tx with dedup on `solanaId`. */
       addPendingSolTx(tx) {
         if (!this.state.pendingSolTxs) this.state.pendingSolTxs = [];
@@ -5707,7 +6153,7 @@ var init_cli_session = __esm({
         );
         if (isDuplicate) return null;
         const pending = __spreadProps(__spreadValues({}, tx), {
-          id: `tx-${tx.solanaId}`
+          id: tx.solanaId === void 0 ? this.getNextSolTxId() : `tx-${tx.solanaId}`
         });
         this.state.pendingSolTxs.push(pending);
         this.save();
@@ -5801,6 +6247,7 @@ Available: ${available}`);
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
       createClientSession(config, options) {
+        var _a3;
         const paymentFetch = createCliPaymentFetch(config, options == null ? void 0 : options.onPayment);
         const session = new ClientSession(
           {
@@ -5813,6 +6260,7 @@ Available: ${available}`);
             sessionId: this.state.sessionId,
             clientId: this.state.clientId,
             app: this.state.app,
+            model: (_a3 = config == null ? void 0 : config.model) != null ? _a3 : this.state.model,
             applicationId: config == null ? void 0 : config.applicationId,
             apiKey: this.state.apiKey,
             paymentMethod: config == null ? void 0 : config.paymentMethod
@@ -5859,6 +6307,17 @@ Available: ${available}`);
         });
         const max = allIds.length > 0 ? Math.max(...allIds) : 0;
         return `tx-${max + 1}`;
+      }
+      getNextSolTxId() {
+        var _a3, _b;
+        const allIds = [
+          ...(_a3 = this.state.pendingSolTxs) != null ? _a3 : [],
+          ...(_b = this.state.signedSolTxs) != null ? _b : []
+        ].map((tx) => {
+          const match = tx.id.match(/^tx-(\d+)$/);
+          return match ? parseInt(match[1], 10) : 0;
+        });
+        return `tx-${allIds.length > 0 ? Math.max(...allIds) + 1 : 1}`;
       }
     };
   }
@@ -6064,15 +6523,7 @@ async function applyRequestedModelIfPresent(config, cli, session) {
   if (!requestedModel) {
     return;
   }
-  const alreadySynced = cli.modelSynced && requestedModel === cli.model;
-  if (alreadySynced) {
-    return;
-  }
-  await session.client.setModel(cli.sessionId, requestedModel, {
-    app: cli.app,
-    applicationId: config.applicationId,
-    apiKey: cli.apiKey
-  });
+  void session;
   cli.setModel(requestedModel);
 }
 var init_context = __esm({
@@ -6086,7 +6537,78 @@ var init_context = __esm({
 });
 
 // src/cli/transactions.ts
+function walletRequestToPendingTx(request) {
+  var _a3, _b, _c, _d, _e;
+  if (request.kind === "transaction") {
+    const payload = request.payload;
+    const first = (_a3 = payload.calls) == null ? void 0 : _a3[0];
+    return {
+      kind: "transaction",
+      agentRequestId: payload.requestId,
+      txId: payload.txId,
+      to: (_b = payload.to) != null ? _b : first == null ? void 0 : first.to,
+      value: (_c = payload.value) != null ? _c : first == null ? void 0 : first.value,
+      data: (_d = payload.data) != null ? _d : first == null ? void 0 : first.data,
+      chainId: (_e = payload.chainId) != null ? _e : first == null ? void 0 : first.chainId,
+      description: first == null ? void 0 : first.description,
+      timestamp: request.timestamp,
+      payload: request.payload
+    };
+  }
+  if (request.kind === "signing" && request.payload.chainFamily === "evm") {
+    const signable = request.payload.payloads[0];
+    if (!signable || signable.kind !== "evm_personal" && signable.kind !== "evm_typed_data") {
+      return null;
+    }
+    const payload = __spreadValues({
+      requestId: request.id,
+      signer: request.payload.signer,
+      chainId: request.payload.chainId,
+      description: request.payload.description
+    }, signable.kind === "evm_personal" ? { non_typed_data: signable.message } : {
+      typed_data: signable.typedData
+    });
+    return {
+      kind: "eip712_sign",
+      agentRequestId: request.id,
+      eip712Id: payload.eip712Id,
+      description: payload.description,
+      timestamp: request.timestamp,
+      payload: request.payload
+    };
+  }
+  return null;
+}
 function walletRequestToPendingSolTx(request) {
+  if (request.kind === "signing" && request.payload.chainFamily === "svm") {
+    const signable = request.payload.payloads[0];
+    if (!signable) return null;
+    if (signable.kind === "svm_message") {
+      return {
+        agentRequestId: request.id,
+        requestKind: "solana_sign_message",
+        message: signable.messageBase64,
+        cluster: request.payload.cluster,
+        signer: request.payload.signer,
+        description: request.payload.description,
+        timestamp: request.timestamp,
+        payload: request.payload
+      };
+    }
+    if (signable.kind === "svm_transaction") {
+      return {
+        agentRequestId: request.id,
+        requestKind: "solana_sign",
+        unsignedTx: signable.transactionBase64,
+        cluster: request.payload.cluster,
+        signer: request.payload.signer,
+        description: request.payload.description,
+        timestamp: request.timestamp,
+        payload: request.payload
+      };
+    }
+    return null;
+  }
   if (request.kind === "solana_sign_message") {
     const payload2 = request.payload;
     if (payload2.pendingSolanaId === void 0 || payload2.message === void 0) {
@@ -6106,10 +6628,11 @@ function walletRequestToPendingSolTx(request) {
     return null;
   }
   const payload = request.payload;
-  if (payload.pendingSolanaId === void 0 || payload.unsignedTx === void 0) {
+  if (payload.pendingSolanaId === void 0 && !payload.requestId || payload.unsignedTx === void 0) {
     return null;
   }
   return {
+    agentRequestId: payload.requestId,
     solanaId: payload.pendingSolanaId,
     solanaIds: payload.pendingSolanaIds,
     requestKind: request.kind,
@@ -6123,6 +6646,20 @@ function walletRequestToPendingSolTx(request) {
 function pendingTxToCallList(tx) {
   if (tx.kind !== "transaction" || !tx.to) {
     throw new Error("pending_transaction_missing_call_data");
+  }
+  const calls = tx.payload.calls;
+  if (calls == null ? void 0 : calls.length) {
+    return calls.map(
+      (call) => {
+        var _a3;
+        return toAAWalletCall({
+          to: call.to,
+          value: call.value,
+          data: call.data,
+          chainId: (_a3 = call.chainId) != null ? _a3 : tx.chainId
+        });
+      }
+    );
   }
   return [
     toAAWalletCall({
@@ -6237,22 +6774,6 @@ function extractMentionedTxIds(content) {
   const matches = (_a3 = content.match(/\btx-\d+\b/gi)) != null ? _a3 : [];
   return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
 }
-function hasAccountCredential(cli) {
-  var _a3;
-  const state = cli.toState();
-  return Boolean(
-    ((_a3 = state.auth) == null ? void 0 : _a3.sessionToken) || state.accountBearer || state.sessionCookie
-  );
-}
-async function ensureAccountBoundThread(cli, session) {
-  if (!hasAccountCredential(cli)) return;
-  try {
-    await session.client.createThread(cli.sessionId);
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    fatal(`Failed to create account-bound backend thread: ${detail}`);
-  }
-}
 function deriveSvmAddress(solanaPrivateKey) {
   if (!solanaPrivateKey) return void 0;
   try {
@@ -6287,18 +6808,6 @@ async function syncWalletStateForChat(config, previous, next, cli, session) {
     svmCluster: cli.resolvedSvmCluster(config.svmCluster)
   });
   session.resolveUserState(userState);
-  await session.syncUserState();
-  if (!hasAccountCredential(cli)) {
-    return;
-  }
-  await session.client.sendSystemMessage(
-    cli.sessionId,
-    JSON.stringify({
-      type: "wallet:state_changed",
-      payload: userState
-    }),
-    { app: config.app, applicationId: config.applicationId }
-  );
 }
 async function chatCommand(config, message, verbose) {
   var _a3, _b, _c, _d, _e, _f, _g;
@@ -6325,7 +6834,6 @@ async function chatCommand(config, message, verbose) {
     resolvedSolanaKey
   );
   try {
-    await ensureAccountBoundThread(cli, session);
     await ingestSecretsForSession(config, cli, session.client);
     await applyRequestedModelIfPresent(config, cli, session);
     await syncWalletStateForChat(
@@ -6403,7 +6911,7 @@ async function chatCommand(config, message, verbose) {
         printedAgentCount = printNewAgentMessages(messages, printedAgentCount);
       });
     }
-    if (session.getIsProcessing()) {
+    if (session.getIsProcessing() && session.getPendingRequests().length === 0) {
       await new Promise((resolve) => {
         session.on("backend_idle", () => resolve());
         session.on("processing_end", () => resolve());
@@ -6441,6 +6949,10 @@ async function chatCommand(config, message, verbose) {
     }
     cli.syncPendingFromUserState(session.getUserState());
     for (const request of session.getPendingRequests()) {
+      if (request.kind === "transaction" || request.kind === "signing") {
+        const pending2 = walletRequestToPendingTx(request);
+        if (pending2) cli.addPendingTx(pending2);
+      }
       const pending = walletRequestToPendingSolTx(request);
       if (pending) cli.addPendingSolTx(pending);
     }
@@ -6475,6 +6987,8 @@ async function chatCommand(config, message, verbose) {
       const last = agentMessages[agentMessages.length - 1];
       if (last == null ? void 0 : last.content) {
         console.log(last.content);
+      } else if (session.getAgentStatus() === "interrupted") {
+        console.log("(interrupted)");
       } else if (newPendingTxs.length === 0) {
         console.log("(no response)");
         fatal("Backend returned an empty agent message.");
@@ -6880,6 +7394,19 @@ var init_aa = __esm({
   }
 });
 
+// src/cli/legacy-agent-rollback.ts
+function fetchLegacyAgentState(client, sessionId, clientId) {
+  return client.fetchState(sessionId, void 0, clientId);
+}
+function sendLegacyAgentSystemMessage(client, sessionId, message, app) {
+  return client.sendSystemMessage(sessionId, message, { app });
+}
+var init_legacy_agent_rollback = __esm({
+  "src/cli/legacy-agent-rollback.ts"() {
+    "use strict";
+  }
+});
+
 // src/cli/tables.ts
 function truncateCell(value, maxWidth) {
   if (value.length <= maxWidth) return value;
@@ -7066,12 +7593,13 @@ async function txCommand(config) {
   }
   const session = cli.createClientSession(config);
   try {
-    const apiState = await session.client.fetchState(
-      cli.sessionId,
-      void 0,
-      cli.clientId
-    );
-    cli.syncPendingFromUserState(apiState.user_state);
+    await session.fetchCurrentState();
+    for (const request of session.getPendingRequests()) {
+      const evm = walletRequestToPendingTx(request);
+      if (evm) cli.addPendingTx(evm);
+      const svm = walletRequestToPendingSolTx(request);
+      if (svm) cli.addPendingSolTx(svm);
+    }
   } catch (e) {
   } finally {
     session.close();
@@ -7198,7 +7726,7 @@ async function simulatePendingTransactions(params) {
   return simResponse.result;
 }
 async function signSolanaPending(params) {
-  var _a3, _b, _c, _d;
+  var _a3, _b, _c, _d, _e, _f, _g, _h;
   const { cli, session, config, pendingTx } = params;
   const secret = (_a3 = cli.resolvedSvmPrivateKey(config.solanaPrivateKey)) != null ? _a3 : process.env.SOLANA_PRIVATE_KEY;
   if (!secret) {
@@ -7242,25 +7770,34 @@ async function signSolanaPending(params) {
     console.log(
       `\u2705 Signed message! signature: ${outcome2.signatureBase64.slice(0, 24)}...`
     );
-    await session.client.sendSystemMessage(
-      cli.sessionId,
-      JSON.stringify({
-        type: "wallet::solana_sign_complete",
-        payload: {
-          status: "signed",
-          signature: outcome2.signatureBase64,
-          signed_message_base64: pendingTx.message,
-          signature_type: "ed25519",
-          description: pendingTx.description,
-          pending_svm_sig_id: pendingTx.solanaId
-        }
-      }),
-      { app: cli.app }
-    );
-    const syncedState2 = await session.syncUserState();
-    cli.syncPendingFromUserState(syncedState2.user_state);
+    if (pendingTx.agentRequestId) {
+      await session.resolve(pendingTx.agentRequestId, {
+        kind: "signing",
+        signatures: [outcome2.signatureBase64]
+      });
+    } else {
+      await sendLegacyAgentSystemMessage(
+        session.client,
+        cli.sessionId,
+        JSON.stringify({
+          type: "wallet::solana_sign_complete",
+          payload: {
+            status: "signed",
+            signature: outcome2.signatureBase64,
+            signed_message_base64: pendingTx.message,
+            signature_type: "ed25519",
+            description: pendingTx.description,
+            pending_svm_sig_id: pendingTx.solanaId
+          }
+        }),
+        cli.app
+      );
+      const syncedState = await session.syncUserState();
+      cli.syncPendingFromUserState(syncedState.user_state);
+    }
     cli.addSignedSolTx({
       id: pendingTx.id,
+      agentRequestId: pendingTx.agentRequestId,
       requestKind,
       signer: outcome2.signer,
       signature: outcome2.signatureBase64,
@@ -7268,6 +7805,84 @@ async function signSolanaPending(params) {
       description: pendingTx.description,
       timestamp: Date.now()
     });
+    if (pendingTx.agentRequestId) cli.removePendingSolTx(pendingTx.id);
+    console.log("Backend notified.");
+    return;
+  }
+  const batchTransactions = pendingTx.payload.transactions;
+  if (pendingTx.agentRequestId && (requestKind === "solana_send" || requestKind === "solana_sign_and_send") && batchTransactions && batchTransactions.length > 1) {
+    const rpcUrl = (_c = config.chainRpcUrl) != null ? _c : defaultSolanaRpcUrl(pendingTx.cluster);
+    const connection = new Connection(rpcUrl, "confirmed");
+    const legs = [];
+    let lastSubmitted;
+    for (const [index, transaction] of batchTransactions.entries()) {
+      try {
+        const outcome2 = signSolanaTransaction(transaction.unsignedTx, keypair);
+        const signature2 = await connection.sendRawTransaction(
+          Buffer.from(outcome2.signedTxBase64, "base64"),
+          { skipPreflight: false, maxRetries: 3 }
+        );
+        const confirmation = await connection.confirmTransaction(
+          signature2,
+          "confirmed"
+        );
+        if (confirmation.value.err) {
+          throw new Error(
+            `Solana transaction ${signature2} failed: ${JSON.stringify(confirmation.value.err)}`
+          );
+        }
+        legs.push({
+          id: transaction.id,
+          status: "submitted",
+          signature: signature2,
+          signedTx: outcome2.signedTxBase64
+        });
+        lastSubmitted = {
+          signature: signature2,
+          signedTx: outcome2.signedTxBase64,
+          signer: outcome2.signer
+        };
+        cli.addSignedSolTx({
+          id: `${pendingTx.id}:${transaction.id}`,
+          agentRequestId: pendingTx.agentRequestId,
+          requestKind,
+          signedTx: outcome2.signedTxBase64,
+          signer: outcome2.signer,
+          signature: signature2,
+          cluster: pendingTx.cluster,
+          description: (_d = transaction.description) != null ? _d : pendingTx.description,
+          timestamp: Date.now()
+        });
+      } catch (error) {
+        legs.push({
+          id: transaction.id,
+          status: "failed",
+          reason: error instanceof Error ? error.message : "Request failed"
+        });
+        legs.push(
+          ...batchTransactions.slice(index + 1).map((remaining) => ({
+            id: remaining.id,
+            status: "skipped"
+          }))
+        );
+        break;
+      }
+    }
+    if (!lastSubmitted) {
+      throw new Error(
+        (_f = (_e = legs.find((leg) => leg.reason)) == null ? void 0 : _e.reason) != null ? _f : "No Solana batch transaction confirmed"
+      );
+    }
+    await session.resolve(pendingTx.agentRequestId, {
+      kind: requestKind,
+      signature: lastSubmitted.signature,
+      signedTx: lastSubmitted.signedTx,
+      legs
+    });
+    cli.removePendingSolTx(pendingTx.id);
+    console.log(
+      `\u2705 Confirmed ${legs.filter((leg) => leg.status === "submitted").length}/${batchTransactions.length} Solana batch transactions.`
+    );
     console.log("Backend notified.");
     return;
   }
@@ -7282,7 +7897,7 @@ async function signSolanaPending(params) {
   );
   let signature;
   if (requestKind === "solana_send" || requestKind === "solana_sign_and_send") {
-    const rpcUrl = (_c = config.chainRpcUrl) != null ? _c : defaultSolanaRpcUrl(pendingTx.cluster);
+    const rpcUrl = (_g = config.chainRpcUrl) != null ? _g : defaultSolanaRpcUrl(pendingTx.cluster);
     const connection = new Connection(rpcUrl, "confirmed");
     signature = await connection.sendRawTransaction(
       Buffer.from(outcome.signedTxBase64, "base64"),
@@ -7298,20 +7913,35 @@ async function signSolanaPending(params) {
       );
     }
     console.log(`\u2705 Confirmed! signature: ${signature}`);
-    await session.client.sendSystemMessage(
-      cli.sessionId,
-      JSON.stringify({
-        type: "wallet:tx_complete",
-        payload: {
-          status: "confirmed",
-          identifier: { kind: "signature", value: signature },
-          pending_svm_tx_ids: ((_d = pendingTx.solanaIds) == null ? void 0 : _d.length) ? pendingTx.solanaIds : [pendingTx.solanaId]
-        }
-      }),
-      { app: cli.app }
-    );
+    if (pendingTx.agentRequestId) {
+      await session.resolve(pendingTx.agentRequestId, {
+        kind: requestKind,
+        signature,
+        signedTx: outcome.signedTxBase64
+      });
+    } else {
+      await sendLegacyAgentSystemMessage(
+        session.client,
+        cli.sessionId,
+        JSON.stringify({
+          type: "wallet:tx_complete",
+          payload: {
+            status: "confirmed",
+            identifier: { kind: "signature", value: signature },
+            pending_svm_tx_ids: ((_h = pendingTx.solanaIds) == null ? void 0 : _h.length) ? pendingTx.solanaIds : [pendingTx.solanaId]
+          }
+        }),
+        cli.app
+      );
+    }
+  } else if (pendingTx.agentRequestId) {
+    await session.resolve(pendingTx.agentRequestId, {
+      kind: "signing",
+      signatures: [outcome.signedTxBase64]
+    });
   } else {
-    await session.client.sendSystemMessage(
+    await sendLegacyAgentSystemMessage(
+      session.client,
       cli.sessionId,
       JSON.stringify({
         type: "wallet::solana_sign_complete",
@@ -7322,13 +7952,16 @@ async function signSolanaPending(params) {
           pending_solana_id: pendingTx.solanaId
         }
       }),
-      { app: cli.app }
+      cli.app
     );
   }
-  const syncedState = await session.syncUserState();
-  cli.syncPendingFromUserState(syncedState.user_state);
+  if (!pendingTx.agentRequestId) {
+    const syncedState = await session.syncUserState();
+    cli.syncPendingFromUserState(syncedState.user_state);
+  }
   cli.addSignedSolTx({
     id: pendingTx.id,
+    agentRequestId: pendingTx.agentRequestId,
     requestKind,
     signedTx: outcome.signedTxBase64,
     signer: outcome.signer,
@@ -7337,6 +7970,7 @@ async function signSolanaPending(params) {
     description: pendingTx.description,
     timestamp: Date.now()
   });
+  if (pendingTx.agentRequestId) cli.removePendingSolTx(pendingTx.id);
   console.log("Backend notified.");
 }
 function defaultSolanaRpcUrl(cluster) {
@@ -7391,9 +8025,26 @@ function transactionCompletionPayload(record) {
   });
 }
 async function recoverConfirmedTransactions(params) {
+  var _a3;
   const { cli, session, records } = params;
   let replayed = 0;
   for (const record of records) {
+    if (record.agentRequestId && record.txHash) {
+      await session.fetchCurrentState();
+      const pending2 = session.getPendingRequests().find((request) => request.id === record.agentRequestId);
+      if (pending2) {
+        const hashes = ((_a3 = record.txHashes) == null ? void 0 : _a3.length) ? record.txHashes : [record.txHash];
+        await session.resolve(record.agentRequestId, {
+          kind: "transaction",
+          txHash: record.txHash,
+          txHashes: hashes,
+          completedTxIds: hashes.map((_, index) => index + 1)
+        });
+        replayed += 1;
+      }
+      cli.markSignedAgentActionNotified(record.agentRequestId);
+      continue;
+    }
     if (record.pendingTxId === void 0 || !record.txHash) continue;
     const pending = cli.pendingTxs.some(
       (tx) => tx.kind === "transaction" && tx.txId === record.pendingTxId
@@ -7402,13 +8053,14 @@ async function recoverConfirmedTransactions(params) {
       cli.markSignedTxBackendNotified(record.pendingTxId);
       continue;
     }
-    await session.client.sendSystemMessage(
+    await sendLegacyAgentSystemMessage(
+      session.client,
       cli.sessionId,
       JSON.stringify({
         type: "wallet:tx_complete",
         payload: transactionCompletionPayload(record)
       }),
-      { app: cli.app }
+      cli.app
     );
     cli.markSignedTxBackendNotified(record.pendingTxId);
     replayed += 1;
@@ -7451,12 +8103,22 @@ async function signCommand(config, txIds) {
   cli.mergeConfig(config);
   const session = cli.createClientSession(config);
   try {
-    const initialState = await session.client.fetchState(
-      cli.sessionId,
-      void 0,
-      cli.clientId
+    const targetsAgentAction = uniqueIds.some(
+      (id) => {
+        var _a4, _b2, _c2;
+        return Boolean((_a4 = cli.findPendingTx(id)) == null ? void 0 : _a4.agentRequestId) || Boolean((_b2 = cli.findPendingSolTx(id)) == null ? void 0 : _b2.agentRequestId) || Boolean((_c2 = cli.findSignedTransaction(id)) == null ? void 0 : _c2.agentRequestId);
+      }
     );
-    cli.syncPendingFromUserState(initialState.user_state);
+    if (targetsAgentAction) {
+      await session.fetchCurrentState();
+    } else {
+      const initialState = await fetchLegacyAgentState(
+        session.client,
+        cli.sessionId,
+        cli.clientId
+      );
+      cli.syncPendingFromUserState(initialState.user_state);
+    }
     const solanaIds = uniqueIds.filter(
       (id) => cli.findPendingSolTx(id) !== void 0
     );
@@ -7517,6 +8179,19 @@ Available: ${available}`
       return;
     }
     const pendingTxs = cli.requirePendingTxs(uniqueIds);
+    const agentRequestIds = Array.from(
+      new Set(
+        pendingTxs.flatMap(
+          (tx) => tx.agentRequestId ? [tx.agentRequestId] : []
+        )
+      )
+    );
+    if (agentRequestIds.length > 1 || agentRequestIds.length === 1 && pendingTxs.some((tx) => !tx.agentRequestId)) {
+      fatal(
+        "Agent and legacy wallet requests cannot be mixed in one sign call."
+      );
+    }
+    const agentRequestId = agentRequestIds[0];
     if (!privateKey) {
       fatal(
         [
@@ -7554,6 +8229,7 @@ Available: ${available}`
     console.log(`Signer:  ${account.address}`);
     console.log(`IDs:     ${pendingTxs.map((tx) => tx.id).join(", ")}`);
     let signedRecords = [];
+    let agentResult;
     let backendNotifications = [];
     let partialFailureReason;
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
@@ -7672,7 +8348,8 @@ Available: ${available}`
           resolvedChainIds[index],
           Date.now()
         )), {
-          backendNotified: false
+          backendNotified: false,
+          agentRequestId: tx.agentRequestId
         }), normalizedFee && feeStatus ? {
           serviceFeeStatus: feeStatus,
           serviceFeeAmountWei: normalizedFee.amountWei.toString(),
@@ -7681,12 +8358,26 @@ Available: ${available}`
           serviceFeeError: feeStatus === "confirmed" ? void 0 : partialFailureReason
         } : {});
       });
-      backendNotifications = signedRecords.map((record) => ({
+      if (agentRequestId) {
+        const completedTxIds = actionTxHashes.map((_, index) => index + 1);
+        const failedTxIds = baseCallList.slice(actionTxHashes.length).map((_, index) => actionTxHashes.length + index + 1);
+        agentResult = {
+          kind: "transaction",
+          txHash: actionTxHashes[actionTxHashes.length - 1],
+          txHashes: actionTxHashes,
+          completedTxIds,
+          failedTxIds,
+          failureReason: partialFailureReason,
+          batched: baseCallList.length > 1,
+          callCount: baseCallList.length
+        };
+      }
+      backendNotifications = agentRequestId ? [] : signedRecords.map((record) => ({
         type: "wallet:tx_complete",
         payload: transactionCompletionPayload(record)
       }));
       const remainingTxIds = pendingTxs.slice(confirmedPendingTxs.length).flatMap((tx) => tx.txId === void 0 ? [] : [tx.txId]);
-      if (remainingTxIds.length > 0) {
+      if (!agentRequestId && remainingTxIds.length > 0) {
         backendNotifications.push({
           type: "wallet:tx_complete",
           payload: {
@@ -7717,9 +8408,9 @@ Available: ${available}`
       if (!signArgs && pendingTx.kind === "eip712_sign" && pendingTx.eip712Id !== void 0) {
         try {
           const session2 = cli.createClientSession(config);
-          const apiState = await session2.client.fetchState(
+          const apiState = await fetchLegacyAgentState(
+            session2.client,
             cli.sessionId,
-            void 0,
             cli.clientId
           );
           session2.close();
@@ -7760,6 +8451,7 @@ Available: ${available}`
       signedRecords = [
         {
           id: pendingTx.id,
+          agentRequestId: pendingTx.agentRequestId,
           kind: "eip712_sign",
           signature,
           from: account.address,
@@ -7767,6 +8459,9 @@ Available: ${available}`
           timestamp: Date.now()
         }
       ];
+      if (agentRequestId) {
+        agentResult = { kind: "signing", signatures: [signature] };
+      }
       backendNotifications = [
         {
           type: "wallet_eip712_response",
@@ -7783,11 +8478,16 @@ Available: ${available}`
     for (const signedRecord of signedRecords) {
       cli.addSignedTx(signedRecord);
     }
-    for (const backendNotification of backendNotifications) {
-      await session.client.sendSystemMessage(
+    if (agentRequestId && agentResult) {
+      await session.resolve(agentRequestId, agentResult);
+      cli.markSignedAgentActionNotified(agentRequestId);
+    }
+    for (const backendNotification of agentRequestId ? [] : backendNotifications) {
+      await sendLegacyAgentSystemMessage(
+        session.client,
         cli.sessionId,
         JSON.stringify(backendNotification),
-        { app: cli.app }
+        cli.app
       );
       const pendingTxIds = backendNotification.payload.pending_tx_ids;
       if (backendNotification.payload.status === "success" && Array.isArray(pendingTxIds)) {
@@ -7798,8 +8498,10 @@ Available: ${available}`
         }
       }
     }
-    const syncedState = await session.syncUserState();
-    cli.syncPendingFromUserState(syncedState.user_state);
+    if (!agentRequestId) {
+      const syncedState = await session.syncUserState();
+      cli.syncPendingFromUserState(syncedState.user_state);
+    }
     console.log("Backend notified.");
     const failedFee = signedRecords.find(
       (record) => record.serviceFeeStatus === "failed"
@@ -7840,6 +8542,7 @@ var init_wallet2 = __esm({
     init_errors();
     init_solana_signer();
     init_output();
+    init_legacy_agent_rollback();
     init_transactions();
     init_tables();
   }
@@ -7864,12 +8567,11 @@ async function simulateCommand(config, txIds) {
   }
   const session = cli.createClientSession(config);
   try {
-    const apiState = await session.client.fetchState(
-      cli.sessionId,
-      void 0,
-      cli.clientId
-    );
-    cli.syncPendingFromUserState(apiState.user_state);
+    await session.fetchCurrentState();
+    for (const request of session.getPendingRequests()) {
+      const pending = walletRequestToPendingTx(request);
+      if (pending) cli.addPendingTx(pending);
+    }
   } finally {
     session.close();
   }
@@ -7949,6 +8651,7 @@ var init_simulate = __esm({
     init_client_factory();
     init_errors();
     init_output();
+    init_transactions();
   }
 });
 
@@ -7961,28 +8664,27 @@ __export(sessions_exports, {
   sessionsCommand: () => sessionsCommand
 });
 async function fetchRemoteSessionStats(record) {
-  var _a3, _b, _c;
+  var _a3, _b;
   const client = new AomiClient({
     baseUrl: record.state.baseUrl,
     apiKey: record.state.apiKey,
     getAccountBearer: createCliAuthTokenProvider(() => record.state)
   });
   try {
-    const apiState = await client.fetchState(
-      record.sessionId,
-      void 0,
-      record.state.clientId
-    );
-    const messages = (_a3 = apiState.messages) != null ? _a3 : [];
+    const delta = await client.agent.check(record.sessionId);
+    const messages = delta.messages.map((message) => ({
+      id: message.id,
+      sender: message.role,
+      content: message.content,
+      timestamp: message.createdAt,
+      is_streaming: message.streaming
+    }));
     return {
-      topic: (_b = apiState.title) != null ? _b : "Untitled Session",
+      topic: (_a3 = delta.title) != null ? _a3 : "Untitled Session",
       messageCount: messages.length,
       tokenCountEstimate: estimateTokenCount(messages),
       toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length,
-      pendingTxs: pendingTxsFromBackendUserState(
-        apiState.user_state,
-        (_c = record.state.pendingTxs) != null ? _c : []
-      )
+      pendingTxs: (_b = record.state.pendingTxs) != null ? _b : []
     };
   } catch (e) {
     return null;
@@ -8060,11 +8762,7 @@ async function resumeSessionCommand(selector) {
   }
   const session = current.createClientSession();
   try {
-    await session.client.fetchState(
-      selector,
-      void 0,
-      current.ensureClientId()
-    );
+    await session.client.agent.sessions.get(selector);
   } catch (e) {
     fatal(
       `No account-owned local or remote session found for selector "${selector}".`
@@ -8107,7 +8805,6 @@ var init_sessions = __esm({
     init_output();
     init_state2();
     init_auth();
-    init_user_state2();
     init_tables();
   }
 });
@@ -8123,13 +8820,14 @@ __export(control_exports, {
   currentModelCommand: () => currentModelCommand,
   currentWalletCommand: () => currentWalletCommand,
   eventsCommand: () => eventsCommand,
+  interruptCommand: () => interruptCommand,
   modelsCommand: () => modelsCommand,
   setAppCommand: () => setAppCommand,
   setModelCommand: () => setModelCommand,
   statusCommand: () => statusCommand
 });
 async function statusCommand(config) {
-  var _a3, _b, _c, _d, _e, _f;
+  var _a3, _b, _c;
   const cli = CliSession.load();
   if (!cli) {
     if (config.json) {
@@ -8143,11 +8841,7 @@ async function statusCommand(config) {
   cli.mergeConfig(config);
   const session = cli.createClientSession(config);
   try {
-    const apiState = await session.client.fetchState(
-      cli.sessionId,
-      void 0,
-      cli.clientId
-    );
+    await session.fetchCurrentState();
     console.log(
       JSON.stringify(
         {
@@ -8156,9 +8850,9 @@ async function statusCommand(config) {
           app: cli.app,
           model: (_a3 = cli.model) != null ? _a3 : null,
           chainId: (_b = cli.chainId) != null ? _b : null,
-          isProcessing: (_c = apiState.is_processing) != null ? _c : false,
-          messageCount: (_e = (_d = apiState.messages) == null ? void 0 : _d.length) != null ? _e : 0,
-          title: (_f = apiState.title) != null ? _f : null,
+          isProcessing: session.getIsProcessing(),
+          messageCount: session.getMessages().length,
+          title: (_c = session.getTitle()) != null ? _c : null,
           pendingTxs: cli.pendingTxs.length,
           signedTxs: cli.signedTxs.length
         },
@@ -8180,8 +8874,27 @@ async function eventsCommand(config) {
   cli.mergeConfig(config);
   const session = cli.createClientSession(config);
   try {
-    const events = await session.client.getSystemEvents(cli.sessionId);
-    console.log(JSON.stringify(events, null, 2));
+    const delta = await session.client.agent.check(cli.sessionId);
+    console.log(JSON.stringify(delta.activity, null, 2));
+  } finally {
+    session.close();
+  }
+}
+async function interruptCommand(config) {
+  const cli = CliSession.load();
+  if (!cli) {
+    fatal("No active session to interrupt.");
+  }
+  cli.mergeConfig(config);
+  const session = cli.createClientSession(config);
+  try {
+    await session.interrupt();
+    if (config.json) {
+      printJson({ sessionId: cli.sessionId, interrupted: true });
+      return;
+    }
+    console.log(`Interrupted session ${cli.sessionId}.`);
+    printDataFileLocation({ verbose: config.verbose });
   } finally {
     session.close();
   }
@@ -8367,20 +9080,10 @@ function setAppCommand(config, app, options) {
 }
 async function setModelCommand(config, model, options) {
   const cli = CliSession.loadOrCreate(config);
-  const session = cli.createClientSession(config);
-  try {
-    await session.client.setModel(cli.sessionId, model, {
-      app: cli.app,
-      applicationId: config.applicationId,
-      apiKey: cli.apiKey
-    });
-    cli.setModel(model);
-    console.log(`Model set to ${model}`);
-    if ((options == null ? void 0 : options.printLocation) !== false) {
-      printDataFileLocation({ verbose: config.verbose });
-    }
-  } finally {
-    session.close();
+  cli.setModel(model);
+  console.log(`Model set to ${model}`);
+  if ((options == null ? void 0 : options.printLocation) !== false) {
+    printDataFileLocation({ verbose: config.verbose });
   }
 }
 function chainsCommand(config = { secrets: {} }) {
@@ -8421,7 +9124,7 @@ __export(history_exports, {
   logCommand: () => logCommand
 });
 async function logCommand(config) {
-  var _a3, _b, _c;
+  var _a3, _b;
   const cli = CliSession.load();
   if (!cli) {
     console.log("No active session");
@@ -8431,14 +9134,13 @@ async function logCommand(config) {
   cli.mergeConfig(config);
   const session = cli.createClientSession(config);
   try {
-    const apiState = await session.client.fetchState(cli.sessionId, void 0, cli.clientId);
-    cli.syncPendingFromUserState(apiState.user_state);
-    const messages = (_a3 = apiState.messages) != null ? _a3 : [];
+    await session.fetchCurrentState();
+    const messages = session.getMessages();
     const pendingTxs = [...cli.pendingTxs];
     const signedTxs = [...cli.signedTxs];
     const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
     const tokenCountEstimate = estimateTokenCount(messages);
-    const topic = (_b = apiState.title) != null ? _b : "Untitled Session";
+    const topic = (_a3 = session.getTitle()) != null ? _a3 : "Untitled Session";
     if (messages.length === 0) {
       console.log("No messages in this session.");
       printDataFileLocation();
@@ -8467,7 +9169,7 @@ async function logCommand(config) {
         const date = !Number.isNaN(numeric) ? new Date(numeric < 1e12 ? numeric * 1e3 : numeric) : new Date(raw);
         time = Number.isNaN(date.getTime()) ? "" : `${DIM}${date.toLocaleTimeString()}${RESET} `;
       }
-      const sender = (_c = msg.sender) != null ? _c : "unknown";
+      const sender = (_b = msg.sender) != null ? _b : "unknown";
       if (sender === "user") {
         if (content) {
           console.log(`${time}${CYAN}\u{1F464} You:${RESET} ${content}`);
@@ -9287,12 +9989,12 @@ async function accountWhoamiCommand(config) {
       printJson({
         active: true,
         bound: false,
-        hasCredential: hasAccountCredential2(cli.toState())
+        hasCredential: hasAccountCredential(cli.toState())
       });
       return;
     }
     console.log("Not bound to an account (anonymous session).");
-    if (!hasAccountCredential2(cli.toState())) {
+    if (!hasAccountCredential(cli.toState())) {
       console.log(
         "No account credential configured. Run `aomi account login` or pass --account-bearer."
       );
@@ -9478,7 +10180,7 @@ async function accountSessionsCommand(config) {
 function accountSwitchCommand(selector) {
   resumeSessionCommand(selector);
 }
-function hasAccountCredential2(state) {
+function hasAccountCredential(state) {
   var _a3;
   return Boolean(((_a3 = state.auth) == null ? void 0 : _a3.sessionToken) || state.accountBearer);
 }
@@ -10311,9 +11013,7 @@ function parseByokKeyArg(input2) {
   const provider = providerPart == null ? void 0 : providerPart.trim().toLowerCase();
   const byokKey = byokKeyPart == null ? void 0 : byokKeyPart.trim();
   if (!provider || !byokKey) {
-    fatal(
-      "Invalid format. Use: <provider>:<key> (e.g. anthropic:sk-ant-...)"
-    );
+    fatal("Invalid format. Use: <provider>:<key> (e.g. anthropic:sk-ant-...)");
   }
   if (!SUPPORTED_PROVIDERS.has(provider)) {
     fatal(
@@ -10328,7 +11028,7 @@ async function createByokKeyClient(config) {
     baseUrl: cli.baseUrl,
     apiKey: cli.apiKey
   });
-  await client.fetchState(cli.sessionId, void 0, cli.ensureClientId());
+  await fetchLegacyAgentState(client, cli.sessionId, cli.ensureClientId());
   return { cli, client };
 }
 async function saveByokKeyCommand(config, byokKeyInput, options) {
@@ -10380,6 +11080,7 @@ var init_byok = __esm({
     init_client_factory();
     init_errors();
     init_output();
+    init_legacy_agent_rollback();
     SUPPORTED_PROVIDERS = /* @__PURE__ */ new Set(["openai", "anthropic", "openrouter"]);
   }
 });
@@ -10711,6 +11412,14 @@ var sessionEventsDef = defineCommand3({
     await eventsCommand2(buildCliConfig(args));
   }
 });
+var sessionInterruptDef = defineCommand3({
+  meta: { name: "interrupt", description: "Interrupt the active Agent turn" },
+  args: __spreadValues({}, globalArgs),
+  async run({ args }) {
+    const { interruptCommand: interruptCommand2 } = await Promise.resolve().then(() => (init_control(), control_exports));
+    await interruptCommand2(buildCliConfig(args));
+  }
+});
 var sessionCloseDef = defineCommand3({
   meta: { name: "close", description: "Close the current session" },
   args: __spreadValues({}, globalArgs),
@@ -10729,6 +11438,7 @@ var sessionDef = defineCommand3({
     status: sessionStatusDef,
     log: sessionLogDef,
     events: sessionEventsDef,
+    interrupt: sessionInterruptDef,
     close: sessionCloseDef
   }
 });
@@ -11378,7 +12088,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.6.0",
+  version: "0.6.1",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

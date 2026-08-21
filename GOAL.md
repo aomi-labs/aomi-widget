@@ -9,7 +9,10 @@ cursor only through returned backend events; the generated client contract and
 `ClientSession` carry those fields into React. Focused Rust, client, React, and
 Portal regressions pass, and an isolated SIWE-authenticated Playwright run showed
 a live `Search web` step before the final answer with zero interrupt requests.
-The publishable client is patch-bumped to `@aomi-labs/client@0.5.2`.
+Follow-up reconciliation rebased both Agent branches onto current main, retained
+remote thread creation and bearer/challenge protections, and made uncertain
+Agent start retries reuse their operation key. The publishable client is
+patch-bumped to `@aomi-labs/client@0.6.1`.
 
 ## Chain logo refresh
 

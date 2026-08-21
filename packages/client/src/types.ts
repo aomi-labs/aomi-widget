@@ -99,13 +99,13 @@ export interface AomiRequestOptions {
 // =============================================================================
 
 export interface AomiMessage {
+  /** Stable public Agent message identity when available. */
+  id?: string;
   /**
    * `notice` is a durable runtime record — today, a turn the provider refused.
    * Unlike `system`, which the projection drops, a notice is shown to the user
    * and survives a reload.
    */
-  /** Stable public Agent message identity when available. */
-  id?: string;
   sender?: "user" | "agent" | "system" | "notice" | string;
   /**
    * Backend-allocated identity for this message, stable across polls and
