@@ -157,6 +157,19 @@ function normalizeThreadWire(wire: ThreadWire): AomiThread {
   } as AomiThread;
 }
 
+/**
+ * Upstream statuses worth retrying on thread creation. Strictly transient
+ * ones only: a 4xx (a 402 quota failure especially, which routes to the
+ * payment gate) is a decision, not a hiccup, and must surface immediately.
+ */
+const CREATE_THREAD_RETRY_STATUSES = new Set([502, 503, 504]);
+
+/** Backoff between thread-creation attempts. Length sets the retry count. */
+const CREATE_THREAD_RETRY_DELAYS_MS = [400, 1_000, 2_000];
+
+const delay = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
@@ -212,13 +225,8 @@ export function wrapFetchWithAccountBearer(
 
 function supportsTokenRefreshSubscription(
   provider: GetAccountBearer | undefined,
-): provider is GetAccountBearer & {
-  subscribe: (listener: () => void) => () => void;
-} {
-  return (
-    typeof (provider as { subscribe?: unknown } | undefined)?.subscribe ===
-    "function"
-  );
+): provider is GetAccountBearer & Required<Pick<GetAccountBearer, "subscribe">> {
+  return typeof provider?.subscribe === "function";
 }
 
 async function postState<T>(
@@ -290,12 +298,28 @@ async function postState<T>(
 // AomiClient
 // =============================================================================
 
+/**
+ * Read secret names out of a {@link AomiListSecretsResponse} whichever shape
+ * the backend sent.
+ *
+ * A backend from before per-user app secrets were retired answers
+ * `{ by_app: { <app>: [names] } }`; the one after answers `{ names: [...] }`
+ * (plus an empty `by_app` for one release). This client ships ahead of the
+ * backend, so it has to read both — and a browser tab cached across the
+ * cutover will hit each of them in turn.
+ */
+export function secretNamesFrom(response: AomiListSecretsResponse): string[] {
+  if (response.names) return response.names;
+  return Object.values(response.by_app ?? {}).flat();
+}
+
 export class AomiClient {
   private readonly baseUrl: string;
   private readonly apiKey?: string;
   private readonly fetchImpl: typeof fetch;
   private readonly rawFetchImpl: typeof fetch;
   private readonly logger?: Logger;
+  private readonly accountBearer?: GetAccountBearer;
   private readonly sseSubscriber: SseSubscriber;
 
   constructor(options: AomiClientOptions) {
@@ -316,6 +340,7 @@ export class AomiClient {
       options.getAccountBearer,
     );
     this.logger = options.logger;
+    this.accountBearer = options.getAccountBearer;
 
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
@@ -326,11 +351,42 @@ export class AomiClient {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger,
     });
-    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      options.getAccountBearer.subscribe(() => {
-        this.sseSubscriber.reconnect("account-token-refreshed");
-      });
+    this.wireTokenRefreshReconnect();
+    if (
+      options.getAccountBearer?.required === true &&
+      !supportsTokenRefreshSubscription(options.getAccountBearer)
+    ) {
+      // A required bearer without subscribe() means live streams keep running
+      // on a superseded token after every refresh and die silently upstream.
+      // The most common cause is a host wrapping the provider and losing its
+      // methods (Object.assign(fn, { required }) keeps only what was copied).
+      console.warn(
+        "[aomi-client] getAccountBearer.required is set but subscribe() is missing: " +
+          "SSE will not reconnect after token refresh. Pass the WidgetSessionProvider " +
+          "through unwrapped, or preserve its subscribe/dispose/revoke methods.",
+      );
     }
+  }
+
+  /**
+   * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
+   *
+   * Historically evaluated ONCE in the constructor, which silently dropped
+   * reconnect for a stable bearer whose `subscribe` appears after construction.
+   * Re-attempted lazily on every SSE subscription so that shape is picked up on
+   * the next stream instead of never. Replacing the bearer function itself still
+   * requires a stable host/widget bridge; AomiClient intentionally retains the
+   * source supplied at construction.
+   */
+  private tokenRefreshWired = false;
+  private wireTokenRefreshReconnect(): void {
+    if (this.tokenRefreshWired) return;
+    const bearer = this.accountBearer;
+    if (!supportsTokenRefreshSubscription(bearer)) return;
+    this.tokenRefreshWired = true;
+    bearer.subscribe(() => {
+      this.sseSubscriber.reconnect("account-token-refreshed");
+    });
   }
 
   // ===========================================================================
@@ -603,31 +659,27 @@ export class AomiClient {
   // ===========================================================================
 
   /**
-   * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+   * Ingest client-scoped secrets. Returns opaque `$SECRET:<name>` handles.
    *
-   * When `app` is provided, the values land in the per-app store keyed by
-   * `(client_id, app)` — this is the path the Secrets settings page uses
-   * (one app at a time). When `app` is omitted, secrets land in the flat
-   * client store (used by BYOK and other cross-app pools).
+   * There is no app scope. A hosted app's Environment belongs to its Builder
+   * and is configured in Aomi Build; a per-user copy of it was a second,
+   * process-local store that answered the same handle differently depending on
+   * which fleet host served the turn. The backend answers 410 to any request
+   * that still carries one.
    */
   async ingestSecrets(
     sessionId: string,
     clientId: string,
     secrets: Record<string, string>,
-    app?: string,
   ): Promise<AomiIngestSecretsResponse> {
     const url = joinApiPath(this.baseUrl, "/api/secrets");
     const body: {
       client_id: string;
-      app?: string;
       secrets: Record<string, string>;
     } = {
       client_id: clientId,
       secrets,
     };
-    if (app && app.trim().length > 0) {
-      body.app = app.trim();
-    }
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId, {
@@ -643,21 +695,14 @@ export class AomiClient {
     return (await response.json()) as AomiIngestSecretsResponse;
   }
 
-  /**
-   * Clear secrets for a client. With `app`, removes every slot under that
-   * app. Without `app`, clears the entire client (legacy behavior — wipes
-   * both stores and unbinds the session).
-   */
+  /** Clear every client-scoped secret and unbind the session. */
   async clearSecrets(
     sessionId: string,
     clientId: string,
-    app?: string,
   ): Promise<AomiClearSecretsResponse> {
-    const params: Record<string, string> = { client_id: clientId };
-    if (app && app.trim().length > 0) {
-      params.app = app.trim();
-    }
-    const url = buildApiUrl(this.baseUrl, "/api/secrets", params);
+    const url = buildApiUrl(this.baseUrl, "/api/secrets", {
+      client_id: clientId,
+    });
     const response = await this.fetchImpl(url, {
       method: "DELETE",
       headers: withSessionHeader(sessionId),
@@ -670,20 +715,13 @@ export class AomiClient {
     return (await response.json()) as AomiClearSecretsResponse;
   }
 
-  /**
-   * Remove a single named secret. With `app`, targets the per-app store
-   * under that scope; without, targets the flat store.
-   */
+  /** Remove a single named client-scoped secret. */
   async deleteSecret(
     sessionId: string,
     clientId: string,
     name: string,
-    app?: string,
   ): Promise<AomiDeleteSecretResponse> {
     const params: Record<string, string> = { client_id: clientId };
-    if (app && app.trim().length > 0) {
-      params.app = app.trim();
-    }
     const url = buildApiUrl(
       this.baseUrl,
       `/api/secrets/${encodeURIComponent(name)}`,
@@ -702,9 +740,10 @@ export class AomiClient {
   }
 
   /**
-   * List currently stored secret names per app for this client. The
-   * backend never returns raw values; the settings page uses this as the
-   * source of truth instead of trusting localStorage.
+   * List the stored secret NAMES for this client — never values.
+   *
+   * Read the result with {@link secretNamesFrom}, which tolerates the
+   * pre-cutover `by_app` shape as well as the flat `names` list.
    */
   async listSecrets(
     sessionId: string,
@@ -744,6 +783,9 @@ export class AomiClient {
     onError?: (error: unknown) => void,
     options?: { applicationId?: number | string | null },
   ): () => void {
+    // A provider whose subscribe() appeared after construction (late-bound
+    // host bridges) gets wired here, before the stream it must protect.
+    this.wireTokenRefreshReconnect();
     return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
   }
 
@@ -823,10 +865,27 @@ export class AomiClient {
       platform: options?.platform,
       client_id: options?.clientId,
     });
-    const response = await this.fetchImpl(url, {
+    let response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId),
     });
+
+    // A cold app 503s at the edge until some origin has its artifact loaded —
+    // a warm-up race the very first request of a session is most likely to
+    // lose. Retrying it beats surfacing a hard failure for a state the system
+    // already knows is temporary.
+    for (
+      let attempt = 0;
+      attempt < CREATE_THREAD_RETRY_DELAYS_MS.length &&
+      CREATE_THREAD_RETRY_STATUSES.has(response.status);
+      attempt += 1
+    ) {
+      await delay(CREATE_THREAD_RETRY_DELAYS_MS[attempt]!);
+      response = await this.fetchImpl(url, {
+        method: "POST",
+        headers: withSessionHeader(threadId),
+      });
+    }
 
     if (!response.ok) {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);

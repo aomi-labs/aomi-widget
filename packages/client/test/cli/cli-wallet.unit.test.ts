@@ -160,6 +160,51 @@ describe("CLI wallet execution", () => {
     });
   });
 
+  it("preserves confirmed prefix hashes when a later local-key call fails", async () => {
+    sendTransactionMock.mockResolvedValueOnce("0xaction").mockRejectedValueOnce(
+      Object.assign(new Error("RPC failure\n\nRequest body: 0xsigned"), {
+        details: "in-flight transaction limit reached for delegated accounts",
+      }),
+    );
+
+    await expect(
+      executeWalletCalls({
+        callList: [
+          {
+            to: "0x1111111111111111111111111111111111111111" as `0x${string}`,
+            value: 1n,
+            chainId: 1,
+          },
+          {
+            to: "0x2222222222222222222222222222222222222222" as `0x${string}`,
+            value: 12_633_000_000n,
+            chainId: 1,
+          },
+        ],
+        currentChainId: 1,
+        capabilities: undefined,
+        localPrivateKey: PRIVATE_KEY,
+        sendCallsSyncAsync: vi.fn(),
+        sendTransactionAsync: vi.fn(),
+        switchChainAsync: vi.fn(),
+        chainsById: { [mainnet.id]: mainnet },
+        getPreferredRpcUrl: () => "https://example-rpc.invalid",
+      }),
+    ).rejects.toMatchObject({
+      name: "PartialWalletExecutionError",
+      partial: {
+        completedTxHashes: ["0xaction"],
+        failedCallIndex: 1,
+        failureReason:
+          "in-flight transaction limit reached for delegated accounts",
+      },
+    });
+
+    expect(waitForReceiptMock).toHaveBeenCalledTimes(1);
+    expect(waitForReceiptMock).toHaveBeenCalledWith({ hash: "0xaction" });
+    expect(sendTransactionMock).toHaveBeenCalledTimes(2);
+  });
+
   it("persists shared execution metadata onto signed transaction records", () => {
     const pendingTx: PendingTx = {
       id: "tx-7",

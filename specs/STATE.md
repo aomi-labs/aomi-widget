@@ -2,6 +2,40 @@
 
 ## Last Updated
 
+2026-08-20 — APP FAILURE VISIBILITY (branch `fix/app-failure-visibility`; the
+  backend half is product-mono `fix/app-tool-schema-provider-rejection`).
+  Staging `?app=somm-agent&application_id=2937568` 503'd on open, then accepted
+  "hi" and never answered. Three separate defects:
+  - **Provider-rejected tool schema (root cause, backend).** somm-agent declares
+    `get_risk_snapshot` as an object schema with no `properties`; OpenAI rejects
+    the ENTIRE completion request, so every turn in the app died silently.
+    `normalize_tool_schema` now repairs object nodes recursively against a
+    stated grammar, and `tool_schema_provider_error` decides what is left;
+    `DynApp::build_with_key` drops anything still invalid instead of advertising
+    it. One malformed tool can no longer silence a conversation.
+  - **The builder was never told.** `tool_invocations` is written only for
+    completed tool calls, so a provider rejection wrote nothing and Build →
+    Operate → Logs stayed empty while the app was dead. New
+    `record_app_error` writes app-attributed rows for dropped tools and refused
+    turns; `post_completion` now reports its outcome so one failure records one
+    row, not a completion error plus an `empty_provider_response`.
+  - **The user saw a silent hang.** `system_error` was a toast only, and the
+    backend drains `system_events`, so a reload lost the explanation entirely.
+    New durable `MessageSender::Notice` (persisted, projected, excluded from LLM
+    history — `System` is dropped at all three layers and could not serve).
+    Frontend: `createThread` retries 502/503/504 through the app-warm window
+    (4xx, notably 402, still surfaces at once); `system_error` also appends an
+    inline notice keyed to `event.sessionId`, not the visible thread; the
+    payment-required card generalized to any `aomiNoticeKind`.
+  Repeatable check: `scripts/check-app-turn.sh somm-agent 2937568` drives a full
+  turn and asserts an answer came back. Exits 1 against staging today; should
+  exit 0 once both branches deploy.
+
+  PENDING: neither branch is deployed, so the durable-notice reload behavior and
+  the builder log row are verified by tests only, not on staging. Follow-up
+  worth doing: deploy-time schema validation, so a builder learns about a bad
+  tool schema before shipping rather than after users hit a dead chat.
+
 2026-08-12 — MCP CHAT PARITY IMPLEMENTED. `/api/mcp` now exposes only
   `aomi_chat`, `aomi_check`, `aomi_interrupt`, and `aomi_list_sessions` over a
   shared stateless JSON-RPC shell; the unchanged direct discovery/execution

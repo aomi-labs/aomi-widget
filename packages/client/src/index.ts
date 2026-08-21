@@ -2,7 +2,7 @@
 // Client
 // =============================================================================
 
-export { AomiClient } from "./client";
+export { AomiClient, secretNamesFrom } from "./client";
 export {
   authorizationChallenge,
   authorizationCommit,
@@ -88,6 +88,7 @@ export type {
 export {
   createProviderCredentialAdapter,
   createSiweWidgetAuthAdapter,
+  WidgetChallengeBindingError,
   createSiwsWidgetAuthAdapter,
   createWidgetSessionProvider,
   type ProviderCredential,
@@ -206,6 +207,8 @@ export type { ChainInfo } from "./chains";
 
 export {
   executeWalletCalls,
+  partialWalletExecution,
+  PartialWalletExecutionError,
   MAX_AUTO_FEE_WEI,
   normalizeSimulatedFee,
   buildFeeAAWalletCall,
@@ -223,6 +226,7 @@ export type {
   NativeWalletSponsorship,
   SponsorshipPaymasterServiceContext,
   ExecutionResult,
+  PartialWalletExecution,
   AtomicBatchArgs,
   ExecuteWalletCallsParams,
   NormalizedSimulatedFee,

@@ -99,7 +99,17 @@ function routeDecision(
 ): FailureResult {
   const routedDecision = normalizeDecision(decision);
   const response = Response.json(
-    { error: routedDecision.responseError },
+    {
+      error: routedDecision.responseError,
+      // Emitted only when the identifier set them, so every other route's
+      // body shape is unchanged.
+      ...(routedDecision.responseCode
+        ? { code: routedDecision.responseCode }
+        : {}),
+      ...(routedDecision.responseRetryable !== undefined
+        ? { retryable: routedDecision.responseRetryable }
+        : {}),
+    },
     { status: routedDecision.responseStatus },
   );
   const attributes =

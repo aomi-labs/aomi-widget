@@ -10,21 +10,47 @@ type ReleaseAsset = { name: string; url: string };
 export const REQUIRED_SECRETS_CHECK_UNAVAILABLE =
   "REQUIRED_SECRETS_CHECK_UNAVAILABLE" as const;
 
+/**
+ * Why the check could not answer. All of these close the gate, but they are
+ * not the same problem and the builder can only act on one of them:
+ *
+ * - `bff_misconfigured` — this deployment has no `GITHUB_TOKEN`. Retrying can
+ *   never fix it; it needs an operator. Telling a builder to "try again" here
+ *   is the wrong instruction, which is why it is not folded in with the rest.
+ * - `github_unavailable` / `backend_unavailable` — transient upstream; retry
+ *   is the right advice.
+ * - `unresolvable_project` — no platform repo for the project yet.
+ */
+export type RequiredSecretsCheckReason =
+  | "bff_misconfigured"
+  | "github_unavailable"
+  | "backend_unavailable"
+  | "unresolvable_project";
+
 /** The required-secret metadata could not be verified safely. */
 export class RequiredSecretsCheckError extends Error {
   readonly code = REQUIRED_SECRETS_CHECK_UNAVAILABLE;
+  readonly reason: RequiredSecretsCheckReason;
+  readonly retryable: boolean;
   readonly upstream?: "github" | "rust";
   readonly upstreamStatus?: number;
 
   constructor(options?: {
     cause?: unknown;
+    reason?: RequiredSecretsCheckReason;
     upstream?: "github" | "rust";
     upstreamStatus?: number;
   }) {
-    super("Unable to verify required secrets. Try again.", {
-      cause: options?.cause,
-    });
+    const reason = options?.reason ?? "github_unavailable";
+    super(
+      reason === "bff_misconfigured"
+        ? "Required secrets cannot be verified: this deployment is missing its GitHub token."
+        : "Unable to verify required secrets. Try again.",
+      { cause: options?.cause },
+    );
     this.name = "RequiredSecretsCheckError";
+    this.reason = reason;
+    this.retryable = reason !== "bff_misconfigured";
     this.upstream = options?.upstream;
     this.upstreamStatus = options?.upstreamStatus;
   }
@@ -57,6 +83,7 @@ export async function fetchReleaseSecretSlots(input: {
     });
     if (!releaseRes.ok) {
       throw new RequiredSecretsCheckError({
+        reason: "github_unavailable",
         upstream: "github",
         upstreamStatus: releaseRes.status,
       });
@@ -73,6 +100,7 @@ export async function fetchReleaseSecretSlots(input: {
     });
     if (!assetRes.ok) {
       throw new RequiredSecretsCheckError({
+        reason: "github_unavailable",
         upstream: "github",
         upstreamStatus: assetRes.status,
       });
@@ -86,7 +114,11 @@ export async function fetchReleaseSecretSlots(input: {
     return slots;
   } catch (error) {
     if (error instanceof RequiredSecretsCheckError) throw error;
-    throw new RequiredSecretsCheckError({ cause: error, upstream: "github" });
+    throw new RequiredSecretsCheckError({
+      cause: error,
+      reason: "github_unavailable",
+      upstream: "github",
+    });
   }
 }
 
@@ -152,7 +184,9 @@ export async function missingSecretsForActivation(input: {
   if (input.pairs.length === 0) return {};
 
   const githubToken = input.githubToken ?? process.env.GITHUB_TOKEN?.trim();
-  if (!githubToken) throw new RequiredSecretsCheckError();
+  if (!githubToken) {
+    throw new RequiredSecretsCheckError({ reason: "bff_misconfigured" });
+  }
 
   let platformRepo = input.project.latestDeployment?.platformRepo ?? undefined;
   if (!platformRepo) {
@@ -165,13 +199,16 @@ export async function missingSecretsForActivation(input: {
     } catch (error) {
       throw new RequiredSecretsCheckError({
         cause: error,
+        reason: "backend_unavailable",
         upstream: "rust",
         upstreamStatus:
           error instanceof BackendError ? error.status : undefined,
       });
     }
   }
-  if (!platformRepo) throw new RequiredSecretsCheckError();
+  if (!platformRepo) {
+    throw new RequiredSecretsCheckError({ reason: "unresolvable_project" });
+  }
   const repo = platformRepo;
 
   // Kept after the platform-repo resolution on purpose: when that fails the
@@ -182,6 +219,7 @@ export async function missingSecretsForActivation(input: {
       if (!application) {
         throw new RequiredSecretsCheckError({
           cause: new Error(`Application identity is unavailable for ${pair.app}`),
+          reason: "backend_unavailable",
           upstream: "rust",
         });
       }

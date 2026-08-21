@@ -1497,7 +1497,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   }
   return await response.json();
 }
-var SESSION_ID_HEADER, THREAD_ID_HEADER, APP_KEY_HEADER, AomiClient;
+var SESSION_ID_HEADER, THREAD_ID_HEADER, APP_KEY_HEADER, CREATE_THREAD_RETRY_STATUSES, CREATE_THREAD_RETRY_DELAYS_MS, delay, AomiClient;
 var init_client = __esm({
   "src/client.ts"() {
     "use strict";
@@ -1507,9 +1507,23 @@ var init_client = __esm({
     SESSION_ID_HEADER = "X-Session-Id";
     THREAD_ID_HEADER = "X-Thread-Id";
     APP_KEY_HEADER = "Aomi-App-Key";
+    CREATE_THREAD_RETRY_STATUSES = /* @__PURE__ */ new Set([502, 503, 504]);
+    CREATE_THREAD_RETRY_DELAYS_MS = [400, 1e3, 2e3];
+    delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     AomiClient = class {
       constructor(options) {
-        var _a3;
+        /**
+         * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
+         *
+         * Historically evaluated ONCE in the constructor, which silently dropped
+         * reconnect for a stable bearer whose `subscribe` appears after construction.
+         * Re-attempted lazily on every SSE subscription so that shape is picked up on
+         * the next stream instead of never. Replacing the bearer function itself still
+         * requires a stable host/widget bridge; AomiClient intentionally retains the
+         * source supplied at construction.
+         */
+        this.tokenRefreshWired = false;
+        var _a3, _b;
         this.baseUrl = options.baseUrl.replace(/\/+$/, "");
         this.apiKey = options.apiKey;
         const fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
@@ -1523,6 +1537,7 @@ var init_client = __esm({
           options.getAccountBearer
         );
         this.logger = options.logger;
+        this.accountBearer = options.getAccountBearer;
         this.sseSubscriber = createSseSubscriber({
           backendUrl: this.baseUrl,
           getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
@@ -1531,11 +1546,21 @@ var init_client = __esm({
           fetchImpl: this.rawFetchImpl,
           logger: this.logger
         });
-        if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-          options.getAccountBearer.subscribe(() => {
-            this.sseSubscriber.reconnect("account-token-refreshed");
-          });
+        this.wireTokenRefreshReconnect();
+        if (((_b = options.getAccountBearer) == null ? void 0 : _b.required) === true && !supportsTokenRefreshSubscription(options.getAccountBearer)) {
+          console.warn(
+            "[aomi-client] getAccountBearer.required is set but subscribe() is missing: SSE will not reconnect after token refresh. Pass the WidgetSessionProvider through unwrapped, or preserve its subscribe/dispose/revoke methods."
+          );
         }
+      }
+      wireTokenRefreshReconnect() {
+        if (this.tokenRefreshWired) return;
+        const bearer = this.accountBearer;
+        if (!supportsTokenRefreshSubscription(bearer)) return;
+        this.tokenRefreshWired = true;
+        bearer.subscribe(() => {
+          this.sseSubscriber.reconnect("account-token-refreshed");
+        });
       }
       // ===========================================================================
       // Chat & State
@@ -1750,22 +1775,20 @@ ${body}` : ""}`
       // Secrets
       // ===========================================================================
       /**
-       * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+       * Ingest client-scoped secrets. Returns opaque `$SECRET:<name>` handles.
        *
-       * When `app` is provided, the values land in the per-app store keyed by
-       * `(client_id, app)` — this is the path the Secrets settings page uses
-       * (one app at a time). When `app` is omitted, secrets land in the flat
-       * client store (used by BYOK and other cross-app pools).
+       * There is no app scope. A hosted app's Environment belongs to its Builder
+       * and is configured in Aomi Build; a per-user copy of it was a second,
+       * process-local store that answered the same handle differently depending on
+       * which fleet host served the turn. The backend answers 410 to any request
+       * that still carries one.
        */
-      async ingestSecrets(sessionId, clientId, secrets, app) {
+      async ingestSecrets(sessionId, clientId, secrets) {
         const url = joinApiPath(this.baseUrl, "/api/secrets");
         const body = {
           client_id: clientId,
           secrets
         };
-        if (app && app.trim().length > 0) {
-          body.app = app.trim();
-        }
         const response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(sessionId, {
@@ -1778,17 +1801,11 @@ ${body}` : ""}`
         }
         return await response.json();
       }
-      /**
-       * Clear secrets for a client. With `app`, removes every slot under that
-       * app. Without `app`, clears the entire client (legacy behavior — wipes
-       * both stores and unbinds the session).
-       */
-      async clearSecrets(sessionId, clientId, app) {
-        const params = { client_id: clientId };
-        if (app && app.trim().length > 0) {
-          params.app = app.trim();
-        }
-        const url = buildApiUrl(this.baseUrl, "/api/secrets", params);
+      /** Clear every client-scoped secret and unbind the session. */
+      async clearSecrets(sessionId, clientId) {
+        const url = buildApiUrl(this.baseUrl, "/api/secrets", {
+          client_id: clientId
+        });
         const response = await this.fetchImpl(url, {
           method: "DELETE",
           headers: withSessionHeader(sessionId)
@@ -1798,15 +1815,9 @@ ${body}` : ""}`
         }
         return await response.json();
       }
-      /**
-       * Remove a single named secret. With `app`, targets the per-app store
-       * under that scope; without, targets the flat store.
-       */
-      async deleteSecret(sessionId, clientId, name, app) {
+      /** Remove a single named client-scoped secret. */
+      async deleteSecret(sessionId, clientId, name) {
         const params = { client_id: clientId };
-        if (app && app.trim().length > 0) {
-          params.app = app.trim();
-        }
         const url = buildApiUrl(
           this.baseUrl,
           `/api/secrets/${encodeURIComponent(name)}`,
@@ -1822,9 +1833,10 @@ ${body}` : ""}`
         return await response.json();
       }
       /**
-       * List currently stored secret names per app for this client. The
-       * backend never returns raw values; the settings page uses this as the
-       * source of truth instead of trusting localStorage.
+       * List the stored secret NAMES for this client — never values.
+       *
+       * Read the result with {@link secretNamesFrom}, which tolerates the
+       * pre-cutover `by_app` shape as well as the flat `names` list.
        */
       async listSecrets(sessionId, clientId) {
         const url = clientId && clientId.trim().length > 0 ? buildApiUrl(this.baseUrl, "/api/secrets", { client_id: clientId }) : joinApiPath(this.baseUrl, "/api/secrets");
@@ -1846,6 +1858,7 @@ ${body}` : ""}`
        * Returns an unsubscribe function.
        */
       subscribeSSE(sessionId, onUpdate, onError, options) {
+        this.wireTokenRefreshReconnect();
         return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
       }
       // ===========================================================================
@@ -1904,10 +1917,17 @@ ${body}` : ""}`
           platform: options == null ? void 0 : options.platform,
           client_id: options == null ? void 0 : options.clientId
         });
-        const response = await this.fetchImpl(url, {
+        let response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(threadId)
         });
+        for (let attempt = 0; attempt < CREATE_THREAD_RETRY_DELAYS_MS.length && CREATE_THREAD_RETRY_STATUSES.has(response.status); attempt += 1) {
+          await delay(CREATE_THREAD_RETRY_DELAYS_MS[attempt]);
+          response = await this.fetchImpl(url, {
+            method: "POST",
+            headers: withSessionHeader(threadId)
+          });
+        }
         if (!response.ok) {
           throw new Error(`Failed to create thread: HTTP ${response.status}`);
         }
@@ -3862,8 +3882,8 @@ var init_session = __esm({
       scheduleSigningRequestRecovery(immediate = false) {
         if (this.closed || this.signingRecoveryInFlight) return;
         const elapsed = Date.now() - this.lastSigningRecoveryAt;
-        const delay = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
-        if (delay === 0) {
+        const delay2 = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
+        if (delay2 === 0) {
           void this.recoverSigningRequests();
           return;
         }
@@ -3871,7 +3891,7 @@ var init_session = __esm({
         this.signingRecoveryTimer = setTimeout(() => {
           this.signingRecoveryTimer = null;
           if (!this.closed) void this.recoverSigningRequests();
-        }, delay);
+        }, delay2);
       }
       /**
        * A signing event is transient, but its backend-owned operation is durable.
@@ -5625,8 +5645,34 @@ var init_cli_session = __esm({
         return removed;
       }
       addSignedTx(tx) {
+        var _a3;
         if (!this.state.signedTxs) this.state.signedTxs = [];
-        this.state.signedTxs.push(tx);
+        const index = this.state.signedTxs.findIndex(
+          (existing) => tx.pendingTxId !== void 0 && existing.pendingTxId === tx.pendingTxId && existing.kind === tx.kind || existing.id === tx.id && existing.kind === tx.kind
+        );
+        if (index === -1) {
+          this.state.signedTxs.push(tx);
+        } else {
+          this.state.signedTxs[index] = __spreadValues(__spreadValues({}, this.state.signedTxs[index]), tx);
+        }
+        this.state.pendingTxs = ((_a3 = this.state.pendingTxs) != null ? _a3 : []).filter(
+          (pending) => !(pending.kind === tx.kind && (tx.pendingTxId !== void 0 && pending.txId === tx.pendingTxId || pending.id === tx.id))
+        );
+        this.save();
+      }
+      findSignedTransaction(txId) {
+        var _a3;
+        const id = this.chainSelector(txId, "evm");
+        if (!id) return void 0;
+        return [...(_a3 = this.state.signedTxs) != null ? _a3 : []].reverse().find((tx) => tx.kind === "transaction" && tx.id === id);
+      }
+      markSignedTxBackendNotified(pendingTxId) {
+        var _a3;
+        const record = [...(_a3 = this.state.signedTxs) != null ? _a3 : []].reverse().find(
+          (tx) => tx.kind === "transaction" && tx.pendingTxId === pendingTxId
+        );
+        if (!record || record.backendNotified === true) return;
+        record.backendNotified = true;
         this.save();
       }
       /** Add a pending Solana tx with dedup on `solanaId`. */
@@ -6069,6 +6115,7 @@ function toSignedTransactionRecord(tx, execution, from, chainId3, timestamp2) {
   return {
     id: tx.id,
     kind: "transaction",
+    pendingTxId: tx.txId,
     txHash: execution.txHash,
     txHashes: execution.txHashes,
     executionKind: execution.executionKind,
@@ -6109,6 +6156,9 @@ function formatSignedTxLine(tx, prefix) {
     if (tx.aaMode) parts.push(`mode: ${tx.aaMode}`);
     if (tx.txHashes && tx.txHashes.length > 1) {
       parts.push(`txs: ${tx.txHashes.length}`);
+    }
+    if (tx.serviceFeeStatus) {
+      parts.push(`fee: ${tx.serviceFeeStatus}`);
     }
     if (tx.sponsored) parts.push("sponsored");
     if (tx.smartAccount4337) parts.push(`4337: ${tx.smartAccount4337}`);
@@ -6452,6 +6502,26 @@ var init_chat = __esm({
 // src/aa/execute.ts
 import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
+function walletExecutionFailureReason(error) {
+  if (error && typeof error === "object") {
+    for (const field of ["details", "shortMessage"]) {
+      const value = error[field];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return message.split(/\n(?:\n|URL:|Request body:|Request Arguments:)/, 1)[0].trim();
+}
+function partialWalletExecution(error) {
+  if (!error || typeof error !== "object" || !("partial" in error)) {
+    return void 0;
+  }
+  const partial = error.partial;
+  if (!partial || !Array.isArray(partial.completedTxHashes) || partial.completedTxHashes.length === 0 || !partial.completedTxHashes.every((hash) => typeof hash === "string") || !Number.isInteger(partial.failedCallIndex) || typeof partial.failureReason !== "string") {
+    return void 0;
+  }
+  return partial;
+}
 function normalizeRpcCallData(data) {
   return data === "0x" ? void 0 : data;
 }
@@ -6503,33 +6573,43 @@ async function executeWalletCalls(params) {
     if (requiresAtomicForBatch) {
       throw new Error("wallet_atomic_batch_required");
     }
-    for (const call of normalizedCalls) {
-      const chain = chainsById[call.chainId];
-      if (!chain) {
-        throw new Error(`Unsupported chain ${call.chainId}`);
+    for (const [callIndex, call] of normalizedCalls.entries()) {
+      try {
+        const chain = chainsById[call.chainId];
+        if (!chain) {
+          throw new Error(`Unsupported chain ${call.chainId}`);
+        }
+        const rpcUrl = getPreferredRpcUrl2(chain);
+        if (!rpcUrl) {
+          throw new Error(`No RPC for chain ${call.chainId}`);
+        }
+        const account = privateKeyToAccount4(localPrivateKey);
+        const walletClient = createWalletClient({
+          account,
+          chain,
+          transport: http(rpcUrl)
+        });
+        const hash = await walletClient.sendTransaction({
+          account,
+          to: call.to,
+          value: call.value,
+          data: call.data
+        });
+        const publicClient = createPublicClient({
+          chain,
+          transport: http(rpcUrl)
+        });
+        const receipt = await publicClient.waitForTransactionReceipt({ hash });
+        if (receipt.status !== "success") {
+          throw new Error(`Transaction ${hash} reverted`);
+        }
+        hashes.push(hash);
+      } catch (error) {
+        if (hashes.length > 0) {
+          throw new PartialWalletExecutionError(error, hashes, callIndex);
+        }
+        throw error;
       }
-      const rpcUrl = getPreferredRpcUrl2(chain);
-      if (!rpcUrl) {
-        throw new Error(`No RPC for chain ${call.chainId}`);
-      }
-      const account = privateKeyToAccount4(localPrivateKey);
-      const walletClient = createWalletClient({
-        account,
-        chain,
-        transport: http(rpcUrl)
-      });
-      const hash = await walletClient.sendTransaction({
-        account,
-        to: call.to,
-        value: call.value,
-        data: call.data
-      });
-      const publicClient = createPublicClient({
-        chain,
-        transport: http(rpcUrl)
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-      hashes.push(hash);
     }
     return {
       txHash: hashes[hashes.length - 1],
@@ -6719,12 +6799,24 @@ function resolveChainCapabilities(capabilities, chainId3) {
   const hexKey = `0x${chainId3.toString(16)}`;
   return (_b = (_a3 = asRecord3[eip155Key]) != null ? _a3 : asRecord3[decimalKey]) != null ? _b : asRecord3[hexKey];
 }
-var ERC20_PAYMENT_CONTEXT_KEYS, AA_DEBUG_STORAGE_KEYS;
+var ERC20_PAYMENT_CONTEXT_KEYS, AA_DEBUG_STORAGE_KEYS, PartialWalletExecutionError;
 var init_execute = __esm({
   "src/aa/execute.ts"() {
     "use strict";
     ERC20_PAYMENT_CONTEXT_KEYS = /* @__PURE__ */ new Set(["erc20", "paymasterAddress"]);
     AA_DEBUG_STORAGE_KEYS = ["aomi:debug-aa", "AOMI_DEBUG_AA"];
+    PartialWalletExecutionError = class extends Error {
+      constructor(error, completedTxHashes, failedCallIndex) {
+        const failureReason = walletExecutionFailureReason(error);
+        super(failureReason);
+        this.name = "PartialWalletExecutionError";
+        this.partial = {
+          completedTxHashes: [...completedTxHashes],
+          failedCallIndex,
+          failureReason
+        };
+      }
+    };
   }
 });
 
@@ -6822,25 +6914,32 @@ function toPendingTxMetadata(tx) {
   };
 }
 function toSignedTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
   return {
     id: tx.id,
     kind: tx.kind,
-    txHash: (_a3 = tx.txHash) != null ? _a3 : null,
-    txHashes: (_b = tx.txHashes) != null ? _b : null,
-    executionKind: (_c = tx.executionKind) != null ? _c : null,
-    aaProvider: (_d = tx.aaProvider) != null ? _d : null,
-    aaMode: (_e = tx.aaMode) != null ? _e : null,
-    batched: (_f = tx.batched) != null ? _f : null,
-    sponsored: (_g = tx.sponsored) != null ? _g : null,
-    smartAccount4337: (_h = tx.smartAccount4337) != null ? _h : null,
-    Delegation7702: (_i = tx.Delegation7702) != null ? _i : null,
-    signature: (_j = tx.signature) != null ? _j : null,
-    from: (_k = tx.from) != null ? _k : null,
-    to: (_l = tx.to) != null ? _l : null,
-    value: (_m = tx.value) != null ? _m : null,
-    chainId: (_n = tx.chainId) != null ? _n : null,
-    description: (_o = tx.description) != null ? _o : null,
+    pendingTxId: (_a3 = tx.pendingTxId) != null ? _a3 : null,
+    txHash: (_b = tx.txHash) != null ? _b : null,
+    txHashes: (_c = tx.txHashes) != null ? _c : null,
+    executionKind: (_d = tx.executionKind) != null ? _d : null,
+    aaProvider: (_e = tx.aaProvider) != null ? _e : null,
+    aaMode: (_f = tx.aaMode) != null ? _f : null,
+    batched: (_g = tx.batched) != null ? _g : null,
+    sponsored: (_h = tx.sponsored) != null ? _h : null,
+    smartAccount4337: (_i = tx.smartAccount4337) != null ? _i : null,
+    Delegation7702: (_j = tx.Delegation7702) != null ? _j : null,
+    signature: (_k = tx.signature) != null ? _k : null,
+    from: (_l = tx.from) != null ? _l : null,
+    to: (_m = tx.to) != null ? _m : null,
+    value: (_n = tx.value) != null ? _n : null,
+    chainId: (_o = tx.chainId) != null ? _o : null,
+    description: (_p = tx.description) != null ? _p : null,
+    backendNotified: (_q = tx.backendNotified) != null ? _q : null,
+    serviceFeeStatus: (_r = tx.serviceFeeStatus) != null ? _r : null,
+    serviceFeeAmountWei: (_s = tx.serviceFeeAmountWei) != null ? _s : null,
+    serviceFeeRecipient: (_t = tx.serviceFeeRecipient) != null ? _t : null,
+    serviceFeeTxHash: (_u = tx.serviceFeeTxHash) != null ? _u : null,
+    serviceFeeError: (_v = tx.serviceFeeError) != null ? _v : null,
     timestamp: toIsoTimestamp(tx.timestamp)
   };
 }
@@ -6849,8 +6948,14 @@ function printKeyValueTable(rows, color = CYAN) {
   const values = rows.map(
     ([, value]) => truncateCell(value, MAX_TABLE_VALUE_WIDTH)
   );
-  const keyWidth = Math.max("field".length, ...labels.map((label) => label.length));
-  const valueWidth = Math.max("value".length, ...values.map((value) => value.length));
+  const keyWidth = Math.max(
+    "field".length,
+    ...labels.map((label) => label.length)
+  );
+  const valueWidth = Math.max(
+    "value".length,
+    ...values.map((value) => value.length)
+  );
   const border = `+${"-".repeat(keyWidth + 2)}+${"-".repeat(valueWidth + 2)}+`;
   console.log(`${color}${border}${RESET}`);
   console.log(
@@ -6893,7 +6998,10 @@ function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
   const jsonCells = visibleRows.map(
     (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
   );
-  const jsonWidth = Math.max("metadata_json".length, ...jsonCells.map((v) => v.length));
+  const jsonWidth = Math.max(
+    "metadata_json".length,
+    ...jsonCells.map((v) => v.length)
+  );
   const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
   console.log(`${color}${border}${RESET}`);
   console.log(
@@ -6928,7 +7036,7 @@ __export(wallet_exports, {
   signCommand: () => signCommand,
   txCommand: () => txCommand
 });
-import { createWalletClient as createWalletClient2, http as http2 } from "viem";
+import { createWalletClient as createWalletClient2, formatEther, http as http2 } from "viem";
 import { Connection } from "@solana/web3.js";
 import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
 import * as viemChains from "viem/chains";
@@ -7240,8 +7348,72 @@ async function executeCliTransaction(params) {
     getPreferredRpcUrl: (resolvedChain) => getPreferredRpcUrl(resolvedChain, rpcUrl)
   });
 }
+function serviceFeePayload(record) {
+  if (!record.serviceFeeStatus) return void 0;
+  return __spreadProps(__spreadValues(__spreadValues({
+    status: record.serviceFeeStatus,
+    amount_wei: record.serviceFeeAmountWei,
+    recipient: record.serviceFeeRecipient
+  }, record.serviceFeeTxHash ? { tx_hash: record.serviceFeeTxHash } : {}), record.serviceFeeError ? { error: record.serviceFeeError } : {}), {
+    retryable: false
+  });
+}
+function transactionCompletionPayload(record) {
+  var _a3, _b, _c, _d;
+  if (!record.txHash || record.pendingTxId === void 0) {
+    throw new Error("confirmed_transaction_missing_callback_metadata");
+  }
+  const fee = serviceFeePayload(record);
+  return __spreadProps(__spreadValues(__spreadValues({
+    txHash: record.txHash,
+    status: "success",
+    pending_tx_ids: [record.pendingTxId],
+    aa_requested_mode: "none",
+    aa_resolved_mode: "none",
+    execution_kind: (_a3 = record.executionKind) != null ? _a3 : "eoa",
+    batched: (_b = record.batched) != null ? _b : false,
+    call_count: (_d = (_c = record.txHashes) == null ? void 0 : _c.length) != null ? _d : 1
+  }, record.serviceFeeTxHash ? { service_fee_tx_hash: record.serviceFeeTxHash } : {}), fee ? { service_fee: fee } : {}), {
+    sponsored: record.sponsored
+  });
+}
+async function recoverConfirmedTransactions(params) {
+  const { cli, session, records } = params;
+  let replayed = 0;
+  for (const record of records) {
+    if (record.pendingTxId === void 0 || !record.txHash) continue;
+    const pending = cli.pendingTxs.some(
+      (tx) => tx.kind === "transaction" && tx.txId === record.pendingTxId
+    );
+    if (!pending) {
+      cli.markSignedTxBackendNotified(record.pendingTxId);
+      continue;
+    }
+    await session.client.sendSystemMessage(
+      cli.sessionId,
+      JSON.stringify({
+        type: "wallet:tx_complete",
+        payload: transactionCompletionPayload(record)
+      }),
+      { app: cli.app }
+    );
+    cli.markSignedTxBackendNotified(record.pendingTxId);
+    replayed += 1;
+  }
+  if (replayed > 0) {
+    const syncedState = await session.syncUserState();
+    cli.syncPendingFromUserState(syncedState.user_state);
+    console.log(
+      `Backend notification recovered for ${replayed} confirmed transaction${replayed === 1 ? "" : "s"}; no transaction was rebroadcast.`
+    );
+  } else {
+    console.log(
+      "Transaction already confirmed; no transaction was rebroadcast."
+    );
+  }
+}
 async function signCommand(config, txIds) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
   if (txIds.length === 0) {
     fatal(
       "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs."
@@ -7276,13 +7448,13 @@ async function signCommand(config, txIds) {
       (id) => cli.findPendingSolTx(id) !== void 0
     );
     const evmIds = uniqueIds.filter(
-      (id) => cli.findPendingTx(id) !== void 0
+      (id) => cli.findPendingTx(id) !== void 0 || cli.findSignedTransaction(id) !== void 0
     );
     const unknownIds = uniqueIds.filter(
-      (id) => cli.findPendingSolTx(id) === void 0 && cli.findPendingTx(id) === void 0
+      (id) => cli.findPendingSolTx(id) === void 0 && cli.findPendingTx(id) === void 0 && cli.findSignedTransaction(id) === void 0
     );
     const ambiguousIds = uniqueIds.filter(
-      (id) => !id.includes(":") && cli.findPendingSolTx(id) !== void 0 && cli.findPendingTx(id) !== void 0
+      (id) => !id.includes(":") && cli.findPendingSolTx(id) !== void 0 && (cli.findPendingTx(id) !== void 0 || cli.findSignedTransaction(id) !== void 0)
     );
     if (ambiguousIds.length > 0) {
       fatal(
@@ -7312,6 +7484,23 @@ Available: ${available}`
       for (const pendingTx of pendingSolana) {
         await signSolanaPending({ cli, session, config, pendingTx });
       }
+      return;
+    }
+    const confirmedRecords = uniqueIds.flatMap((id) => {
+      const record = cli.findSignedTransaction(id);
+      return record ? [record] : [];
+    });
+    if (confirmedRecords.length > 0) {
+      if (confirmedRecords.length !== uniqueIds.length) {
+        fatal(
+          "Confirmed and unconfirmed transactions cannot be mixed in one retry. Sign the remaining pending IDs separately."
+        );
+      }
+      await recoverConfirmedTransactions({
+        cli,
+        session,
+        records: confirmedRecords
+      });
       return;
     }
     const pendingTxs = cli.requirePendingTxs(uniqueIds);
@@ -7353,6 +7542,7 @@ Available: ${available}`
     console.log(`IDs:     ${pendingTxs.map((tx) => tx.id).join(", ")}`);
     let signedRecords = [];
     let backendNotifications = [];
+    let partialFailureReason;
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
       console.log(
         `Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`
@@ -7401,68 +7591,101 @@ Available: ${available}`
           `${DIM}Simulation unavailable, skipping fee injection.${RESET}`
         );
       }
+      let normalizedFee = null;
       let autoFeeCall = null;
       if (simFee) {
-        const normalizedFee = normalizeSimulatedFee(simFee);
+        normalizedFee = normalizeSimulatedFee(simFee);
         if (normalizedFee) {
-          const feeEth = (Number(normalizedFee.amountWei) / 1e18).toFixed(6);
-          console.log(`Fee:     ${feeEth} ETH \u2192 ${normalizedFee.recipient}`);
+          console.log(
+            `Fee:     ${formatEther(normalizedFee.amountWei)} ETH (${normalizedFee.amountWei} wei) \u2192 ${normalizedFee.recipient}`
+          );
         }
         autoFeeCall = buildFeeAAWalletCall(simFee, primaryChainId);
       }
       const executionCallList = autoFeeCall ? [...baseCallList, autoFeeCall] : baseCallList;
       console.log("Exec:    eoa");
-      const execution = await executeCliTransaction({
-        privateKey,
-        currentChainId: primaryChainId,
-        chainsById,
-        rpcUrl,
-        callList: executionCallList
-      });
-      let reportedExecution = execution;
-      let feeTxHash;
-      if (autoFeeCall && execution.executionKind === "eoa" && execution.txHashes.length === executionCallList.length) {
-        const actionTxHashes = execution.txHashes.slice(0, baseCallList.length);
-        feeTxHash = execution.txHashes[baseCallList.length];
-        const actionTxHash = actionTxHashes[actionTxHashes.length - 1];
-        if (actionTxHash) {
-          reportedExecution = __spreadProps(__spreadValues({}, execution), {
-            txHash: actionTxHash,
-            txHashes: actionTxHashes,
-            batched: baseCallList.length > 1
-          });
-        }
+      let execution;
+      let failedCallIndex;
+      try {
+        execution = await executeCliTransaction({
+          privateKey,
+          currentChainId: primaryChainId,
+          chainsById,
+          rpcUrl,
+          callList: executionCallList
+        });
+      } catch (error) {
+        const partial = partialWalletExecution(error);
+        if (!partial) throw error;
+        execution = {
+          txHash: partial.completedTxHashes[partial.completedTxHashes.length - 1],
+          txHashes: partial.completedTxHashes,
+          executionKind: "eoa",
+          batched: partial.completedTxHashes.length > 1,
+          sponsored: false
+        };
+        partialFailureReason = partial.failureReason;
+        failedCallIndex = partial.failedCallIndex;
       }
-      console.log(`\u2705 Sent! Hash: ${reportedExecution.txHash}`);
-      if (reportedExecution.txHashes.length > 1) {
-        console.log(`Count:   ${reportedExecution.txHashes.length}`);
+      if (!partialFailureReason && execution.txHashes.length !== executionCallList.length) {
+        throw new Error("wallet_execution_hash_count_mismatch");
+      }
+      const actionTxHashes = execution.txHashes.slice(0, baseCallList.length);
+      const feeTxHash = autoFeeCall ? execution.txHashes[baseCallList.length] : void 0;
+      const confirmedPendingTxs = pendingTxs.slice(0, actionTxHashes.length);
+      if (confirmedPendingTxs.length === 0) {
+        throw new Error(
+          partialFailureReason != null ? partialFailureReason : "No requested transaction confirmed"
+        );
+      }
+      console.log(
+        `\u2705 Sent! Hash: ${actionTxHashes[actionTxHashes.length - 1]}`
+      );
+      if (actionTxHashes.length > 1) {
+        console.log(`Count:   ${actionTxHashes.length}`);
       }
       if (feeTxHash) console.log(`Fee tx:  ${feeTxHash}`);
-      signedRecords = pendingTxs.map(
-        (tx, index) => toSignedTransactionRecord(
+      const feeStatus = !autoFeeCall ? void 0 : feeTxHash ? "confirmed" : failedCallIndex === baseCallList.length ? "failed" : "not_attempted";
+      signedRecords = confirmedPendingTxs.map((tx, index) => {
+        const actionExecution = __spreadProps(__spreadValues({}, execution), {
+          txHash: actionTxHashes[index],
+          txHashes: [actionTxHashes[index]],
+          batched: false
+        });
+        return __spreadValues(__spreadProps(__spreadValues({}, toSignedTransactionRecord(
           tx,
-          reportedExecution,
+          actionExecution,
           account.address,
           resolvedChainIds[index],
           Date.now()
-        )
-      );
-      backendNotifications = pendingTxs.map((tx) => ({
+        )), {
+          backendNotified: false
+        }), normalizedFee && feeStatus ? {
+          serviceFeeStatus: feeStatus,
+          serviceFeeAmountWei: normalizedFee.amountWei.toString(),
+          serviceFeeRecipient: normalizedFee.recipient,
+          serviceFeeTxHash: feeTxHash,
+          serviceFeeError: feeStatus === "confirmed" ? void 0 : partialFailureReason
+        } : {});
+      });
+      backendNotifications = signedRecords.map((record) => ({
         type: "wallet:tx_complete",
-        payload: __spreadProps(__spreadValues({
-          txHash: reportedExecution.txHash,
-          status: "success",
-          pending_tx_ids: tx.txId !== void 0 ? [tx.txId] : [],
-          aa_requested_mode: "none",
-          aa_resolved_mode: "none",
-          aa_fallback_reason: void 0,
-          execution_kind: execution.executionKind,
-          batched: reportedExecution.batched,
-          call_count: reportedExecution.txHashes.length
-        }, feeTxHash ? { service_fee_tx_hash: feeTxHash } : {}), {
-          sponsored: execution.sponsored
-        })
+        payload: transactionCompletionPayload(record)
       }));
+      const remainingTxIds = pendingTxs.slice(confirmedPendingTxs.length).flatMap((tx) => tx.txId === void 0 ? [] : [tx.txId]);
+      if (remainingTxIds.length > 0) {
+        backendNotifications.push({
+          type: "wallet:tx_complete",
+          payload: {
+            txHash: "",
+            status: "failed",
+            error: partialFailureReason != null ? partialFailureReason : "Batch aborted after a mid-sequence failure",
+            pending_tx_ids: remainingTxIds,
+            batched: remainingTxIds.length > 1,
+            call_count: remainingTxIds.length
+          }
+        });
+      }
     } else {
       if (pendingTxs.length > 1) {
         fatal(
@@ -7544,19 +7767,49 @@ Available: ${available}`
     }
     cli.setPublicKey(account.address);
     session.resolveWallet(account.address, primaryChainId);
+    for (const signedRecord of signedRecords) {
+      cli.addSignedTx(signedRecord);
+    }
     for (const backendNotification of backendNotifications) {
       await session.client.sendSystemMessage(
         cli.sessionId,
         JSON.stringify(backendNotification),
         { app: cli.app }
       );
+      const pendingTxIds = backendNotification.payload.pending_tx_ids;
+      if (backendNotification.payload.status === "success" && Array.isArray(pendingTxIds)) {
+        for (const pendingTxId of pendingTxIds) {
+          if (typeof pendingTxId === "number") {
+            cli.markSignedTxBackendNotified(pendingTxId);
+          }
+        }
+      }
     }
     const syncedState = await session.syncUserState();
     cli.syncPendingFromUserState(syncedState.user_state);
-    for (const signedRecord of signedRecords) {
-      cli.addSignedTx(signedRecord);
-    }
     console.log("Backend notified.");
+    const failedFee = signedRecords.find(
+      (record) => record.serviceFeeStatus === "failed"
+    );
+    if (failedFee) {
+      fatal(
+        [
+          `\u26A0\uFE0F  Partial execution: action confirmed as ${failedFee.txHash}; service fee failed: ${(_n = failedFee.serviceFeeError) != null ? _n : "unknown error"}.`,
+          "The action is finalized and was removed from pending. Do not run `aomi tx sign` for this staged ID again.",
+          "No automatic fee-only retry is available; reconcile the fee separately with an operator using the recorded amount and recipient."
+        ].join("\n")
+      );
+    }
+    if (partialFailureReason) {
+      const confirmedIds = signedRecords.map((record) => record.id).join(", ");
+      fatal(
+        [
+          `\u26A0\uFE0F  Partial execution: confirmed ${confirmedIds}; a later action failed: ${partialFailureReason}.`,
+          "Confirmed IDs were removed from pending and will not be rebroadcast.",
+          "Run `aomi tx list`, then retry only the IDs that remain pending."
+        ].join("\n")
+      );
+    }
   } catch (err) {
     if (err instanceof CliExit) throw err;
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -7584,6 +7837,7 @@ var simulate_exports = {};
 __export(simulate_exports, {
   simulateCommand: () => simulateCommand
 });
+import { formatEther as formatEther2 } from "viem";
 async function simulateCommand(config, txIds) {
   var _a3, _b, _c, _d;
   const cli = CliSession.load();
@@ -7591,7 +7845,9 @@ async function simulateCommand(config, txIds) {
     fatal("No active session. Run `aomi chat` first.");
   }
   if (txIds.length === 0) {
-    fatal("Usage: aomi tx simulate <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see available IDs.");
+    fatal(
+      "Usage: aomi tx simulate <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see available IDs."
+    );
   }
   const session = cli.createClientSession(config);
   try {
@@ -7627,14 +7883,10 @@ async function simulateCommand(config, txIds) {
       chain_id: (_c2 = tx.chainId) != null ? _c2 : cli.chainId
     };
   });
-  const response = await client.simulateBatch(
-    cli.sessionId,
-    transactions,
-    {
-      from: (_b = cli.publicKey) != null ? _b : void 0,
-      chainId: (_c = cli.chainId) != null ? _c : void 0
-    }
-  );
+  const response = await client.simulateBatch(cli.sessionId, transactions, {
+    from: (_b = cli.publicKey) != null ? _b : void 0,
+    chainId: (_c = cli.chainId) != null ? _c : void 0
+  });
   const { result } = response;
   const modeLabel = result.stateful ? "stateful (Anvil snapshot)" : "stateless (independent eth_call)";
   console.log(`
@@ -7646,19 +7898,23 @@ Batch simulation (${modeLabel}):`);
     const label = step.label || `Step ${step.step}`;
     const gasInfo = step.gas_used ? ` | gas: ${step.gas_used.toLocaleString()}` : "";
     console.log(`  ${icon} ${step.step}. ${label}`);
-    console.log(`    ${DIM}to: ${step.tx.to} | value: ${step.tx.value_eth} ETH${gasInfo}${RESET}`);
+    console.log(
+      `    ${DIM}to: ${step.tx.to} | value: ${step.tx.value_eth} ETH${gasInfo}${RESET}`
+    );
     if (!step.success && step.revert_reason) {
       console.log(`    \x1B[31mRevert: ${step.revert_reason}${RESET}`);
     }
   }
   if (result.total_gas) {
-    console.log(`
-${DIM}Total gas: ${result.total_gas.toLocaleString()}${RESET}`);
+    console.log(
+      `
+${DIM}Total gas: ${result.total_gas.toLocaleString()}${RESET}`
+    );
   }
   if (result.fee) {
-    const feeEth = (Number(result.fee.amount_wei) / 1e18).toFixed(6);
+    const feeWei = BigInt(result.fee.amount_wei);
     console.log(
-      `Service fee: ${feeEth} ETH \u2192 ${result.fee.recipient}`
+      `Service fee: ${formatEther2(feeWei)} ETH (${feeWei} wei) \u2192 ${result.fee.recipient}`
     );
   }
   console.log();
@@ -11094,7 +11350,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.5.0",
+  version: "0.5.2",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

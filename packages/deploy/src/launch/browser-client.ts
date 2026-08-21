@@ -61,6 +61,20 @@ export class LaunchRequestError extends Error {
   }
 }
 
+/**
+ * Whether retrying this request could plausibly succeed.
+ *
+ * Defaults to true: only a BFF that explicitly says otherwise (a missing
+ * deploy-time credential, say) should have its Retry affordance withdrawn.
+ */
+export function isRetryableLaunchError(error: unknown): boolean {
+  if (!(error instanceof LaunchRequestError)) return true;
+  const body = error.body;
+  if (!body || typeof body !== "object") return true;
+  const retryable = (body as { retryable?: unknown }).retryable;
+  return typeof retryable === "boolean" ? retryable : true;
+}
+
 /** Browser request failures that polling cannot recover from. */
 export function isFatalLaunchRequestError(error: unknown): boolean {
   return (

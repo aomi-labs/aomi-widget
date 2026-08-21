@@ -1269,3 +1269,71 @@ describe("createAccountBearerProvider", () => {
     }
   });
 });
+
+describe("AomiClient.createThread cold-app retry", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Run `work` with timers faked, draining backoff waits as they are set. */
+  const withoutWaiting = async <T>(work: () => Promise<T>): Promise<T> => {
+    vi.useFakeTimers();
+    const promise = work();
+    // Mark a rejection handled up front: the assertion only awaits after the
+    // timers below have run, and an unattended rejection in between surfaces
+    // as an unhandled-rejection error.
+    promise.catch(() => {});
+    // Each retry schedules one timer; advancing repeatedly drains the chain
+    // without the test paying the real backoff.
+    for (let tick = 0; tick < 8; tick += 1) {
+      await vi.advanceTimersByTimeAsync(5_000);
+    }
+    return promise;
+  };
+
+  it("retries a cold-app 503 and resolves once the app is warm", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(
+        Response.json({ thread_id: "thread-1", title: null }),
+      );
+    const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+
+    await expect(
+      withoutWaiting(() => client.createThread("thread-1")),
+    ).resolves.toMatchObject({ session_id: "thread-1" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws a status-parseable error once retries are exhausted", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response(null, { status: 503 }));
+    const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+
+    // The message shape matters: getHttpStatus() parses `HTTP <code>` out of
+    // it to route failures downstream.
+    await expect(
+      withoutWaiting(() => client.createThread("thread-1")),
+    ).rejects.toThrow("Failed to create thread: HTTP 503");
+    expect(fetch).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([400, 402, 404])(
+    "surfaces %i immediately without retrying",
+    async (status) => {
+      const fetch = vi
+        .fn<typeof globalThis.fetch>()
+        .mockResolvedValue(new Response(null, { status }));
+      const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+
+      // 402 especially: a quota failure is a decision the payment gate must
+      // see at once, not something to sit behind seconds of backoff.
+      await expect(client.createThread("thread-1")).rejects.toThrow(
+        `Failed to create thread: HTTP ${status}`,
+      );
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+});

@@ -24,8 +24,16 @@ const telemetry = vi.hoisted(() => ({
   log: vi.fn(),
 }));
 
+// Spies on telemetry while keeping the REAL response serialization.
+//
+// This used to hand-roll `Response.json({ error })`, which quietly diverged
+// from production the moment the failure contract grew: every route test kept
+// passing while the real BFF returned fields the double never produced. Route
+// tests are the only place that response shape is asserted, so the double must
+// not own it — delegate to `routeFailure` and let it emit whatever production
+// emits.
 vi.mock("@build/server/bff/failures", async () => {
-  const { classifyFailure, identifyFailure } =
+  const { classifyFailure, identifyFailure, routeFailure } =
     await import("@aomi-labs/bff-observability");
   return {
     buildFailures: {
@@ -44,13 +52,7 @@ vi.mock("@build/server/bff/failures", async () => {
         } else if (decision.action === "log") {
           telemetry.log(eventContext);
         }
-        return {
-          ...decision,
-          response: Response.json(
-            { error: decision.responseError },
-            { status: decision.responseStatus },
-          ),
-        };
+        return routeFailure(decision, "build-bff");
       },
     },
   };
@@ -1420,6 +1422,37 @@ describe("activateLaunchRoute", () => {
     expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
+  it("tells the builder a missing GITHUB_TOKEN is not theirs to retry", async () => {
+    // The gate still closes — verification genuinely cannot run — but this is
+    // an operator problem, and the old pipeline flattened every check failure
+    // to "Unable to verify required secrets. Try again.", which is the wrong
+    // instruction for a credential the builder cannot supply.
+    vi.stubEnv("GITHUB_TOKEN", "");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(activationSourceWithRepo("aomi-labs/my-bot-app"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await activateLaunchRoute(
+      activateReq({
+        projectId: 99,
+        apps: ["my-bot"],
+        releaseTags: ["apps-555-r1-my-bot-abc"],
+      }),
+    );
+    const body = (await res.json()) as {
+      error: string;
+      code?: string;
+      retryable?: boolean;
+    };
+
+    expect(res.status).toBe(503);
+    expect(body.retryable).toBe(false);
+    expect(body.code).toBe("required_secrets_bff_misconfigured");
+    expect(body.error).toMatch(/GitHub token/i);
+    expect(body.error).not.toMatch(/try again/i);
+  });
+
   it("activates when the release manifest declares no secrets for the app", async () => {
     vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
@@ -1671,8 +1704,12 @@ describe("requiredSecretsRoute", () => {
     const res = await requiredSecretsRoute(requiredSecretsReq("?projectId=42"));
 
     expect(res.status).toBe(503);
+    // A backend outage IS worth retrying, unlike the misconfiguration case
+    // above — the contract now says which of the two this is.
     await expect(res.json()).resolves.toEqual({
       error: "Unable to verify required secrets. Try again.",
+      code: "required_secrets_backend_unavailable",
+      retryable: true,
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(telemetry.capture).not.toHaveBeenCalled();

@@ -40,6 +40,7 @@ import type {
   DeploymentRecord,
   DeploymentProjectsResult,
 } from "@build/features/launch/contracts";
+import { isRetryableLaunchError } from "@aomi-labs/deploy/launch";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
   buildQueryKeys,
@@ -59,6 +60,115 @@ export type DeployFlowState =
 const DEPLOY_POLL_MS = 4000;
 const DEPLOYMENT_READY_TIMEOUT_MS = 8 * 60 * 1000;
 const RUNTIME_READY_TIMEOUT_MS = 8 * 60 * 1000;
+
+type MissingSecrets = Record<string, string[]>;
+
+function missingSecretsFromLaunchError(error: unknown): MissingSecrets | null {
+  if (
+    !error ||
+    typeof error !== "object" ||
+    (error as { status?: unknown }).status !== 409
+  ) {
+    return null;
+  }
+  const body = (error as { body?: unknown }).body;
+  if (!body || typeof body !== "object") return null;
+  const missing = (body as { missing?: unknown }).missing;
+  if (!missing || typeof missing !== "object") return null;
+  const entries = Object.entries(missing).flatMap(([app, keys]) =>
+    Array.isArray(keys) && keys.every((key) => typeof key === "string")
+      ? [[app, keys] as const]
+      : [],
+  );
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
+}
+
+/**
+ * The read endpoint reports the Manager's persisted declarations. A deploy or
+ * promote 409 can be newer: it verifies the exact candidate release. Keep
+ * that authoritative write-time result visible until the user sets its keys,
+ * instead of collapsing the project back to "No keys required".
+ */
+function mergedRequiredSecrets(
+  declared: RequiredSecretsByApp | null,
+  gateMissing: MissingSecrets,
+  apps: UserProject["apps"] | undefined,
+  configured: Record<string, string[]> | null,
+): RequiredSecretsByApp | null {
+  if (declared === null && Object.keys(gateMissing).length === 0) return null;
+
+  const result: RequiredSecretsByApp = { ...(declared ?? {}) };
+  const appsByName = new Map((apps ?? []).map((app) => [app.name, app]));
+  for (const [app, names] of Object.entries(gateMissing)) {
+    const application = appsByName.get(app);
+    const existing = result[app];
+    // Preflight refreshes the source before a deploy can reach the 409. Keep
+    // this guard nonetheless: inventing an application id would turn a clear
+    // retry/reload problem into a write against the wrong app.
+    if (!existing && !application) continue;
+    const configuredKeys =
+      configured?.[app]?.map((handle) => handle.split("::").pop() ?? handle) ??
+      null;
+    const missing = names.filter(
+      (name) => configuredKeys === null || !configuredKeys.includes(name),
+    );
+    const slots = [...(existing?.slots ?? [])];
+    for (const name of names) {
+      if (!slots.some((slot) => slot.name === name)) {
+        slots.push({
+          name,
+          description: "Required by the deployment that was blocked.",
+          required: true,
+        });
+      }
+    }
+    result[app] = {
+      applicationId: existing?.applicationId ?? application!.id,
+      slots,
+      missing: [...new Set([...(existing?.missing ?? []), ...missing])],
+    };
+  }
+  return result;
+}
+
+function missingSecretsMessage(missing: MissingSecrets) {
+  return Object.entries(missing)
+    .map(([app, keys]) => `${app}: ${keys.join(", ")}`)
+    .join("; ");
+}
+
+function gateSecretsStorageKey(projectId: number) {
+  return `aomi-build:project:${projectId}:candidate-required-secrets`;
+}
+
+function persistGateMissingSecrets(projectId: number, missing: MissingSecrets) {
+  if (typeof window === "undefined") return;
+  const key = gateSecretsStorageKey(projectId);
+  if (Object.keys(missing).length === 0) {
+    window.sessionStorage.removeItem(key);
+  } else {
+    window.sessionStorage.setItem(key, JSON.stringify(missing));
+  }
+}
+
+function storedMissingSecrets(projectId: number): MissingSecrets {
+  if (typeof window === "undefined") return {};
+  try {
+    const parsed: unknown = JSON.parse(
+      window.sessionStorage.getItem(gateSecretsStorageKey(projectId)) ?? "{}",
+    );
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(parsed).flatMap(([app, keys]) =>
+        Array.isArray(keys) && keys.every((key) => typeof key === "string")
+          ? [[app, keys] as const]
+          : [],
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
 
 export function useProjectDetail(projectId: number) {
   const { account } = useGitHubSession();
@@ -125,8 +235,16 @@ export function useProjectDetail(projectId: number) {
     DeploymentRecord[]
   > | null>(null);
   const [recordsError, setRecordsError] = useState<string | null>(null);
-  const [requiredSecrets, setRequiredSecrets] =
+  const [declaredRequiredSecrets, setDeclaredRequiredSecrets] =
     useState<RequiredSecretsByApp | null>(null);
+  const [gateMissingSecrets, setGateMissingSecrets] = useState<MissingSecrets>(
+    {},
+  );
+  // Whether the failure above is worth retrying. A missing deploy-time
+  // GITHUB_TOKEN is not: no amount of clicking Retry will conjure one, and
+  // offering the button implies otherwise.
+  const [requiredSecretsRetryable, setRequiredSecretsRetryable] =
+    useState(true);
   const [requiredSecretsError, setRequiredSecretsError] = useState<
     string | null
   >(null);
@@ -137,6 +255,7 @@ export function useProjectDetail(projectId: number) {
   const secretsReq = useRef<Set<number>>(new Set());
   const recordsReq = useRef(false);
   const requiredSecretsReq = useRef(false);
+  const gateMissingSecretsRef = useRef<MissingSecrets>({});
   const projectEpochRef = useRef(0);
   const deployAbortRef = useRef<AbortController | null>(null);
   // Advance the generation after a project navigation commits. Async reads
@@ -180,12 +299,34 @@ export function useProjectDetail(projectId: number) {
     setSecrets(null);
     setSecretsError(null);
     requiredSecretsReq.current = false;
-    setRequiredSecrets(null);
+    setDeclaredRequiredSecrets(null);
+    setGateMissingSecrets({});
+    gateMissingSecretsRef.current = {};
     setRequiredSecretsError(null);
     setDeployFlow({ phase: "idle" });
     deployAbortRef.current?.abort();
     deployAbortRef.current = null;
   }, [projectId]);
+
+  // A 409 describes a candidate release which the Manager cannot expose until
+  // it is activated. Keep its key names (never values) for this browser tab so
+  // a refresh or a hop through Settings still lands on an actionable project.
+  useEffect(() => {
+    const stored = storedMissingSecrets(projectId);
+    gateMissingSecretsRef.current = stored;
+    setGateMissingSecrets(stored);
+  }, [projectId]);
+
+  const requiredSecrets = useMemo(
+    () =>
+      mergedRequiredSecrets(
+        declaredRequiredSecrets,
+        gateMissingSecrets,
+        source?.apps,
+        secretsByApp,
+      ),
+    [declaredRequiredSecrets, gateMissingSecrets, secretsByApp, source?.apps],
+  );
 
   useEffect(
     () => () => {
@@ -237,10 +378,11 @@ export function useProjectDetail(projectId: number) {
     const requestEpoch = projectEpochRef.current;
     requiredSecretsReq.current = true;
     setRequiredSecretsError(null);
+    setRequiredSecretsRetryable(true);
     try {
       const result = await deploymentRequiredSecrets({ projectId });
       if (projectEpochRef.current === requestEpoch) {
-        setRequiredSecrets(result.byApp);
+        setDeclaredRequiredSecrets(result.byApp);
       }
       return result.byApp;
     } catch (err) {
@@ -250,6 +392,7 @@ export function useProjectDetail(projectId: number) {
             ? err.message
             : "Failed to load required secrets",
         );
+        setRequiredSecretsRetryable(isRetryableLaunchError(err));
         requiredSecretsReq.current = false;
       }
       throw err;
@@ -257,9 +400,9 @@ export function useProjectDetail(projectId: number) {
   }, [projectId]);
 
   const loadRequiredSecrets = useCallback(() => {
-    if (requiredSecretsReq.current || requiredSecrets !== null) return;
+    if (requiredSecretsReq.current || declaredRequiredSecrets !== null) return;
     void refreshRequiredSecrets().catch(() => undefined);
-  }, [refreshRequiredSecrets, requiredSecrets]);
+  }, [declaredRequiredSecrets, refreshRequiredSecrets]);
 
   const ensureRequiredSecrets = useCallback(
     async (apps: string[], projectIdOverride?: number) => {
@@ -277,11 +420,19 @@ export function useProjectDetail(projectId: number) {
           projectIdOverride !== undefined &&
           projectEpochRef.current === requestEpoch
         ) {
-          setRequiredSecrets(byApp);
+          setDeclaredRequiredSecrets(byApp);
         }
         if (projectEpochRef.current !== requestEpoch)
           throw new Error("Project changed while checking required secrets.");
-        const missing = missingRequiredSecrets(byApp, apps);
+        const missing = missingRequiredSecrets(
+          mergedRequiredSecrets(
+            byApp,
+            gateMissingSecretsRef.current,
+            source?.apps,
+            secretsByApp,
+          ) ?? byApp,
+          apps,
+        );
         if (Object.keys(missing).length > 0) {
           throw new MissingRequiredSecretsError(missing);
         }
@@ -300,12 +451,30 @@ export function useProjectDetail(projectId: number) {
         throw err;
       }
     },
-    [refreshRequiredSecrets],
+    [refreshRequiredSecrets, secretsByApp, source],
   );
 
   const hasMissingSecrets = useCallback(
     (app: string) => (requiredSecrets?.[app]?.missing.length ?? 0) > 0,
     [requiredSecrets],
+  );
+
+  const noteMissingRequiredSecrets = useCallback(
+    (missing: MissingSecrets) => {
+      const current = gateMissingSecretsRef.current;
+      const next = Object.fromEntries(
+        [...new Set([...Object.keys(current), ...Object.keys(missing)])].map(
+          (app) => [
+            app,
+            [...new Set([...(current[app] ?? []), ...(missing[app] ?? [])])],
+          ],
+        ),
+      );
+      gateMissingSecretsRef.current = next;
+      setGateMissingSecrets(next);
+      persistGateMissingSecrets(projectId, next);
+    },
+    [projectId],
   );
 
   const refreshSecrets = useCallback(async (applicationId: number) => {
@@ -336,12 +505,28 @@ export function useProjectDetail(projectId: number) {
         secrets,
       });
       if (projectEpochRef.current !== requestEpoch) return result;
+      const nextGateMissing = Object.fromEntries(
+        Object.entries(gateMissingSecretsRef.current)
+          .map(([app, missing]) => {
+            const application = source?.apps.find((item) => item.name === app);
+            return [
+              app,
+              application?.id === applicationId
+                ? missing.filter((name) => !(name in secrets))
+                : missing,
+            ] as const;
+          })
+          .filter(([, missing]) => missing.length > 0),
+      );
+      gateMissingSecretsRef.current = nextGateMissing;
+      setGateMissingSecrets(nextGateMissing);
+      persistGateMissingSecrets(projectId, nextGateMissing);
       await refreshSecrets(applicationId);
       if (projectEpochRef.current !== requestEpoch) return result;
       await refreshRequiredSecrets();
       return result;
     },
-    [refreshRequiredSecrets, refreshSecrets],
+    [projectId, refreshRequiredSecrets, refreshSecrets, source?.apps],
   );
 
   const deleteEnvVar = useCallback(
@@ -554,15 +739,22 @@ export function useProjectDetail(projectId: number) {
       refreshRecords();
     } catch (err) {
       if (controller.signal.aborted || !isCurrent()) return;
+      const missing = missingSecretsFromLaunchError(err);
+      if (missing) noteMissingRequiredSecrets(missing);
       setDeployFlow({
         phase: "error",
-        message: err instanceof Error ? err.message : "Deploy failed",
+        message: missing
+          ? `Missing required secrets — ${missingSecretsMessage(missing)}. Set them in Environment, then redeploy.`
+          : err instanceof Error
+            ? err.message
+            : "Deploy failed",
       });
     } finally {
       if (deployAbortRef.current === controller) deployAbortRef.current = null;
     }
   }, [
     ensureRequiredSecrets,
+    noteMissingRequiredSecrets,
     projectPlatform,
     refreshRecords,
     reload,
@@ -597,6 +789,7 @@ export function useProjectDetail(projectId: number) {
     recordsError,
     requiredSecrets,
     requiredSecretsError,
+    requiredSecretsRetryable,
     deployFlow,
     loadHistory,
     loadSecrets,
@@ -604,6 +797,7 @@ export function useProjectDetail(projectId: number) {
     refreshRequiredSecrets,
     ensureRequiredSecrets,
     hasMissingSecrets,
+    noteMissingRequiredSecrets,
     setEnvVars,
     deleteEnvVar,
     loadRecords,

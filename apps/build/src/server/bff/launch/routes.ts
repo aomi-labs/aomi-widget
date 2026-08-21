@@ -1182,6 +1182,7 @@ export async function requiredSecretsRoute(req: Request) {
         source: "launch",
         error: new RequiredSecretsCheckError({
           cause: err,
+          reason: "backend_unavailable",
           upstream: "rust",
           upstreamStatus: err.status,
         }),

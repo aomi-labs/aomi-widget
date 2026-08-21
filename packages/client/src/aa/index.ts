@@ -10,11 +10,16 @@ export {
   type NativeWalletSponsorship,
   type SponsorshipPaymasterServiceContext,
   type ExecutionResult,
+  type PartialWalletExecution,
   type AtomicBatchArgs,
   type ExecuteWalletCallsParams,
 } from "./types";
 
-export { executeWalletCalls } from "./execute";
+export {
+  executeWalletCalls,
+  partialWalletExecution,
+  PartialWalletExecutionError,
+} from "./execute";
 export {
   MAX_AUTO_FEE_WEI,
   normalizeSimulatedFee,

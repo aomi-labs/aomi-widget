@@ -7,6 +7,7 @@
 export {
   createLaunchClient,
   isFatalLaunchRequestError,
+  isRetryableLaunchError,
   LaunchRequestError,
   DEFAULT_LAUNCH_BASE_PATH,
   DEFAULT_DEPLOYMENTS_BASE_PATH,

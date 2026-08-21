@@ -58,11 +58,13 @@ __export(index_exports, {
   CLIENT_TYPE_TS_CLI: () => CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI: () => CLIENT_TYPE_WEB_UI,
   MAX_AUTO_FEE_WEI: () => MAX_AUTO_FEE_WEI,
+  PartialWalletExecutionError: () => PartialWalletExecutionError,
   SUPPORTED_CHAINS: () => SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS: () => SUPPORTED_CHAIN_IDS,
   Session: () => ClientSession,
   TypedEventEmitter: () => TypedEventEmitter,
   UserState: () => UserState,
+  WidgetChallengeBindingError: () => WidgetChallengeBindingError,
   aaModeFromExecutionKind: () => aaModeFromExecutionKind,
   appIdentityKey: () => appIdentityKey,
   appendFeeCallToPayload: () => appendFeeCallToPayload,
@@ -100,9 +102,11 @@ __export(index_exports, {
   normalizeTxPayload: () => normalizeTxPayload,
   parseAomiTaskEvent: () => parseAomiTaskEvent,
   parseChainId: () => parseChainId3,
+  partialWalletExecution: () => partialWalletExecution,
   posterFromClient: () => posterFromClient,
   robinhood: () => robinhood,
   safeEnv: () => safeEnv,
+  secretNamesFrom: () => secretNamesFrom,
   toAAWalletCall: () => toAAWalletCall,
   toAAWalletCalls: () => toAAWalletCalls,
   toViemSignMessageArgs: () => toViemSignMessageArgs,
@@ -871,6 +875,9 @@ function normalizeThreadWire(wire) {
     last_active_at: normalizedLastActiveAt === void 0 || Number.isNaN(normalizedLastActiveAt) ? void 0 : normalizedLastActiveAt
   });
 }
+var CREATE_THREAD_RETRY_STATUSES = /* @__PURE__ */ new Set([502, 503, 504]);
+var CREATE_THREAD_RETRY_DELAYS_MS = [400, 1e3, 2e3];
+var delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
@@ -961,9 +968,25 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   }
   return await response.json();
 }
+function secretNamesFrom(response) {
+  var _a;
+  if (response.names) return response.names;
+  return Object.values((_a = response.by_app) != null ? _a : {}).flat();
+}
 var AomiClient = class {
   constructor(options) {
-    var _a;
+    /**
+     * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
+     *
+     * Historically evaluated ONCE in the constructor, which silently dropped
+     * reconnect for a stable bearer whose `subscribe` appears after construction.
+     * Re-attempted lazily on every SSE subscription so that shape is picked up on
+     * the next stream instead of never. Replacing the bearer function itself still
+     * requires a stable host/widget bridge; AomiClient intentionally retains the
+     * source supplied at construction.
+     */
+    this.tokenRefreshWired = false;
+    var _a, _b;
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
     const fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
@@ -977,6 +1000,7 @@ var AomiClient = class {
       options.getAccountBearer
     );
     this.logger = options.logger;
+    this.accountBearer = options.getAccountBearer;
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
       getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
@@ -985,11 +1009,21 @@ var AomiClient = class {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger
     });
-    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      options.getAccountBearer.subscribe(() => {
-        this.sseSubscriber.reconnect("account-token-refreshed");
-      });
+    this.wireTokenRefreshReconnect();
+    if (((_b = options.getAccountBearer) == null ? void 0 : _b.required) === true && !supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      console.warn(
+        "[aomi-client] getAccountBearer.required is set but subscribe() is missing: SSE will not reconnect after token refresh. Pass the WidgetSessionProvider through unwrapped, or preserve its subscribe/dispose/revoke methods."
+      );
     }
+  }
+  wireTokenRefreshReconnect() {
+    if (this.tokenRefreshWired) return;
+    const bearer = this.accountBearer;
+    if (!supportsTokenRefreshSubscription(bearer)) return;
+    this.tokenRefreshWired = true;
+    bearer.subscribe(() => {
+      this.sseSubscriber.reconnect("account-token-refreshed");
+    });
   }
   // ===========================================================================
   // Chat & State
@@ -1204,22 +1238,20 @@ ${body}` : ""}`
   // Secrets
   // ===========================================================================
   /**
-   * Ingest secrets for a client. Returns opaque `$SECRET:<name>` handles.
+   * Ingest client-scoped secrets. Returns opaque `$SECRET:<name>` handles.
    *
-   * When `app` is provided, the values land in the per-app store keyed by
-   * `(client_id, app)` — this is the path the Secrets settings page uses
-   * (one app at a time). When `app` is omitted, secrets land in the flat
-   * client store (used by BYOK and other cross-app pools).
+   * There is no app scope. A hosted app's Environment belongs to its Builder
+   * and is configured in Aomi Build; a per-user copy of it was a second,
+   * process-local store that answered the same handle differently depending on
+   * which fleet host served the turn. The backend answers 410 to any request
+   * that still carries one.
    */
-  async ingestSecrets(sessionId, clientId, secrets, app) {
+  async ingestSecrets(sessionId, clientId, secrets) {
     const url = joinApiPath(this.baseUrl, "/api/secrets");
     const body = {
       client_id: clientId,
       secrets
     };
-    if (app && app.trim().length > 0) {
-      body.app = app.trim();
-    }
     const response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(sessionId, {
@@ -1232,17 +1264,11 @@ ${body}` : ""}`
     }
     return await response.json();
   }
-  /**
-   * Clear secrets for a client. With `app`, removes every slot under that
-   * app. Without `app`, clears the entire client (legacy behavior — wipes
-   * both stores and unbinds the session).
-   */
-  async clearSecrets(sessionId, clientId, app) {
-    const params = { client_id: clientId };
-    if (app && app.trim().length > 0) {
-      params.app = app.trim();
-    }
-    const url = buildApiUrl(this.baseUrl, "/api/secrets", params);
+  /** Clear every client-scoped secret and unbind the session. */
+  async clearSecrets(sessionId, clientId) {
+    const url = buildApiUrl(this.baseUrl, "/api/secrets", {
+      client_id: clientId
+    });
     const response = await this.fetchImpl(url, {
       method: "DELETE",
       headers: withSessionHeader(sessionId)
@@ -1252,15 +1278,9 @@ ${body}` : ""}`
     }
     return await response.json();
   }
-  /**
-   * Remove a single named secret. With `app`, targets the per-app store
-   * under that scope; without, targets the flat store.
-   */
-  async deleteSecret(sessionId, clientId, name, app) {
+  /** Remove a single named client-scoped secret. */
+  async deleteSecret(sessionId, clientId, name) {
     const params = { client_id: clientId };
-    if (app && app.trim().length > 0) {
-      params.app = app.trim();
-    }
     const url = buildApiUrl(
       this.baseUrl,
       `/api/secrets/${encodeURIComponent(name)}`,
@@ -1276,9 +1296,10 @@ ${body}` : ""}`
     return await response.json();
   }
   /**
-   * List currently stored secret names per app for this client. The
-   * backend never returns raw values; the settings page uses this as the
-   * source of truth instead of trusting localStorage.
+   * List the stored secret NAMES for this client — never values.
+   *
+   * Read the result with {@link secretNamesFrom}, which tolerates the
+   * pre-cutover `by_app` shape as well as the flat `names` list.
    */
   async listSecrets(sessionId, clientId) {
     const url = clientId && clientId.trim().length > 0 ? buildApiUrl(this.baseUrl, "/api/secrets", { client_id: clientId }) : joinApiPath(this.baseUrl, "/api/secrets");
@@ -1300,6 +1321,7 @@ ${body}` : ""}`
    * Returns an unsubscribe function.
    */
   subscribeSSE(sessionId, onUpdate, onError, options) {
+    this.wireTokenRefreshReconnect();
     return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
   }
   // ===========================================================================
@@ -1358,10 +1380,17 @@ ${body}` : ""}`
       platform: options == null ? void 0 : options.platform,
       client_id: options == null ? void 0 : options.clientId
     });
-    const response = await this.fetchImpl(url, {
+    let response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId)
     });
+    for (let attempt = 0; attempt < CREATE_THREAD_RETRY_DELAYS_MS.length && CREATE_THREAD_RETRY_STATUSES.has(response.status); attempt += 1) {
+      await delay(CREATE_THREAD_RETRY_DELAYS_MS[attempt]);
+      response = await this.fetchImpl(url, {
+        method: "POST",
+        headers: withSessionHeader(threadId)
+      });
+    }
     if (!response.ok) {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
     }
@@ -2046,6 +2075,8 @@ function wrapFetchWithPaymentChallenges(fetchImpl, client) {
 var import_viem = require("viem");
 var import_siwe = require("viem/siwe");
 var EXPIRES_AT_MILLISECONDS_THRESHOLD2 = 1e11;
+var MAX_WIDGET_CHALLENGE_LIFETIME_MS = 10 * 60 * 1e3;
+var MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS = 60 * 1e3;
 function createProviderCredentialAdapter(input) {
   let inferredFingerprint = null;
   let stagedCredential = null;
@@ -2096,6 +2127,7 @@ function createSignedChallengeAdapter(config) {
         joinUrl(baseUrl, config.noncePath),
         { wallet_address: signer.address, chain_id: signer.chainId }
       );
+      assertChallengeBinding(challenge);
       const message = config.buildMessage({ signer, challenge });
       const signature = await signer.signMessage(message);
       return exchangeJson(fetchImpl, joinUrl(baseUrl, config.verifyPath), {
@@ -2161,6 +2193,7 @@ function createWidgetSessionProvider(input) {
   let latestFingerprint = null;
   let nextFingerprintRequestId = 0;
   let latestResolvedFingerprint = null;
+  let lastForcedAccessToken = null;
   const listeners = /* @__PURE__ */ new Set();
   const notify = () => {
     for (const listener of listeners) listener();
@@ -2193,12 +2226,23 @@ function createWidgetSessionProvider(input) {
       };
     }
     latestFingerprint = fingerprint;
+    if ((pending == null ? void 0 : pending.fingerprint) === fingerprint) {
+      return (await pending.promise).accessToken;
+    }
     const refreshAt = cached ? cached.expiresAt * 1e3 - refreshBeforeExpiryMs : 0;
+    if (forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && cached.accessToken === lastForcedAccessToken && now() < refreshAt) {
+      return cached.accessToken;
+    }
     if (!forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && now() < refreshAt) {
       return cached.accessToken;
     }
-    if (cached) {
-      const stale = cached;
+    const stale = cached;
+    const retainStaleDuringForcedExchange = Boolean(
+      forceRefresh && (stale == null ? void 0 : stale.fingerprint) === fingerprint && now() < refreshAt
+    );
+    if (retainStaleDuringForcedExchange && stale) {
+      lastForcedAccessToken = stale.accessToken;
+    } else if (stale) {
       cached = null;
       void revokeSession(stale);
     }
@@ -2207,6 +2251,7 @@ function createWidgetSessionProvider(input) {
         if ((pending == null ? void 0 : pending.promise) === promise) pending = null;
       };
       var clearPending = clearPending2;
+      const forcedExchange = forceRefresh;
       const promise = adapter.exchange({ baseUrl: input.baseUrl, fetch: fetchImpl }).then(async (session) => {
         const isCurrent = !disposed && epoch === startEpoch && fingerprint === latestFingerprint;
         if (!isCurrent) {
@@ -2214,6 +2259,10 @@ function createWidgetSessionProvider(input) {
           throw new Error("Widget session exchange was superseded");
         }
         cached = __spreadProps(__spreadValues({}, session), { fingerprint });
+        lastForcedAccessToken = forcedExchange ? session.accessToken : null;
+        if (retainStaleDuringForcedExchange && stale) {
+          void revokeSession(stale);
+        }
         notify();
         return session;
       });
@@ -2228,6 +2277,7 @@ function createWidgetSessionProvider(input) {
     cached = null;
     pending = null;
     latestResolvedFingerprint = null;
+    lastForcedAccessToken = null;
     notify();
     if (session) await revokeSession(session);
   };
@@ -2245,6 +2295,7 @@ function createWidgetSessionProvider(input) {
       cached = null;
       pending = null;
       latestResolvedFingerprint = null;
+      lastForcedAccessToken = null;
       notify();
       listeners.clear();
     },
@@ -2256,6 +2307,55 @@ function createWidgetSessionProvider(input) {
     }
   });
   return provider;
+}
+var WidgetChallengeBindingError = class extends Error {
+  constructor(message) {
+    super(`Widget challenge rejected before signing: ${message}`);
+    this.name = "WidgetChallengeBindingError";
+  }
+};
+function assertChallengeBinding(challenge) {
+  var _a, _b;
+  if (!((_a = challenge.nonce) == null ? void 0 : _a.trim())) {
+    throw new WidgetChallengeBindingError("challenge has no nonce");
+  }
+  const now = Date.now();
+  const issued = Date.parse(challenge.issuedAt);
+  if (Number.isNaN(issued)) {
+    throw new WidgetChallengeBindingError(
+      "challenge has no parseable issuedAt"
+    );
+  }
+  if (issued > now + MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS) {
+    throw new WidgetChallengeBindingError("challenge was issued in the future");
+  }
+  const expires = Date.parse(challenge.expirationTime);
+  if (Number.isNaN(expires)) {
+    throw new WidgetChallengeBindingError(
+      "challenge has no parseable expirationTime"
+    );
+  }
+  if (expires <= now) {
+    throw new WidgetChallengeBindingError("challenge is already expired");
+  }
+  if (expires <= issued || expires - issued > MAX_WIDGET_CHALLENGE_LIFETIME_MS) {
+    throw new WidgetChallengeBindingError(
+      "challenge validity window is not bounded"
+    );
+  }
+  const pageOrigin = typeof window !== "undefined" && ((_b = window.location) == null ? void 0 : _b.origin) ? window.location.origin : null;
+  if (!pageOrigin) return;
+  if (challenge.uri !== pageOrigin) {
+    throw new WidgetChallengeBindingError(
+      `challenge uri "${challenge.uri}" is not this page's origin "${pageOrigin}"`
+    );
+  }
+  const pageHost = new URL(pageOrigin).host;
+  if (challenge.domain !== pageHost) {
+    throw new WidgetChallengeBindingError(
+      `challenge domain "${challenge.domain}" is not this page's host "${pageHost}"`
+    );
+  }
 }
 async function challengeJson(fetchImpl, url, body) {
   const response = await fetchImpl(url, requestInit(body));
@@ -3902,8 +4002,8 @@ var ClientSession = class extends TypedEventEmitter {
   scheduleSigningRequestRecovery(immediate = false) {
     if (this.closed || this.signingRecoveryInFlight) return;
     const elapsed = Date.now() - this.lastSigningRecoveryAt;
-    const delay = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
-    if (delay === 0) {
+    const delay2 = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
+    if (delay2 === 0) {
       void this.recoverSigningRequests();
       return;
     }
@@ -3911,7 +4011,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.signingRecoveryTimer = setTimeout(() => {
       this.signingRecoveryTimer = null;
       if (!this.closed) void this.recoverSigningRequests();
-    }, delay);
+    }, delay2);
   }
   /**
    * A signing event is transient, but its backend-owned operation is durable.
@@ -4207,6 +4307,38 @@ var import_viem4 = require("viem");
 var import_accounts = require("viem/accounts");
 var ERC20_PAYMENT_CONTEXT_KEYS = /* @__PURE__ */ new Set(["erc20", "paymasterAddress"]);
 var AA_DEBUG_STORAGE_KEYS = ["aomi:debug-aa", "AOMI_DEBUG_AA"];
+var PartialWalletExecutionError = class extends Error {
+  constructor(error, completedTxHashes, failedCallIndex) {
+    const failureReason = walletExecutionFailureReason(error);
+    super(failureReason);
+    this.name = "PartialWalletExecutionError";
+    this.partial = {
+      completedTxHashes: [...completedTxHashes],
+      failedCallIndex,
+      failureReason
+    };
+  }
+};
+function walletExecutionFailureReason(error) {
+  if (error && typeof error === "object") {
+    for (const field of ["details", "shortMessage"]) {
+      const value = error[field];
+      if (typeof value === "string" && value.trim()) return value.trim();
+    }
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return message.split(/\n(?:\n|URL:|Request body:|Request Arguments:)/, 1)[0].trim();
+}
+function partialWalletExecution(error) {
+  if (!error || typeof error !== "object" || !("partial" in error)) {
+    return void 0;
+  }
+  const partial = error.partial;
+  if (!partial || !Array.isArray(partial.completedTxHashes) || partial.completedTxHashes.length === 0 || !partial.completedTxHashes.every((hash) => typeof hash === "string") || !Number.isInteger(partial.failedCallIndex) || typeof partial.failureReason !== "string") {
+    return void 0;
+  }
+  return partial;
+}
 function normalizeRpcCallData(data) {
   return data === "0x" ? void 0 : data;
 }
@@ -4258,33 +4390,43 @@ async function executeWalletCalls(params) {
     if (requiresAtomicForBatch) {
       throw new Error("wallet_atomic_batch_required");
     }
-    for (const call of normalizedCalls) {
-      const chain = chainsById[call.chainId];
-      if (!chain) {
-        throw new Error(`Unsupported chain ${call.chainId}`);
+    for (const [callIndex, call] of normalizedCalls.entries()) {
+      try {
+        const chain = chainsById[call.chainId];
+        if (!chain) {
+          throw new Error(`Unsupported chain ${call.chainId}`);
+        }
+        const rpcUrl = getPreferredRpcUrl(chain);
+        if (!rpcUrl) {
+          throw new Error(`No RPC for chain ${call.chainId}`);
+        }
+        const account = (0, import_accounts.privateKeyToAccount)(localPrivateKey);
+        const walletClient = (0, import_viem4.createWalletClient)({
+          account,
+          chain,
+          transport: (0, import_viem4.http)(rpcUrl)
+        });
+        const hash = await walletClient.sendTransaction({
+          account,
+          to: call.to,
+          value: call.value,
+          data: call.data
+        });
+        const publicClient = (0, import_viem4.createPublicClient)({
+          chain,
+          transport: (0, import_viem4.http)(rpcUrl)
+        });
+        const receipt = await publicClient.waitForTransactionReceipt({ hash });
+        if (receipt.status !== "success") {
+          throw new Error(`Transaction ${hash} reverted`);
+        }
+        hashes.push(hash);
+      } catch (error) {
+        if (hashes.length > 0) {
+          throw new PartialWalletExecutionError(error, hashes, callIndex);
+        }
+        throw error;
       }
-      const rpcUrl = getPreferredRpcUrl(chain);
-      if (!rpcUrl) {
-        throw new Error(`No RPC for chain ${call.chainId}`);
-      }
-      const account = (0, import_accounts.privateKeyToAccount)(localPrivateKey);
-      const walletClient = (0, import_viem4.createWalletClient)({
-        account,
-        chain,
-        transport: (0, import_viem4.http)(rpcUrl)
-      });
-      const hash = await walletClient.sendTransaction({
-        account,
-        to: call.to,
-        value: call.value,
-        data: call.data
-      });
-      const publicClient = (0, import_viem4.createPublicClient)({
-        chain,
-        transport: (0, import_viem4.http)(rpcUrl)
-      });
-      await publicClient.waitForTransactionReceipt({ hash });
-      hashes.push(hash);
     }
     return {
       txHash: hashes[hashes.length - 1],
@@ -4561,11 +4703,13 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
   MAX_AUTO_FEE_WEI,
+  PartialWalletExecutionError,
   SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS,
   Session,
   TypedEventEmitter,
   UserState,
+  WidgetChallengeBindingError,
   aaModeFromExecutionKind,
   appIdentityKey,
   appendFeeCallToPayload,
@@ -4603,9 +4747,11 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   normalizeTxPayload,
   parseAomiTaskEvent,
   parseChainId,
+  partialWalletExecution,
   posterFromClient,
   robinhood,
   safeEnv,
+  secretNamesFrom,
   toAAWalletCall,
   toAAWalletCalls,
   toViemSignMessageArgs,
