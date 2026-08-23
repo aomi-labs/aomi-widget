@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   providerExchangeError,
   waitForProviderCredential,
-} from "./provider-credential";
+} from "./wait-for-credential";
 
 describe("waitForProviderCredential", () => {
   it("keeps polling until the provider exposes an exchangeable credential", async () => {

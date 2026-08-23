@@ -183,7 +183,6 @@ export async function applyLockedAppScope(
       "/api/thread/chat",
       "/api/system",
       "/api/thread/model",
-      "/api/session/model",
     ].includes(url.pathname)
   ) {
     return input;

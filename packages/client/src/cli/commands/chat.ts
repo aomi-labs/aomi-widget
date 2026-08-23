@@ -145,13 +145,6 @@ export async function syncWalletStateForChat(
   session: {
     resolveUserState: (userState: ReturnType<typeof buildCliUserState>) => void;
     syncUserState: () => Promise<unknown>;
-    client: {
-      sendSystemMessage: (
-        sessionId: string,
-        message: string,
-        options?: { app?: string; applicationId?: string },
-      ) => Promise<unknown>;
-    };
   },
 ): Promise<void> {
   if (
@@ -175,19 +168,6 @@ export async function syncWalletStateForChat(
 
   session.resolveUserState(userState);
   await session.syncUserState();
-
-  if (!hasAccountCredential(cli)) {
-    return;
-  }
-
-  await session.client.sendSystemMessage(
-    cli.sessionId,
-    JSON.stringify({
-      type: "wallet:state_changed",
-      payload: userState,
-    }),
-    { app: config.app, applicationId: config.applicationId },
-  );
 }
 
 export async function chatCommand(

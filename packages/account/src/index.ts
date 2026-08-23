@@ -16,6 +16,7 @@ export {
 export { portalService } from "./topology";
 export {
   createBackendProxy,
+  rewriteLegacyThreadPath,
   type ProxyConfig,
   type ProxyFailure,
   type ObserveProxyFailure,

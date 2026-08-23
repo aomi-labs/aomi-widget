@@ -43,6 +43,9 @@ const bodySchema = z.object({
   keyId: z.string().trim().min(1).optional(),
 });
 
+/** New-session Privy/Para sign-in: verify the provider token, create/reuse a
+ * Better Auth user, resolve the canonical Aomi user, and set a session cookie.
+ * Linking onto an existing principal is `POST /api/aomi/provider/exchange`. */
 export function aomiProviderAuthPlugin(): BetterAuthPlugin {
   return {
     id: "aomi-provider-auth",

@@ -267,6 +267,35 @@ function applyProxyAuthState(
   return null;
 }
 
+/** Map leftover `/api/session*` paths onto the threads-era backend routes. */
+export function rewriteLegacyThreadPath(upstreamUrl: URL): void {
+  if (upstreamUrl.pathname === "/api/sessions") {
+    upstreamUrl.pathname = "/api/threads";
+    return;
+  }
+
+  if (upstreamUrl.pathname.startsWith("/api/sessions/")) {
+    upstreamUrl.pathname = `/api/threads/${upstreamUrl.pathname.slice(
+      "/api/sessions/".length,
+    )}`;
+    return;
+  }
+
+  if (upstreamUrl.pathname === "/api/session/apps") {
+    upstreamUrl.pathname = "/api/thread/apps";
+    return;
+  }
+
+  if (upstreamUrl.pathname === "/api/session/models") {
+    upstreamUrl.pathname = "/api/thread/models";
+    return;
+  }
+
+  if (upstreamUrl.pathname === "/api/session/model") {
+    upstreamUrl.pathname = "/api/thread/model";
+  }
+}
+
 function copyRequestHeaders(req: NextRequest): Headers {
   const headers = new Headers();
   req.headers.forEach((value, key) => {
@@ -327,6 +356,7 @@ export function createBackendProxy(config: ProxyConfig) {
       req,
       slug,
     );
+    rewriteLegacyThreadPath(upstreamUrl);
     config.applyDefaults?.(upstreamUrl);
 
     const allowedRoute = findAllowedProxyRoute(

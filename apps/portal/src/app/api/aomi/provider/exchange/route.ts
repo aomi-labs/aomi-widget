@@ -14,6 +14,11 @@ import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/** Link a verified Privy/Para identity onto an existing principal (Better Auth
+ * cookie or widget bearer). Never creates a session. Sign-in without a
+ * principal is `POST /api/auth/aomi/provider/exchange` — keep them apart so a
+ * widget/cross-origin caller cannot mint a portal cookie, and a link call
+ * cannot silently create an account. */
 export const POST = widgetRoute(async (req: Request) => {
   const principal = await requirePortalPrincipal(req);
   const body = (await req.json().catch(() => null)) as

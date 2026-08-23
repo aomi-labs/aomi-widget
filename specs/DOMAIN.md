@@ -135,25 +135,25 @@ createAccountAccessTokenProvider()
 
 | Endpoint | Purpose | Client surface |
 | --- | --- | --- |
-| `POST /api/chat` | Send message | `AomiClient.sendMessage` |
-| `GET /api/state` | Fetch session state | `AomiClient.fetchState`, `ClientSession` |
-| `POST /api/interrupt` | Cancel generation | `AomiClient.interrupt` |
+| `POST /api/thread/chat` | Send message | `AomiClient.sendMessage` |
+| `GET /api/thread/state` | Fetch session state | `AomiClient.fetchState`, `ClientSession` |
+| `POST /api/thread/interrupt` | Cancel generation | `AomiClient.interrupt` |
 | `POST /api/system` | Send system event | `AomiClient.sendSystemMessage` |
-| `GET /api/updates` | SSE stream | `AomiClient.subscribeSSE`, `ClientSession` |
-| `POST /api/sessions` | Create thread/session | `AomiClient.createThread` |
-| `GET /api/sessions` | List threads | `AomiClient.listThreads` |
-| `GET /api/sessions/:id` | Get thread | `AomiClient.getThread` |
-| `PATCH /api/sessions/:id` | Rename thread | `AomiClient.renameThread` |
-| `DELETE /api/sessions/:id` | Delete thread | `AomiClient.deleteThread` |
-| `GET /api/session/apps` | List app descriptors | `AomiClient.getApps` |
-| `GET /api/session/models` | List models | `AomiClient.getModels` |
-| `POST /api/session/model` | Set model/app for session | `AomiClient.setModel` |
+| `GET /api/thread/updates` | SSE stream | `AomiClient.subscribeSSE`, `ClientSession` |
+| `POST /api/threads` | Create thread | `AomiClient.createThread` |
+| `GET /api/threads` | List threads | `AomiClient.listThreads` |
+| `GET /api/threads/:id` | Get thread | `AomiClient.getThread` |
+| `PATCH /api/threads/:id` | Rename thread | `AomiClient.renameThread` |
+| `DELETE /api/threads/:id` | Delete thread | `AomiClient.deleteThread` |
+| `GET /api/thread/apps` | List app descriptors | `AomiClient.getApps` |
+| `GET /api/thread/models` | List models | `AomiClient.getModels` |
+| `POST /api/thread/model` | Set model/app for thread | `AomiClient.setModel` |
 | `GET /api/account` | Current account profile | `AomiClient.getAccount` |
 | `GET /api/aomi/account-bearer` | Mint AccountBearer from Better Auth session | `createAccountAccessTokenProvider` |
 | `POST /api/auth/aomi/provider/exchange` | Create Better Auth session from provider token | Better Auth Aomi provider plugin |
 | `POST /api/aomi/provider/exchange` | Link provider token into existing Better Auth session | Portal route + `@aomi-labs/auth` |
 
-Archive/unarchive helpers still exist on `AomiClient` for API compatibility, but the current backend does not expose `/api/sessions/:id/archive` or `/api/sessions/:id/unarchive`.
+Archive/unarchive helpers still exist on `AomiClient`. The BFF rewrites leftover `/api/session*` paths onto `/api/thread*` before forwarding.
 
 ## Invariants
 

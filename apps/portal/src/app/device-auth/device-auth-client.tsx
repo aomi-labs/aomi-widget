@@ -3,18 +3,19 @@
 import "@aomi-labs/widget-lib/providers/para";
 import "@aomi-labs/widget-lib/providers/privy";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { AomiWalletKitProvider, useAomiWalletKit } from "@aomi-labs/widget-lib";
-
-type Provider = "privy" | "para";
+import { PortalProviderContinueButton } from "@portal/components/provider-login/continue-button";
+import { PortalProviderPicker } from "@portal/components/provider-login/picker";
+import { PortalEmbeddedProviderRuntime } from "@portal/components/provider-login/runtime";
+import { PortalAuthShell } from "@portal/components/provider-login/shell";
+import { usePortalProviderCredential } from "@portal/components/provider-login/use-provider-credential";
+import { exchangeNewSessionProviderCredential } from "@portal/lib/provider-login/new-session-exchange";
+import {
+  isPortalEmbeddedProvider,
+  PORTAL_PROVIDER_LABELS,
+  type PortalEmbeddedProvider,
+} from "@portal/lib/provider-login/types";
 
 type GrantResponse = {
   code?: unknown;
@@ -22,17 +23,15 @@ type GrantResponse = {
   redirectUri?: unknown;
 };
 
-const providerLabels = {
-  privy: "Privy",
-  para: "Para",
-} as const;
-
 export function DeviceAuthClient() {
   const params = useSearchParams();
-  const requestedProvider = normalizeProvider(params.get("provider"));
+  const rawProvider = params.get("provider");
+  const requestedProvider = isPortalEmbeddedProvider(rawProvider)
+    ? rawProvider
+    : null;
   const mode = params.get("mode") === "link" ? "link" : "login";
-  const [provider, setProvider] = useState<Provider | null>(
-    requestedProvider ?? null,
+  const [provider, setProvider] = useState<PortalEmbeddedProvider | null>(
+    requestedProvider,
   );
   const request = useMemo(
     () => ({
@@ -57,68 +56,25 @@ export function DeviceAuthClient() {
   if (!provider) {
     return (
       <DeviceAuthLayout status="Choose a provider to continue.">
-        <div className="mt-6 grid gap-3">
-          <button
-            className="bg-foreground text-background h-11 rounded-md px-4 text-sm font-medium"
-            onClick={() => setProvider("privy")}
-            type="button"
-          >
-            Continue with Privy
-          </button>
-          <button
-            className="border-border h-11 rounded-md border px-4 text-sm font-medium"
-            onClick={() => setProvider("para")}
-            type="button"
-          >
-            Continue with Para
-          </button>
-        </div>
+        <PortalProviderPicker
+          onSelect={setProvider}
+          order={["privy", "para"]}
+        />
       </DeviceAuthLayout>
     );
   }
 
   return (
-    <ProviderRuntime provider={provider}>
+    <PortalEmbeddedProviderRuntime
+      appDescription="Aomi CLI account login"
+      provider={provider}
+    >
       <DeviceAuthProviderPanel
         mode={mode}
         provider={provider}
         request={request}
       />
-    </ProviderRuntime>
-  );
-}
-
-function ProviderRuntime({
-  children,
-  provider,
-}: {
-  children: ReactNode;
-  provider: Provider;
-}) {
-  return (
-    <AomiWalletKitProvider
-      auth={{
-        provider,
-        methods: provider === "privy" ? ["google", "email"] : ["google"],
-      }}
-      providers={{
-        para: {
-          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY,
-          environment:
-            process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD"
-              ? "PROD"
-              : "BETA",
-          appName: "Aomi Labs",
-          appDescription: "Aomi CLI account login",
-        },
-        privy: {
-          appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
-          appName: "Aomi Labs",
-        },
-      }}
-    >
-      {children}
-    </AomiWalletKitProvider>
+    </PortalEmbeddedProviderRuntime>
   );
 }
 
@@ -128,7 +84,7 @@ function DeviceAuthProviderPanel({
   request,
 }: {
   mode: "login" | "link";
-  provider: Provider;
+  provider: PortalEmbeddedProvider;
   request: {
     state: string;
     codeChallenge: string;
@@ -136,164 +92,40 @@ function DeviceAuthProviderPanel({
     linkIntent: string;
   };
 }) {
-  const walletKit = useAomiWalletKit();
-  const [status, setStatus] = useState(
-    `Continue with ${providerLabels[provider]} to ${
+  const signIn = usePortalProviderCredential({
+    completeStatus:
+      mode === "link"
+        ? "Account link complete. Returning to the CLI..."
+        : "Authentication complete. Returning to the CLI...",
+    initialStatus: `Continue with ${PORTAL_PROVIDER_LABELS[provider]} to ${
       mode === "link" ? "link this login method." : "connect your CLI."
     }`,
-  );
-  const [pending, setPending] = useState(false);
-  const [complete, setComplete] = useState(false);
-  const [exchangeRequested, setExchangeRequested] = useState(false);
-
-  const startProviderLogin = useCallback(async () => {
-    setPending(true);
-    setStatus(`Opening ${providerLabels[provider]}...`);
-    try {
-      await walletKit.connectSocial?.("google");
-      setStatus("Waiting for provider credential...");
-      setExchangeRequested(true);
-    } catch (error) {
-      setStatus(
-        error instanceof Error ? error.message : "Authentication failed",
-      );
-      setPending(false);
-    }
-  }, [provider, walletKit]);
-
-  useEffect(() => {
-    if (!exchangeRequested || complete || !pending) return;
-    let cancelled = false;
-    const run = async () => {
-      try {
-        setStatus(
-          mode === "link"
-            ? "Preparing account link..."
-            : "Creating Aomi session...",
-        );
-        const credential = await waitForCredential(() =>
-          walletKit.getAccountCredential?.(),
-        );
-        if (cancelled) return;
-        if (mode === "link") {
-          const grantResponse = await fetch(
-            "/api/aomi/device-auth/link-grant",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({
-                linkIntent: request.linkIntent,
-                state: request.state,
-                redirectUri: request.redirectUri,
-                provider,
-                credential,
-              }),
-            },
-          );
-          const grant = (await grantResponse
-            .json()
-            .catch(() => null)) as GrantResponse | null;
-          if (
-            !grantResponse.ok ||
-            typeof grant?.code !== "string" ||
-            grant.state !== request.state
-          ) {
-            throw new Error(
-              `Device auth link failed: HTTP ${grantResponse.status}`,
-            );
-          }
-          setComplete(true);
-          setStatus("Account link complete. Returning to the CLI...");
-          redirectToCli({
-            code: grant.code,
-            redirectUri: request.redirectUri,
-            state: request.state,
-          });
-          return;
-        }
-        const exchangeResponse = await fetch(
-          "/api/auth/aomi/provider/exchange",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(credential),
-          },
-        );
-        if (!exchangeResponse.ok) {
-          throw new Error(
-            `Provider exchange failed: HTTP ${exchangeResponse.status}`,
-          );
-        }
-        const grantResponse = await fetch("/api/aomi/device-auth/grant", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            state: request.state,
-            codeChallenge: request.codeChallenge,
-            redirectUri: request.redirectUri,
-            provider,
-          }),
-        });
-        const grant = (await grantResponse
-          .json()
-          .catch(() => null)) as GrantResponse | null;
-        if (
-          !grantResponse.ok ||
-          typeof grant?.code !== "string" ||
-          grant.state !== request.state
-        ) {
-          throw new Error(
-            `Device auth grant failed: HTTP ${grantResponse.status}`,
-          );
-        }
-        setComplete(true);
-        setStatus("Authentication complete. Returning to the CLI...");
-        redirectToCli({
-          code: grant.code,
-          redirectUri: request.redirectUri,
-          state: request.state,
-        });
-      } catch (error) {
-        if (cancelled) return;
-        setStatus(
-          error instanceof Error ? error.message : "Authentication failed",
-        );
-        setPending(false);
+    onCredential: async (credential) => {
+      if (mode === "link") {
+        await completeDeviceAuthLink({ credential, provider, request });
+        return;
       }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    complete,
-    exchangeRequested,
-    pending,
-    mode,
+      await completeDeviceAuthLogin({ credential, provider, request });
+    },
     provider,
-    request,
-    walletKit.getAccountCredential,
-  ]);
+    waitOptions: { timeoutMs: 30_000, attemptTimeoutMs: null },
+    workingStatus:
+      mode === "link"
+        ? "Preparing account link..."
+        : "Creating Aomi session...",
+    workingStatusTiming: "before_wait",
+  });
 
   return (
-    <DeviceAuthLayout status={status}>
+    <DeviceAuthLayout status={signIn.status}>
       <div className="mt-6">
-        <button
-          className="bg-foreground text-background flex h-11 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={pending || complete}
-          onClick={() => void startProviderLogin()}
-          type="button"
-        >
-          {complete ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : pending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : null}
-          Continue with {providerLabels[provider]}
-        </button>
+        <PortalProviderContinueButton
+          complete={signIn.complete}
+          disabled={signIn.pending || signIn.complete}
+          onClick={() => void signIn.start()}
+          pending={signIn.pending}
+          provider={provider}
+        />
       </div>
     </DeviceAuthLayout>
   );
@@ -307,16 +139,94 @@ function DeviceAuthLayout({
   status: string;
 }) {
   return (
-    <main className="bg-background text-foreground flex min-h-screen items-center justify-center p-6">
-      <section className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Sign in to Aomi CLI
-        </h1>
-        <p className="text-muted-foreground mt-3 min-h-10 text-sm">{status}</p>
-        {children}
-      </section>
-    </main>
+    <PortalAuthShell title="Sign in to Aomi CLI">
+      <p className="text-muted-foreground mt-3 min-h-10 text-sm">{status}</p>
+      {children}
+    </PortalAuthShell>
   );
+}
+
+async function completeDeviceAuthLogin(input: {
+  credential: unknown;
+  provider: PortalEmbeddedProvider;
+  request: {
+    state: string;
+    codeChallenge: string;
+    redirectUri: string;
+  };
+}) {
+  const exchangeResponse = await exchangeNewSessionProviderCredential(
+    input.credential,
+  );
+  if (!exchangeResponse.ok) {
+    throw new Error(
+      `Provider exchange failed: HTTP ${exchangeResponse.status}`,
+    );
+  }
+  const grantResponse = await fetch("/api/aomi/device-auth/grant", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      state: input.request.state,
+      codeChallenge: input.request.codeChallenge,
+      redirectUri: input.request.redirectUri,
+      provider: input.provider,
+    }),
+  });
+  const grant = (await grantResponse
+    .json()
+    .catch(() => null)) as GrantResponse | null;
+  if (
+    !grantResponse.ok ||
+    typeof grant?.code !== "string" ||
+    grant.state !== input.request.state
+  ) {
+    throw new Error(`Device auth grant failed: HTTP ${grantResponse.status}`);
+  }
+  redirectToCli({
+    code: grant.code,
+    redirectUri: input.request.redirectUri,
+    state: input.request.state,
+  });
+}
+
+async function completeDeviceAuthLink(input: {
+  credential: unknown;
+  provider: PortalEmbeddedProvider;
+  request: {
+    state: string;
+    redirectUri: string;
+    linkIntent: string;
+  };
+}) {
+  const grantResponse = await fetch("/api/aomi/device-auth/link-grant", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({
+      linkIntent: input.request.linkIntent,
+      state: input.request.state,
+      redirectUri: input.request.redirectUri,
+      provider: input.provider,
+      credential: input.credential,
+    }),
+  });
+  const grant = (await grantResponse
+    .json()
+    .catch(() => null)) as GrantResponse | null;
+  if (
+    !grantResponse.ok ||
+    typeof grant?.code !== "string" ||
+    grant.state !== input.request.state
+  ) {
+    throw new Error(`Device auth link failed: HTTP ${grantResponse.status}`);
+  }
+  redirectToCli({
+    code: grant.code,
+    redirectUri: input.request.redirectUri,
+    state: input.request.state,
+  });
 }
 
 function redirectToCli(input: {
@@ -328,22 +238,6 @@ function redirectToCli(input: {
   redirect.searchParams.set("code", input.code);
   redirect.searchParams.set("state", input.state);
   window.location.assign(redirect.toString());
-}
-
-async function waitForCredential(
-  getCredential: () => Promise<unknown> | undefined,
-): Promise<unknown> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < 30_000) {
-    const credential = await getCredential();
-    if (credential) return credential;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  throw new Error("Provider did not return an exchangeable credential");
-}
-
-function normalizeProvider(value: string | null): Provider | null {
-  return value === "privy" || value === "para" ? value : null;
 }
 
 function isApprovedCliLoopbackRedirectUri(redirectUri: string): boolean {

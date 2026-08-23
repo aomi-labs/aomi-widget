@@ -3,19 +3,21 @@
 import "@aomi-labs/widget-lib/providers/para";
 import "@aomi-labs/widget-lib/providers/privy";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Loader2, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { AomiWalletKitProvider, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { authClient } from "@aomi-labs/account/better-auth/client";
+import { PortalProviderContinueButton } from "@portal/components/provider-login/continue-button";
+import { PortalProviderPicker } from "@portal/components/provider-login/picker";
+import { PortalEmbeddedProviderRuntime } from "@portal/components/provider-login/runtime";
+import { PortalAuthShell } from "@portal/components/provider-login/shell";
+import { usePortalProviderCredential } from "@portal/components/provider-login/use-provider-credential";
+import { exchangeNewSessionProviderCredential } from "@portal/lib/provider-login/new-session-exchange";
 import {
-  providerExchangeError,
-  waitForProviderCredential,
-} from "./provider-credential";
-
-type Provider = "privy" | "para";
-
-const providerLabels = { privy: "Privy", para: "Para" } as const;
+  PORTAL_PROVIDER_LABELS,
+  type PortalEmbeddedProvider,
+} from "@portal/lib/provider-login/types";
+import { providerExchangeError } from "@portal/lib/provider-login/wait-for-credential";
 
 const STASH_KEY = "aomi.mcp.authorize.query";
 
@@ -30,8 +32,8 @@ const SCOPE_DESCRIPTIONS: Record<string, string> = {
  * One page, two phases of the MCP OAuth ceremony (better-auth `mcp` plugin):
  *
  * 1. `loginPage` — an unauthenticated `/api/auth/mcp/authorize` redirects
- *    here with the full OAuth query. Sign in (same provider mechanics as
- *    device-auth), then resume the stashed authorize request.
+ *    here with the full OAuth query. Sign in (shared Privy/Para surface),
+ *    then resume the stashed authorize request.
  * 2. `consentPage` — an authenticated authorize with `prompt=consent`
  *    redirects here with `consent_code` + `client_id` + `scope`. Approve or
  *    deny via `POST /api/auth/oauth2/consent`, then follow `redirectURI`
@@ -60,28 +62,23 @@ export function McpConnectClient({
     return <SignInPanel clientName={clientName} />;
   }
   return (
-    <Shell title="Connect to Aomi">
+    <PortalAuthShell title="Connect to Aomi">
       <p className="text-muted-foreground mt-3 text-sm">
         Nothing to authorize. Start the connection from your MCP client (for
         example `/mcp` in Claude Code), and it will send you here.
       </p>
-    </Shell>
+    </PortalAuthShell>
   );
 }
 
-// ─── Phase 1: sign in, then resume the authorize request ───────────────────
-
 function SignInPanel({ clientName }: { clientName: string | null }) {
   const { data: session } = authClient.useSession();
-  const [provider, setProvider] = useState<Provider | null>(null);
+  const [provider, setProvider] = useState<PortalEmbeddedProvider | null>(null);
 
-  // Stash the authorize query before any login flow rewrites the URL.
   useEffect(() => {
     sessionStorage.setItem(STASH_KEY, window.location.search);
   }, []);
 
-  // Already signed in (or just finished): resume the authorize request —
-  // it comes back here as a consent request.
   useEffect(() => {
     if (!session?.session) return;
     const query = sessionStorage.getItem(STASH_KEY) ?? window.location.search;
@@ -95,79 +92,36 @@ function SignInPanel({ clientName }: { clientName: string | null }) {
 
   if (session?.session) {
     return (
-      <Shell title={title}>
+      <PortalAuthShell title={title}>
         <p className="text-muted-foreground mt-3 text-sm">
           Signed in. Preparing authorization...
         </p>
-      </Shell>
+      </PortalAuthShell>
     );
   }
 
   if (!provider) {
     return (
-      <Shell title={title}>
+      <PortalAuthShell title={title}>
         <p className="text-muted-foreground mt-3 text-sm">
           {clientName ?? "An MCP client"} wants to access your Aomi account.
           Sign in to continue.
         </p>
-        <div className="mt-6 grid gap-3">
-          <button
-            className="bg-foreground text-background h-11 rounded-md px-4 text-sm font-medium"
-            onClick={() => setProvider("para")}
-            type="button"
-          >
-            Continue with Para
-          </button>
-          <button
-            className="border-border h-11 rounded-md border px-4 text-sm font-medium"
-            onClick={() => setProvider("privy")}
-            type="button"
-          >
-            Continue with Privy
-          </button>
-        </div>
-      </Shell>
+        <PortalProviderPicker
+          onSelect={setProvider}
+          order={["para", "privy"]}
+        />
+      </PortalAuthShell>
     );
   }
 
   return (
-    <ProviderRuntime provider={provider}>
-      <ProviderSignIn provider={provider} title={title} />
-    </ProviderRuntime>
-  );
-}
-
-function ProviderRuntime({
-  children,
-  provider,
-}: {
-  children: ReactNode;
-  provider: Provider;
-}) {
-  return (
-    <AomiWalletKitProvider
-      auth={{
-        provider,
-        methods: provider === "privy" ? ["google", "email"] : ["google"],
-      }}
-      providers={{
-        para: {
-          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY,
-          environment:
-            process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD"
-              ? "PROD"
-              : "BETA",
-          appName: "Aomi Labs",
-          appDescription: "Connect an MCP client to Aomi",
-        },
-        privy: {
-          appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
-          appName: "Aomi Labs",
-        },
-      }}
+    <PortalEmbeddedProviderRuntime
+      appDescription="Connect an MCP client to Aomi"
+      provider={provider}
     >
-      {children}
-    </AomiWalletKitProvider>
+      <ProviderSignIn provider={provider} title={title} />
+    </PortalEmbeddedProviderRuntime>
   );
 }
 
@@ -175,97 +129,45 @@ function ProviderSignIn({
   provider,
   title,
 }: {
-  provider: Provider;
+  provider: PortalEmbeddedProvider;
   title: string;
 }) {
-  const walletKit = useAomiWalletKit();
-  const [status, setStatus] = useState(
-    `Continue with ${providerLabels[provider]} to sign in.`,
-  );
-  const [pending, setPending] = useState(false);
-  const [complete, setComplete] = useState(false);
-  const [exchangeRequested, setExchangeRequested] = useState(false);
-  const connectSocial = walletKit.connectSocial;
-  const getAccountCredential = walletKit.getAccountCredential;
-
-  const start = useCallback(async () => {
-    setPending(true);
-    setStatus(`Opening ${providerLabels[provider]}...`);
-    try {
-      await connectSocial?.("google");
-      setStatus("Waiting for provider credential...");
-      setExchangeRequested(true);
-    } catch (error) {
-      setStatus(
-        error instanceof Error ? error.message : "Authentication failed",
-      );
-      setPending(false);
-    }
-  }, [connectSocial, provider]);
-
-  useEffect(() => {
-    if (!exchangeRequested || complete || !pending) return;
-    let cancelled = false;
-    const run = async () => {
-      try {
-        const credential = await waitForProviderCredential(() =>
-          getAccountCredential?.(),
-        );
-        if (cancelled) return;
-        setStatus("Creating Aomi session...");
-        const exchange = await fetch("/api/auth/aomi/provider/exchange", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(credential),
-        });
-        if (!exchange.ok) {
-          throw await providerExchangeError(exchange);
-        }
-        setComplete(true);
-        setStatus("Signed in. Preparing authorization...");
-        const query =
-          sessionStorage.getItem(STASH_KEY) ?? window.location.search;
-        sessionStorage.removeItem(STASH_KEY);
-        window.location.replace(`/api/auth/mcp/authorize${query}`);
-      } catch (error) {
-        if (cancelled) return;
-        setStatus(
-          error instanceof Error ? error.message : "Authentication failed",
-        );
-        setExchangeRequested(false);
-        setPending(false);
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [complete, exchangeRequested, getAccountCredential, pending]);
+  const signIn = usePortalProviderCredential({
+    completeStatus: "Signed in. Preparing authorization...",
+    initialStatus: `Continue with ${PORTAL_PROVIDER_LABELS[provider]} to sign in.`,
+    onCredential: resumeMcpAuthorizeAfterExchange,
+    provider,
+    workingStatus: "Creating Aomi session...",
+    workingStatusTiming: "after_credential",
+  });
 
   return (
-    <Shell title={title}>
-      <p className="text-muted-foreground mt-3 min-h-10 text-sm">{status}</p>
+    <PortalAuthShell title={title}>
+      <p className="text-muted-foreground mt-3 min-h-10 text-sm">
+        {signIn.status}
+      </p>
       <div className="mt-6">
-        <button
-          className="bg-foreground text-background flex h-11 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={pending || complete}
-          onClick={() => void start()}
-          type="button"
-        >
-          {complete ? (
-            <CheckCircle2 className="h-4 w-4" />
-          ) : pending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : null}
-          Continue with {providerLabels[provider]}
-        </button>
+        <PortalProviderContinueButton
+          complete={signIn.complete}
+          disabled={signIn.pending || signIn.complete}
+          onClick={() => void signIn.start()}
+          pending={signIn.pending}
+          provider={provider}
+        />
       </div>
-    </Shell>
+    </PortalAuthShell>
   );
 }
 
-// ─── Phase 2: explicit consent ──────────────────────────────────────────────
+async function resumeMcpAuthorizeAfterExchange(credential: unknown) {
+  const exchange = await exchangeNewSessionProviderCredential(credential);
+  if (!exchange.ok) {
+    throw await providerExchangeError(exchange);
+  }
+  const query = sessionStorage.getItem(STASH_KEY) ?? window.location.search;
+  sessionStorage.removeItem(STASH_KEY);
+  window.location.replace(`/api/auth/mcp/authorize${query}`);
+}
 
 function ConsentPanel({
   clientName,
@@ -310,7 +212,7 @@ function ConsentPanel({
 
   const name = clientName ?? "An MCP client";
   return (
-    <Shell title={`${name} wants to connect`}>
+    <PortalAuthShell title={`${name} wants to connect`}>
       <p className="text-muted-foreground mt-3 text-sm">
         Allow {name} to access your Aomi account? It will be able to act as you
         by chatting with the Aomi agent and supervising the sessions you invoke
@@ -349,19 +251,6 @@ function ConsentPanel({
           Deny
         </button>
       </div>
-    </Shell>
-  );
-}
-
-// ─── Shared shell (device-auth's visual language) ───────────────────────────
-
-function Shell({ children, title }: { children?: ReactNode; title: string }) {
-  return (
-    <main className="bg-background text-foreground flex min-h-screen items-center justify-center p-6">
-      <section className="w-full max-w-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        {children}
-      </section>
-    </main>
+    </PortalAuthShell>
   );
 }

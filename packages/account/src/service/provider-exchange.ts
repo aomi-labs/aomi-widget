@@ -22,10 +22,7 @@ import {
   type VerifiedProviderTokenCredential,
   verifyProviderCredential,
 } from "../providers";
-import type {
-  AttestedWallet,
-  AttestedWalletProvider,
-} from "../providers/wallet-attestation";
+import type { AttestedWallet } from "../providers/wallet-attestation";
 import type {
   VerifiedProviderIdentity,
   WidgetProviderPolicy,
@@ -87,30 +84,20 @@ export async function signInWithVerifiedProviderCredential(input: {
 }): Promise<ProviderLinkResult> {
   await ensureAccountSchema();
   const prepared = await prepareVerifiedCredential(input.verified);
-  const betterAuthSignals = await betterAuthWalletSignals(
-    input.betterAuthUserId,
-  );
-  const betterAuthIdentity: SignalRef = {
-    type: "identity",
-    provider: "better_auth",
-    issuerEnvironment: "aomi",
-    tenantId: "portal",
-    subject: input.betterAuthUserId,
-  };
-
+  const betterAuthIdentity = betterAuthSignal(input.betterAuthUserId);
   const resolution = await signInWithVerifiedProviderIdentity({
     identity: prepared.identity,
     policy: nativeProviderResolutionPolicy(prepared.identity.provider),
-    additionalRecoverySignals: [betterAuthIdentity, ...betterAuthSignals],
+    additionalRecoverySignals: [
+      betterAuthIdentity,
+      ...(await betterAuthWalletSignals(input.betterAuthUserId)),
+    ],
     wallets: prepared.wallets,
     displayName: input.name ?? input.email,
     onResolved: async (user, db) => {
       const betterAuthResolution = await linkProviderIdentity({
         userId: user.id,
-        provider: "better_auth",
-        issuerEnvironment: "aomi",
-        tenantId: "portal",
-        subject: input.betterAuthUserId,
+        ...betterAuthIdentity,
         db,
       });
       if (betterAuthResolution.status === "conflict") {
@@ -148,19 +135,12 @@ export async function signInWithVerifiedProviderIdentity(input: {
       displayName: input.displayName ?? input.identity.email?.value,
       onResolved: async (result, db) => {
         await input.onResolved?.(result.user, db);
-        if (input.identity.email?.verified) {
-          await upsertEmailIdentity({
-            userId: result.user.id,
-            email: input.identity.email.value,
-            db,
-          });
-        }
-        await persistProviderWallets({
-          userId: result.user.id,
-          identity: input.identity,
+        await persistProviderDependents(
+          result.user.id,
+          input.identity,
           wallets,
           db,
-        });
+        );
       },
     });
     return {
@@ -188,19 +168,12 @@ export async function linkVerifiedProviderIdentityForUser(input: {
       policy: input.policy,
       recoverySignals: providerRecoverySignals(input.identity, wallets),
       onAttached: async (_identity, db) => {
-        if (input.identity.email?.verified) {
-          await upsertEmailIdentity({
-            userId: input.userId,
-            email: input.identity.email.value,
-            db,
-          });
-        }
-        await persistProviderWallets({
-          userId: input.userId,
-          identity: input.identity,
+        await persistProviderDependents(
+          input.userId,
+          input.identity,
           wallets,
           db,
-        });
+        );
       },
     });
     return {
@@ -232,13 +205,9 @@ export async function exchangeProviderForExistingSession(input: {
   credential: AomiAccountCredential;
 }): Promise<ProviderExchangeResult> {
   const verified = await verifyProviderCredential(input.credential);
-  const betterAuthOwner = await findSignalOwner({
-    type: "identity",
-    provider: "better_auth",
-    issuerEnvironment: "aomi",
-    tenantId: "portal",
-    subject: input.betterAuthUserId,
-  });
+  const betterAuthOwner = await findSignalOwner(
+    betterAuthSignal(input.betterAuthUserId),
+  );
   const userId = input.currentUserId ?? betterAuthOwner;
   if (!userId || betterAuthOwner !== userId) {
     return conflict("identity");
@@ -288,6 +257,16 @@ async function prepareVerifiedCredential(
   };
 }
 
+function betterAuthSignal(subject: string) {
+  return {
+    type: "identity" as const,
+    provider: "better_auth" as const,
+    issuerEnvironment: "aomi",
+    tenantId: "portal",
+    subject,
+  };
+}
+
 function providerRecoverySignals(
   identity: VerifiedProviderIdentity,
   wallets: readonly AttestedWallet[],
@@ -305,32 +284,20 @@ function providerRecoverySignals(
   ];
 }
 
-async function persistProviderWallets(input: {
-  userId: AomiUserId;
-  identity: VerifiedProviderIdentity;
-  wallets: readonly AttestedWallet[];
-  db: import("pg").PoolClient;
-}): Promise<void> {
-  if (!input.wallets.length) return;
-  const provider = providerForWallets(input.identity, input.wallets);
-  const resolution = await syncProviderWallets({
-    userId: input.userId,
-    provider,
-    issuerEnvironment: input.identity.issuerEnvironment,
-    tenantId: input.identity.tenantId,
-    subject: input.identity.subject,
-    attested: [...input.wallets],
-    db: input.db,
-  });
-  if (resolution.status === "conflict") {
-    throw new ProviderLinkRollback(resolution);
-  }
-}
-
-function providerForWallets(
+async function persistProviderDependents(
+  userId: AomiUserId,
   identity: VerifiedProviderIdentity,
   wallets: readonly AttestedWallet[],
-): AttestedWalletProvider {
+  db: import("pg").PoolClient,
+): Promise<void> {
+  if (identity.email?.verified) {
+    await upsertEmailIdentity({
+      userId,
+      email: identity.email.value,
+      db,
+    });
+  }
+  if (!wallets.length) return;
   const provider = wallets[0]?.provider;
   if (
     !provider ||
@@ -339,7 +306,18 @@ function providerForWallets(
   ) {
     throw new Error("provider_wallet_attestation_mismatch");
   }
-  return provider;
+  const resolution = await syncProviderWallets({
+    userId,
+    provider,
+    issuerEnvironment: identity.issuerEnvironment,
+    tenantId: identity.tenantId,
+    subject: identity.subject,
+    attested: [...wallets],
+    db,
+  });
+  if (resolution.status === "conflict") {
+    throw new ProviderLinkRollback(resolution);
+  }
 }
 
 function providerConflict(

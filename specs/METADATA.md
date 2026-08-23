@@ -137,23 +137,23 @@ class ClientSession {
 ## Backend API Endpoints
 
 ```
-POST   /api/chat
-GET    /api/state
-POST   /api/interrupt
+POST   /api/thread/chat
+GET    /api/thread/state
+POST   /api/thread/interrupt
 POST   /api/system
-GET    /api/updates
-POST   /api/sessions
-GET    /api/sessions
-GET    /api/sessions/:id
-PATCH  /api/sessions/:id
-DELETE /api/sessions/:id
-GET    /api/session/apps
-GET    /api/session/models
-POST   /api/session/model?rig=X&app=Y
+GET    /api/thread/updates
+POST   /api/threads
+GET    /api/threads
+GET    /api/threads/:id
+PATCH  /api/threads/:id
+DELETE /api/threads/:id
+GET    /api/thread/apps
+GET    /api/thread/models
+POST   /api/thread/model?rig=X&app=Y
 GET    /api/account
 GET    /api/aomi/account-bearer
 POST   /api/auth/aomi/provider/exchange
 POST   /api/aomi/provider/exchange
 ```
 
-All backend session/thread endpoints carry `X-Session-Id`. Same-origin browser calls rely on the BFF proxy to translate the Better Auth cookie into a backend `AccountBearer`; direct cross-origin calls can opt into `createAccountAccessTokenProvider`.
+All backend thread endpoints carry `X-Thread-Id` (and `X-Session-Id` during the migration). Same-origin browser calls rely on the BFF proxy to translate the Better Auth cookie into a backend `AccountBearer`; direct cross-origin calls can opt into `createAccountAccessTokenProvider`.

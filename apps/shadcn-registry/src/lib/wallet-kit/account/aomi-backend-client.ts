@@ -66,7 +66,9 @@ export class AomiAccountRequestError extends Error {
 export type AomiBackendAccountEndpointConfig = Partial<{
   accountPath: string;
   signOutPath: string;
+  /** Requires an existing principal; links only. */
   existingSessionProviderExchangePath: string;
+  /** Unauthenticated sign-in; mints a Better Auth session cookie. */
   newSessionProviderExchangePath: string;
   walletLinkPath: string;
   walletPath: (walletId: string) => string;
@@ -80,6 +82,8 @@ export type AomiBackendAccountEndpointConfig = Partial<{
 const DEFAULT_ENDPOINTS = {
   accountPath: "/api/aomi/account",
   signOutPath: "/api/aomi/sign-out",
+  // Link vs sign-in are separate URLs on purpose. See portal
+  // `NEW_SESSION_PROVIDER_EXCHANGE_PATH` / `EXISTING_SESSION_PROVIDER_EXCHANGE_PATH`.
   existingSessionProviderExchangePath: "/api/aomi/provider/exchange",
   newSessionProviderExchangePath: "/api/auth/aomi/provider/exchange",
   walletLinkPath: "/api/aomi/wallets/link",

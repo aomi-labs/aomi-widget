@@ -87,7 +87,7 @@ export class CliSession {
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
       accountBearer: config.accountBearer ?? seed?.accountBearer,
-      sessionCookie: config.sessionCookie ?? seed?.sessionCookie,
+      sessionCookie: seed?.sessionCookie,
       embeddedProvider: config.embeddedProvider ?? seed?.embeddedProvider,
       embeddedProviderToken:
         config.embeddedProviderToken ?? seed?.embeddedProviderToken,
@@ -200,13 +200,6 @@ export class CliSession {
       this.state.accountBearer = config.accountBearer;
       delete this.state.embeddedProvider;
       delete this.state.embeddedProviderToken;
-      changed = true;
-    }
-    if (
-      config.sessionCookie !== undefined &&
-      config.sessionCookie !== this.state.sessionCookie
-    ) {
-      this.state.sessionCookie = config.sessionCookie;
       changed = true;
     }
     if (

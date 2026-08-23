@@ -417,4 +417,45 @@ describe("createBackendProxy", () => {
     expect(response.headers.has("www-authenticate")).toBe(false);
     expect(response.headers.has("x-upstream-internal")).toBe(false);
   });
+
+  it("rewrites leftover session paths onto thread routes before the allowlist", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { GET, PATCH } = createTestProxy({
+      allowedRoutes: [
+        {
+          pattern: /^\/api\/threads$/,
+          methods: new Set(["GET"]),
+          auth: "none",
+        },
+        {
+          pattern: /^\/api\/threads\/[^/]+$/,
+          methods: new Set(["PATCH"]),
+          auth: "none",
+        },
+        {
+          pattern: /^\/api\/thread\/models$/,
+          methods: new Set(["GET"]),
+          auth: "none",
+        },
+      ],
+      resolveCanonicalUserId: async () => null,
+    });
+
+    await GET(...proxyRequest("/api/sessions"));
+    await PATCH(
+      ...proxyRequest("/api/sessions/thread-1", { method: "PATCH" }),
+    );
+    await GET(...proxyRequest("/api/session/models"));
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
+      "https://backend.aomi.dev/api/threads",
+    );
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe(
+      "https://backend.aomi.dev/api/threads/thread-1",
+    );
+    expect(String(fetchMock.mock.calls[2]?.[0])).toBe(
+      "https://backend.aomi.dev/api/thread/models",
+    );
+  });
 });

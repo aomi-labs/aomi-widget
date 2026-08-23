@@ -2,6 +2,29 @@
 
 ## Last Updated
 
+2026-08-17 — Collapsed leftover session→thread dual universe into the shared
+  BFF proxy rewrite, unified CLI HTTP clients onto one bearer provider, pointed
+  MCP chat at `AomiClient`, and dropped the extra `wallet:state_changed`
+  system POST (chat already sends `user_state`). `@aomi-labs/client` is
+  `0.5.1`.
+
+2026-08-17 — Shared the portal Privy/Para login surface between `/mcp/connect`
+  and `/device-auth`. Both still call new-session
+  `POST /api/auth/aomi/provider/exchange` for sign-in; existing-session
+  `POST /api/aomi/provider/exchange` remains principal-required link-only.
+  Device-auth loopback URI checks, MCP consent, and widget CORS are unchanged.
+
+2026-08-17 — Reduced `packages/account/src/service/account-service.ts`:
+  collapsed repeated wallet-signal construction, first-party identity
+  guards, identical label sanitizers, and provider wallet-link conflict
+  logging. Public account-service signatures and graph behavior unchanged.
+
+2026-08-17 — Reduced `packages/account/src/service/provider-exchange.ts`:
+  collapsed duplicated post-link email/wallet persistence into
+  `persistProviderDependents` and reused one portal BetterAuth identity
+  signal. Public exchange/sign-in/link signatures and conflict behavior
+  unchanged.
+
 2026-08-12 — MCP CHAT PARITY IMPLEMENTED. `/api/mcp` now exposes only
   `aomi_chat`, `aomi_check`, `aomi_interrupt`, and `aomi_list_sessions` over a
   shared stateless JSON-RPC shell; the unchanged direct discovery/execution

@@ -115,34 +115,6 @@ export const ALLOWED_ROUTES: AllowedRoute[] = [
   },
 ];
 
-function rewriteLegacyThreadPath(upstreamUrl: URL): void {
-  if (upstreamUrl.pathname === "/api/sessions") {
-    upstreamUrl.pathname = "/api/threads";
-    return;
-  }
-
-  if (upstreamUrl.pathname.startsWith("/api/sessions/")) {
-    upstreamUrl.pathname = `/api/threads/${upstreamUrl.pathname.slice(
-      "/api/sessions/".length,
-    )}`;
-    return;
-  }
-
-  if (upstreamUrl.pathname === "/api/session/apps") {
-    upstreamUrl.pathname = "/api/thread/apps";
-    return;
-  }
-
-  if (upstreamUrl.pathname === "/api/session/models") {
-    upstreamUrl.pathname = "/api/thread/models";
-    return;
-  }
-
-  if (upstreamUrl.pathname === "/api/session/model") {
-    upstreamUrl.pathname = "/api/thread/model";
-  }
-}
-
 const proxy = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
   resolveCanonicalUserId,
@@ -150,7 +122,6 @@ const proxy = createBackendProxy({
     portalFailures.handle({ source: "proxy", failure });
   },
   applyDefaults: (upstreamUrl) => {
-    rewriteLegacyThreadPath(upstreamUrl);
     if (
       upstreamUrl.pathname !== "/api/thread/apps" ||
       upstreamUrl.searchParams.has("platform")

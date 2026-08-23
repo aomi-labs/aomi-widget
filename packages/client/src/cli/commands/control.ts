@@ -1,6 +1,6 @@
 import { SUPPORTED_CHAIN_IDS, CHAIN_NAMES } from "../../chains";
 import { CliSession } from "../cli-session";
-import { createControlClient } from "../context";
+import { createCliClient } from "../client-factory";
 import { printDataFileLocation, printJson } from "../output";
 import type { CliConfig } from "../types";
 import { fatal } from "../errors";
@@ -67,7 +67,7 @@ export async function eventsCommand(config: CliConfig): Promise<void> {
 }
 
 export async function appsCommand(config: CliConfig): Promise<void> {
-  const client = createControlClient(config);
+  const client = createCliClient(config);
   const cli = CliSession.load();
   const sessionId = cli?.sessionId ?? crypto.randomUUID();
   const apps = await client.getApps(sessionId, {
@@ -106,7 +106,7 @@ export async function appsCommand(config: CliConfig): Promise<void> {
 }
 
 export async function modelsCommand(config: CliConfig): Promise<void> {
-  const client = createControlClient(config);
+  const client = createCliClient(config);
   const cli = CliSession.load();
   const sessionId = cli?.sessionId ?? crypto.randomUUID();
   const models = await client.getModels(sessionId, {

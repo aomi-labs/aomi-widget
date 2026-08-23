@@ -46,16 +46,6 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     auth: "optional",
   },
   {
-    pattern: /^\/api\/sessions$/,
-    methods: new Set(["GET", "POST"]),
-    auth: "optional",
-  },
-  {
-    pattern: /^\/api\/sessions\/[^/]+$/,
-    methods: new Set(["GET", "PATCH", "DELETE"]),
-    auth: "optional",
-  },
-  {
     pattern: /^\/api\/thread\/events$/,
     methods: new Set(["GET"]),
     auth: "optional",
@@ -76,59 +66,15 @@ const ALLOWED_ROUTES: AllowedRoute[] = [
     auth: "optional",
   },
   {
-    pattern: /^\/api\/session\/apps$/,
-    methods: new Set(["GET"]),
-    auth: "optional",
-  },
-  {
-    pattern: /^\/api\/session\/models$/,
-    methods: new Set(["GET"]),
-    auth: "optional",
-  },
-  {
-    pattern: /^\/api\/session\/model$/,
-    methods: new Set(["POST"]),
-    auth: "optional",
-  },
-  {
     pattern: /^\/api\/exec\/simulate$/,
     methods: new Set(["POST"]),
     auth: "optional",
   },
 ];
 
-function rewriteLegacyThreadPath(upstreamUrl: URL): void {
-  if (upstreamUrl.pathname === "/api/sessions") {
-    upstreamUrl.pathname = "/api/threads";
-    return;
-  }
-
-  if (upstreamUrl.pathname.startsWith("/api/sessions/")) {
-    upstreamUrl.pathname = `/api/threads/${upstreamUrl.pathname.slice(
-      "/api/sessions/".length,
-    )}`;
-    return;
-  }
-
-  if (upstreamUrl.pathname === "/api/session/apps") {
-    upstreamUrl.pathname = "/api/thread/apps";
-    return;
-  }
-
-  if (upstreamUrl.pathname === "/api/session/models") {
-    upstreamUrl.pathname = "/api/thread/models";
-    return;
-  }
-
-  if (upstreamUrl.pathname === "/api/session/model") {
-    upstreamUrl.pathname = "/api/thread/model";
-  }
-}
-
 export const { GET, POST, PUT, PATCH, DELETE } = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
   resolveCanonicalUserId: async () => null,
-  applyDefaults: rewriteLegacyThreadPath,
 });
 
 export const dynamic = "force-dynamic";

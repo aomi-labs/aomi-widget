@@ -58,17 +58,10 @@ function upstreamBaseUrl(): string {
   return explicitBackendUrl() ?? LOCAL_BACKEND_URL;
 }
 
-function rewriteLegacySessionPath(upstreamUrl: URL): void {
-  if (upstreamUrl.pathname === "/api/sessions") {
-    upstreamUrl.pathname = "/api/threads";
-  }
-}
-
 const proxy = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
   upstreamBaseUrl: upstreamBaseUrl(),
   resolveCanonicalUserId: async () => null,
-  applyDefaults: rewriteLegacySessionPath,
 });
 
 async function requireConfiguredProxy(

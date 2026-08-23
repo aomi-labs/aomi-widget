@@ -11,8 +11,6 @@ export type CliConfig = {
   json?: boolean;
   verbose?: boolean;
   accountBearer?: string;
-  /** Legacy persisted session token slot. Prefer `auth.sessionToken`. */
-  sessionCookie?: string;
   embeddedProvider?: CliEmbeddedProvider;
   embeddedProviderToken?: string;
   app?: string;
