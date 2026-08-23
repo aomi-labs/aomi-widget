@@ -412,6 +412,13 @@ var init_validation = __esm({
 });
 
 // src/cli/commands/defs/shared.ts
+var shared_exports = {};
+__export(shared_exports, {
+  buildCliConfig: () => buildCliConfig,
+  getPositionals: () => getPositionals,
+  globalArgs: () => globalArgs,
+  parseSvmCluster: () => parseSvmCluster
+});
 import { privateKeyToAccount } from "viem/accounts";
 function parseEmbeddedProvider(raw) {
   if (!raw) return void 0;
@@ -477,6 +484,11 @@ function buildCliConfig(args) {
     (_d = str(args["embedded-provider"])) != null ? _d : process.env.AOMI_EMBEDDED_PROVIDER
   );
   const embeddedProviderToken = (_e = str(args["embedded-provider-token"])) != null ? _e : process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
+  if (configuredPublicKey && !/^0x[0-9a-fA-F]{40}$/.test(configuredPublicKey.trim())) {
+    fatal(
+      "`--public-key` must be a 0x-prefixed EVM address. For a Solana identity, run `aomi wallet set --solana <key>` or pass `--solana-private-key`."
+    );
+  }
   if (configuredPublicKey && derivedPublicKey && configuredPublicKey.toLowerCase() !== derivedPublicKey.toLowerCase()) {
     fatal(
       "`--public-key` does not match the address derived from `--private-key`."
@@ -4074,37 +4086,22 @@ function txTimestamp(existingById, id, fallbackNow) {
   var _a3, _b;
   return (_b = (_a3 = existingById.get(id)) == null ? void 0 : _a3.timestamp) != null ? _b : fallbackNow;
 }
-function buildCliUserState(publicKey, chainId3, options) {
-  var _a3, _b, _c;
-  const app = (_a3 = options == null ? void 0 : options.app) == null ? void 0 : _a3.trim().toLowerCase();
-  const evm = {};
-  const publicKeyIsSolana = publicKey !== void 0 && !publicKey.trim().startsWith("0x");
-  const publicKeyIsEvm = publicKey !== void 0 && publicKey.trim().startsWith("0x");
-  const svmAddress3 = (_b = options == null ? void 0 : options.svmAddress) != null ? _b : publicKeyIsSolana ? publicKey : void 0;
-  const hasBoth = publicKeyIsEvm && svmAddress3 !== void 0;
-  const isSolanaApp = !hasBoth && !publicKeyIsEvm && (app === "sol" || app === "solana" || app === "svm" || app === "byreal" || publicKeyIsSolana || svmAddress3 !== void 0);
-  const hasEvm = hasBoth || !isSolanaApp && publicKeyIsEvm;
-  const hasSvm = hasBoth || isSolanaApp;
+function buildCliUserState(evmAddress2, chainId3, options) {
   const userState = {};
-  if (hasEvm && publicKey !== void 0) {
-    evm.address = publicKey;
-  }
-  if (hasEvm && chainId3 !== void 0) {
-    evm.chain_id = chainId3;
-  }
-  if (Object.keys(evm).length > 0) {
+  if (evmAddress2 !== void 0) {
+    const evm = { address: evmAddress2 };
+    if (chainId3 !== void 0) {
+      evm.chain_id = chainId3;
+    }
     userState.evm = evm;
   }
-  if (hasSvm) {
-    userState.svm = {
-      address: svmAddress3 != null ? svmAddress3 : publicKey,
-      cluster: (_c = options == null ? void 0 : options.svmCluster) != null ? _c : svmAddress3 !== void 0 ? "solana:mainnet" : void 0
-    };
+  if ((options == null ? void 0 : options.svmAddress) !== void 0) {
+    userState.svm = { address: options.svmAddress };
+    if (options.svmCluster !== void 0) {
+      userState.svm.cluster = options.svmCluster;
+    }
   }
-  const anyConnected = Boolean(
-    hasEvm && publicKey !== void 0 || hasSvm && (svmAddress3 != null ? svmAddress3 : publicKey) !== void 0
-  );
-  if (anyConnected) {
+  if (userState.evm || userState.svm) {
     userState.connection = {
       is_connected: true
     };
@@ -5342,7 +5339,22 @@ var init_cli_session = __esm({
       /** Load the active session from disk. Returns null if none exists. */
       static load() {
         const state = readState();
-        return state ? new _CliSession(state) : null;
+        if (!state) return null;
+        const cli = new _CliSession(state);
+        if (cli.ensureSvmClusterInvariant()) cli.save();
+        return cli;
+      }
+      /**
+       * A persisted Solana address must always carry a persisted cluster so that
+       * display, state file, and wire agree. State files written before
+       * `wallet set --solana` persisted clusters get stamped with mainnet once.
+       */
+      ensureSvmClusterInvariant() {
+        if (this.state.svmPublicKey && !this.state.svmCluster) {
+          this.state.svmCluster = "solana:mainnet";
+          return true;
+        }
+        return false;
       }
       /** Load existing session or create a fresh one from config. */
       static loadOrCreate(config) {
@@ -5394,6 +5406,7 @@ var init_cli_session = __esm({
           auth: seed == null ? void 0 : seed.auth
         };
         const cli = new _CliSession(state);
+        cli.ensureSvmClusterInvariant();
         cli.save();
         return cli;
       }
@@ -5538,6 +5551,7 @@ var init_cli_session = __esm({
           this.state.clientId = crypto.randomUUID();
           changed = true;
         }
+        if (this.ensureSvmClusterInvariant()) changed = true;
         if (changed) this.save();
       }
       setModel(model) {
@@ -5562,9 +5576,12 @@ var init_cli_session = __esm({
         this.state.publicKey = publicKey;
         this.save();
       }
-      setSvmWallet(privateKey, publicKey) {
+      setSvmWallet(privateKey, publicKey, cluster) {
         this.state.svmPrivateKey = privateKey;
         this.state.svmPublicKey = publicKey;
+        if (cluster !== void 0) {
+          this.state.svmCluster = cluster;
+        }
         this.save();
       }
       /** The Solana private key to use for signing. Prefers the transiently-
@@ -5573,12 +5590,15 @@ var init_cli_session = __esm({
       resolvedSvmPrivateKey(fromConfig) {
         return fromConfig != null ? fromConfig : this.state.svmPrivateKey;
       }
+      /** The effective runtime Solana cluster: `--cluster` wins, then the
+       * persisted choice, then mainnet. Persistence paths stamp their defaults
+       * before saving so display, state, and this resolver stay aligned. */
+      resolvedSvmCluster(fromConfig) {
+        var _a3;
+        return (_a3 = fromConfig != null ? fromConfig : this.state.svmCluster) != null ? _a3 : "solana:mainnet";
+      }
       setChainId(id) {
         this.state.chainId = id;
-        this.save();
-      }
-      setSvmCluster(cluster) {
-        this.state.svmCluster = cluster;
         this.save();
       }
       addSecretHandles(handles) {
@@ -5777,7 +5797,6 @@ Available: ${available}`);
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
       createClientSession(config, options) {
-        var _a3;
         const paymentFetch = createCliPaymentFetch(config, options == null ? void 0 : options.onPayment);
         const session = new ClientSession(
           {
@@ -5797,9 +5816,8 @@ Available: ${available}`);
         );
         session.resolveUserState(
           buildCliUserState(this.state.publicKey, this.state.chainId, {
-            app: this.state.app,
             svmAddress: this.state.svmPublicKey,
-            svmCluster: (_a3 = config == null ? void 0 : config.svmCluster) != null ? _a3 : this.state.svmCluster
+            svmCluster: this.resolvedSvmCluster(config == null ? void 0 : config.svmCluster)
           })
         );
         return session;
@@ -6239,15 +6257,9 @@ function deriveSvmAddress(solanaPrivateKey) {
     return void 0;
   }
 }
-function resolveSvmAddressForChat(config, publicKey, persistedSvmAddress, solanaPrivateKey) {
+function resolveSvmAddressForChat(persistedSvmAddress, solanaPrivateKey) {
   var _a3;
-  const derived = deriveSvmAddress(solanaPrivateKey);
-  if (derived || persistedSvmAddress) {
-    return derived != null ? derived : persistedSvmAddress;
-  }
-  const app = (_a3 = config.app) == null ? void 0 : _a3.trim().toLowerCase();
-  const acceptsSvmPublicKey = !app || app === "default" || config.svmCluster !== void 0 || app === "sol" || app === "solana" || app === "svm" || app === "byreal";
-  return acceptsSvmPublicKey && publicKey && !publicKey.startsWith("0x") ? publicKey : void 0;
+  return (_a3 = deriveSvmAddress(solanaPrivateKey)) != null ? _a3 : persistedSvmAddress;
 }
 function shouldBroadcastWalletStateChange(config, previous, next) {
   var _a3, _b;
@@ -6260,16 +6272,15 @@ function shouldBroadcastWalletStateChange(config, previous, next) {
   return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaProvider) !== next.aaProvider || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount) != null ? _b : void 0);
 }
 async function syncWalletStateForChat(config, previous, next, cli, session) {
-  var _a3;
-  if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
+  if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey && !next.svmAddress) {
     return;
   }
   const userState = buildCliUserState(next.publicKey, next.chainId, {
-    app: config.app,
     svmAddress: next.svmAddress,
-    // An EVM-only command must not silently reset a persisted devnet/testnet
-    // Solana wallet to mainnet in the shared default-runtime context.
-    svmCluster: (_a3 = config.svmCluster) != null ? _a3 : cli.svmCluster
+    // --cluster wins, then the persisted choice, then mainnet — so an
+    // EVM-only command cannot silently reset a persisted devnet/testnet
+    // Solana wallet in the shared default-runtime context.
+    svmCluster: cli.resolvedSvmCluster(config.svmCluster)
   });
   session.resolveUserState(userState);
   await session.syncUserState();
@@ -6306,8 +6317,6 @@ async function chatCommand(config, message, verbose) {
   });
   const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
   const svmAddress3 = resolveSvmAddressForChat(
-    config,
-    cli.publicKey,
     cli.svmPublicKey,
     resolvedSolanaKey
   );
@@ -8296,7 +8305,9 @@ function currentWalletCommand(config = { secrets: {} }) {
       hasSavedSigner: Boolean(cli.privateKey)
     } : null,
     state.svmPublicKey ? {
-      family: "solana",
+      // "svm" is the canonical family name (matches the backend wire key
+      // and the account-graph API); "solana" was the deprecated alias.
+      family: "svm",
       address: state.svmPublicKey,
       cluster: (_b = state.svmCluster) != null ? _b : null,
       hasSavedSigner: Boolean(state.svmPrivateKey)
@@ -8318,7 +8329,8 @@ function currentWalletCommand(config = { secrets: {} }) {
   }
   if (state.svmPublicKey) {
     const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
-    console.log(`Solana: ${state.svmPublicKey} (${signerStatus})`);
+    const clusterSuffix = state.svmCluster ? `, ${state.svmCluster}` : "";
+    console.log(`Solana: ${state.svmPublicKey} (${signerStatus}${clusterSuffix})`);
   }
   printDataFileLocation({ verbose: config.verbose });
 }
@@ -8532,20 +8544,22 @@ function setWalletCommand(privateKeyInput) {
   console.log(`EVM wallet set to ${account.address}`);
   printDataFileLocation();
 }
-function setSvmWalletCommand(keyInput) {
+function setSvmWalletCommand(keyInput, cluster) {
+  var _a3;
   let keypair;
   try {
     keypair = parseSolanaKeypairSecret(keyInput.trim());
   } catch (err) {
     fatal(
       `Invalid Solana private key: ${err instanceof Error ? err.message : err}
-Usage: aomi wallet set --solana <base58-secret-key>`
+Usage: aomi wallet set --solana <base58-secret-key> [--cluster <cluster>]`
     );
   }
   const publicKey = keypair.publicKey.toBase58();
   const cli = loadOrCreateForSettings();
-  cli.setSvmWallet(keyInput.trim(), publicKey);
-  console.log(`Solana wallet set to ${publicKey}`);
+  const effectiveCluster = (_a3 = cluster != null ? cluster : cli.svmCluster) != null ? _a3 : "solana:mainnet";
+  cli.setSvmWallet(keyInput.trim(), publicKey, effectiveCluster);
+  console.log(`Solana wallet set to ${publicKey} (cluster ${effectiveCluster})`);
   printDataFileLocation();
 }
 function setChainCommand(chainIdInput) {
@@ -9143,21 +9157,20 @@ async function accountLoginCommand(config, options = {}) {
   printDataFileLocation({ verbose: config.verbose });
 }
 async function accountLoginWithSiws(cli, config) {
-  var _a3, _b, _c;
+  var _a3;
   const privateKey = (_a3 = cli.resolvedSvmPrivateKey(config.solanaPrivateKey)) != null ? _a3 : process.env.SOLANA_PRIVATE_KEY;
   if (!privateKey) {
     fatal(
       "No Solana private key configured.\nRun `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`."
     );
   }
-  const chainId3 = (_c = (_b = config.svmCluster) != null ? _b : cli.svmCluster) != null ? _c : "solana:mainnet";
+  const chainId3 = cli.resolvedSvmCluster(config.svmCluster);
   const result = await signInWithCliSiws({
     baseUrl: cli.baseUrl,
     privateKey,
     chainId: chainId3
   });
-  cli.setSvmWallet(privateKey, result.address);
-  cli.setSvmCluster(chainId3);
+  cli.setSvmWallet(privateKey, result.address, chainId3);
   cli.setAuthSession(result.auth);
   if (config.json) {
     printJson({
@@ -9301,7 +9314,7 @@ async function accountLinksCommand(config) {
   printDataFileLocation({ verbose: config.verbose });
 }
 async function accountLinkCommand(config, options = {}) {
-  var _a3, _b, _c, _d, _e;
+  var _a3, _b, _c;
   const cli = loadMergedCli(config);
   const client = requireAccountGraphClient(cli);
   const provider = normalizeProviderOption(options.provider);
@@ -9320,15 +9333,14 @@ async function accountLinkCommand(config, options = {}) {
         "No Solana private key configured.\nRun `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`."
       );
     }
-    const chainId3 = (_c = (_b = config.svmCluster) != null ? _b : cli.svmCluster) != null ? _c : "solana:mainnet";
+    const chainId3 = cli.resolvedSvmCluster(config.svmCluster);
     const result = await linkCliSiwsWallet({
       baseUrl: cli.baseUrl,
       sessionToken: cli.auth.sessionToken,
       privateKey,
       chainId: chainId3
     });
-    cli.setSvmWallet(privateKey, result.address);
-    cli.setSvmCluster(chainId3);
+    cli.setSvmWallet(privateKey, result.address, chainId3);
     const account = await client.getAccount();
     if (config.json) {
       printJson(__spreadProps(__spreadValues({}, result), { account }));
@@ -9345,7 +9357,7 @@ async function accountLinkCommand(config, options = {}) {
     const result = await getDeviceProviderCredential({
       baseUrl: cli.baseUrl,
       provider,
-      sessionToken: (_e = (_d = cli.auth) == null ? void 0 : _d.sessionToken) != null ? _e : ""
+      sessionToken: (_c = (_b = cli.auth) == null ? void 0 : _b.sessionToken) != null ? _c : ""
     });
     if (result.status === "conflict") {
       fatal("This login method is already linked to another Aomi account.");
@@ -10851,15 +10863,27 @@ var walletSetDef = defineCommand7({
       type: "string",
       description: "Solana base58 secret key to persist",
       alias: ["s"]
+    },
+    cluster: {
+      type: "string",
+      description: 'Solana cluster to persist with --solana: "mainnet-beta" (default), "devnet", or "testnet". Also accepts CAIP-2 form "solana:mainnet" etc.'
     }
   },
   async run({ args }) {
     var _a3;
     const solanaKey = args.solana;
     if (solanaKey) {
+      const { parseSvmCluster: parseSvmCluster2 } = await Promise.resolve().then(() => (init_shared(), shared_exports));
       const { setSvmWalletCommand: setSvmWalletCommand2 } = await Promise.resolve().then(() => (init_preferences(), preferences_exports));
-      setSvmWalletCommand2(solanaKey);
+      setSvmWalletCommand2(
+        solanaKey,
+        parseSvmCluster2(args.cluster)
+      );
       return;
+    }
+    if (args.cluster) {
+      const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
+      fatal2("`--cluster` only applies with `--solana`.");
     }
     const evmKey = (_a3 = args.evm) != null ? _a3 : args.privateKey;
     if (!evmKey) {
@@ -11350,7 +11374,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.5.2",
+  version: "0.6.0",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

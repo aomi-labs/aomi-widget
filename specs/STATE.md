@@ -2,6 +2,52 @@
 
 ## Last Updated
 
+2026-08-22 — WALLET/USER-STATE CONTRACT DESLOP (branch
+  `claude/multi-wallet-cli-366238`, working tree only, not committed). The FE
+  now speaks the backend canon: wire key `svm` is canonical (`solana` stays an
+  ingest-only alias), the CLI derives wallet families from configured state
+  instead of app-name/key-shape sniffing, and the Solana cluster is persisted
+  at `wallet set --solana` time so display == state file == wire.
+  - `aomi wallet current --json` emits `family: "svm"` (was `"solana"`); the
+    human line now appends the cluster. New exact-shape pins in
+    `test/cli/cli-wallet-current.unit.test.ts`.
+  - `wallet set --solana` accepts `--cluster` and persists
+    `cluster ?? existing ?? solana:mainnet`. Legacy state files with an SVM
+    address and no cluster get stamped `solana:mainnet` on load
+    (`CliSession.ensureSvmClusterInvariant`), including when one-shot config
+    derives an SVM address after loading an existing session. Runtime cluster
+    resolution is centralized in `CliSession.resolvedSvmCluster`;
+    `setSvmCluster` deleted; `buildCliUserState` never injects a cluster.
+  - `buildCliUserState` rewritten: evm/svm blocks emitted iff their address is
+    configured; the `isSolanaApp` app-name list and base58 `--public-key`
+    sniffing are gone (both copies, incl. `resolveSvmAddressForChat`).
+    Deliberate break: a non-0x `--public-key` now fatals instead of silently
+    misrouting. Latent bug fixed: SVM-only sessions now sync wallet state
+    (guard was `!next.publicKey`).
+  - React: `wallet:state_changed` serializes exactly current backend
+    `ProviderState` (`is_connected`, `provider`, `provider_label`,
+    `auth_method`), excluding FE-local and account-identity fields. Dev drivers
+    emit canonical `svm:` key with `capabilities` as `string[]`.
+  - `normalize.ts` evm-array collapse documented + pinned as BE-faithful
+    (`EvmWalletState::primary()` = first entry; non-object first entry → no
+    evm block).
+  - Client version bumped 0.5.2 → 0.6.0; React bumped 0.6.2 → 0.6.3;
+    SKILL.md min client version updated; both tracked `dist/` trees rebuilt.
+    The fully stale `docs/generated/userstate-shape-reference.md` and all live
+    references were removed.
+  - Verification: 523 client+React tests passed (28 opt-in integration tests
+    skipped), typecheck passed, package builds passed, and lint had 0 errors
+    plus 6 unrelated existing Portal warnings. Built-CLI staging smoke used an
+    isolated `AOMI_STATE_DIR`: `wallet set --solana --cluster devnet`,
+    `wallet current --json`, a completed chat turn, and a backend state read all
+    agreed on the generated address and `solana:devnet`; returned top-level
+    keys were `connection`, `ext`, `svm`, with no `solana`. GitHub run
+    32495394206 proves staging-1, staging-2, migration, and edge verification
+    all succeeded for current backend main `2fae659e`.
+  PENDING: Cecilia commits the working tree. Out of scope, deliberately
+  untouched: `AomiAuthWalletFamily`/`wallet_family` auth contract, portal MCP
+  tool schema (`const: "solana"`), all ingest tolerance for legacy shapes.
+
 2026-08-20 — APP FAILURE VISIBILITY (branch `fix/app-failure-visibility`; the
   backend half is product-mono `fix/app-tool-schema-provider-rejection`).
   Staging `?app=somm-agent&application_id=2937568` 503'd on open, then accepted

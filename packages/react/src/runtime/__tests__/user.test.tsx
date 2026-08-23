@@ -188,6 +188,16 @@ describe("User API", () => {
           address: "0x789",
           chainId: 1,
           isConnected: true,
+          connection: {
+            is_connected: true,
+            provider: "para",
+            provider_label: "Para",
+            primary_family: "svm",
+            wallet_provider_subject: "provider-subject",
+            auth_method: "email",
+            auth_value: "wallet@example.com",
+            auth_verified_at: 1_777_777_777,
+          },
           svm: {
             address: "Bv9abc",
             cluster: "solana:mainnet",
@@ -228,7 +238,12 @@ describe("User API", () => {
       expect(messageJson.payload.evm.address).toBe("0x789");
       expect(messageJson.payload.ext).toBeUndefined();
       expect(messageJson.payload.evm.chain_id).toBe(137);
-      expect(messageJson.payload.connection.is_connected).toBe(true);
+      expect(messageJson.payload.connection).toEqual({
+        is_connected: true,
+        provider: "para",
+        provider_label: "Para",
+        auth_method: "email",
+      });
       expect(messageJson.payload.svm).toEqual({
         address: "Bv9abc",
         cluster: "solana:mainnet",

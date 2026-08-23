@@ -1,5 +1,6 @@
 import { privateKeyToAccount } from "viem/accounts";
 import { CliSession } from "../cli-session";
+import type { CliConfig } from "../types";
 import { DEFAULT_CLI_BASE_URL } from "../client-factory";
 import { printDataFileLocation } from "../output";
 import { normalizePrivateKey, parseChainId } from "../validation";
@@ -34,21 +35,26 @@ export function setWalletCommand(privateKeyInput: string): void {
   printDataFileLocation();
 }
 
-export function setSvmWalletCommand(keyInput: string): void {
+export function setSvmWalletCommand(
+  keyInput: string,
+  cluster?: NonNullable<CliConfig["svmCluster"]>,
+): void {
   let keypair: ReturnType<typeof parseSolanaKeypairSecret>;
   try {
     keypair = parseSolanaKeypairSecret(keyInput.trim());
   } catch (err) {
     fatal(
       `Invalid Solana private key: ${err instanceof Error ? err.message : err}\n` +
-        "Usage: aomi wallet set --solana <base58-secret-key>",
+        "Usage: aomi wallet set --solana <base58-secret-key> [--cluster <cluster>]",
     );
   }
 
   const publicKey = keypair!.publicKey.toBase58();
   const cli = loadOrCreateForSettings();
-  cli.setSvmWallet(keyInput.trim(), publicKey);
-  console.log(`Solana wallet set to ${publicKey}`);
+  // Re-setting the key without --cluster keeps a previously chosen cluster.
+  const effectiveCluster = cluster ?? cli.svmCluster ?? "solana:mainnet";
+  cli.setSvmWallet(keyInput.trim(), publicKey, effectiveCluster);
+  console.log(`Solana wallet set to ${publicKey} (cluster ${effectiveCluster})`);
   printDataFileLocation();
 }
 

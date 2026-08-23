@@ -1814,11 +1814,30 @@ function collectTxOutcomes(messages) {
     svmByTx: svmByTx != null ? svmByTx : /* @__PURE__ */ new Map()
   };
 }
-function toInboundMessage(msg, txOutcomes) {
+function toInboundMessage(msg, txOutcomes, rawIndex = 0) {
+  var _a;
   if (msg.sender === "system") {
     return null;
   }
+  if (msg.sender === "notice") {
+    return {
+      id: noticeMessageId(msg, rawIndex),
+      role: "assistant",
+      content: [{ type: "text", text: (_a = msg.content) != null ? _a : "" }],
+      createdAt: /* @__PURE__ */ new Date(),
+      metadata: {
+        custom: {
+          aomiNoticeKind: "error",
+          aomiNoticeTitle: "Error"
+        }
+      }
+    };
+  }
   return buildInboundMessage(msg, txOutcomes);
+}
+function noticeMessageId(msg, index) {
+  var _a;
+  return `aomi-notice-${(_a = msg.message_key) != null ? _a : `idx-${index}`}`;
 }
 var TASK_TOOL_NAME = "task";
 function readTaskPartAgentId(part) {
@@ -2069,11 +2088,11 @@ var selectProjectedMessageEntries = (messages, projection) => {
 var projectInboundMessages = (messages, projection) => {
   const txOutcomes = collectTxOutcomes(messages);
   const projectedMessages = [];
-  for (const { message } of selectProjectedMessageEntries(
+  for (const { message, rawIndex } of selectProjectedMessageEntries(
     messages,
     projection
   )) {
-    const converted = toInboundMessage(message, txOutcomes);
+    const converted = toInboundMessage(message, txOutcomes, rawIndex);
     if (converted) projectedMessages.push(converted);
   }
   return mergeAssistantTurns(projectedMessages);
@@ -2108,23 +2127,24 @@ var getHttpStatus = (error) => {
 };
 var isPaymentRequiredError = (error) => getHttpStatus(error) === 402;
 var PAYMENT_REQUIRED_MESSAGE = "You're out of funds, please set up a payment method.";
-var buildPaymentRequiredMessage = () => ({
-  id: `aomi-payment-required-${Date.now()}`,
+var TURN_ERROR_MESSAGE = "This app hit an error and couldn't respond.";
+var buildNoticeMessage = (kind, title, text) => ({
+  id: `aomi-${kind}-${Date.now()}`,
   role: "assistant",
-  content: [
-    {
-      type: "text",
-      text: PAYMENT_REQUIRED_MESSAGE
-    }
-  ],
+  content: [{ type: "text", text }],
   createdAt: /* @__PURE__ */ new Date(),
   metadata: {
     custom: {
-      aomiNoticeKind: "payment_required",
-      aomiNoticeTitle: "Credits needed"
+      aomiNoticeKind: kind,
+      aomiNoticeTitle: title
     }
   }
 });
+var buildPaymentRequiredMessage = () => buildNoticeMessage(
+  "payment_required",
+  "Credits needed",
+  PAYMENT_REQUIRED_MESSAGE
+);
 var previewText = (value, max = 80) => {
   const singleLine = value.replace(/\s+/g, " ").trim();
   if (singleLine.length <= max) return singleLine;
@@ -2193,22 +2213,22 @@ var updateTurnPhase = (threadContext, threadId, turnPhase) => {
     })
   });
 };
-var appendPaymentRequiredMessage = (threadContext, threadId) => {
-  var _a, _b;
+var appendNoticeMessage = (threadContext, threadId, message) => {
+  var _a, _b, _c, _d;
+  const kind = (_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind;
   const messages = threadContext.getThreadMessages(threadId);
-  let hasPaymentNotice = false;
+  let hasNotice = false;
   for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message.role !== "assistant") continue;
-    hasPaymentNotice = ((_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind) === "payment_required";
+    const existing = messages[i];
+    if (existing.role !== "assistant") continue;
+    hasNotice = ((_d = (_c = existing.metadata) == null ? void 0 : _c.custom) == null ? void 0 : _d.aomiNoticeKind) === kind;
     break;
   }
-  if (hasPaymentNotice) return;
-  threadContext.setThreadMessages(threadId, [
-    ...messages,
-    buildPaymentRequiredMessage()
-  ]);
+  if (hasNotice) return;
+  threadContext.setThreadMessages(threadId, [...messages, message]);
 };
+var buildTurnErrorMessage = () => buildNoticeMessage("error", "Error", TURN_ERROR_MESSAGE);
+var appendPaymentRequiredMessage = (threadContext, threadId) => appendNoticeMessage(threadContext, threadId, buildPaymentRequiredMessage());
 function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
   const threadContextRef = (0, import_react10.useRef)(threadContext);
@@ -3007,28 +3027,27 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = (0, import_react13.useCallback)(
     (nextUser) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i;
       return {
         connection: {
+          // Serialize exactly the backend ProviderState. FE-local and account
+          // identity fields are deliberately not forwarded here.
           is_connected: (_a = import_client8.UserState.isConnected(nextUser)) != null ? _a : false,
-          primary_family: (_b = nextUser.connection) == null ? void 0 : _b.primary_family,
-          provider: (_c = import_client8.UserState.walletProvider(nextUser)) != null ? _c : void 0,
-          wallet_provider_subject: (_d = import_client8.UserState.walletProviderSubject(nextUser)) != null ? _d : void 0,
-          auth_method: (_e = import_client8.UserState.authMethod(nextUser)) != null ? _e : void 0,
-          auth_value: (_f = import_client8.UserState.authValue(nextUser)) != null ? _f : void 0,
-          auth_verified_at: (_g = import_client8.UserState.authVerifiedAt(nextUser)) != null ? _g : void 0
+          provider: (_b = import_client8.UserState.walletProvider(nextUser)) != null ? _b : void 0,
+          provider_label: typeof ((_c = nextUser.connection) == null ? void 0 : _c.provider_label) === "string" ? nextUser.connection.provider_label : void 0,
+          auth_method: (_d = import_client8.UserState.authMethod(nextUser)) != null ? _d : void 0
         },
         evm: {
           address: import_client8.UserState.address(nextUser),
           chain_id: import_client8.UserState.chainId(nextUser),
-          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0
+          ens_name: typeof ((_e = nextUser.evm) == null ? void 0 : _e.ens_name) === "string" ? nextUser.evm.ens_name : void 0
         },
         svm: {
           address: import_client8.UserState.svmAddress(nextUser),
-          cluster: (_i = nextUser.svm) == null ? void 0 : _i.cluster,
-          wallet_name: (_j = nextUser.svm) == null ? void 0 : _j.wallet_name,
-          transport: (_k = nextUser.svm) == null ? void 0 : _k.transport,
-          capabilities: (_l = nextUser.svm) == null ? void 0 : _l.capabilities
+          cluster: (_f = nextUser.svm) == null ? void 0 : _f.cluster,
+          wallet_name: (_g = nextUser.svm) == null ? void 0 : _g.wallet_name,
+          transport: (_h = nextUser.svm) == null ? void 0 : _h.transport,
+          capabilities: (_i = nextUser.svm) == null ? void 0 : _i.capabilities
         }
       };
     },
@@ -3818,6 +3837,11 @@ function AomiRuntimeCore({
         title: "Error",
         message
       });
+      appendNoticeMessage(
+        threadContextRef.current,
+        event.sessionId,
+        buildTurnErrorMessage()
+      );
     });
     return () => {
       unsubscribeNotice();

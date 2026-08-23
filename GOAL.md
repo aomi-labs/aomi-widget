@@ -8,6 +8,17 @@ registry and ship the generated widget artifacts. The widget-lib package is
 patch-bumped to `@aomi-labs/widget-lib@2.0.4`; its 353-test registry suite,
 client registry-artifact test, package build, and repository lint pass.
 
+## Canonical CLI wallet/user-state contract
+
+Current session goal: **IMPLEMENTED AND STAGING VERIFIED 2026-08-22** — the
+working-tree-only CLI wallet cleanup is reconciled against current frontend and
+backend `origin/main`. The persisted SVM cluster invariant now also covers a
+one-shot key added to an existing session; React sends exactly the backend
+`ProviderState`, is patch-bumped to `0.6.3`, and has rebuilt publish artifacts;
+stale documentation references are gone. A real built CLI against staging
+backend main `2fae659e` persisted and round-tripped an isolated SVM devnet
+wallet under the canonical `svm` key, with no legacy `solana` key. No publish is part of this session; the change ships via PR.
+
 ## Build staging candidate-release secrets
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-19** —

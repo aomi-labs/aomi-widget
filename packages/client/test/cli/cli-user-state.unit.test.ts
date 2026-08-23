@@ -6,8 +6,8 @@ import {
   walletSnapshotFromUserState,
 } from "../../src/cli/user-state";
 
-describe("CLI user state AA fields", () => {
-  it("builds explicit null AA state by default", () => {
+describe("buildCliUserState", () => {
+  it("builds an EVM-only block from an explicit address", () => {
     expect(buildCliUserState("0xabc", 8453)).toMatchObject({
       connection: {
         is_connected: true,
@@ -20,30 +20,27 @@ describe("CLI user state AA fields", () => {
     });
   });
 
-  it("builds Solana user state when the active app is svm", () => {
+  it("builds a Solana-only block from an explicit svm address", () => {
     expect(
-      buildCliUserState(
-        "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
-        undefined,
-        {
-          app: "svm",
-        },
-      ),
+      buildCliUserState(undefined, undefined, {
+        svmAddress: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
+        svmCluster: "solana:mainnet",
+      }),
     ).toMatchObject({
       connection: {
         is_connected: true,
       },
       svm: {
         address: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
+        cluster: "solana:mainnet",
       },
       ext: { client_type: "ts_cli" },
     });
   });
 
-  it("builds both wallet contexts for the chain-inclusive default app", () => {
+  it("builds both wallet blocks when both addresses are configured", () => {
     expect(
       buildCliUserState("0xabc", 8453, {
-        app: "default",
         svmAddress: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
         svmCluster: "solana:devnet",
       }),
@@ -54,6 +51,21 @@ describe("CLI user state AA fields", () => {
         address: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
         cluster: "solana:devnet",
       },
+    });
+  });
+
+  it("never injects a cluster the caller did not resolve", () => {
+    const state = buildCliUserState(undefined, undefined, {
+      svmAddress: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
+    });
+    expect(state.svm).toEqual({
+      address: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
+    });
+  });
+
+  it("emits no wallet blocks and no connection without addresses", () => {
+    expect(buildCliUserState()).toEqual({
+      ext: { client_type: "ts_cli" },
     });
   });
 

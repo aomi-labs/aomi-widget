@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { Keypair } from "@solana/web3.js";
+import bs58 from "bs58";
 
 import type { CliConfig } from "../../src/cli/types";
 import {
@@ -16,27 +18,31 @@ function createConfig(overrides: Partial<CliConfig> = {}): CliConfig {
   };
 }
 
+// A throwaway keypair generated fresh per test run; never funded.
+const TEST_KP = Keypair.generate();
+const TEST_SOLANA_SECRET = bs58.encode(TEST_KP.secretKey);
+
 describe("CLI chat wallet sync", () => {
-  it("treats a base58 --public-key as SVM in an SVM cluster context", () => {
+  it("prefers the address derived from the private key over the persisted one", () => {
     expect(
       resolveSvmAddressForChat(
-        createConfig({ app: "svm", svmCluster: "solana:devnet" }),
+        "PersistedAddr11111111111111111111111111111",
+        TEST_SOLANA_SECRET,
+      ),
+    ).toBe(TEST_KP.publicKey.toBase58());
+  });
+
+  it("falls back to the persisted address when no key is supplied", () => {
+    expect(
+      resolveSvmAddressForChat(
         "J2w7ZT5Wd4ACuQAH3dmzjWoRhaqejMRoMRL4C7Qbg5Ks",
-        undefined,
         undefined,
       ),
     ).toBe("J2w7ZT5Wd4ACuQAH3dmzjWoRhaqejMRoMRL4C7Qbg5Ks");
   });
 
-  it("treats a base58 --public-key as SVM in the default dual-chain app", () => {
-    expect(
-      resolveSvmAddressForChat(
-        createConfig(),
-        "J2w7ZT5Wd4ACuQAH3dmzjWoRhaqejMRoMRL4C7Qbg5Ks",
-        undefined,
-        undefined,
-      ),
-    ).toBe("J2w7ZT5Wd4ACuQAH3dmzjWoRhaqejMRoMRL4C7Qbg5Ks");
+  it("resolves to undefined when neither key nor persisted address exist", () => {
+    expect(resolveSvmAddressForChat(undefined, undefined)).toBeUndefined();
   });
 
   it("broadcasts wallet changes only when a private key-backed wallet changes", () => {
@@ -100,6 +106,7 @@ describe("CLI chat wallet sync", () => {
       { publicKey: "0xnew", chainId: 8453 },
       {
         sessionId: "session-1",
+        resolvedSvmCluster: () => "solana:mainnet",
         toState: () => ({ accountBearer: "token" }),
       } as never,
       {
@@ -160,7 +167,8 @@ describe("CLI chat wallet sync", () => {
       },
       {
         sessionId: "session-1",
-        svmCluster: "solana:devnet",
+        resolvedSvmCluster: (fromConfig?: string) =>
+          fromConfig ?? "solana:devnet",
         toState: () => ({}),
       } as never,
       {
@@ -191,6 +199,7 @@ describe("CLI chat wallet sync", () => {
       { publicKey: "0xnew", chainId: 8453 },
       {
         sessionId: "session-1",
+        resolvedSvmCluster: () => "solana:mainnet",
         toState: () => ({}),
       } as never,
       {
@@ -203,6 +212,41 @@ describe("CLI chat wallet sync", () => {
     expect(resolveUserState).toHaveBeenCalledTimes(1);
     expect(syncUserState).toHaveBeenCalledTimes(1);
     expect(sendSystemMessage).not.toHaveBeenCalled();
+  });
+
+  it("syncs an SVM-only session with no EVM key", async () => {
+    const resolveUserState = vi.fn();
+    const syncUserState = vi.fn().mockResolvedValue(undefined);
+
+    await syncWalletStateForChat(
+      createConfig(),
+      null,
+      {
+        publicKey: undefined,
+        chainId: undefined,
+        svmAddress: "J2w7ZT5Wd4ACuQAH3dmzjWoRhaqejMRoMRL4C7Qbg5Ks",
+      },
+      {
+        sessionId: "session-1",
+        resolvedSvmCluster: () => "solana:mainnet",
+        toState: () => ({}),
+      } as never,
+      {
+        resolveUserState,
+        syncUserState,
+        client: { sendSystemMessage: vi.fn() },
+      },
+    );
+
+    expect(resolveUserState).toHaveBeenCalledWith({
+      connection: { is_connected: true },
+      svm: {
+        address: "J2w7ZT5Wd4ACuQAH3dmzjWoRhaqejMRoMRL4C7Qbg5Ks",
+        cluster: "solana:mainnet",
+      },
+      ext: { client_type: "ts_cli" },
+    });
+    expect(syncUserState).toHaveBeenCalledTimes(1);
   });
 
   it("does not sync or emit wallet:state_changed when chainId is missing", async () => {

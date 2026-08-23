@@ -143,15 +143,15 @@ function useWalletStateSync(
   const walletSnapshot = useCallback(
     (nextUser: ReturnType<typeof getUserState>) => ({
       connection: {
+        // Serialize exactly the backend ProviderState. FE-local and account
+        // identity fields are deliberately not forwarded here.
         is_connected: UserStateHelpers.isConnected(nextUser) ?? false,
-        primary_family: nextUser.connection?.primary_family,
         provider: UserStateHelpers.walletProvider(nextUser) ?? undefined,
-        wallet_provider_subject:
-          UserStateHelpers.walletProviderSubject(nextUser) ?? undefined,
+        provider_label:
+          typeof nextUser.connection?.provider_label === "string"
+            ? nextUser.connection.provider_label
+            : undefined,
         auth_method: UserStateHelpers.authMethod(nextUser) ?? undefined,
-        auth_value: UserStateHelpers.authValue(nextUser) ?? undefined,
-        auth_verified_at:
-          UserStateHelpers.authVerifiedAt(nextUser) ?? undefined,
       },
       evm: {
         address: UserStateHelpers.address(nextUser),
