@@ -10,7 +10,12 @@ export type McpToolDef = {
   inputSchema: Record<string, unknown>;
 };
 
-export type ToolOutcome = { result: unknown; isError: boolean };
+export type ToolOutcome = {
+  result: unknown;
+  isError: boolean;
+  /** HTTP payment transport metadata; domain errors remain JSON-RPC results. */
+  transport?: { status?: number; headers?: HeadersInit };
+};
 
 type JsonRpcRequest = {
   jsonrpc?: string;
@@ -25,6 +30,7 @@ type McpRpcConfig = {
   dispatchTool: (
     name: string,
     args: Record<string, unknown>,
+    requestId: number | string | null,
   ) => Promise<ToolOutcome>;
 };
 
@@ -74,12 +80,21 @@ export async function handleMcpPost(
         !Array.isArray(params.arguments)
           ? (params.arguments as Record<string, unknown>)
           : {};
-      const outcome = await config.dispatchTool(name, args);
-      return rpcResult(id ?? null, {
+      const outcome = await config.dispatchTool(name, args, id ?? null);
+      const response = rpcResult(id ?? null, {
         content: [
           { type: "text", text: JSON.stringify(outcome.result, null, 2) },
         ],
         isError: outcome.isError,
+      });
+      if (!outcome.transport) return response;
+      const headers = new Headers(response.headers);
+      new Headers(outcome.transport.headers).forEach((value, name) =>
+        headers.set(name, value),
+      );
+      return new Response(response.body, {
+        status: outcome.transport.status ?? response.status,
+        headers,
       });
     }
     default:

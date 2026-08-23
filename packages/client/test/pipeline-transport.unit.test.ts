@@ -60,13 +60,18 @@ describe("PipelineTransport", () => {
     }).pipeline;
 
     await expect(
-      pipeline.callTool({
-        sessionId: "session-1",
-        toolId: "write_tool",
-        arguments: { value: 1 },
-        app: "default",
-        skills: [],
-      }),
+      pipeline.callTool(
+        {
+          sessionId: "session-1",
+          toolId: "write_tool",
+          arguments: { value: 1 },
+          app: "public-swap",
+          applicationId: 42,
+          platform: "community",
+          skills: ["swap"],
+        },
+        { idempotencyKey: "pipeline-write-1" },
+      ),
     ).rejects.toMatchObject<Partial<PipelineApiError>>({
       status: 403,
       code: "pipeline_policy_denied",
@@ -76,17 +81,21 @@ describe("PipelineTransport", () => {
 
     expect(fetch).toHaveBeenCalledTimes(1);
     const [, init] = fetch.mock.calls[0] as [string, RequestInit];
-    expect(new Headers(init.headers).get("idempotency-key")).toBeNull();
+    expect(new Headers(init.headers).get("idempotency-key")).toBe(
+      "pipeline-write-1",
+    );
     expect(JSON.parse(init.body as string)).toEqual({
       sessionId: "session-1",
       toolId: "write_tool",
       arguments: { value: 1 },
-      app: "default",
-      skills: [],
+      app: "public-swap",
+      applicationId: 42,
+      platform: "community",
+      skills: ["swap"],
     });
   });
 
-  it("sends frozen run DTOs without adding custody or retry behavior", async () => {
+  it("sends public run context, payment, and caller-owned idempotency once", async () => {
     const fetch = vi
       .fn()
       .mockResolvedValue(Response.json({ value: { balance: 1 }, steps: [] }));
@@ -95,17 +104,49 @@ describe("PipelineTransport", () => {
       fetch,
     }).pipeline;
 
-    await pipeline.run({
-      sessionId: "session-1",
-      program: "svm_get_balance owner=wallet",
-      app: "svm-read-only",
-      skills: [],
-    });
+    await pipeline.run(
+      {
+        sessionId: "session-1",
+        program: "svm_get_balance owner=wallet",
+        app: "portfolio",
+        applicationId: 9,
+        platform: "community",
+        skills: ["balances"],
+      },
+      {
+        idempotencyKey: "pipeline-run-1",
+        paymentSignature: "paid-run",
+      },
+    );
 
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(fetch.mock.calls[0][0]).toBe(
       "https://portal.example/v1/pipeline/runs",
     );
+    const headers = new Headers(
+      (fetch.mock.calls[0][1] as RequestInit).headers,
+    );
+    expect(headers.get("idempotency-key")).toBe("pipeline-run-1");
+    expect(headers.get("payment-signature")).toBe("paid-run");
+  });
+
+  it("requires the caller to own the execution idempotency key", () => {
+    const pipeline = new AomiClient({
+      baseUrl: "https://portal.example",
+      fetch: vi.fn(),
+    }).pipeline;
+
+    expect(() =>
+      pipeline.callTool(
+        {
+          sessionId: "session-1",
+          app: "default",
+          toolId: "tool",
+          arguments: {},
+        },
+        { idempotencyKey: " " },
+      ),
+    ).toThrow("idempotencyKey is required");
   });
 
   it("falls back to a typed retryable error for a malformed upstream body", async () => {

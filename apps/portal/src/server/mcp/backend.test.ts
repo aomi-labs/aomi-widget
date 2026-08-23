@@ -31,7 +31,7 @@ vi.mock("@portal/server/bff/failures", () => ({
   },
 }));
 
-import { resourceGet } from "./backend";
+import { execRun, resourceGet, toolCall } from "./backend";
 
 describe("MCP backend observability", () => {
   beforeEach(() => {
@@ -98,5 +98,101 @@ describe("MCP backend observability", () => {
       body: { error: "not_found" },
     });
     expect(mocks.logPortalUpstreamFailure).not.toHaveBeenCalled();
+  });
+
+  it("binds direct tool execution identity, idempotency, and payment", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ commands: [] }));
+
+    await toolCall(
+      "canonical-user",
+      "thread-1",
+      {
+        tool_id: "swap",
+        arguments: { amount: 1 },
+        app: "public-swap",
+        application_id: 42,
+        platform: "community",
+        skills: ["swap"],
+      },
+      "call-1",
+      "payment-1",
+    );
+
+    const request = fetch.mock.calls[0]![0] as URL;
+    const init = fetch.mock.calls[0]![1] as RequestInit;
+    expect(request.toString()).toBe(
+      "https://api.example.test/api/exec/tool-call?app=public-swap&application_id=42&platform=community",
+    );
+    const headers = new Headers(init.headers);
+    expect(headers.get("idempotency-key")).toBe("call-1");
+    expect(headers.get("payment-signature")).toBe("payment-1");
+    expect(headers.get("x-thread-id")).toBe("thread-1");
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      app: "public-swap",
+      application_id: 42,
+      platform: "community",
+      public_pipeline: true,
+      skills: ["swap"],
+    });
+  });
+
+  it("binds run execution to the same identity and caller key", async () => {
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ value: null, steps: [] }));
+
+    await execRun(
+      "canonical-user",
+      "thread-2",
+      { program: "return value", app: "default", skills: [] },
+      "run-1",
+    );
+
+    const request = fetch.mock.calls[0]![0] as URL;
+    const init = fetch.mock.calls[0]![1] as RequestInit;
+    expect(request.toString()).toBe(
+      "https://api.example.test/api/exec/run?app=default",
+    );
+    expect(new Headers(init.headers).get("idempotency-key")).toBe("run-1");
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      app: "default",
+      public_pipeline: true,
+    });
+  });
+
+  it("preserves upstream x402 challenge and settlement metadata", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json(
+        { error: "payment required" },
+        {
+          status: 402,
+          headers: {
+            "payment-required": "challenge",
+            "payment-response": "settlement",
+            "payment-receipt": "receipt",
+          },
+        },
+      ),
+    );
+
+    await expect(
+      execRun(
+        "canonical-user",
+        "thread-2",
+        { program: "return value", app: "default", skills: [] },
+        "run-payment",
+      ),
+    ).resolves.toEqual({
+      ok: false,
+      status: 402,
+      body: { error: "payment required" },
+      payment: {
+        required: "challenge",
+        response: "settlement",
+        receipt: "receipt",
+      },
+    });
   });
 });

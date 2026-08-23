@@ -347,12 +347,12 @@ function parseChainId(value) {
   const n = parseInt(value, 10);
   if (Number.isNaN(n)) return void 0;
   if (!SUPPORTED_CHAIN_IDS.includes(n)) {
-    const list = SUPPORTED_CHAIN_IDS.map(
+    const list2 = SUPPORTED_CHAIN_IDS.map(
       (id) => `  ${id} (${CHAIN_NAMES[id]})`
     ).join("\n");
     fatal(`Unsupported chain ID: ${n}
 Supported chains:
-${list}`);
+${list2}`);
   }
   return n;
 }
@@ -472,7 +472,7 @@ function resolveExecution(args) {
   return void 0;
 }
 function buildCliConfig(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
   const execution = resolveExecution(args);
   const privateKey = normalizePrivateKey(
     (_a3 = str(args["private-key"])) != null ? _a3 : process.env.PRIVATE_KEY
@@ -532,20 +532,21 @@ function buildCliConfig(args) {
     embeddedProviderToken,
     app: (_l = str(args.app)) != null ? _l : process.env.AOMI_APP,
     applicationId: (_m = str(args["application-id"])) != null ? _m : process.env.AOMI_APPLICATION_ID,
-    model: (_n = str(args.model)) != null ? _n : process.env.AOMI_MODEL,
+    appPlatform: (_n = str(args.platform)) != null ? _n : process.env.AOMI_APP_PLATFORM,
+    model: (_o = str(args.model)) != null ? _o : process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey != null ? configuredPublicKey : derivedPublicKey,
     privateKey,
     solanaPrivateKey,
     svmCluster,
-    chainRpcUrl: (_o = str(args["rpc-url"])) != null ? _o : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_p = str(args.chain)) != null ? _p : process.env.AOMI_CHAIN_ID),
+    chainRpcUrl: (_p = str(args["rpc-url"])) != null ? _p : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_q = str(args.chain)) != null ? _q : process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
     aaProvider,
     aaMode,
     paymentMethod: parsePaymentMethod(
-      (_q = str(args["payment-method"])) != null ? _q : process.env.AOMI_PAYMENT_METHOD
+      (_r = str(args["payment-method"])) != null ? _r : process.env.AOMI_PAYMENT_METHOD
     )
   };
 }
@@ -599,7 +600,11 @@ var init_shared = __esm({
       },
       "application-id": {
         type: "string",
-        description: "Concrete backend application id for dynamic apps"
+        description: "Hosted app identity for discovery; execution returns 501 until Phase 10"
+      },
+      platform: {
+        type: "string",
+        description: "Hosted app platform for discovery; execution returns 501 until Phase 10"
       },
       model: {
         type: "string",
@@ -635,7 +640,7 @@ var init_shared = __esm({
       },
       "payment-method": {
         type: "string",
-        description: 'Payment method for paid chat turns, e.g. "coinbase"'
+        description: 'Payment method for paid Agent/Pipeline calls, e.g. "coinbase"'
       }
     };
   }
@@ -1507,6 +1512,12 @@ function required(name, value) {
   if (!normalized) throw new TypeError(`${name} is required`);
   return normalized;
 }
+function executionHeaders(options) {
+  const idempotencyKey = required("idempotencyKey", options.idempotencyKey);
+  return __spreadValues({
+    "idempotency-key": idempotencyKey
+  }, options.paymentSignature ? { "payment-signature": options.paymentSignature } : {});
+}
 var PipelineApiError, PipelineTransport;
 var init_transport2 = __esm({
   "src/pipeline/transport.ts"() {
@@ -1574,13 +1585,15 @@ var init_transport2 = __esm({
           `/v1/pipeline/skills/${encodeURIComponent(required("skillId", skillId))}`
         );
       }
-      callTool(request) {
+      callTool(request, options) {
         return this.json("POST", "/v1/pipeline/tool-calls", {
+          headers: executionHeaders(options),
           body: request
         });
       }
-      run(request) {
+      run(request, options) {
         return this.json("POST", "/v1/pipeline/runs", {
+          headers: executionHeaders(options),
           body: request
         });
       }
@@ -5797,6 +5810,8 @@ async function paymentRequirementFrom(response) {
 }
 function receiptIdFrom(response) {
   var _a3;
+  const receipt = response.headers.get("Payment-Receipt");
+  if (receipt) return receipt;
   const header = paymentResponseHeader2(response);
   const settlement = header ? parseBase64Json(header) : void 0;
   return (_a3 = stringValue(settlement == null ? void 0 : settlement.transaction)) != null ? _a3 : stringValue(settlement == null ? void 0 : settlement.network);
@@ -6607,12 +6622,13 @@ var init_output = __esm({
 });
 
 // src/cli/context.ts
-function createControlClient(config) {
-  var _a3;
+function createControlClient(config, options = {}) {
+  var _a3, _b;
   return new AomiClient({
     baseUrl: (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL,
     apiKey: config.apiKey,
-    getAccountBearer: createCliAuthTokenProvider(() => {
+    fetch: options.payment ? createCliPaymentFetch(config, options.onPayment) : void 0,
+    getAccountBearer: (_b = createCliGetAccountBearer(config)) != null ? _b : createCliAuthTokenProvider(() => {
       var _a4;
       return (_a4 = readState()) != null ? _a4 : {};
     })
@@ -6644,6 +6660,7 @@ var init_context = __esm({
     init_client();
     init_auth();
     init_client_factory();
+    init_payment2();
     init_state2();
   }
 });
@@ -11168,22 +11185,40 @@ async function pipelineSkillCommand(config, skillId) {
   printJson(await createControlClient(config).pipeline.getSkill(skillId));
 }
 async function pipelineCallCommand(config, options) {
-  const result = await createControlClient(config).pipeline.callTool({
-    sessionId: pipelineSessionId(options.sessionId),
-    toolId: options.toolId,
-    arguments: parseArguments(options.arguments),
-    app: "svm-read-only",
-    skills: []
-  });
+  var _a3, _b, _c;
+  const result = await createControlClient(config, {
+    payment: true,
+    onPayment: printPaymentEvent
+  }).pipeline.callTool(
+    {
+      sessionId: pipelineSessionId(options.sessionId),
+      toolId: options.toolId,
+      arguments: parseArguments(options.arguments),
+      app: ((_a3 = options.app) == null ? void 0 : _a3.trim()) || "default",
+      applicationId: pipelineApplicationId(options.applicationId),
+      platform: ((_b = options.platform) == null ? void 0 : _b.trim()) || void 0,
+      skills: (_c = options.skills) != null ? _c : []
+    },
+    { idempotencyKey: options.idempotencyKey }
+  );
   printJson(result);
 }
 async function pipelineRunCommand(config, options) {
-  const result = await createControlClient(config).pipeline.run({
-    sessionId: pipelineSessionId(options.sessionId),
-    program: options.program,
-    app: "svm-read-only",
-    skills: []
-  });
+  var _a3, _b, _c;
+  const result = await createControlClient(config, {
+    payment: true,
+    onPayment: printPaymentEvent
+  }).pipeline.run(
+    {
+      sessionId: pipelineSessionId(options.sessionId),
+      program: options.program,
+      app: ((_a3 = options.app) == null ? void 0 : _a3.trim()) || "default",
+      applicationId: pipelineApplicationId(options.applicationId),
+      platform: ((_b = options.platform) == null ? void 0 : _b.trim()) || void 0,
+      skills: (_c = options.skills) != null ? _c : []
+    },
+    { idempotencyKey: options.idempotencyKey }
+  );
   printJson(result);
 }
 function pipelineSessionId(explicit) {
@@ -11197,6 +11232,14 @@ function parsePipelineArguments(input2) {
     throw new TypeError("--arguments must be a JSON object");
   }
   return value;
+}
+function pipelineApplicationId(value) {
+  if (!(value == null ? void 0 : value.trim())) return void 0;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new TypeError("--application-id must be a positive integer");
+  }
+  return parsed;
 }
 var parseArguments;
 var init_pipeline = __esm({
@@ -12373,12 +12416,21 @@ var executionArgs = __spreadProps(__spreadValues({}, globalArgs), {
   session: {
     type: "string",
     description: "Pipeline session id (defaults to the active CLI session)"
+  },
+  skills: {
+    type: "string",
+    description: "Comma-separated Pipeline skill ids to activate"
+  },
+  "idempotency-key": {
+    type: "string",
+    description: "Stable key for this logical execution; reuse it for a manual retry",
+    required: true
   }
 });
 var pipelineCallDef = defineCommand14({
   meta: {
     name: "call",
-    description: "Call a Gate-F-approved safe read-only Pipeline tool"
+    description: "Call a builtin public Pipeline tool through backend policy gates"
   },
   args: __spreadProps(__spreadValues({}, executionArgs), {
     toolId: {
@@ -12397,14 +12449,19 @@ var pipelineCallDef = defineCommand14({
     await pipelineCallCommand2(config, {
       toolId: getPositionals(args)[0],
       sessionId: text(args.session),
-      arguments: text(args.arguments)
+      arguments: text(args.arguments),
+      app: config.app,
+      applicationId: config.applicationId,
+      platform: config.appPlatform,
+      skills: list(args.skills),
+      idempotencyKey: text(args["idempotency-key"])
     });
   }
 });
 var pipelineRunDef = defineCommand14({
   meta: {
     name: "run",
-    description: "Run a Gate-F-approved safe read-only Pipeline program"
+    description: "Run a builtin public Pipeline program through backend policy gates"
   },
   args: __spreadProps(__spreadValues({}, executionArgs), {
     program: {
@@ -12418,14 +12475,19 @@ var pipelineRunDef = defineCommand14({
     const config = buildCliConfig(args);
     await pipelineRunCommand2(config, {
       sessionId: text(args.session),
-      program: text(args.program)
+      program: text(args.program),
+      app: config.app,
+      applicationId: config.applicationId,
+      platform: config.appPlatform,
+      skills: list(args.skills),
+      idempotencyKey: text(args["idempotency-key"])
     });
   }
 });
 var pipelineDef = defineCommand14({
   meta: {
     name: "pipeline",
-    description: "Pipeline discovery and safe read-only execution"
+    description: "Pipeline discovery and builtin policy-gated execution"
   },
   subCommands: {
     apps: pipelineAppsDef,
@@ -12444,6 +12506,12 @@ function text(value) {
 function limit(value) {
   const parsed = Number(text(value));
   return Number.isFinite(parsed) ? parsed : void 0;
+}
+function list(value) {
+  const raw = text(value);
+  if (!raw) return void 0;
+  const values = raw.split(",").map((item) => item.trim()).filter(Boolean);
+  return values.length ? values : void 0;
 }
 
 // src/cli/root.ts
@@ -12625,7 +12693,8 @@ function printRootHelp() {
   );
   console.log("  --verbose                    Show extra diagnostics");
   console.log("  --app <name>                 Active app");
-  console.log("  --application-id <id>        Dynamic app row id");
+  console.log("  --application-id <id>        Hosted app discovery identity");
+  console.log("  --platform <name>            Hosted app discovery platform");
   console.log("  --model <rig>                Active model");
   console.log("  --new-session                Create a fresh active session");
   console.log(
@@ -12634,7 +12703,7 @@ function printRootHelp() {
   console.log("  --public-key <address>       Wallet address for chat context");
   console.log("  --private-key <hex>          Signing key for EVM tx sign");
   console.log(
-    "  --payment-method <method>    Paid chat rail, e.g. coinbase/x402"
+    "  --payment-method <method>    Paid Agent/Pipeline rail, e.g. coinbase/x402"
   );
   console.log(
     "  --solana-private-key <key>   Solana keypair (base58 or JSON byte array)"
@@ -12670,7 +12739,7 @@ function printRootHelp() {
     "  deploy                       Deploy your app (also: deploy status, deploy activate)"
   );
   console.log(
-    "  pipeline                     Pipeline discovery and safe read-only execution"
+    "  pipeline                     Pipeline discovery and policy-gated execution"
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");

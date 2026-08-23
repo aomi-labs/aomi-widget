@@ -52,9 +52,13 @@ describe("MCP RPC shell", () => {
       }),
       { tools: [tool], instructions: "", dispatchTool },
     );
-    expect(dispatchTool).toHaveBeenCalledWith("aomi_test", {
-      message: "hello",
-    });
+    expect(dispatchTool).toHaveBeenCalledWith(
+      "aomi_test",
+      {
+        message: "hello",
+      },
+      2,
+    );
     expect((await called.json()).result).toMatchObject({ isError: false });
   });
 
@@ -83,5 +87,57 @@ describe("MCP RPC shell", () => {
       ).status,
     ).toBe(200);
     expect(mcpMethodNotAllowed().status).toBe(405);
+  });
+
+  it("preserves payment challenge status and receipt headers", async () => {
+    const challenged = await handleMcpPost(
+      request({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: { name: "aomi_test", arguments: {} },
+      }),
+      {
+        tools: [tool],
+        instructions: "",
+        dispatchTool: vi.fn().mockResolvedValue({
+          result: { error: "payment required" },
+          isError: true,
+          transport: {
+            status: 402,
+            headers: { "payment-required": "challenge" },
+          },
+        }),
+      },
+    );
+    expect(challenged.status).toBe(402);
+    expect(challenged.headers.get("payment-required")).toBe("challenge");
+    expect(challenged.headers.get("mcp-protocol-version")).toBe("2025-06-18");
+
+    const settled = await handleMcpPost(
+      request({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "tools/call",
+        params: { name: "aomi_test", arguments: {} },
+      }),
+      {
+        tools: [tool],
+        instructions: "",
+        dispatchTool: vi.fn().mockResolvedValue({
+          result: { ok: true },
+          isError: false,
+          transport: {
+            headers: {
+              "payment-response": "settled",
+              "payment-receipt": "receipt",
+            },
+          },
+        }),
+      },
+    );
+    expect(settled.status).toBe(200);
+    expect(settled.headers.get("payment-response")).toBe("settled");
+    expect(settled.headers.get("payment-receipt")).toBe("receipt");
   });
 });

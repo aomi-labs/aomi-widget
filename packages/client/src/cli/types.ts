@@ -17,6 +17,8 @@ export type CliConfig = {
   embeddedProviderToken?: string;
   app?: string;
   applicationId?: string;
+  /** Hosted app discovery platform; execution is deferred until Phase 10. */
+  appPlatform?: string;
   model?: string;
   freshSession?: boolean;
   publicKey?: string;

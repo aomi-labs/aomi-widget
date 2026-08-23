@@ -1,6 +1,6 @@
 import { CliSession } from "../cli-session";
 import { createControlClient } from "../context";
-import { printJson } from "../output";
+import { printJson, printPaymentEvent } from "../output";
 import type { CliConfig } from "../types";
 
 export async function pipelineAppsCommand(
@@ -77,15 +77,28 @@ export async function pipelineCallCommand(
     toolId: string;
     sessionId?: string;
     arguments?: string;
+    app?: string;
+    applicationId?: string;
+    platform?: string;
+    skills?: string[];
+    idempotencyKey: string;
   },
 ): Promise<void> {
-  const result = await createControlClient(config).pipeline.callTool({
-    sessionId: pipelineSessionId(options.sessionId),
-    toolId: options.toolId,
-    arguments: parseArguments(options.arguments),
-    app: "svm-read-only",
-    skills: [],
-  });
+  const result = await createControlClient(config, {
+    payment: true,
+    onPayment: printPaymentEvent,
+  }).pipeline.callTool(
+    {
+      sessionId: pipelineSessionId(options.sessionId),
+      toolId: options.toolId,
+      arguments: parseArguments(options.arguments),
+      app: options.app?.trim() || "default",
+      applicationId: pipelineApplicationId(options.applicationId),
+      platform: options.platform?.trim() || undefined,
+      skills: options.skills ?? [],
+    },
+    { idempotencyKey: options.idempotencyKey },
+  );
   printJson(result);
 }
 
@@ -94,14 +107,27 @@ export async function pipelineRunCommand(
   options: {
     sessionId?: string;
     program: string;
+    app?: string;
+    applicationId?: string;
+    platform?: string;
+    skills?: string[];
+    idempotencyKey: string;
   },
 ): Promise<void> {
-  const result = await createControlClient(config).pipeline.run({
-    sessionId: pipelineSessionId(options.sessionId),
-    program: options.program,
-    app: "svm-read-only",
-    skills: [],
-  });
+  const result = await createControlClient(config, {
+    payment: true,
+    onPayment: printPaymentEvent,
+  }).pipeline.run(
+    {
+      sessionId: pipelineSessionId(options.sessionId),
+      program: options.program,
+      app: options.app?.trim() || "default",
+      applicationId: pipelineApplicationId(options.applicationId),
+      platform: options.platform?.trim() || undefined,
+      skills: options.skills ?? [],
+    },
+    { idempotencyKey: options.idempotencyKey },
+  );
   printJson(result);
 }
 
@@ -123,3 +149,12 @@ export function parsePipelineArguments(
 }
 
 const parseArguments = parsePipelineArguments;
+
+function pipelineApplicationId(value?: string): number | undefined {
+  if (!value?.trim()) return undefined;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new TypeError("--application-id must be a positive integer");
+  }
+  return parsed;
+}

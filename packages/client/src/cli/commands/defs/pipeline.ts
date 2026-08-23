@@ -101,12 +101,23 @@ const executionArgs = {
     type: "string",
     description: "Pipeline session id (defaults to the active CLI session)",
   },
+  skills: {
+    type: "string",
+    description: "Comma-separated Pipeline skill ids to activate",
+  },
+  "idempotency-key": {
+    type: "string",
+    description:
+      "Stable key for this logical execution; reuse it for a manual retry",
+    required: true,
+  },
 } as const;
 
 const pipelineCallDef = defineCommand({
   meta: {
     name: "call",
-    description: "Call a Gate-F-approved safe read-only Pipeline tool",
+    description:
+      "Call a builtin public Pipeline tool through backend policy gates",
   },
   args: {
     ...executionArgs,
@@ -127,6 +138,11 @@ const pipelineCallDef = defineCommand({
       toolId: getPositionals(args)[0]!,
       sessionId: text(args.session),
       arguments: text(args.arguments),
+      app: config.app,
+      applicationId: config.applicationId,
+      platform: config.appPlatform,
+      skills: list(args.skills),
+      idempotencyKey: text(args["idempotency-key"])!,
     });
   },
 });
@@ -134,7 +150,8 @@ const pipelineCallDef = defineCommand({
 const pipelineRunDef = defineCommand({
   meta: {
     name: "run",
-    description: "Run a Gate-F-approved safe read-only Pipeline program",
+    description:
+      "Run a builtin public Pipeline program through backend policy gates",
   },
   args: {
     ...executionArgs,
@@ -150,6 +167,11 @@ const pipelineRunDef = defineCommand({
     await pipelineRunCommand(config, {
       sessionId: text(args.session),
       program: text(args.program)!,
+      app: config.app,
+      applicationId: config.applicationId,
+      platform: config.appPlatform,
+      skills: list(args.skills),
+      idempotencyKey: text(args["idempotency-key"])!,
     });
   },
 });
@@ -157,7 +179,7 @@ const pipelineRunDef = defineCommand({
 export const pipelineDef = defineCommand({
   meta: {
     name: "pipeline",
-    description: "Pipeline discovery and safe read-only execution",
+    description: "Pipeline discovery and builtin policy-gated execution",
   },
   subCommands: {
     apps: pipelineAppsDef,
@@ -178,4 +200,14 @@ function text(value: unknown): string | undefined {
 function limit(value: unknown): number | undefined {
   const parsed = Number(text(value));
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function list(value: unknown): string[] | undefined {
+  const raw = text(value);
+  if (!raw) return undefined;
+  const values = raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return values.length ? values : undefined;
 }

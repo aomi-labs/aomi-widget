@@ -91,6 +91,8 @@ async function paymentRequirementFrom(
 }
 
 function receiptIdFrom(response: Response): string | undefined {
+  const receipt = response.headers.get("Payment-Receipt");
+  if (receipt) return receipt;
   const header = paymentResponseHeader(response);
   const settlement = header
     ? parseBase64Json<PaymentResponseWire>(header)

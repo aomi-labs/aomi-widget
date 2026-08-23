@@ -69,6 +69,26 @@ describe("MCP tool inventory", () => {
     expect(run!.description).toContain("NOT supported: while");
     expect(run!.description).toContain("aomi_call_tool for a single action");
   });
+
+  it("keeps rollback execution schema aligned with Gate F", () => {
+    for (const name of ["aomi_run", "aomi_call_tool"]) {
+      const tool = MCP_TOOLS.find((candidate) => candidate.name === name)!;
+      expect(tool.inputSchema).toMatchObject({
+        properties: {
+          application_id: {
+            type: "integer",
+            minimum: 1,
+            description: expect.stringContaining("501 until Phase 10"),
+          },
+          platform: {
+            type: "string",
+            description: expect.stringContaining("501 until Phase 10"),
+          },
+          skills: { type: "array" },
+        },
+      });
+    }
+  });
 });
 
 describe("dispatchTool routing", () => {
@@ -111,36 +131,77 @@ describe("dispatchTool routing", () => {
   });
 
   it("aomi_call_tool -> execution syscall with the deterministic thread id", async () => {
-    await dispatchTool(USER, "aomi_call_tool", {
-      tool_id: "evm_stage_tx",
-      arguments: { chain: "1" },
-      app: "default",
-    });
-    expect(toolCallMock).toHaveBeenCalledWith(USER, "thread-deterministic", {
-      tool_id: "evm_stage_tx",
-      arguments: { chain: "1" },
-      app: "default",
-    });
+    await dispatchTool(
+      USER,
+      "aomi_call_tool",
+      {
+        tool_id: "evm_stage_tx",
+        arguments: { chain: "1" },
+        app: "public-swap",
+        application_id: 42,
+        platform: "community",
+        skills: ["swap"],
+      },
+      { idempotencyKey: "call-1" },
+    );
+    expect(toolCallMock).toHaveBeenCalledWith(
+      USER,
+      "thread-deterministic",
+      {
+        tool_id: "evm_stage_tx",
+        arguments: { chain: "1" },
+        app: "public-swap",
+        application_id: 42,
+        platform: "community",
+        skills: ["swap"],
+      },
+      "call-1",
+      undefined,
+    );
   });
 
   it("aomi_run -> POST /api/exec/run with program + app + deterministic thread", async () => {
     const program = "q=$(quote a=1)\nswap min_out=$q.out";
-    await dispatchTool(USER, "aomi_run", { program, app: "default" });
-    expect(execRunMock).toHaveBeenCalledWith(USER, "thread-deterministic", {
-      program,
-      app: "default",
-    });
+    await dispatchTool(
+      USER,
+      "aomi_run",
+      {
+        program,
+        app: "default",
+      },
+      { idempotencyKey: "run-1" },
+    );
+    expect(execRunMock).toHaveBeenCalledWith(
+      USER,
+      "thread-deterministic",
+      {
+        program,
+        app: "default",
+        application_id: undefined,
+        platform: undefined,
+        skills: [],
+      },
+      "run-1",
+      undefined,
+    );
   });
 
   it("aomi_run honors an explicit thread_id", async () => {
-    await dispatchTool(USER, "aomi_run", {
-      program: "quote a=1",
-      thread_id: "thread-custom",
-    });
+    await dispatchTool(
+      USER,
+      "aomi_run",
+      {
+        program: "quote a=1",
+        thread_id: "thread-custom",
+      },
+      { idempotencyKey: "run-custom" },
+    );
     expect(execRunMock).toHaveBeenCalledWith(
       USER,
       "thread-custom",
       expect.objectContaining({ program: "quote a=1" }),
+      "run-custom",
+      undefined,
     );
   });
 
@@ -153,6 +214,17 @@ describe("dispatchTool routing", () => {
   it("aomi_call_tool requires tool_id", async () => {
     const out = await dispatchTool(USER, "aomi_call_tool", {});
     expect(out.isError).toBe(true);
+    expect(toolCallMock).not.toHaveBeenCalled();
+  });
+
+  it("execution requires caller-owned idempotency", async () => {
+    const out = await dispatchTool(USER, "aomi_call_tool", {
+      tool_id: "evm_stage_tx",
+    });
+    expect(out).toMatchObject({
+      isError: true,
+      result: { error: "Idempotency-Key is required" },
+    });
     expect(toolCallMock).not.toHaveBeenCalled();
   });
 
@@ -173,6 +245,54 @@ describe("dispatchTool routing", () => {
       error: "backend request failed",
       status: 502,
       detail: "upstream",
+    });
+  });
+
+  it("surfaces payment challenges and receipts on MCP transport", async () => {
+    toolCallMock.mockResolvedValueOnce({
+      ok: false,
+      status: 402,
+      body: { error: "payment required" },
+      payment: { required: "challenge" },
+    });
+    const challenged = await dispatchTool(
+      USER,
+      "aomi_call_tool",
+      { tool_id: "paid_tool" },
+      { idempotencyKey: "paid-1" },
+    );
+    expect(challenged).toMatchObject({
+      isError: true,
+      result: {
+        status: 402,
+        payment: { required: "challenge" },
+      },
+      transport: {
+        status: 402,
+        headers: { "payment-required": "challenge" },
+      },
+    });
+
+    toolCallMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      body: { ok: true },
+      payment: { response: "settled", receipt: "receipt" },
+    });
+    const settled = await dispatchTool(
+      USER,
+      "aomi_call_tool",
+      { tool_id: "paid_tool" },
+      { idempotencyKey: "paid-1" },
+    );
+    expect(settled).toMatchObject({
+      isError: false,
+      transport: {
+        headers: {
+          "payment-response": "settled",
+          "payment-receipt": "receipt",
+        },
+      },
     });
   });
 });

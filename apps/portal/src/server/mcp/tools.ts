@@ -18,6 +18,19 @@ const APP_PROPERTY = {
     "Aomi app name from aomi_list_apps, such as khalani. Defaults to default.",
 } as const;
 
+const APPLICATION_ID_PROPERTY = {
+  type: "integer",
+  minimum: 1,
+  description:
+    "Hosted application identity for discovery. Gate F execution rejects it with 501 until Phase 10.",
+} as const;
+
+const PLATFORM_PROPERTY = {
+  type: "string",
+  description:
+    "Hosted application platform for discovery. Gate F execution rejects it with 501 until Phase 10.",
+} as const;
+
 export const MCP_TOOLS: McpToolDef[] = [
   {
     name: "aomi_get_agent_context",
@@ -164,6 +177,14 @@ export const MCP_TOOLS: McpToolDef[] = [
             "The orchestration program in the bash-like subset described above.",
         },
         app: { ...APP_PROPERTY },
+        application_id: { ...APPLICATION_ID_PROPERTY },
+        platform: { ...PLATFORM_PROPERTY },
+        skills: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Instruction or guard skills to activate for the complete run.",
+        },
         thread_id: {
           type: "string",
           description:
@@ -190,6 +211,13 @@ export const MCP_TOOLS: McpToolDef[] = [
             "JSON arguments matching the schema from aomi_describe_tool.",
         },
         app: { ...APP_PROPERTY },
+        application_id: { ...APPLICATION_ID_PROPERTY },
+        platform: { ...PLATFORM_PROPERTY },
+        skills: {
+          type: "array",
+          items: { type: "string" },
+          description: "Instruction or guard skills to activate for this call.",
+        },
         thread_id: {
           type: "string",
           description:
@@ -207,6 +235,7 @@ export async function dispatchTool(
   canonicalUserId: string,
   name: string,
   args: ToolArgs,
+  request: { idempotencyKey?: string; paymentSignature?: string } = {},
 ): Promise<ToolOutcome> {
   switch (name) {
     case "aomi_get_agent_context": {
@@ -289,22 +318,44 @@ export async function dispatchTool(
     case "aomi_run": {
       const program = text(args.program);
       if (!program) return invalid("program is required");
+      const idempotencyKey = text(request.idempotencyKey);
+      if (!idempotencyKey) return invalid("Idempotency-Key is required");
       const threadId = text(args.thread_id) ?? mcpThreadId(canonicalUserId);
-      const out = await execRun(canonicalUserId, threadId, {
-        program,
-        app: text(args.app),
-      });
+      const out = await execRun(
+        canonicalUserId,
+        threadId,
+        {
+          program,
+          app: text(args.app) ?? "default",
+          application_id: positiveInteger(args.application_id),
+          platform: text(args.platform),
+          skills: stringList(args.skills),
+        },
+        idempotencyKey,
+        request.paymentSignature,
+      );
       return wrap(out, out.body);
     }
     case "aomi_call_tool": {
       const toolId = text(args.tool_id);
       if (!toolId) return invalid("tool_id is required");
+      const idempotencyKey = text(request.idempotencyKey);
+      if (!idempotencyKey) return invalid("Idempotency-Key is required");
       const threadId = text(args.thread_id) ?? mcpThreadId(canonicalUserId);
-      const out = await toolCall(canonicalUserId, threadId, {
-        tool_id: toolId,
-        arguments: objectArgs(args.arguments),
-        app: text(args.app),
-      });
+      const out = await toolCall(
+        canonicalUserId,
+        threadId,
+        {
+          tool_id: toolId,
+          arguments: objectArgs(args.arguments),
+          app: text(args.app) ?? "default",
+          application_id: positiveInteger(args.application_id),
+          platform: text(args.platform),
+          skills: stringList(args.skills),
+        },
+        idempotencyKey,
+        request.paymentSignature,
+      );
       return wrap(out, out.body);
     }
     default:
@@ -313,20 +364,55 @@ export async function dispatchTool(
 }
 
 function wrap(
-  out: { ok: boolean; status: number },
+  out: {
+    ok: boolean;
+    status: number;
+    payment?: {
+      required?: string;
+      response?: string;
+      receipt?: string;
+    };
+  },
   result: unknown,
 ): ToolOutcome {
+  const transport = paymentTransport(out);
   if (!out.ok) {
     return {
       result: {
         error: "backend request failed",
         status: out.status,
         detail: result,
+        ...(out.payment ? { payment: out.payment } : {}),
       },
       isError: true,
+      ...(transport ? { transport } : {}),
     };
   }
-  return { result, isError: false };
+  return {
+    result,
+    isError: false,
+    ...(transport ? { transport } : {}),
+  };
+}
+
+function paymentTransport(
+  out: Parameters<typeof wrap>[0],
+): ToolOutcome["transport"] | undefined {
+  if (!out.payment) return undefined;
+  return {
+    ...(out.status === 402 ? { status: 402 } : {}),
+    headers: {
+      ...(out.payment.required
+        ? { "payment-required": out.payment.required }
+        : {}),
+      ...(out.payment.response
+        ? { "payment-response": out.payment.response }
+        : {}),
+      ...(out.payment.receipt
+        ? { "payment-receipt": out.payment.receipt }
+        : {}),
+    },
+  };
 }
 
 function invalid(message: string): ToolOutcome {
@@ -341,6 +427,21 @@ function numeric(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value)
     ? value
     : undefined;
+}
+
+function positiveInteger(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0
+    ? value
+    : undefined;
+}
+
+function stringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is string =>
+          typeof item === "string" && item.trim().length > 0,
+      )
+    : [];
 }
 
 function objectArgs(value: unknown): Record<string, unknown> {

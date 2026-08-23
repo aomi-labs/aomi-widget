@@ -1000,13 +1000,15 @@ var PipelineTransport = class {
       `/v1/pipeline/skills/${encodeURIComponent(required("skillId", skillId))}`
     );
   }
-  callTool(request) {
+  callTool(request, options) {
     return this.json("POST", "/v1/pipeline/tool-calls", {
+      headers: executionHeaders(options),
       body: request
     });
   }
-  run(request) {
+  run(request, options) {
     return this.json("POST", "/v1/pipeline/runs", {
+      headers: executionHeaders(options),
       body: request
     });
   }
@@ -1036,6 +1038,12 @@ function required(name, value) {
   const normalized = value.trim();
   if (!normalized) throw new TypeError(`${name} is required`);
   return normalized;
+}
+function executionHeaders(options) {
+  const idempotencyKey = required("idempotencyKey", options.idempotencyKey);
+  return __spreadValues({
+    "idempotency-key": idempotencyKey
+  }, options.paymentSignature ? { "payment-signature": options.paymentSignature } : {});
 }
 
 // src/client.ts

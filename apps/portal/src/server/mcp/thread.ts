@@ -23,6 +23,51 @@ export function newMcpThreadId(): string {
   return `mcp-${randomUUID()}`;
 }
 
+/**
+ * Stable fallback idempotency identity shared with the Rust Pipeline MCP
+ * presenter. Objects are sorted recursively; safe integers retain JSON form,
+ * while every other number uses its IEEE-754 bits. This avoids JavaScript
+ * number formatting and large-integer rounding diverging from serde_json.
+ */
+export function mcpOperationKey(
+  principal: string,
+  requestId: unknown,
+  name: string,
+  arguments_: Record<string, unknown>,
+): string {
+  const seed = canonicalJson({
+    arguments: arguments_,
+    name,
+    principal,
+    request_id: requestId,
+  });
+  return `mcp-op-${uuidV5(seed, UUID_NAMESPACE_URL)}`;
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(canonicalJson).join(",")}]`;
+  }
+  if (typeof value === "number") {
+    if (Number.isSafeInteger(value)) return JSON.stringify(value);
+    const bytes = Buffer.allocUnsafe(8);
+    bytes.writeDoubleBE(value);
+    return `~f64:${bytes.toString("hex")}`;
+  }
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) =>
+        Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")),
+      );
+    return `{${entries
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`)
+      .join(",")}}`;
+  }
+  const serialized = JSON.stringify(value);
+  return serialized === undefined ? "null" : serialized;
+}
+
 function uuidV5(name: string, namespace: string): string {
   const namespaceBytes = Buffer.from(namespace.replace(/-/g, ""), "hex");
   const hash = createHash("sha1")

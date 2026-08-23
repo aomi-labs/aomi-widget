@@ -4,6 +4,7 @@ import { mintAgentApiBearer } from "@aomi-labs/account";
 
 const REQUEST_HEADERS = new Set([
   "accept",
+  "aomi-app-key",
   "content-type",
   "idempotency-key",
   "mcp-protocol-version",
@@ -16,6 +17,7 @@ const RESPONSE_HEADERS = new Set([
   "content-type",
   "mcp-protocol-version",
   "payment-required",
+  "payment-receipt",
   "payment-response",
   "retry-after",
   "x-request-id",

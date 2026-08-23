@@ -516,11 +516,71 @@
         "required": ["address"],
         "type": "object"
       },
+      "PipelineAction": {
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "pattern": "^act_[A-Za-z0-9_-]+$",
+            "type": "string"
+          },
+          "action_type": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "expires_at": {
+            "type": "integer"
+          },
+          "payload": {},
+          "payload_hash": {
+            "type": "string"
+          },
+          "result": {},
+          "revision": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "schema_version": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action_id",
+          "revision",
+          "action_type",
+          "status",
+          "schema_version",
+          "payload",
+          "payload_hash",
+          "created_at",
+          "updated_at",
+          "expires_at"
+        ],
+        "type": "object"
+      },
       "PipelineAppCard": {
         "additionalProperties": true,
         "properties": {
           "app_instructions_available": {
             "type": "boolean"
+          },
+          "app_release_tag": {
+            "type": ["string", "null"]
+          },
+          "application_id": {
+            "minimum": 1,
+            "type": ["integer", "null"]
+          },
+          "artifact_ready": {
+            "type": ["boolean", "null"]
           },
           "chain": {
             "type": "string"
@@ -542,6 +602,9 @@
           },
           "next_step": {
             "type": "string"
+          },
+          "platform": {
+            "type": ["string", "null"]
           },
           "score": {
             "type": "integer"
@@ -567,9 +630,22 @@
             "additionalProperties": true,
             "type": "object"
           },
+          "app_release_tag": {
+            "type": ["string", "null"]
+          },
+          "application_id": {
+            "minimum": 1,
+            "type": ["integer", "null"]
+          },
+          "artifact_ready": {
+            "type": ["boolean", "null"]
+          },
           "namespace_catalog": {
             "additionalProperties": true,
             "type": "object"
+          },
+          "platform": {
+            "type": ["string", "null"]
           },
           "tool_count": {
             "minimum": 0,
@@ -637,11 +713,22 @@
         ],
         "properties": {
           "app": {
-            "const": "svm-read-only"
+            "maxLength": 160,
+            "minLength": 1,
+            "type": "string"
+          },
+          "applicationId": {
+            "minimum": 1,
+            "type": ["integer", "null"]
           },
           "plan": {
             "additionalProperties": true,
             "type": "object"
+          },
+          "platform": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": ["string", "null"]
           },
           "program": {
             "maxLength": 64000,
@@ -656,9 +743,10 @@
           "skills": {
             "default": [],
             "items": {
+              "maxLength": 160,
+              "minLength": 1,
               "type": "string"
             },
-            "maxItems": 0,
             "type": "array"
           }
         },
@@ -668,6 +756,12 @@
       "PipelineRunResponse": {
         "additionalProperties": false,
         "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineAction"
+            },
+            "type": "array"
+          },
           "app": {
             "type": "string"
           },
@@ -717,8 +811,21 @@
           "app": {
             "type": ["string", "null"]
           },
+          "app_release_tag": {
+            "type": ["string", "null"]
+          },
+          "application_id": {
+            "minimum": 1,
+            "type": ["integer", "null"]
+          },
+          "artifact_ready": {
+            "type": ["boolean", "null"]
+          },
           "next_step": {
             "type": "string"
+          },
+          "platform": {
+            "type": ["string", "null"]
           },
           "query": {
             "type": "string"
@@ -824,12 +931,23 @@
         "additionalProperties": false,
         "properties": {
           "app": {
-            "const": "svm-read-only"
+            "maxLength": 160,
+            "minLength": 1,
+            "type": "string"
+          },
+          "applicationId": {
+            "minimum": 1,
+            "type": ["integer", "null"]
           },
           "arguments": {
             "additionalProperties": true,
             "default": {},
             "type": "object"
+          },
+          "platform": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": ["string", "null"]
           },
           "sessionId": {
             "maxLength": 160,
@@ -839,9 +957,10 @@
           "skills": {
             "default": [],
             "items": {
+              "maxLength": 160,
+              "minLength": 1,
               "type": "string"
             },
-            "maxItems": 0,
             "type": "array"
           },
           "toolId": {
@@ -856,6 +975,12 @@
       "PipelineToolCallResponse": {
         "additionalProperties": false,
         "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineAction"
+            },
+            "type": "array"
+          },
           "app": {
             "type": "string"
           },
@@ -878,6 +1003,13 @@
         "properties": {
           "app": {
             "type": "string"
+          },
+          "application_id": {
+            "minimum": 1,
+            "type": ["integer", "null"]
+          },
+          "platform": {
+            "type": ["string", "null"]
           },
           "skill_instructions": {
             "oneOf": [
@@ -902,7 +1034,20 @@
           "app": {
             "type": "string"
           },
+          "app_release_tag": {
+            "type": ["string", "null"]
+          },
+          "application_id": {
+            "minimum": 1,
+            "type": ["integer", "null"]
+          },
+          "artifact_ready": {
+            "type": ["boolean", "null"]
+          },
           "namespace": {
+            "type": ["string", "null"]
+          },
+          "platform": {
             "type": ["string", "null"]
           },
           "returned": {
@@ -1313,7 +1458,7 @@
     }
   },
   "info": {
-    "description": "Public Agent and Pipeline protocols owned by the Rust api-server. The Portal BFF supplies authentication and proxy policy; the Rust backend remains execution-authoritative.",
+    "description": "Public Agent and Pipeline protocols owned by the Rust api-server. The Portal BFF supplies authentication and proxy policy; the Rust backend remains execution-authoritative. Gate F Pipeline execution supports builtin public apps; hosted applicationId execution returns 501 and is deferred until the identity-aware Phase 10 boundary.",
     "title": "Aomi Agent and Pipeline API",
     "version": "1.0.0-preview.1"
   },
@@ -1737,7 +1882,7 @@
     },
     "/v1/pipeline/mcp": {
       "post": {
-        "description": "Stateless streamable-HTTP MCP JSON-RPC over the same PipelineApiService as REST. Gate F execution restrictions apply identically.",
+        "description": "Stateless streamable-HTTP MCP JSON-RPC over the same builtin-app Gate F PipelineApiService as REST. Hosted applicationId execution returns 501 until Phase 10.",
         "operationId": "pipelineMcp",
         "requestBody": {
           "content": {
@@ -1761,6 +1906,9 @@
           "202": {
             "description": "MCP notification accepted"
           },
+          "402": {
+            "description": "Payment challenge with JSON-RPC tool result and Payment-Required header"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
@@ -1769,8 +1917,20 @@
     },
     "/v1/pipeline/runs": {
       "post": {
-        "description": "Executes a bounded backend plan. Until Gate F closes, app must be svm-read-only and skills must be empty; no idempotency claim is made for blocked write-capable execution.",
+        "description": "Executes a bounded backend plan for a builtin public app through the Gate F runtime boundary. Hosted applicationId execution returns 501 until Phase 10.",
         "operationId": "runPipelineProgram",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -1945,8 +2105,20 @@
     },
     "/v1/pipeline/tool-calls": {
       "post": {
-        "description": "Executes through the backend runtime. Until Gate F closes, app must be svm-read-only and skills must be empty; write-capable and custody-bearing calls fail closed.",
+        "description": "Executes a builtin public app through the backend Gate F runtime boundary with exact app policy, fail-closed at-most-once idempotency, payment, serialization, and canonical action custody. Hosted applicationId execution returns 501 until Phase 10.",
         "operationId": "callPipelineTool",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 160,
+              "minLength": 1,
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {

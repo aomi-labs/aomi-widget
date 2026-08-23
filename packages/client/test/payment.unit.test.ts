@@ -45,11 +45,16 @@ describe("wrapFetchWithPaymentChallenges", () => {
       challenge(true),
       Response.json({ ok: true }),
     ];
-    const requests: Array<{ body: string; signed: boolean }> = [];
+    const requests: Array<{
+      body: string;
+      idempotencyKey: string | null;
+      signed: boolean;
+    }> = [];
     const rawFetch: typeof globalThis.fetch = async (input, init) => {
       const request = new Request(input, init);
       requests.push({
         body: await request.clone().text(),
+        idempotencyKey: request.headers.get("idempotency-key"),
         signed: request.headers.has("payment-signature"),
       });
       return responses.shift() ?? new Response(null, { status: 500 });
@@ -58,14 +63,30 @@ describe("wrapFetchWithPaymentChallenges", () => {
 
     const response = await wrapFetchWithPaymentChallenges(rawFetch, client)(
       PAID_URL,
-      { method: "POST", body: "original request" },
+      {
+        method: "POST",
+        headers: { "idempotency-key": "pipeline-operation-1" },
+        body: "original request",
+      },
     );
 
     expect(response.status).toBe(200);
     expect(requests).toEqual([
-      { body: "original request", signed: false },
-      { body: "original request", signed: true },
-      { body: "original request", signed: true },
+      {
+        body: "original request",
+        idempotencyKey: "pipeline-operation-1",
+        signed: false,
+      },
+      {
+        body: "original request",
+        idempotencyKey: "pipeline-operation-1",
+        signed: true,
+      },
+      {
+        body: "original request",
+        idempotencyKey: "pipeline-operation-1",
+        signed: true,
+      },
     ]);
     expect(createPaymentPayload).toHaveBeenCalledTimes(2);
   });

@@ -33,7 +33,9 @@ function parseEmbeddedProvider(
  * expects.  Accepts both the friendly short form ("mainnet-beta", "devnet",
  * "testnet") and the canonical CAIP-2 form ("solana:mainnet", etc.).
  */
-export function parseSvmCluster(raw: string | undefined): SvmCluster | undefined {
+export function parseSvmCluster(
+  raw: string | undefined,
+): SvmCluster | undefined {
   if (!raw) return undefined;
   const lower = raw.trim().toLowerCase();
   switch (lower) {
@@ -94,7 +96,13 @@ export const globalArgs = {
   },
   "application-id": {
     type: "string",
-    description: "Concrete backend application id for dynamic apps",
+    description:
+      "Hosted app identity for discovery; execution returns 501 until Phase 10",
+  },
+  platform: {
+    type: "string",
+    description:
+      "Hosted app platform for discovery; execution returns 501 until Phase 10",
   },
   model: {
     type: "string",
@@ -133,7 +141,8 @@ export const globalArgs = {
   },
   "payment-method": {
     type: "string",
-    description: 'Payment method for paid chat turns, e.g. "coinbase"',
+    description:
+      'Payment method for paid Agent/Pipeline calls, e.g. "coinbase"',
   },
 } satisfies ArgsDef;
 
@@ -268,6 +277,7 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     app: str(args.app) ?? process.env.AOMI_APP,
     applicationId:
       str(args["application-id"]) ?? process.env.AOMI_APPLICATION_ID,
+    appPlatform: str(args.platform) ?? process.env.AOMI_APP_PLATFORM,
     model: str(args.model) ?? process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey ?? derivedPublicKey,

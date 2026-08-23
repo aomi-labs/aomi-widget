@@ -16,6 +16,18 @@ export type BackendResult = {
   ok: boolean;
   status: number;
   body: unknown;
+  payment?: {
+    required?: string;
+    response?: string;
+    receipt?: string;
+  };
+};
+
+type ExecutionContext = {
+  app: string;
+  application_id?: number;
+  platform?: string;
+  skills?: string[];
 };
 
 export async function resourceGet(
@@ -43,19 +55,27 @@ export async function resourceGet(
 export async function toolCall(
   canonicalUserId: string,
   threadId: string,
-  body: { tool_id: string; arguments: Record<string, unknown>; app?: string },
+  body: {
+    tool_id: string;
+    arguments: Record<string, unknown>;
+  } & ExecutionContext,
+  idempotencyKey: string,
+  paymentSignature?: string,
 ): Promise<BackendResult> {
   const { bearer } = await mintAccountBearer(canonicalUserId);
+  const url = executionUrl("/api/exec/tool-call", body);
   return backendJson(
-    new URL(`${configuredBackendUrl()}/api/exec/tool-call`),
+    url,
     {
       method: "POST",
       headers: {
         authorization: `Bearer ${bearer}`,
         "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+        ...(paymentSignature ? { "payment-signature": paymentSignature } : {}),
         "x-thread-id": threadId,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, public_pipeline: true }),
     },
     "mcp_tool_call",
   );
@@ -64,22 +84,37 @@ export async function toolCall(
 export async function execRun(
   canonicalUserId: string,
   threadId: string,
-  body: { program: string; app?: string },
+  body: { program: string } & ExecutionContext,
+  idempotencyKey: string,
+  paymentSignature?: string,
 ): Promise<BackendResult> {
   const { bearer } = await mintAccountBearer(canonicalUserId);
+  const url = executionUrl("/api/exec/run", body);
   return backendJson(
-    new URL(`${configuredBackendUrl()}/api/exec/run`),
+    url,
     {
       method: "POST",
       headers: {
         authorization: `Bearer ${bearer}`,
         "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+        ...(paymentSignature ? { "payment-signature": paymentSignature } : {}),
         "x-thread-id": threadId,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, public_pipeline: true }),
     },
     "mcp_exec_run",
   );
+}
+
+function executionUrl(path: string, context: ExecutionContext): URL {
+  const url = new URL(`${configuredBackendUrl()}${path}`);
+  url.searchParams.set("app", context.app);
+  if (context.application_id !== undefined) {
+    url.searchParams.set("application_id", String(context.application_id));
+  }
+  if (context.platform) url.searchParams.set("platform", context.platform);
+  return url;
 }
 
 async function backendJson(
@@ -108,5 +143,22 @@ async function backendJson(
       },
     });
   }
-  return { ok: response.ok, status: response.status, body };
+  const payment = paymentHeaders(response.headers);
+  return {
+    ok: response.ok,
+    status: response.status,
+    body,
+    ...(payment ? { payment } : {}),
+  };
+}
+
+function paymentHeaders(
+  headers: Headers,
+): BackendResult["payment"] | undefined {
+  const required = headers.get("payment-required") ?? undefined;
+  const response = headers.get("payment-response") ?? undefined;
+  const receipt = headers.get("payment-receipt") ?? undefined;
+  return required || response || receipt
+    ? { required, response, receipt }
+    : undefined;
 }

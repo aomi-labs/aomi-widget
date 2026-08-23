@@ -45,21 +45,30 @@ const tool = await client.pipeline.getTool("svm_get_balance", {
   app: "svm-read-only",
 });
 
-const result = await client.pipeline.callTool({
-  sessionId: crypto.randomUUID(),
-  app: "svm-read-only",
-  toolId: "svm_get_balance",
-  arguments: { owner: "..." },
-  skills: [],
-});
+const result = await client.pipeline.callTool(
+  {
+    sessionId: crypto.randomUUID(),
+    app: "svm-read-only",
+    toolId: "svm_get_balance",
+    arguments: { address: "..." },
+  },
+  {
+    // Persist and reuse this key if the same logical operation is retried.
+    idempotencyKey: "pipeline-operation-01J...",
+  },
+);
 ```
 
-Pipeline execution is currently fail-closed to the backend-owned safe,
-read-only surface. The Rust service owns that policy; the client does not keep
-an allowlist. Calls and runs are never retried automatically and do not claim
-durable idempotency while that Gate F requirement remains incomplete.
-Pipeline APIs do not sign, approve, or submit custody actions; broader
-write/custody exposure remains gated.
+The Rust backend remains authoritative for app visibility, policy/guards,
+payment, wallet/secrets context, and custody. The client keeps no tool or app
+allowlist. Calls and runs require a caller-owned `Idempotency-Key` and are never
+retried automatically; reuse the same key only for the same request body.
+Gate F discovery and execution expose builtin public apps only. Hosted identity
+support is deferred; execution with `applicationId` returns `501` until the
+identity-aware Phase 10 boundary.
+Execution responses expose typed canonical `actions`; resolve them through the
+existing canonical `client.agent.resolveAction(sessionId, actionId, result)`
+path rather than a second Pipeline custody endpoint.
 
 ### Session (high-level)
 
@@ -178,8 +187,8 @@ npx @aomi-labs/client session close                      # clear session
 npx @aomi-labs/client pipeline apps --query solana       # search Pipeline apps
 npx @aomi-labs/client pipeline tools --app svm-read-only --query balance
 npx @aomi-labs/client pipeline tool svm_get_balance --app svm-read-only
-npx @aomi-labs/client pipeline call svm_get_balance --arguments '{"owner":"..."}'
-npx @aomi-labs/client pipeline run --program 'svm_get_balance owner=...'
+npx @aomi-labs/client pipeline call svm_get_balance --app svm-read-only --idempotency-key operation-1 --arguments '{"address":"..."}'
+npx @aomi-labs/client pipeline run --app svm-read-only --idempotency-key operation-2 --program 'svm_get_balance address=...'
 ```
 
 The root command now mirrors the Rust CLI shape:

@@ -4,6 +4,7 @@ import type {
   PipelineAppsResponse,
   PipelineCatalogResponse,
   PipelineErrorBody,
+  PipelineExecutionOptions,
   PipelineExecutionResponse,
   PipelineListOptions,
   PipelineRunRequest,
@@ -110,16 +111,20 @@ export class PipelineTransport {
 
   callTool<T extends PipelineExecutionResponse = PipelineExecutionResponse>(
     request: PipelineToolCallRequest,
+    options: PipelineExecutionOptions,
   ): Promise<T> {
     return this.json("POST", "/v1/pipeline/tool-calls", {
+      headers: executionHeaders(options),
       body: request,
     });
   }
 
   run<T extends PipelineExecutionResponse = PipelineExecutionResponse>(
     request: PipelineRunRequest,
+    options: PipelineExecutionOptions,
   ): Promise<T> {
     return this.json("POST", "/v1/pipeline/runs", {
+      headers: executionHeaders(options),
       body: request,
     });
   }
@@ -160,4 +165,14 @@ function required(name: string, value: string): string {
   const normalized = value.trim();
   if (!normalized) throw new TypeError(`${name} is required`);
   return normalized;
+}
+
+function executionHeaders(options: PipelineExecutionOptions): HeadersInit {
+  const idempotencyKey = required("idempotencyKey", options.idempotencyKey);
+  return {
+    "idempotency-key": idempotencyKey,
+    ...(options.paymentSignature
+      ? { "payment-signature": options.paymentSignature }
+      : {}),
+  };
 }
