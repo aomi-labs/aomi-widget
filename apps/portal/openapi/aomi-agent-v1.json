@@ -10,6 +10,36 @@
           "type": "string"
         }
       },
+      "PipelineApp": {
+        "in": "path",
+        "name": "app",
+        "required": true,
+        "schema": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "PipelineSkillId": {
+        "in": "path",
+        "name": "skillId",
+        "required": true,
+        "schema": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "PipelineToolId": {
+        "in": "path",
+        "name": "toolId",
+        "required": true,
+        "schema": {
+          "maxLength": 160,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
       "SessionId": {
         "in": "path",
         "name": "sessionId",
@@ -50,21 +80,13 @@
                       "type": "string"
                     },
                     "status": {
-                      "enum": [
-                        "submitted",
-                        "rejected",
-                        "failed",
-                        "skipped"
-                      ]
+                      "enum": ["submitted", "rejected", "failed", "skipped"]
                     },
                     "transactionId": {
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "id",
-                    "status"
-                  ],
+                  "required": ["id", "status"],
                   "type": "object"
                 },
                 "minItems": 1,
@@ -78,11 +100,7 @@
                 "const": "submitted"
               }
             },
-            "required": [
-              "status",
-              "revision",
-              "legs"
-            ],
+            "required": ["status", "revision", "legs"],
             "type": "object"
           },
           {
@@ -100,9 +118,7 @@
                       "type": "string"
                     }
                   },
-                  "required": [
-                    "id"
-                  ],
+                  "required": ["id"],
                   "type": "object"
                 },
                 "minItems": 1,
@@ -116,11 +132,7 @@
                 "const": "signed"
               }
             },
-            "required": [
-              "status",
-              "revision",
-              "outputs"
-            ],
+            "required": ["status", "revision", "outputs"],
             "type": "object"
           },
           {
@@ -138,11 +150,7 @@
                 "const": "rejected"
               }
             },
-            "required": [
-              "status",
-              "revision",
-              "reason"
-            ],
+            "required": ["status", "revision", "reason"],
             "type": "object"
           }
         ]
@@ -175,10 +183,7 @@
           },
           "expiresAt": {
             "format": "date-time",
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "generation": {
             "minimum": 1,
@@ -231,9 +236,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "type"
-        ],
+        "required": ["type"],
         "type": "object"
       },
       "AgentDelta": {
@@ -276,10 +279,7 @@
             "type": "string"
           },
           "title": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         },
         "required": [
@@ -306,11 +306,7 @@
             "type": "string"
           },
           "role": {
-            "enum": [
-              "user",
-              "agent",
-              "system"
-            ],
+            "enum": ["user", "agent", "system"],
             "type": "string"
           },
           "streaming": {
@@ -334,13 +330,7 @@
             "type": "array"
           }
         },
-        "required": [
-          "id",
-          "role",
-          "content",
-          "createdAt",
-          "streaming"
-        ],
+        "required": ["id", "role", "content", "createdAt", "streaming"],
         "type": "object"
       },
       "AgentSession": {
@@ -352,20 +342,13 @@
             "type": "string"
           },
           "title": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "updatedAt": {
             "type": "integer"
           }
         },
-        "required": [
-          "id",
-          "updatedAt",
-          "archived"
-        ],
+        "required": ["id", "updatedAt", "archived"],
         "type": "object"
       },
       "ErrorEnvelope": {
@@ -383,16 +366,11 @@
                 "type": "string"
               }
             },
-            "required": [
-              "code",
-              "message"
-            ],
+            "required": ["code", "message"],
             "type": "object"
           }
         },
-        "required": [
-          "error"
-        ],
+        "required": ["error"],
         "type": "object"
       },
       "EvmExternalTransactionAction": {
@@ -459,16 +437,10 @@
             "type": "string"
           },
           "gas": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "gasPrice": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "id": {
             "type": "string"
@@ -477,57 +449,35 @@
             "type": "string"
           },
           "maxFeePerGas": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "maxPriorityFeePerGas": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "nonce": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "simulation": {
             "additionalProperties": false,
             "properties": {
               "error": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "gasUsed": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "success": {
                 "type": "boolean"
               }
             },
-            "required": [
-              "success",
-              "gasUsed",
-              "error"
-            ],
+            "required": ["success", "gasUsed", "error"],
             "type": "object"
           },
           "to": {
             "type": "string"
           },
           "transactionType": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "value": {
             "type": "string"
@@ -563,18 +513,423 @@
             "type": "integer"
           }
         },
+        "required": ["address"],
+        "type": "object"
+      },
+      "PipelineAppCard": {
+        "additionalProperties": true,
+        "properties": {
+          "app_instructions_available": {
+            "type": "boolean"
+          },
+          "chain": {
+            "type": "string"
+          },
+          "match_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "namespaces": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "next_step": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer"
+          },
+          "selected": {
+            "type": "boolean"
+          },
+          "tool_count": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": ["name", "namespaces", "tool_count"],
+        "type": "object"
+      },
+      "PipelineAppDescription": {
+        "additionalProperties": false,
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "app_instructions": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "namespace_catalog": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "tool_count": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
         "required": [
-          "address"
+          "app",
+          "tool_count",
+          "app_instructions",
+          "namespace_catalog"
         ],
+        "type": "object"
+      },
+      "PipelineAppList": {
+        "additionalProperties": false,
+        "properties": {
+          "apps": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineAppCard"
+            },
+            "type": "array"
+          },
+          "returned": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": ["returned", "apps"],
+        "type": "object"
+      },
+      "PipelineCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": ["tool_call", "silent_tool_call", "system_notice", "error"],
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "result": {},
+          "topic": {
+            "type": "string"
+          }
+        },
+        "required": ["kind"],
+        "type": "object"
+      },
+      "PipelineRunRequest": {
+        "additionalProperties": false,
+        "oneOf": [
+          {
+            "not": {
+              "required": ["plan"]
+            },
+            "required": ["program"]
+          },
+          {
+            "not": {
+              "required": ["program"]
+            },
+            "required": ["plan"]
+          }
+        ],
+        "properties": {
+          "app": {
+            "const": "svm-read-only"
+          },
+          "plan": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "program": {
+            "maxLength": 64000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "sessionId": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": "string"
+          },
+          "skills": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 0,
+            "type": "array"
+          }
+        },
+        "required": ["sessionId", "app"],
+        "type": "object"
+      },
+      "PipelineRunResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "followups": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineRunStep"
+            },
+            "type": "array"
+          },
+          "thread_id": {
+            "type": "string"
+          },
+          "value": {}
+        },
+        "required": ["app", "thread_id", "value", "steps"],
+        "type": "object"
+      },
+      "PipelineRunStep": {
+        "additionalProperties": true,
+        "properties": {
+          "error": {
+            "type": ["string", "null"]
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "tool": {
+            "type": "string"
+          }
+        },
+        "required": ["tool", "ok"],
+        "type": "object"
+      },
+      "PipelineSearchResults": {
+        "additionalProperties": true,
+        "properties": {
+          "app": {
+            "type": ["string", "null"]
+          },
+          "next_step": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "returned": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": ["query", "returned", "total", "results"],
+        "type": "object"
+      },
+      "PipelineSkill": {
+        "additionalProperties": true,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "tool_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["id", "name"],
+        "type": "object"
+      },
+      "PipelineSkillList": {
+        "additionalProperties": false,
+        "properties": {
+          "next_step": {
+            "type": "string"
+          },
+          "returned": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineSkill"
+            },
+            "type": "array"
+          }
+        },
+        "required": ["returned", "skills"],
+        "type": "object"
+      },
+      "PipelineTool": {
+        "additionalProperties": true,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "execution": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "input_schema": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "name": {
+            "type": "string"
+          },
+          "namespaces": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requires_skill": {
+            "type": ["string", "null"]
+          },
+          "supports_async": {
+            "type": "boolean"
+          }
+        },
+        "required": ["name", "description", "namespaces", "supports_async"],
+        "type": "object"
+      },
+      "PipelineToolCallRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "app": {
+            "const": "svm-read-only"
+          },
+          "arguments": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "sessionId": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": "string"
+          },
+          "skills": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 0,
+            "type": "array"
+          },
+          "toolId": {
+            "maxLength": 160,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": ["sessionId", "toolId", "app"],
+        "type": "object"
+      },
+      "PipelineToolCallResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "commands": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineCommand"
+            },
+            "type": "array"
+          },
+          "followup": {},
+          "thread_id": {
+            "type": "string"
+          }
+        },
+        "required": ["app", "thread_id", "commands", "followup"],
+        "type": "object"
+      },
+      "PipelineToolDescription": {
+        "additionalProperties": false,
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "skill_instructions": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PipelineSkill"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tool": {
+            "$ref": "#/components/schemas/PipelineTool"
+          }
+        },
+        "required": ["app", "tool", "skill_instructions"],
+        "type": "object"
+      },
+      "PipelineToolList": {
+        "additionalProperties": true,
+        "properties": {
+          "app": {
+            "type": "string"
+          },
+          "namespace": {
+            "type": ["string", "null"]
+          },
+          "returned": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "schemas_included": {
+            "type": "boolean"
+          },
+          "tools": {
+            "items": {
+              "$ref": "#/components/schemas/PipelineTool"
+            },
+            "type": "array"
+          },
+          "total": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": ["app", "returned", "total", "tools"],
         "type": "object"
       },
       "SessionPage": {
         "properties": {
           "nextCursor": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "sessions": {
             "items": {
@@ -583,9 +938,7 @@
             "type": "array"
           }
         },
-        "required": [
-          "sessions"
-        ],
+        "required": ["sessions"],
         "type": "object"
       },
       "SignablePayload": {
@@ -606,12 +959,7 @@
                 "type": "string"
               }
             },
-            "required": [
-              "id",
-              "kind",
-              "message",
-              "digest"
-            ],
+            "required": ["id", "kind", "message", "digest"],
             "type": "object"
           },
           {
@@ -631,12 +979,7 @@
                 "type": "object"
               }
             },
-            "required": [
-              "id",
-              "kind",
-              "typedData",
-              "digest"
-            ],
+            "required": ["id", "kind", "typedData", "digest"],
             "type": "object"
           },
           {
@@ -655,12 +998,7 @@
                 "type": "string"
               }
             },
-            "required": [
-              "id",
-              "kind",
-              "messageBase64",
-              "digest"
-            ],
+            "required": ["id", "kind", "messageBase64", "digest"],
             "type": "object"
           },
           {
@@ -679,12 +1017,7 @@
                 "type": "string"
               }
             },
-            "required": [
-              "id",
-              "kind",
-              "transactionBase64",
-              "digest"
-            ],
+            "required": ["id", "kind", "transactionBase64", "digest"],
             "type": "object"
           }
         ]
@@ -702,10 +1035,7 @@
             "type": "string"
           }
         },
-        "required": [
-          "to",
-          "value"
-        ],
+        "required": ["to", "value"],
         "type": "object"
       },
       "SigningFee": {
@@ -721,27 +1051,18 @@
                 "type": "string"
               },
               "kind": {
-                "enum": [
-                  "native",
-                  "token"
-                ],
+                "enum": ["native", "token"],
                 "type": "string"
               }
             },
-            "required": [
-              "kind"
-            ],
+            "required": ["kind"],
             "type": "object"
           },
           "recipient": {
             "type": "string"
           }
         },
-        "required": [
-          "asset",
-          "amount",
-          "recipient"
-        ],
+        "required": ["asset", "amount", "recipient"],
         "type": "object"
       },
       "SigningRequestAction": {
@@ -752,11 +1073,7 @@
           {
             "properties": {
               "broadcaster": {
-                "enum": [
-                  "wallet",
-                  "venue",
-                  "backend"
-                ],
+                "enum": ["wallet", "venue", "backend"],
                 "type": "string"
               },
               "calls": {
@@ -766,29 +1083,17 @@
                 "type": "array"
               },
               "callsDigest": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "chainFamily": {
-                "enum": [
-                  "evm",
-                  "svm"
-                ],
+                "enum": ["evm", "svm"],
                 "type": "string"
               },
               "chainId": {
-                "type": [
-                  "integer",
-                  "null"
-                ]
+                "type": ["integer", "null"]
               },
               "cluster": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "executionKind": {
                 "enum": [
@@ -800,10 +1105,7 @@
                 "type": "string"
               },
               "executor": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "fees": {
                 "items": {
@@ -812,10 +1114,7 @@
                 "type": "array"
               },
               "operationId": {
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "type": ["string", "null"]
               },
               "payloads": {
                 "items": {
@@ -828,14 +1127,8 @@
                 "type": "string"
               },
               "sponsorship": {
-                "enum": [
-                  "required",
-                  null
-                ],
-                "type": [
-                  "string",
-                  "null"
-                ]
+                "enum": ["required", null],
+                "type": ["string", "null"]
               },
               "type": {
                 "const": "signing_request"
@@ -865,17 +1158,11 @@
         "additionalProperties": false,
         "properties": {
           "app": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "applicationId": {
             "minimum": 1,
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": ["integer", "null"]
           },
           "message": {
             "maxLength": 32000,
@@ -883,16 +1170,10 @@
             "type": "string"
           },
           "model": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "sessionId": {
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           },
           "wallets": {
             "oneOf": [
@@ -905,9 +1186,7 @@
             ]
           }
         },
-        "required": [
-          "message"
-        ],
+        "required": ["message"],
         "type": "object"
       },
       "SvmExternalTransactionAction": {
@@ -969,10 +1248,7 @@
             "type": "string"
           },
           "lastValidBlockHeight": {
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": ["integer", "null"]
           },
           "preserveBlockhash": {
             "type": "boolean"
@@ -1005,27 +1281,19 @@
             "type": "string"
           }
         },
-        "required": [
-          "address"
-        ],
+        "required": ["address"],
         "type": "object"
       },
       "UpdateSessionRequest": {
         "additionalProperties": false,
         "properties": {
           "archived": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            "type": ["boolean", "null"]
           },
           "title": {
             "maxLength": 160,
             "minLength": 1,
-            "type": [
-              "string",
-              "null"
-            ]
+            "type": ["string", "null"]
           }
         },
         "type": "object"
@@ -1045,8 +1313,8 @@
     }
   },
   "info": {
-    "description": "Public Agent protocol owned by the Rust api-server. The Portal BFF supplies authentication and proxy policy.",
-    "title": "Aomi Agent API",
+    "description": "Public Agent and Pipeline protocols owned by the Rust api-server. The Portal BFF supplies authentication and proxy policy; the Rust backend remains execution-authoritative.",
+    "title": "Aomi Agent and Pipeline API",
     "version": "1.0.0-preview.1"
   },
   "openapi": "3.1.0",
@@ -1217,9 +1485,7 @@
                       "$ref": "#/components/schemas/AgentAction"
                     }
                   },
-                  "required": [
-                    "action"
-                  ],
+                  "required": ["action"],
                   "type": "object"
                 }
               }
@@ -1411,6 +1677,383 @@
           }
         }
       }
+    },
+    "/v1/pipeline/apps": {
+      "get": {
+        "operationId": "listPipelineApps",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "maximum": 20,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineAppList"
+                }
+              }
+            },
+            "description": "Backend-authoritative public app catalog"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/pipeline/apps/{app}": {
+      "get": {
+        "operationId": "getPipelineApp",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PipelineApp"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineAppDescription"
+                }
+              }
+            },
+            "description": "App instructions and namespace catalog"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/pipeline/mcp": {
+      "post": {
+        "description": "Stateless streamable-HTTP MCP JSON-RPC over the same PipelineApiService as REST. Gate F execution restrictions apply identically.",
+        "operationId": "pipelineMcp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "MCP JSON-RPC response",
+            "headers": {
+              "mcp-protocol-version": {
+                "schema": {
+                  "const": "2025-06-18"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "MCP notification accepted"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/pipeline/runs": {
+      "post": {
+        "description": "Executes a bounded backend plan. Until Gate F closes, app must be svm-read-only and skills must be empty; no idempotency claim is made for blocked write-capable execution.",
+        "operationId": "runPipelineProgram",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineRunResponse"
+                }
+              }
+            },
+            "description": "Backend run result and compact trace"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/pipeline/search/apps": {
+      "get": {
+        "operationId": "searchPipelineApps",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "maximum": 20,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineSearchResults"
+                }
+              }
+            },
+            "description": "Ranked app results"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/pipeline/search/tools": {
+      "get": {
+        "operationId": "searchPipelineTools",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "maxLength": 512,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "app",
+            "schema": {
+              "maxLength": 160,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineSearchResults"
+                }
+              }
+            },
+            "description": "Ranked tool and skill results"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/pipeline/skills": {
+      "get": {
+        "operationId": "listPipelineSkills",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 50,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineSkillList"
+                }
+              }
+            },
+            "description": "Public skill catalog"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/pipeline/skills/{skillId}": {
+      "get": {
+        "operationId": "getPipelineSkill",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PipelineSkillId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineSkill"
+                }
+              }
+            },
+            "description": "Skill instruction pack"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/pipeline/tool-calls": {
+      "post": {
+        "description": "Executes through the backend runtime. Until Gate F closes, app must be svm-read-only and skills must be empty; write-capable and custody-bearing calls fail closed.",
+        "operationId": "callPipelineTool",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineToolCallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineToolCallResponse"
+                }
+              }
+            },
+            "description": "Backend tool-call result"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/pipeline/tools": {
+      "get": {
+        "operationId": "listPipelineTools",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "app",
+            "schema": {
+              "maxLength": 160,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "namespace",
+            "schema": {
+              "maxLength": 160,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineToolList"
+                }
+              }
+            },
+            "description": "App-scoped tool catalog"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/pipeline/tools/{toolId}": {
+      "get": {
+        "operationId": "getPipelineTool",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PipelineToolId"
+          },
+          {
+            "in": "query",
+            "name": "app",
+            "schema": {
+              "maxLength": 160,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineToolDescription"
+                }
+              }
+            },
+            "description": "Tool schema and owning-skill instructions"
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
     }
   },
   "x-aomi-route-manifest": [
@@ -1421,10 +2064,21 @@
     "GET /v1/agent/chat/{sessionId}",
     "GET /v1/agent/sessions",
     "GET /v1/agent/sessions/{sessionId}",
+    "GET /v1/pipeline/apps",
+    "GET /v1/pipeline/apps/{app}",
+    "GET /v1/pipeline/search/apps",
+    "GET /v1/pipeline/search/tools",
+    "GET /v1/pipeline/skills",
+    "GET /v1/pipeline/skills/{skillId}",
+    "GET /v1/pipeline/tools",
+    "GET /v1/pipeline/tools/{toolId}",
     "PATCH /v1/agent/sessions/{sessionId}",
     "POST /v1/agent/chat",
     "POST /v1/agent/chat/{sessionId}/actions/{actionId}/result",
     "POST /v1/agent/chat/{sessionId}/interrupt",
-    "POST /v1/agent/mcp"
+    "POST /v1/agent/mcp",
+    "POST /v1/pipeline/mcp",
+    "POST /v1/pipeline/runs",
+    "POST /v1/pipeline/tool-calls"
   ]
 }

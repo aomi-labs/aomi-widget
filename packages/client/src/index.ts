@@ -4,6 +4,24 @@
 
 export { AomiClient, secretNamesFrom } from "./client";
 export { AgentApiError, AgentTransport } from "./agent/transport";
+export { PipelineApiError, PipelineTransport } from "./pipeline/transport";
+export type {
+  PipelineAppResponse,
+  PipelineAppsResponse,
+  PipelineCatalogResponse,
+  PipelineExecutionResponse,
+  PipelineListOptions,
+  PipelineResource,
+  PipelineRunRequest,
+  PipelineSearchOptions,
+  PipelineSearchResponse,
+  PipelineSkillsResponse,
+  PipelineToolCallRequest,
+  PipelineToolListOptions,
+  PipelineToolResponse,
+  PipelineToolSearchOptions,
+  PipelineToolsResponse,
+} from "./pipeline/types";
 export type {
   AgentAction,
   AgentActionResult,

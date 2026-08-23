@@ -6,6 +6,7 @@ const REQUEST_HEADERS = new Set([
   "accept",
   "content-type",
   "idempotency-key",
+  "mcp-protocol-version",
   "payment-signature",
   "x-request-id",
 ]);
@@ -33,8 +34,9 @@ export function configuredAgentApiUrl(): string {
 }
 
 /**
- * Authenticated BFF -> api-server proxy. It intentionally has no Agent DTO,
- * cursor, action, or MCP knowledge: the Rust process owns the public protocol.
+ * Authenticated BFF -> api-server proxy. It intentionally has no Agent or
+ * Pipeline DTO, cursor, action, catalog, or MCP knowledge: the Rust process
+ * owns the public protocol.
  */
 export async function proxyAgentApi(
   request: Request,
@@ -42,7 +44,10 @@ export async function proxyAgentApi(
   fetchImpl: typeof fetch = fetch,
 ): Promise<Response> {
   const incoming = new URL(request.url);
-  if (!incoming.pathname.startsWith("/v1/agent/")) {
+  if (
+    !incoming.pathname.startsWith("/v1/agent/") &&
+    !incoming.pathname.startsWith("/v1/pipeline/")
+  ) {
     return Response.json(
       { error: { code: "not_found", message: "Not found" } },
       { status: 404 },

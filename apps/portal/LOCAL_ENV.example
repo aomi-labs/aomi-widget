@@ -2,6 +2,10 @@
 # a local product-mono backend.
 BACKEND_URL=http://127.0.0.1:8080
 AOMI_AGENT_API_URL=http://127.0.0.1:8082
+# Explicit emergency MCP rollback switches. Omit for the canonical Rust MCP
+# presenters; set either value to `legacy` to retain the TypeScript presenter.
+# AOMI_AGENT_ROLLBACK_MODE=legacy
+# AOMI_PIPELINE_ROLLBACK_MODE=legacy
 
 # Dev-only BFF signer for the committed `aomi-bff-dev-1` public key.
 # Do not use this key for staging or production.

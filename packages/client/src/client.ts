@@ -36,6 +36,7 @@ import { UserState, type OwnedUserState } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
 import { normalizeAppDescriptor } from "./app-descriptor";
 import { AgentTransport } from "./agent/transport";
+import { PipelineTransport } from "./pipeline/transport";
 
 // =============================================================================
 // Internal helpers
@@ -232,7 +233,8 @@ export function wrapFetchWithAccountBearer(
 
 function supportsTokenRefreshSubscription(
   provider: GetAccountBearer | undefined,
-): provider is GetAccountBearer & Required<Pick<GetAccountBearer, "subscribe">> {
+): provider is GetAccountBearer &
+  Required<Pick<GetAccountBearer, "subscribe">> {
   return typeof provider?.subscribe === "function";
 }
 
@@ -322,6 +324,7 @@ export function secretNamesFrom(response: AomiListSecretsResponse): string[] {
 
 export class AomiClient {
   readonly agent: AgentTransport;
+  readonly pipeline: PipelineTransport;
   private readonly baseUrl: string;
   private readonly apiKey?: string;
   private readonly fetchImpl: typeof fetch;
@@ -350,6 +353,9 @@ export class AomiClient {
     this.logger = options.logger;
     this.accountBearer = options.getAccountBearer;
     this.agent = new AgentTransport((method, path, requestOptions) =>
+      this.requestResponse(method, path, requestOptions),
+    );
+    this.pipeline = new PipelineTransport((method, path, requestOptions) =>
       this.requestResponse(method, path, requestOptions),
     );
 

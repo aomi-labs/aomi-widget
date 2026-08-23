@@ -86,10 +86,10 @@ export async function interruptCommand(config: CliConfig): Promise<void> {
 export async function appsCommand(config: CliConfig): Promise<void> {
   const client = createControlClient(config);
   const cli = CliSession.load();
-  const sessionId = cli?.sessionId ?? crypto.randomUUID();
-  const apps = await client.getApps(sessionId, {
-    apiKey: config.apiKey ?? cli?.apiKey,
-  });
+  const response = await client.pipeline.listApps();
+  const apps = Array.isArray(response.apps)
+    ? (response.apps as Array<Record<string, unknown>>)
+    : [];
 
   if (apps.length === 0) {
     if (config.json) {
@@ -111,11 +111,14 @@ export async function appsCommand(config: CliConfig): Promise<void> {
     return;
   }
   for (const descriptor of apps) {
-    const name = descriptor.name;
+    const name = String(descriptor.name ?? "");
     const marker = currentApp === name ? "  (current)" : "";
-    const required = (descriptor.secrets ?? [])
-      .filter((s) => s.required)
-      .map((s) => s.name);
+    const secrets = Array.isArray(descriptor.secrets)
+      ? (descriptor.secrets as Array<{ name?: unknown; required?: unknown }>)
+      : [];
+    const required = secrets
+      .filter((secret) => secret.required === true)
+      .map((secret) => String(secret.name));
     const requiredSuffix =
       required.length > 0 ? `  [requires: ${required.join(", ")}]` : "";
     console.log(`${name}${marker}${requiredSuffix}`);
@@ -247,7 +250,9 @@ export function currentWalletCommand(
   if (state.svmPublicKey) {
     const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
     const clusterSuffix = state.svmCluster ? `, ${state.svmCluster}` : "";
-    console.log(`Solana: ${state.svmPublicKey} (${signerStatus}${clusterSuffix})`);
+    console.log(
+      `Solana: ${state.svmPublicKey} (${signerStatus}${clusterSuffix})`,
+    );
   }
   printDataFileLocation({ verbose: config.verbose });
 }

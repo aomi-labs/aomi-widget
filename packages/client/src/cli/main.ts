@@ -101,6 +101,9 @@ function printRootHelp(): void {
   console.log(
     "  deploy                       Deploy your app (also: deploy status, deploy activate)",
   );
+  console.log(
+    "  pipeline                     Pipeline discovery and safe read-only execution",
+  );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
   console.log("");

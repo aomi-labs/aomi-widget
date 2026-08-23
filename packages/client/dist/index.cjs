@@ -61,6 +61,8 @@ __export(index_exports, {
   CLIENT_TYPE_WEB_UI: () => CLIENT_TYPE_WEB_UI,
   MAX_AUTO_FEE_WEI: () => MAX_AUTO_FEE_WEI,
   PartialWalletExecutionError: () => PartialWalletExecutionError,
+  PipelineApiError: () => PipelineApiError,
+  PipelineTransport: () => PipelineTransport,
   SUPPORTED_CHAINS: () => SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS: () => SUPPORTED_CHAIN_IDS,
   Session: () => ClientSession,
@@ -934,6 +936,108 @@ function randomIdempotencyKey() {
   return `idem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
 }
 
+// src/pipeline/transport.ts
+var PipelineApiError = class extends Error {
+  constructor(status, code, message, retryable, requestId, details) {
+    super(message);
+    this.status = status;
+    this.code = code;
+    this.retryable = retryable;
+    this.requestId = requestId;
+    this.details = details;
+    this.name = "PipelineApiError";
+  }
+};
+var PipelineTransport = class {
+  constructor(requestResponse) {
+    this.requestResponse = requestResponse;
+  }
+  listApps(options = {}) {
+    return this.json("GET", "/v1/pipeline/apps", {
+      query: { limit: options.limit }
+    });
+  }
+  getApp(app) {
+    return this.json(
+      "GET",
+      `/v1/pipeline/apps/${encodeURIComponent(required("app", app))}`
+    );
+  }
+  searchApps(options = {}) {
+    return this.json("GET", "/v1/pipeline/search/apps", {
+      query: { q: options.q, limit: options.limit }
+    });
+  }
+  listTools(options = {}) {
+    return this.json("GET", "/v1/pipeline/tools", {
+      query: {
+        app: options.app,
+        namespace: options.namespace,
+        limit: options.limit
+      }
+    });
+  }
+  getTool(toolId, options = {}) {
+    return this.json(
+      "GET",
+      `/v1/pipeline/tools/${encodeURIComponent(required("toolId", toolId))}`,
+      { query: { app: options.app } }
+    );
+  }
+  searchTools(options = {}) {
+    return this.json("GET", "/v1/pipeline/search/tools", {
+      query: { q: options.q, app: options.app, limit: options.limit }
+    });
+  }
+  listSkills(options = {}) {
+    return this.json("GET", "/v1/pipeline/skills", {
+      query: { limit: options.limit }
+    });
+  }
+  getSkill(skillId) {
+    return this.json(
+      "GET",
+      `/v1/pipeline/skills/${encodeURIComponent(required("skillId", skillId))}`
+    );
+  }
+  callTool(request) {
+    return this.json("POST", "/v1/pipeline/tool-calls", {
+      body: request
+    });
+  }
+  run(request) {
+    return this.json("POST", "/v1/pipeline/runs", {
+      body: request
+    });
+  }
+  async json(method, path, options) {
+    return parsePipelineResponse(
+      await this.requestResponse(method, path, options)
+    );
+  }
+};
+async function parsePipelineResponse(response) {
+  var _a, _b, _c, _d, _e, _f, _g, _h;
+  if (response.ok) {
+    if (response.status === 204) return void 0;
+    return await response.json();
+  }
+  const body = await response.json().catch(() => null);
+  throw new PipelineApiError(
+    response.status,
+    (_b = (_a = body == null ? void 0 : body.error) == null ? void 0 : _a.code) != null ? _b : "pipeline_request_failed",
+    (_d = (_c = body == null ? void 0 : body.error) == null ? void 0 : _c.message) != null ? _d : `Pipeline request failed with HTTP ${response.status}`,
+    response.status === 408 || response.status === 429 || response.status >= 500,
+    (_g = (_f = (_e = body == null ? void 0 : body.error) == null ? void 0 : _e.requestId) != null ? _f : response.headers.get("x-request-id")) != null ? _g : void 0,
+    (_h = body == null ? void 0 : body.error) == null ? void 0 : _h.details
+  );
+}
+function required(name, value) {
+  const normalized = value.trim();
+  if (!normalized) throw new TypeError(`${name} is required`);
+  return normalized;
+}
+
 // src/client.ts
 var SESSION_ID_HEADER = "X-Session-Id";
 var THREAD_ID_HEADER = "X-Thread-Id";
@@ -1127,6 +1231,9 @@ var AomiClient = class {
     this.logger = options.logger;
     this.accountBearer = options.getAccountBearer;
     this.agent = new AgentTransport(
+      (method, path, requestOptions) => this.requestResponse(method, path, requestOptions)
+    );
+    this.pipeline = new PipelineTransport(
       (method, path, requestOptions) => this.requestResponse(method, path, requestOptions)
     );
     this.sseSubscriber = createSseSubscriber({
@@ -5138,6 +5245,8 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   CLIENT_TYPE_WEB_UI,
   MAX_AUTO_FEE_WEI,
   PartialWalletExecutionError,
+  PipelineApiError,
+  PipelineTransport,
   SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS,
   Session,

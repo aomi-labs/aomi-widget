@@ -28,6 +28,39 @@ const response = await client.sendMessage(threadId, "What's the price of ETH?");
 console.log(response.messages);
 ```
 
+### Pipeline API
+
+`client.pipeline` is the shared typed transport used by browser and CLI
+consumers. Discovery and execution use the public `/v1/pipeline/*` contract;
+the client never calls legacy backend resource or execution routes directly.
+
+```ts
+const apps = await client.pipeline.listApps({ limit: 20 });
+const tools = await client.pipeline.searchTools({
+  q: "balance",
+  app: "svm-read-only",
+  limit: 5,
+});
+const tool = await client.pipeline.getTool("svm_get_balance", {
+  app: "svm-read-only",
+});
+
+const result = await client.pipeline.callTool({
+  sessionId: crypto.randomUUID(),
+  app: "svm-read-only",
+  toolId: "svm_get_balance",
+  arguments: { owner: "..." },
+  skills: [],
+});
+```
+
+Pipeline execution is currently fail-closed to the backend-owned safe,
+read-only surface. The Rust service owns that policy; the client does not keep
+an allowlist. Calls and runs are never retried automatically and do not claim
+durable idempotency while that Gate F requirement remains incomplete.
+Pipeline APIs do not sign, approve, or submit custody actions; broader
+write/custody exposure remains gated.
+
 ### Session (high-level)
 
 Handles polling, event dispatch, and wallet request management automatically.
@@ -142,6 +175,11 @@ npx @aomi-labs/client tx sign tx-1                       # sign a specific pendi
 npx @aomi-labs/client session status                     # session info
 npx @aomi-labs/client session events                     # system events
 npx @aomi-labs/client session close                      # clear session
+npx @aomi-labs/client pipeline apps --query solana       # search Pipeline apps
+npx @aomi-labs/client pipeline tools --app svm-read-only --query balance
+npx @aomi-labs/client pipeline tool svm_get_balance --app svm-read-only
+npx @aomi-labs/client pipeline call svm_get_balance --arguments '{"owner":"..."}'
+npx @aomi-labs/client pipeline run --program 'svm_get_balance owner=...'
 ```
 
 The root command now mirrors the Rust CLI shape:

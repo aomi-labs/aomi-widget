@@ -687,6 +687,142 @@ interface components {
             address: string;
             chainId?: number;
         };
+        PipelineAppCard: {
+            app_instructions_available?: boolean;
+            chain?: string;
+            match_reasons?: string[];
+            name: string;
+            namespaces: string[];
+            next_step?: string;
+            score?: number;
+            selected?: boolean;
+            tool_count: number;
+        } & {
+            [key: string]: unknown;
+        };
+        PipelineAppDescription: {
+            app: string;
+            app_instructions: {
+                [key: string]: unknown;
+            };
+            namespace_catalog: {
+                [key: string]: unknown;
+            };
+            tool_count: number;
+        };
+        PipelineAppList: {
+            apps: components["schemas"]["PipelineAppCard"][];
+            returned: number;
+        };
+        PipelineCommand: {
+            /** @enum {string} */
+            kind: "tool_call" | "silent_tool_call" | "system_notice" | "error";
+            message?: string;
+            result?: unknown;
+            topic?: string;
+        };
+        PipelineRunRequest: {
+            /** @constant */
+            app: "svm-read-only";
+            plan?: {
+                [key: string]: unknown;
+            };
+            program?: string;
+            sessionId: string;
+            /** @default [] */
+            skills: string[];
+        } & (unknown | unknown);
+        PipelineRunResponse: {
+            app: string;
+            error?: string;
+            followups?: {
+                [key: string]: unknown;
+            }[];
+            steps: components["schemas"]["PipelineRunStep"][];
+            thread_id: string;
+            value: unknown;
+        };
+        PipelineRunStep: {
+            error?: string | null;
+            ok: boolean;
+            tool: string;
+        } & {
+            [key: string]: unknown;
+        };
+        PipelineSearchResults: {
+            app?: string | null;
+            next_step?: string;
+            query: string;
+            results: {
+                [key: string]: unknown;
+            }[];
+            returned: number;
+            total: number;
+        } & {
+            [key: string]: unknown;
+        };
+        PipelineSkill: {
+            description?: string;
+            id: string;
+            instructions?: string;
+            name: string;
+            tool_names?: string[];
+        } & {
+            [key: string]: unknown;
+        };
+        PipelineSkillList: {
+            next_step?: string;
+            returned: number;
+            skills: components["schemas"]["PipelineSkill"][];
+        };
+        PipelineTool: {
+            description: string;
+            execution?: {
+                [key: string]: unknown;
+            };
+            input_schema?: {
+                [key: string]: unknown;
+            };
+            name: string;
+            namespaces: string[];
+            requires_skill?: string | null;
+            supports_async: boolean;
+        } & {
+            [key: string]: unknown;
+        };
+        PipelineToolCallRequest: {
+            /** @constant */
+            app: "svm-read-only";
+            /** @default {} */
+            arguments: {
+                [key: string]: unknown;
+            };
+            sessionId: string;
+            /** @default [] */
+            skills: string[];
+            toolId: string;
+        };
+        PipelineToolCallResponse: {
+            app: string;
+            commands: components["schemas"]["PipelineCommand"][];
+            followup: unknown;
+            thread_id: string;
+        };
+        PipelineToolDescription: {
+            app: string;
+            skill_instructions: components["schemas"]["PipelineSkill"] | null;
+            tool: components["schemas"]["PipelineTool"];
+        };
+        PipelineToolList: {
+            app: string;
+            namespace?: string | null;
+            returned: number;
+            schemas_included?: boolean;
+            tools: components["schemas"]["PipelineTool"][];
+            total: number;
+        } & {
+            [key: string]: unknown;
+        };
         SessionPage: {
             nextCursor?: string | null;
             sessions: components["schemas"]["AgentSession"][];
@@ -809,6 +945,9 @@ interface components {
     };
     parameters: {
         ActionId: string;
+        PipelineApp: string;
+        PipelineSkillId: string;
+        PipelineToolId: string;
         SessionId: string;
     };
     requestBodies: never;
@@ -816,22 +955,22 @@ interface components {
     pathItems: never;
 }
 
-type Schemas = components["schemas"];
-type AgentStatus = Schemas["AgentDelta"]["status"];
-type AgentMessage = Schemas["AgentMessage"];
-type AgentActivity = Schemas["AgentActivity"];
-type EvmExternalTransactionAction = Schemas["EvmExternalTransactionAction"];
-type SvmExternalTransactionAction = Schemas["SvmExternalTransactionAction"];
-type SigningRequestAction = Schemas["SigningRequestAction"];
-type AgentAction = Schemas["AgentAction"];
-type AgentDelta = Schemas["AgentDelta"];
-type AgentWalletContext = Schemas["WalletContext"];
-type AgentStartRequest = Schemas["StartTurnRequest"];
-type AgentActionResult = Schemas["ActionResult"];
-type AgentSessionRecord = Schemas["AgentSession"];
-type AgentSessionPage = Schemas["SessionPage"];
+type Schemas$1 = components["schemas"];
+type AgentStatus = Schemas$1["AgentDelta"]["status"];
+type AgentMessage = Schemas$1["AgentMessage"];
+type AgentActivity = Schemas$1["AgentActivity"];
+type EvmExternalTransactionAction = Schemas$1["EvmExternalTransactionAction"];
+type SvmExternalTransactionAction = Schemas$1["SvmExternalTransactionAction"];
+type SigningRequestAction = Schemas$1["SigningRequestAction"];
+type AgentAction = Schemas$1["AgentAction"];
+type AgentDelta = Schemas$1["AgentDelta"];
+type AgentWalletContext = Schemas$1["WalletContext"];
+type AgentStartRequest = Schemas$1["StartTurnRequest"];
+type AgentActionResult = Schemas$1["ActionResult"];
+type AgentSessionRecord = Schemas$1["AgentSession"];
+type AgentSessionPage = Schemas$1["SessionPage"];
 
-type RequestResponse = (method: AomiHttpMethod, path: string, options?: AomiRequestOptions) => Promise<Response>;
+type RequestResponse$1 = (method: AomiHttpMethod, path: string, options?: AomiRequestOptions) => Promise<Response>;
 declare class AgentApiError extends Error {
     readonly status: number;
     readonly code: string;
@@ -844,7 +983,7 @@ declare class AgentApiError extends Error {
 declare class AgentTransport {
     private readonly requestResponse;
     readonly sessions: AgentSessionsTransport;
-    constructor(requestResponse: RequestResponse);
+    constructor(requestResponse: RequestResponse$1);
     start(request: AgentStartRequest, options?: {
         idempotencyKey?: string;
         paymentSignature?: string;
@@ -859,7 +998,7 @@ declare class AgentTransport {
 }
 declare class AgentSessionsTransport {
     private readonly requestResponse;
-    constructor(requestResponse: RequestResponse);
+    constructor(requestResponse: RequestResponse$1);
     list(options?: {
         cursor?: string;
         limit?: number;
@@ -870,6 +1009,76 @@ declare class AgentSessionsTransport {
         archived?: boolean;
     }): Promise<AgentSessionRecord>;
     delete(sessionId: string): Promise<void>;
+    private json;
+}
+
+type Schemas = components["schemas"];
+type PipelineCatalogResponse = Schemas["PipelineAppList"] | Schemas["PipelineAppDescription"] | Schemas["PipelineToolList"] | Schemas["PipelineToolDescription"] | Schemas["PipelineSkillList"] | Schemas["PipelineSkill"] | Schemas["PipelineSearchResults"];
+type PipelineExecutionResponse = Schemas["PipelineToolCallResponse"] | Schemas["PipelineRunResponse"];
+type PipelineResource = Record<string, unknown>;
+interface PipelineListOptions {
+    /** Result limit, bounded by the selected catalog operation. */
+    limit?: number;
+}
+interface PipelineToolListOptions extends PipelineListOptions {
+    app?: string;
+    namespace?: string;
+}
+interface PipelineSearchOptions extends PipelineListOptions {
+    q?: string;
+}
+interface PipelineToolSearchOptions extends PipelineSearchOptions {
+    app?: string;
+}
+type PipelineAppsResponse = Schemas["PipelineAppList"];
+type PipelineAppResponse = Schemas["PipelineAppDescription"];
+type PipelineToolsResponse = Schemas["PipelineToolList"];
+type PipelineToolResponse = Schemas["PipelineToolDescription"];
+type PipelineSkillsResponse = Schemas["PipelineSkillList"];
+type PipelineSearchResponse = Schemas["PipelineSearchResults"];
+type GeneratedPipelineToolCallRequest = Schemas["PipelineToolCallRequest"];
+/** Generated request narrowed by the OpenAPI `skills.maxItems: 0` gate. */
+type PipelineToolCallRequest = Omit<GeneratedPipelineToolCallRequest, "skills"> & {
+    skills?: [];
+};
+type GeneratedPipelineRunRequest = Schemas["PipelineRunRequest"];
+type PipelineRunRequestBase = Omit<GeneratedPipelineRunRequest, "program" | "plan" | "skills"> & {
+    skills?: [];
+};
+/** The server requires exactly one frozen program representation. */
+type PipelineRunRequest = PipelineRunRequestBase & ({
+    program: string;
+    plan?: never;
+} | {
+    program?: never;
+    plan: Record<string, unknown>;
+});
+
+type RequestResponse = (method: AomiHttpMethod, path: string, options?: AomiRequestOptions) => Promise<Response>;
+declare class PipelineApiError extends Error {
+    readonly status: number;
+    readonly code: string;
+    readonly retryable: boolean;
+    readonly requestId?: string | undefined;
+    readonly details?: unknown | undefined;
+    constructor(status: number, code: string, message: string, retryable: boolean, requestId?: string | undefined, details?: unknown | undefined);
+}
+/** The single typed transport for every first-party Pipeline consumer. */
+declare class PipelineTransport {
+    private readonly requestResponse;
+    constructor(requestResponse: RequestResponse);
+    listApps(options?: PipelineListOptions): Promise<PipelineAppsResponse>;
+    getApp(app: string): Promise<PipelineAppResponse>;
+    searchApps(options?: PipelineSearchOptions): Promise<PipelineSearchResponse>;
+    listTools(options?: PipelineToolListOptions): Promise<PipelineToolsResponse>;
+    getTool(toolId: string, options?: {
+        app?: string;
+    }): Promise<PipelineToolResponse>;
+    searchTools(options?: PipelineToolSearchOptions): Promise<PipelineSearchResponse>;
+    listSkills(options?: PipelineListOptions): Promise<PipelineSkillsResponse>;
+    getSkill(skillId: string): Promise<PipelineCatalogResponse>;
+    callTool<T extends PipelineExecutionResponse = PipelineExecutionResponse>(request: PipelineToolCallRequest): Promise<T>;
+    run<T extends PipelineExecutionResponse = PipelineExecutionResponse>(request: PipelineRunRequest): Promise<T>;
     private json;
 }
 
@@ -886,6 +1095,7 @@ declare class AgentSessionsTransport {
 declare function secretNamesFrom(response: AomiListSecretsResponse): string[];
 declare class AomiClient {
     readonly agent: AgentTransport;
+    readonly pipeline: PipelineTransport;
     private readonly baseUrl;
     private readonly apiKey?;
     private readonly fetchImpl;
@@ -2338,4 +2548,4 @@ declare function appendFeeCallToPayload(payload: WalletTxPayload, fee: AomiSimul
     strictAa?: boolean;
 }): WalletTxPayload;
 
-export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AgentAction, type AgentActionResult, type AgentActivity, AgentApiError, type AgentDelta, type AgentMessage, type AgentSessionPage, type AgentSessionRecord, type AgentStartRequest, type AgentStatus, AgentTransport, type AgentWalletContext, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type ApplicationId, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type EvmExternalTransactionAction, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type OwnedUserState, type PartialWalletExecution, PartialWalletExecutionError, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SigningRequestAction, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, type SvmExternalTransactionAction, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSignablePayload, type WalletSigningPayload, type WalletSolanaLegResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, WidgetChallengeBindingError, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, partialWalletExecution, posterFromClient, robinhood, safeEnv, secretNamesFrom, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };
+export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AgentAction, type AgentActionResult, type AgentActivity, AgentApiError, type AgentDelta, type AgentMessage, type AgentSessionPage, type AgentSessionRecord, type AgentStartRequest, type AgentStatus, AgentTransport, type AgentWalletContext, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type ApplicationId, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type EvmExternalTransactionAction, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type OwnedUserState, type PartialWalletExecution, PartialWalletExecutionError, PipelineApiError, type PipelineAppResponse, type PipelineAppsResponse, type PipelineCatalogResponse, type PipelineExecutionResponse, type PipelineListOptions, type PipelineResource, type PipelineRunRequest, type PipelineSearchOptions, type PipelineSearchResponse, type PipelineSkillsResponse, type PipelineToolCallRequest, type PipelineToolListOptions, type PipelineToolResponse, type PipelineToolSearchOptions, type PipelineToolsResponse, PipelineTransport, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SigningRequestAction, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, type SvmExternalTransactionAction, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSignablePayload, type WalletSigningPayload, type WalletSolanaLegResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, WidgetChallengeBindingError, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, partialWalletExecution, posterFromClient, robinhood, safeEnv, secretNamesFrom, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };

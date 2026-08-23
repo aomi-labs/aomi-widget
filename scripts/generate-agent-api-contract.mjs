@@ -8,24 +8,24 @@ const rustRepo = resolve(
   process.env.AOMI_RUST_REPO ?? join(root, "../product-mono/aomi"),
 );
 const source = join(root, "apps/portal/openapi/aomi-agent-v1.json");
-const generated = join(
-  root,
-  "packages/client/src/generated/agent-v1/types.ts",
-);
-
-const rust = spawnSync(
-  "cargo",
-  ["run", "--quiet", "-p", "api-server", "--", "--print-openapi"],
-  { cwd: rustRepo, encoding: "utf8" },
-);
-if (rust.status !== 0) {
-  process.stderr.write(rust.stdout);
-  process.stderr.write(rust.stderr);
-  process.exit(rust.status ?? 1);
-}
-
-const document = `${JSON.stringify(JSON.parse(rust.stdout), null, 2)}\n`;
+const generated = join(root, "packages/client/src/generated/agent-v1/types.ts");
+const artifact = process.env.AOMI_AGENT_OPENAPI_FILE;
+const serialized = artifact
+  ? readFileSync(resolve(artifact), "utf8")
+  : printRustOpenApi();
+const document = `${JSON.stringify(JSON.parse(serialized), null, 2)}\n`;
 writeFileSync(source, document);
+
+const formatSource = spawnSync(
+  "pnpm",
+  ["exec", "prettier", "--write", source],
+  { cwd: root, encoding: "utf8" },
+);
+if (formatSource.status !== 0) {
+  process.stderr.write(formatSource.stdout);
+  process.stderr.write(formatSource.stderr);
+  process.exit(formatSource.status ?? 1);
+}
 
 const result = spawnSync(
   "pnpm",
@@ -38,9 +38,14 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
-const sourceHash = createHash("sha256").update(document).digest("hex");
+const sourceHash = createHash("sha256")
+  .update(readFileSync(source, "utf8"))
+  .digest("hex");
 const types = readFileSync(generated, "utf8");
-writeFileSync(generated, `// Rust Agent contract SHA256: ${sourceHash}\n${types}`);
+writeFileSync(
+  generated,
+  `// Rust Agent contract SHA256: ${sourceHash}\n${types}`,
+);
 
 const format = spawnSync("pnpm", ["exec", "prettier", "--write", generated], {
   cwd: root,
@@ -50,4 +55,18 @@ if (format.status !== 0) {
   process.stderr.write(format.stdout);
   process.stderr.write(format.stderr);
   process.exit(format.status ?? 1);
+}
+
+function printRustOpenApi() {
+  const rust = spawnSync(
+    "cargo",
+    ["run", "--quiet", "-p", "api-server", "--", "--print-openapi"],
+    { cwd: rustRepo, encoding: "utf8" },
+  );
+  if (rust.status !== 0) {
+    if (rust.stdout) process.stderr.write(rust.stdout);
+    if (rust.stderr) process.stderr.write(rust.stderr);
+    process.exit(rust.status ?? 1);
+  }
+  return rust.stdout;
 }

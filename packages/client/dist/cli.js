@@ -1485,6 +1485,114 @@ var init_transport = __esm({
   }
 });
 
+// src/pipeline/transport.ts
+async function parsePipelineResponse(response) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h;
+  if (response.ok) {
+    if (response.status === 204) return void 0;
+    return await response.json();
+  }
+  const body = await response.json().catch(() => null);
+  throw new PipelineApiError(
+    response.status,
+    (_b = (_a3 = body == null ? void 0 : body.error) == null ? void 0 : _a3.code) != null ? _b : "pipeline_request_failed",
+    (_d = (_c = body == null ? void 0 : body.error) == null ? void 0 : _c.message) != null ? _d : `Pipeline request failed with HTTP ${response.status}`,
+    response.status === 408 || response.status === 429 || response.status >= 500,
+    (_g = (_f = (_e = body == null ? void 0 : body.error) == null ? void 0 : _e.requestId) != null ? _f : response.headers.get("x-request-id")) != null ? _g : void 0,
+    (_h = body == null ? void 0 : body.error) == null ? void 0 : _h.details
+  );
+}
+function required(name, value) {
+  const normalized = value.trim();
+  if (!normalized) throw new TypeError(`${name} is required`);
+  return normalized;
+}
+var PipelineApiError, PipelineTransport;
+var init_transport2 = __esm({
+  "src/pipeline/transport.ts"() {
+    "use strict";
+    PipelineApiError = class extends Error {
+      constructor(status, code, message, retryable, requestId, details) {
+        super(message);
+        this.status = status;
+        this.code = code;
+        this.retryable = retryable;
+        this.requestId = requestId;
+        this.details = details;
+        this.name = "PipelineApiError";
+      }
+    };
+    PipelineTransport = class {
+      constructor(requestResponse) {
+        this.requestResponse = requestResponse;
+      }
+      listApps(options = {}) {
+        return this.json("GET", "/v1/pipeline/apps", {
+          query: { limit: options.limit }
+        });
+      }
+      getApp(app) {
+        return this.json(
+          "GET",
+          `/v1/pipeline/apps/${encodeURIComponent(required("app", app))}`
+        );
+      }
+      searchApps(options = {}) {
+        return this.json("GET", "/v1/pipeline/search/apps", {
+          query: { q: options.q, limit: options.limit }
+        });
+      }
+      listTools(options = {}) {
+        return this.json("GET", "/v1/pipeline/tools", {
+          query: {
+            app: options.app,
+            namespace: options.namespace,
+            limit: options.limit
+          }
+        });
+      }
+      getTool(toolId, options = {}) {
+        return this.json(
+          "GET",
+          `/v1/pipeline/tools/${encodeURIComponent(required("toolId", toolId))}`,
+          { query: { app: options.app } }
+        );
+      }
+      searchTools(options = {}) {
+        return this.json("GET", "/v1/pipeline/search/tools", {
+          query: { q: options.q, app: options.app, limit: options.limit }
+        });
+      }
+      listSkills(options = {}) {
+        return this.json("GET", "/v1/pipeline/skills", {
+          query: { limit: options.limit }
+        });
+      }
+      getSkill(skillId) {
+        return this.json(
+          "GET",
+          `/v1/pipeline/skills/${encodeURIComponent(required("skillId", skillId))}`
+        );
+      }
+      callTool(request) {
+        return this.json("POST", "/v1/pipeline/tool-calls", {
+          body: request
+        });
+      }
+      run(request) {
+        return this.json("POST", "/v1/pipeline/runs", {
+          body: request
+        });
+      }
+      async json(method, path, options) {
+        return parsePipelineResponse(
+          await this.requestResponse(method, path, options)
+        );
+      }
+    };
+  }
+});
+
 // src/client.ts
 function previewText(value, max = 80) {
   const singleLine = value.replace(/\s+/g, " ").trim();
@@ -1646,6 +1754,7 @@ var init_client = __esm({
     init_sse();
     init_app_descriptor();
     init_transport();
+    init_transport2();
     SESSION_ID_HEADER = "X-Session-Id";
     THREAD_ID_HEADER = "X-Thread-Id";
     APP_KEY_HEADER = "Aomi-App-Key";
@@ -1681,6 +1790,9 @@ var init_client = __esm({
         this.logger = options.logger;
         this.accountBearer = options.getAccountBearer;
         this.agent = new AgentTransport(
+          (method, path, requestOptions) => this.requestResponse(method, path, requestOptions)
+        );
+        this.pipeline = new PipelineTransport(
           (method, path, requestOptions) => this.requestResponse(method, path, requestOptions)
         );
         this.sseSubscriber = createSseSubscriber({
@@ -5544,8 +5656,8 @@ function parseExpiresAt(value) {
   return null;
 }
 async function safeResponseText(response) {
-  const text = await response.text().catch(() => "");
-  return text ? `- ${text}` : "";
+  const text2 = await response.text().catch(() => "");
+  return text2 ? `- ${text2}` : "";
 }
 var DEFAULT_CHAIN_ID, DEFAULT_SVM_CLUSTER, DEFAULT_SESSION_TTL_MS, AUTH_REFRESH_SKEW_MS, SESSION_TOKEN_HEADERS;
 var init_auth = __esm({
@@ -8900,13 +9012,11 @@ async function interruptCommand(config) {
   }
 }
 async function appsCommand(config) {
-  var _a3, _b, _c, _d;
+  var _a3, _b;
   const client = createControlClient(config);
   const cli = CliSession.load();
-  const sessionId = (_a3 = cli == null ? void 0 : cli.sessionId) != null ? _a3 : crypto.randomUUID();
-  const apps = await client.getApps(sessionId, {
-    apiKey: (_b = config.apiKey) != null ? _b : cli == null ? void 0 : cli.apiKey
-  });
+  const response = await client.pipeline.listApps();
+  const apps = Array.isArray(response.apps) ? response.apps : [];
   if (apps.length === 0) {
     if (config.json) {
       printJson([]);
@@ -8915,7 +9025,7 @@ async function appsCommand(config) {
     console.log("No apps available.");
     return;
   }
-  const currentApp = (_c = cli == null ? void 0 : cli.app) != null ? _c : config.app;
+  const currentApp = (_a3 = cli == null ? void 0 : cli.app) != null ? _a3 : config.app;
   if (config.json) {
     printJson(
       apps.map((descriptor) => __spreadProps(__spreadValues({}, descriptor), {
@@ -8925,10 +9035,11 @@ async function appsCommand(config) {
     return;
   }
   for (const descriptor of apps) {
-    const name = descriptor.name;
+    const name = String((_b = descriptor.name) != null ? _b : "");
     const marker = currentApp === name ? "  (current)" : "";
-    const required2 = ((_d = descriptor.secrets) != null ? _d : []).filter((s) => s.required).map((s) => s.name);
-    const requiredSuffix = required2.length > 0 ? `  [requires: ${required2.join(", ")}]` : "";
+    const secrets = Array.isArray(descriptor.secrets) ? descriptor.secrets : [];
+    const required3 = secrets.filter((secret) => secret.required === true).map((secret) => String(secret.name));
+    const requiredSuffix = required3.length > 0 ? `  [requires: ${required3.join(", ")}]` : "";
     console.log(`${name}${marker}${requiredSuffix}`);
   }
 }
@@ -9047,7 +9158,9 @@ function currentWalletCommand(config = { secrets: {} }) {
   if (state.svmPublicKey) {
     const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
     const clusterSuffix = state.svmCluster ? `, ${state.svmCluster}` : "";
-    console.log(`Solana: ${state.svmPublicKey} (${signerStatus}${clusterSuffix})`);
+    console.log(
+      `Solana: ${state.svmPublicKey} (${signerStatus}${clusterSuffix})`
+    );
   }
   printDataFileLocation({ verbose: config.verbose });
 }
@@ -10511,11 +10624,11 @@ async function fetchStatus(deploymentId, platform, activationToken, backendUrl) 
       "Cannot reach Aomi backend; check your connection"
     );
   }
-  const text = await res.text();
+  const text2 = await res.text();
   if (!res.ok) {
     const message = (() => {
       try {
-        const json = JSON.parse(text);
+        const json = JSON.parse(text2);
         if (json && typeof json === "object" && json.error) return json.error;
       } catch (e) {
       }
@@ -10527,7 +10640,7 @@ async function fetchStatus(deploymentId, platform, activationToken, backendUrl) 
     throw new DeployCliError("BACKEND_ERROR", message);
   }
   try {
-    return JSON.parse(text);
+    return JSON.parse(text2);
   } catch (e) {
     throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
   }
@@ -10653,10 +10766,10 @@ function resolvePlatform2(args) {
 }
 async function extractError(res) {
   try {
-    const text = await res.text();
-    const json = JSON.parse(text);
+    const text2 = await res.text();
+    const json = JSON.parse(text2);
     if (json && typeof json === "object" && json.error) return json.error;
-    return text || `${res.status} ${res.statusText}`;
+    return text2 || `${res.status} ${res.statusText}`;
   } catch (e) {
     return `${res.status} ${res.statusText}`;
   }
@@ -10743,7 +10856,7 @@ import { execFileSync, execSync } from "child_process";
 function str4(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
-function required(value, flag, env) {
+function required2(value, flag, env) {
   if (value) return value;
   throw new DeployCliError(
     "VALIDATION_ERROR",
@@ -10810,10 +10923,10 @@ async function deviceAuthFlow(backendUrl, platform) {
     body: JSON.stringify({ platform })
   });
   if (!beginRes.ok) {
-    const text = await beginRes.text().catch(() => "");
+    const text2 = await beginRes.text().catch(() => "");
     throw new DeployCliError(
       "BACKEND_ERROR",
-      `Failed to start device auth: ${beginRes.status} ${text}`
+      `Failed to start device auth: ${beginRes.status} ${text2}`
     );
   }
   const { device_code, verification_uri } = await beginRes.json();
@@ -10867,7 +10980,7 @@ async function deployCommand(args) {
   const platform = (_d = (_c = str4(args.platform)) != null ? _c : process.env.AOMI_DEPLOY_PLATFORM) != null ? _d : "community";
   const activationToken = (_f = (_e = str4(args["activation-token"])) != null ? _e : process.env.AOMI_DEPLOY_TOKEN) != null ? _f : (await deviceAuthFlow(backendUrl, platform)).token;
   const projectId = Number(
-    required(
+    required2(
       (_g = str4(args["project-id"])) != null ? _g : process.env.AOMI_PROJECT_ID,
       "project-id",
       "AOMI_PROJECT_ID"
@@ -10919,12 +11032,12 @@ async function deployCommand(args) {
       "Cannot reach Aomi backend; check your connection"
     );
   }
-  const text = await res.text();
+  const text2 = await res.text();
   if (!res.ok) {
     const message = (() => {
       var _a4, _b2;
       try {
-        const json = JSON.parse(text);
+        const json = JSON.parse(text2);
         if (json && typeof json === "object")
           return (_b2 = (_a4 = json.error) != null ? _a4 : json.reason) != null ? _b2 : `${res.status} ${res.statusText}`;
       } catch (e) {
@@ -10941,7 +11054,7 @@ async function deployCommand(args) {
   }
   let result;
   try {
-    result = JSON.parse(text);
+    result = JSON.parse(text2);
   } catch (e) {
     throw new DeployCliError("BACKEND_ERROR", "Backend returned invalid JSON.");
   }
@@ -11004,6 +11117,95 @@ var init_deploy = __esm({
     "use strict";
     init_errors();
     init_deployment_state();
+  }
+});
+
+// src/cli/commands/pipeline.ts
+var pipeline_exports = {};
+__export(pipeline_exports, {
+  parsePipelineArguments: () => parsePipelineArguments,
+  pipelineAppCommand: () => pipelineAppCommand,
+  pipelineAppsCommand: () => pipelineAppsCommand,
+  pipelineCallCommand: () => pipelineCallCommand,
+  pipelineRunCommand: () => pipelineRunCommand,
+  pipelineSkillCommand: () => pipelineSkillCommand,
+  pipelineSkillsCommand: () => pipelineSkillsCommand,
+  pipelineToolCommand: () => pipelineToolCommand,
+  pipelineToolsCommand: () => pipelineToolsCommand
+});
+async function pipelineAppsCommand(config, options) {
+  const pipeline = createControlClient(config).pipeline;
+  printJson(
+    options.query ? await pipeline.searchApps({ q: options.query, limit: options.limit }) : await pipeline.listApps({ limit: options.limit })
+  );
+}
+async function pipelineAppCommand(config, app) {
+  printJson(await createControlClient(config).pipeline.getApp(app));
+}
+async function pipelineToolsCommand(config, options) {
+  const pipeline = createControlClient(config).pipeline;
+  printJson(
+    options.query ? await pipeline.searchTools({
+      q: options.query,
+      app: options.app,
+      limit: options.limit
+    }) : await pipeline.listTools({
+      app: options.app,
+      namespace: options.namespace,
+      limit: options.limit
+    })
+  );
+}
+async function pipelineToolCommand(config, toolId, app) {
+  printJson(
+    await createControlClient(config).pipeline.getTool(toolId, { app })
+  );
+}
+async function pipelineSkillsCommand(config, limit2) {
+  printJson(await createControlClient(config).pipeline.listSkills({ limit: limit2 }));
+}
+async function pipelineSkillCommand(config, skillId) {
+  printJson(await createControlClient(config).pipeline.getSkill(skillId));
+}
+async function pipelineCallCommand(config, options) {
+  const result = await createControlClient(config).pipeline.callTool({
+    sessionId: pipelineSessionId(options.sessionId),
+    toolId: options.toolId,
+    arguments: parseArguments(options.arguments),
+    app: "svm-read-only",
+    skills: []
+  });
+  printJson(result);
+}
+async function pipelineRunCommand(config, options) {
+  const result = await createControlClient(config).pipeline.run({
+    sessionId: pipelineSessionId(options.sessionId),
+    program: options.program,
+    app: "svm-read-only",
+    skills: []
+  });
+  printJson(result);
+}
+function pipelineSessionId(explicit) {
+  var _a3;
+  return (explicit == null ? void 0 : explicit.trim()) || ((_a3 = CliSession.load()) == null ? void 0 : _a3.sessionId) || crypto.randomUUID();
+}
+function parsePipelineArguments(input2) {
+  if (!(input2 == null ? void 0 : input2.trim())) return {};
+  const value = JSON.parse(input2);
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new TypeError("--arguments must be a JSON object");
+  }
+  return value;
+}
+var parseArguments;
+var init_pipeline = __esm({
+  "src/cli/commands/pipeline.ts"() {
+    "use strict";
+    init_cli_session();
+    init_context();
+    init_output();
+    parseArguments = parsePipelineArguments;
   }
 });
 
@@ -11243,7 +11445,7 @@ var init_repl = __esm({
 import { runCommand, runMain } from "citty";
 
 // src/cli/root.ts
-import { defineCommand as defineCommand14 } from "citty";
+import { defineCommand as defineCommand15 } from "citty";
 
 // src/cli/commands/defs/chat.ts
 init_shared();
@@ -12082,13 +12284,175 @@ var deployDef = defineCommand13({
   }
 });
 
+// src/cli/commands/defs/pipeline.ts
+init_shared();
+import { defineCommand as defineCommand14 } from "citty";
+var discoveryArgs = __spreadProps(__spreadValues({}, globalArgs), {
+  query: { type: "string", alias: "q", description: "Ranked search query" },
+  limit: { type: "string", description: "Maximum results (server-bounded)" }
+});
+var pipelineAppsDef = defineCommand14({
+  meta: { name: "apps", description: "List or search Pipeline apps" },
+  args: discoveryArgs,
+  async run({ args }) {
+    const { pipelineAppsCommand: pipelineAppsCommand2 } = await Promise.resolve().then(() => (init_pipeline(), pipeline_exports));
+    await pipelineAppsCommand2(buildCliConfig(args), {
+      query: text(args.query),
+      limit: limit(args.limit)
+    });
+  }
+});
+var pipelineAppDef = defineCommand14({
+  meta: { name: "app", description: "Describe one Pipeline app" },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    appName: {
+      type: "positional",
+      description: "App name",
+      required: true
+    }
+  }),
+  async run({ args }) {
+    const { pipelineAppCommand: pipelineAppCommand2 } = await Promise.resolve().then(() => (init_pipeline(), pipeline_exports));
+    await pipelineAppCommand2(buildCliConfig(args), getPositionals(args)[0]);
+  }
+});
+var pipelineToolsDef = defineCommand14({
+  meta: { name: "tools", description: "List or search Pipeline tools" },
+  args: __spreadProps(__spreadValues({}, discoveryArgs), {
+    namespace: { type: "string", description: "Namespace filter" }
+  }),
+  async run({ args }) {
+    const { pipelineToolsCommand: pipelineToolsCommand2 } = await Promise.resolve().then(() => (init_pipeline(), pipeline_exports));
+    const config = buildCliConfig(args);
+    await pipelineToolsCommand2(config, {
+      query: text(args.query),
+      app: config.app,
+      namespace: text(args.namespace),
+      limit: limit(args.limit)
+    });
+  }
+});
+var pipelineToolDef = defineCommand14({
+  meta: { name: "tool", description: "Describe one Pipeline tool" },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    toolId: {
+      type: "positional",
+      description: "Tool id",
+      required: true
+    }
+  }),
+  async run({ args }) {
+    const { pipelineToolCommand: pipelineToolCommand2 } = await Promise.resolve().then(() => (init_pipeline(), pipeline_exports));
+    const config = buildCliConfig(args);
+    await pipelineToolCommand2(config, getPositionals(args)[0], config.app);
+  }
+});
+var pipelineSkillsDef = defineCommand14({
+  meta: { name: "skills", description: "List Pipeline skills" },
+  args: discoveryArgs,
+  async run({ args }) {
+    const { pipelineSkillsCommand: pipelineSkillsCommand2 } = await Promise.resolve().then(() => (init_pipeline(), pipeline_exports));
+    await pipelineSkillsCommand2(buildCliConfig(args), limit(args.limit));
+  }
+});
+var pipelineSkillDef = defineCommand14({
+  meta: { name: "skill", description: "Describe one Pipeline skill" },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    skillId: {
+      type: "positional",
+      description: "Skill id",
+      required: true
+    }
+  }),
+  async run({ args }) {
+    const { pipelineSkillCommand: pipelineSkillCommand2 } = await Promise.resolve().then(() => (init_pipeline(), pipeline_exports));
+    await pipelineSkillCommand2(buildCliConfig(args), getPositionals(args)[0]);
+  }
+});
+var executionArgs = __spreadProps(__spreadValues({}, globalArgs), {
+  session: {
+    type: "string",
+    description: "Pipeline session id (defaults to the active CLI session)"
+  }
+});
+var pipelineCallDef = defineCommand14({
+  meta: {
+    name: "call",
+    description: "Call a Gate-F-approved safe read-only Pipeline tool"
+  },
+  args: __spreadProps(__spreadValues({}, executionArgs), {
+    toolId: {
+      type: "positional",
+      description: "Tool id",
+      required: true
+    },
+    arguments: {
+      type: "string",
+      description: "Tool arguments as a JSON object"
+    }
+  }),
+  async run({ args }) {
+    const { pipelineCallCommand: pipelineCallCommand2 } = await Promise.resolve().then(() => (init_pipeline(), pipeline_exports));
+    const config = buildCliConfig(args);
+    await pipelineCallCommand2(config, {
+      toolId: getPositionals(args)[0],
+      sessionId: text(args.session),
+      arguments: text(args.arguments)
+    });
+  }
+});
+var pipelineRunDef = defineCommand14({
+  meta: {
+    name: "run",
+    description: "Run a Gate-F-approved safe read-only Pipeline program"
+  },
+  args: __spreadProps(__spreadValues({}, executionArgs), {
+    program: {
+      type: "string",
+      description: "Pipeline program in the MCP aomi_run grammar",
+      required: true
+    }
+  }),
+  async run({ args }) {
+    const { pipelineRunCommand: pipelineRunCommand2 } = await Promise.resolve().then(() => (init_pipeline(), pipeline_exports));
+    const config = buildCliConfig(args);
+    await pipelineRunCommand2(config, {
+      sessionId: text(args.session),
+      program: text(args.program)
+    });
+  }
+});
+var pipelineDef = defineCommand14({
+  meta: {
+    name: "pipeline",
+    description: "Pipeline discovery and safe read-only execution"
+  },
+  subCommands: {
+    apps: pipelineAppsDef,
+    app: pipelineAppDef,
+    tools: pipelineToolsDef,
+    tool: pipelineToolDef,
+    skills: pipelineSkillsDef,
+    skill: pipelineSkillDef,
+    call: pipelineCallDef,
+    run: pipelineRunDef
+  }
+});
+function text(value) {
+  return typeof value === "string" && value.trim() ? value.trim() : void 0;
+}
+function limit(value) {
+  const parsed = Number(text(value));
+  return Number.isFinite(parsed) ? parsed : void 0;
+}
+
 // src/cli/root.ts
 init_shared();
 
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.6.2",
+  version: "0.6.3",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -12146,12 +12510,13 @@ var SUBCOMMAND_NAMES = /* @__PURE__ */ new Set([
   "logout",
   "config",
   "secret",
-  "deploy"
+  "deploy",
+  "pipeline"
 ]);
 function hasRootSubcommand(rawArgs) {
   return rawArgs.some((arg) => SUBCOMMAND_NAMES.has(arg));
 }
-var logoutDef = defineCommand14({
+var logoutDef = defineCommand15({
   meta: {
     name: "logout",
     description: "Sign out and clear the CLI auth session"
@@ -12162,7 +12527,7 @@ var logoutDef = defineCommand14({
     await logoutCommand2(buildCliConfig(args));
   }
 });
-var root = defineCommand14({
+var root = defineCommand15({
   meta: {
     name: "aomi",
     version: package_default.version,
@@ -12202,7 +12567,8 @@ var root = defineCommand14({
     logout: logoutDef,
     config: configDef,
     secret: secretDef,
-    deploy: deployDef
+    deploy: deployDef,
+    pipeline: pipelineDef
   }
 });
 
@@ -12302,6 +12668,9 @@ function printRootHelp() {
   console.log("  secret                       Secret management");
   console.log(
     "  deploy                       Deploy your app (also: deploy status, deploy activate)"
+  );
+  console.log(
+    "  pipeline                     Pipeline discovery and safe read-only execution"
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");

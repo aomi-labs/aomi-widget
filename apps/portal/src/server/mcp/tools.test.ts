@@ -44,19 +44,20 @@ describe("MCP tool inventory", () => {
     expect(new Set(names).size).toBe(names.length);
   });
 
-  it("includes the ranked search tools alongside the browse funnel", () => {
+  it("freezes the exact rollback inventory and order", () => {
     const names = MCP_TOOLS.map((t) => t.name);
-    expect(names).toEqual(
-      expect.arrayContaining([
-        "aomi_list_apps",
-        "aomi_search_apps",
-        "aomi_list_tools",
-        "aomi_search_tools",
-        "aomi_describe_tool",
-        "aomi_call_tool",
-        "aomi_run",
-      ]),
-    );
+    expect(names).toEqual([
+      "aomi_get_agent_context",
+      "aomi_list_apps",
+      "aomi_search_apps",
+      "aomi_search_tools",
+      "aomi_select_app",
+      "aomi_list_namespaces",
+      "aomi_list_tools",
+      "aomi_describe_tool",
+      "aomi_run",
+      "aomi_call_tool",
+    ]);
   });
 
   it("aomi_run's description carries the grammar and the steering rule", () => {
