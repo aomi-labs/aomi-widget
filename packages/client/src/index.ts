@@ -44,6 +44,7 @@ export type {
 export type {
   AomiAppDescriptor,
   AomiPlatformFilter,
+  ApplicationId,
   AomiRequestOptions,
   AomiRequestQueryValue,
   AomiClientOptions,

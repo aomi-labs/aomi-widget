@@ -740,6 +740,9 @@ function joinApiPath(baseUrl, path) {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${normalizedBase}${normalizedPath}` || normalizedPath;
 }
+function applicationIdParam(id) {
+  return (id == null ? void 0 : id.toString().trim()) || void 0;
+}
 function buildApiUrl(baseUrl, path, query) {
   const url = joinApiPath(baseUrl, path);
   if (!query) return url;
@@ -989,12 +992,11 @@ ${body}` : ""}`
    * Fetch current session state (messages, processing status, title).
    */
   async fetchState(sessionId, userState, clientId, options) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c;
     const normalizedUserState = UserState.normalize(userState);
-    const applicationId = (_a = options == null ? void 0 : options.applicationId) == null ? void 0 : _a.toString().trim();
     const stateContext = {
       app: options == null ? void 0 : options.app,
-      application_id: applicationId || void 0
+      application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
     };
     const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", __spreadProps(__spreadValues({}, stateContext), {
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
@@ -1006,10 +1008,10 @@ ${body}` : ""}`
       stateContext
     );
     const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
-    (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/thread/state start", {
+    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
       app: options == null ? void 0 : options.app,
-      applicationId,
+      applicationId: options == null ? void 0 : options.applicationId,
       clientId,
       hasUserState: Boolean(normalizedUserState)
     });
@@ -1019,7 +1021,7 @@ ${body}` : ""}`
       sessionId
     );
     if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-      (_c = this.logger) == null ? void 0 : _c.debug(
+      (_b = this.logger) == null ? void 0 : _b.debug(
         "[aomi][client] GET /api/thread/state retrying without sync params",
         {
           sessionId,
@@ -1034,7 +1036,7 @@ ${body}` : ""}`
         sessionId
       );
     }
-    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] GET /api/thread/state response", {
+    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/thread/state response", {
       sessionId,
       status: response.status,
       ok: response.ok
@@ -1048,23 +1050,22 @@ ${body}` : ""}`
    * Send a chat message and return updated session state.
    */
   async sendMessage(sessionId, message, options) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
-    const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
       app,
-      application_id: applicationId || void 0,
+      application_id: applicationIdParam(options == null ? void 0 : options.applicationId),
       message,
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: options == null ? void 0 : options.clientId,
-      payment_method: (_d = options == null ? void 0 : options.paymentMethod) != null ? _d : void 0
+      payment_method: (_c = options == null ? void 0 : options.paymentMethod) != null ? _c : void 0
     });
-    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST /api/thread/chat prepared", {
+    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/thread/chat prepared", {
       sessionId,
       app,
-      applicationId,
+      applicationId: options == null ? void 0 : options.applicationId,
       clientId: options == null ? void 0 : options.clientId,
       paymentMethod: options == null ? void 0 : options.paymentMethod,
       hasUserState: Boolean(normalizedUserState),
@@ -1074,7 +1075,7 @@ ${body}` : ""}`
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
-    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST start", {
+    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
       path: "/api/thread/chat",
       sessionId,
       hasApiKey: Boolean(apiKey),
@@ -1084,7 +1085,7 @@ ${body}` : ""}`
       method: "POST",
       headers
     });
-    (_g = this.logger) == null ? void 0 : _g.debug("[aomi][client] POST response", {
+    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
       path: "/api/thread/chat",
       sessionId,
       status: response.status,
@@ -1383,9 +1384,10 @@ ${body}` : ""}`
   /**
    * Get system events for a session.
    */
-  async getSystemEvents(sessionId, count) {
+  async getSystemEvents(sessionId, count, options) {
     const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
-      count: count !== void 0 ? String(count) : void 0
+      count: count !== void 0 ? String(count) : void 0,
+      application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
     });
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
@@ -1408,7 +1410,8 @@ ${body}` : ""}`
     var _a;
     const platforms = normalizePlatformFilter(options == null ? void 0 : options.platforms);
     const url = buildApiUrl(this.baseUrl, "/api/thread/apps", {
-      platform: platforms.length > 0 ? platforms : void 0
+      platform: platforms.length > 0 ? platforms : void 0,
+      application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
     });
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
@@ -1502,7 +1505,9 @@ ${body}` : ""}`
    */
   async getModels(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/thread/models");
+    const url = buildApiUrl(this.baseUrl, "/api/thread/models", {
+      application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
+    });
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1520,13 +1525,12 @@ ${body}` : ""}`
    * Set the model for a session.
    */
   async setModel(sessionId, rig, options) {
-    var _a, _b;
+    var _a;
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
-    const applicationId = (_b = options == null ? void 0 : options.applicationId) == null ? void 0 : _b.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/thread/model", {
       rig,
       app: options == null ? void 0 : options.app,
-      application_id: applicationId || void 0,
+      application_id: applicationIdParam(options == null ? void 0 : options.applicationId),
       client_id: options == null ? void 0 : options.clientId
     });
     const headers = new Headers(withSessionHeader(sessionId));

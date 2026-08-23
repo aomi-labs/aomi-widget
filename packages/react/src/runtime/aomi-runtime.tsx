@@ -155,6 +155,7 @@ function AomiRuntimeInner({
       getThreadMetadata={threadContext.getThreadMetadata}
       updateThreadMetadata={threadContext.updateThreadMetadata}
       appPlatforms={appPlatforms}
+      applicationId={applicationId}
     >
       <EventContextProvider
         aomiClient={aomiClient}

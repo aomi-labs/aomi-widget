@@ -31,7 +31,11 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import type { AomiClient, AomiPlatformFilter } from "@aomi-labs/client";
+import type {
+  AomiClient,
+  AomiPlatformFilter,
+  ApplicationId,
+} from "@aomi-labs/client";
 import type { ThreadControlState, ThreadMetadata } from "../state/thread-store";
 import {
   CLIENT_ID_STORAGE_KEY,
@@ -195,6 +199,7 @@ export type ControlContextProviderProps = {
     partial: Partial<ThreadMetadata>,
   ) => void;
   appPlatforms?: AomiPlatformFilter;
+  applicationId?: ApplicationId;
 };
 
 export function ControlContextProvider({
@@ -204,6 +209,7 @@ export function ControlContextProvider({
   getThreadMetadata,
   updateThreadMetadata,
   appPlatforms,
+  applicationId,
 }: ControlContextProviderProps) {
   // ---------------------------------------------------------------------------
   // Stable refs into the central plumbing (aomiClient, the props that change
@@ -266,6 +272,7 @@ export function ControlContextProvider({
     getControlSessionId: getCurrentControlSessionId,
     apiKey: apiKey.state.apiKey,
     appPlatforms,
+    applicationId,
   });
 
   // Refs for the auth-endpoint state so per-thread-control callbacks can read
