@@ -1,10 +1,10 @@
 // =============================================================================
-// CLI UserState — end-to-end shape per docs/generated/userstate-shape-reference.md table
+// CLI UserState — end-to-end wire shape
 // =============================================================================
-// Replicates the rows of `docs/generated/userstate-shape-reference.md` for the CLI paths only. Drives the
-// real `ClientSession` + `buildCliUserState` + `session.resolveWallet`
+// Drives the real `ClientSession` + `buildCliUserState` + `session.resolveWallet`
 // pipeline (no network — the SSE subscribe is the only client method
-// invoked). Each test asserts the exact UserState shape the table claims.
+// invoked). Each test asserts the exact UserState shape sent on the wire:
+// {connection, evm, svm, ext} with AA fields absent (backend authority).
 //
 // Coverage:
 //   Table A (connect-time): CLI no-AA, CLI --aa 4337, CLI --aa 7702

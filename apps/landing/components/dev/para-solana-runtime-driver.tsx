@@ -144,14 +144,6 @@ function identityToUserState(adapter: AomiWalletKit): UserStateShape {
   return {
     connection: {
       is_connected: identity.isConnected,
-      primary_family:
-        identity.address && identity.svmAddress
-          ? "dual"
-          : identity.address
-            ? "evm"
-            : identity.svmAddress
-              ? "svm"
-              : null,
       provider: "para",
       provider_label: identity.secondaryLabel ?? undefined,
     },
@@ -159,25 +151,27 @@ function identityToUserState(adapter: AomiWalletKit): UserStateShape {
       address: identity.address ?? undefined,
       chain_id: identity.chainId ?? undefined,
     },
-    solana: {
+    svm: {
       address: identity.svmAddress ?? undefined,
       cluster: identity.solanaCluster ?? undefined,
       wallet_name: identity.solanaWalletName ?? undefined,
       transport: identity.solanaTransport ?? undefined,
+      // Backend `SolCapabilitiesUserState` wants a list of enabled
+      // capability names, not a flag object.
       capabilities: identity.solanaCapabilities
-        ? {
-            can_sign_message:
-              identity.solanaCapabilities.canSignMessage ?? undefined,
+        ? Object.entries({
+            can_sign_message: identity.solanaCapabilities.canSignMessage,
             can_sign_transaction:
-              identity.solanaCapabilities.canSignTransaction ?? undefined,
+              identity.solanaCapabilities.canSignTransaction,
             can_sign_all_transactions:
-              identity.solanaCapabilities.canSignAllTransactions ?? undefined,
+              identity.solanaCapabilities.canSignAllTransactions,
             can_send_transaction:
-              identity.solanaCapabilities.canSendTransaction ?? undefined,
+              identity.solanaCapabilities.canSendTransaction,
             can_sign_and_send_transaction:
-              identity.solanaCapabilities.canSignAndSendTransaction ??
-              undefined,
-          }
+              identity.solanaCapabilities.canSignAndSendTransaction,
+          })
+            .filter(([, enabled]) => enabled === true)
+            .map(([name]) => name)
         : undefined,
     },
   };

@@ -67,67 +67,38 @@ function txTimestamp(
 }
 
 export function buildCliUserState(
-  publicKey?: string,
+  evmAddress?: string,
   chainId?: number,
   options?: {
-    app?: string;
     /** Solana public key (base58). When present, sets svm.address. */
     svmAddress?: string;
-    /** Solana cluster. Defaults to "solana:mainnet" when svmAddress is present. */
+    /** Solana cluster. Callers resolve it via `CliSession.resolvedSvmCluster`;
+     * this builder never defaults it. */
     svmCluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet";
   },
 ): UserState {
-  const app = options?.app?.trim().toLowerCase();
-  const evm: UserStateEvm = {};
-  const publicKeyIsSolana =
-    publicKey !== undefined && !publicKey.trim().startsWith("0x");
-  const publicKeyIsEvm =
-    publicKey !== undefined && publicKey.trim().startsWith("0x");
-  const svmAddress =
-    options?.svmAddress ?? (publicKeyIsSolana ? publicKey : undefined);
-  const hasBoth = publicKeyIsEvm && svmAddress !== undefined;
-  const isSolanaApp =
-    !hasBoth &&
-    !publicKeyIsEvm &&
-    (app === "sol" ||
-      app === "solana" ||
-      app === "svm" ||
-      app === "byreal" ||
-      publicKeyIsSolana ||
-      svmAddress !== undefined);
-  const hasEvm = hasBoth || (!isSolanaApp && publicKeyIsEvm);
-  const hasSvm = hasBoth || isSolanaApp;
-  const userState: UserState = {};
-
-  if (hasEvm && publicKey !== undefined) {
-    evm.address = publicKey;
-  }
-
-  if (hasEvm && chainId !== undefined) {
-    evm.chain_id = chainId;
-  }
-
+  // Each wallet family is emitted iff its address is explicitly configured.
   // Account-abstraction is backend authority and no longer carried in
   // user_state. The CLI's `--aa` preference is applied per-transaction via the
   // execution payload, not persisted here.
+  const userState: UserState = {};
 
-  if (Object.keys(evm).length > 0) {
+  if (evmAddress !== undefined) {
+    const evm: UserStateEvm = { address: evmAddress };
+    if (chainId !== undefined) {
+      evm.chain_id = chainId;
+    }
     userState.evm = evm;
   }
 
-  if (hasSvm) {
-    userState.svm = {
-      address: svmAddress ?? publicKey,
-      cluster:
-        options?.svmCluster ??
-        (svmAddress !== undefined ? "solana:mainnet" : undefined),
-    };
+  if (options?.svmAddress !== undefined) {
+    userState.svm = { address: options.svmAddress };
+    if (options.svmCluster !== undefined) {
+      userState.svm.cluster = options.svmCluster;
+    }
   }
-  const anyConnected = Boolean(
-    (hasEvm && publicKey !== undefined) ||
-    (hasSvm && (svmAddress ?? publicKey) !== undefined),
-  );
-  if (anyConnected) {
+
+  if (userState.evm || userState.svm) {
     userState.connection = {
       is_connected: true,
     };

@@ -106,6 +106,23 @@ describe("normalizeUserState evm wire shapes", () => {
     expect(UserState.chainId(normalized)).toBe(1);
   });
 
+  // First-entry-wins mirrors the backend's `EvmWalletState::primary()`
+  // (`self.wallets.first()`). A non-object first entry yields NO evm block:
+  // position zero is still the primary, and the FE must never silently
+  // select a later wallet in its place.
+  it("yields no evm block when the primary entry is not an object", () => {
+    const normalized = UserState.normalize({
+      connection: { is_connected: true },
+      evm: [
+        null,
+        { address: "0xC764D92E312195114595cB645f31C38Fad9c14eE", chain_id: 1 },
+      ],
+    } as unknown as Parameters<typeof UserState.normalize>[0]);
+
+    expect(UserState.address(normalized)).toBeUndefined();
+    expect(UserState.chainId(normalized)).toBeUndefined();
+  });
+
   it("still reads the legacy object shape", () => {
     const normalized = UserState.normalize({
       connection: { is_connected: true },

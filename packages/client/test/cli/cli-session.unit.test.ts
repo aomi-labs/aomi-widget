@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Keypair } from "@solana/web3.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const ORIGINAL_ENV = { ...process.env };
@@ -301,6 +302,32 @@ describe("CLI session lifecycle", () => {
     );
   });
 
+  it("persists a cluster when one-shot config adds an SVM address to an existing session", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+    const keypair = Keypair.fromSeed(Uint8Array.from(Array(32).fill(1)));
+    const config = {
+      baseUrl: "https://api.aomi.dev",
+      app: "default",
+      execution: "eoa" as const,
+      secrets: {},
+    };
+
+    CliSession.loadOrCreate(config);
+    CliSession.loadOrCreate({
+      ...config,
+      solanaPrivateKey: JSON.stringify(Array.from(keypair.secretKey)),
+    });
+
+    expect(readState()).toEqual(
+      expect.objectContaining({
+        svmPublicKey: keypair.publicKey.toBase58(),
+        svmCluster: "solana:mainnet",
+        svmPrivateKey: undefined,
+      }),
+    );
+  });
+
   it("keeps distinct backend-staged transactions even when calldata matches", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
 
@@ -336,6 +363,28 @@ describe("CLI session lifecycle", () => {
     expect(second?.id).toBe("tx-8");
     expect(cli.pendingTxs).toHaveLength(2);
     expect(cli.pendingTxs.map((tx) => tx.txId)).toEqual([7, 8]);
+  });
+
+  it("stamps solana:mainnet onto legacy state files with an SVM wallet but no cluster", async () => {
+    const { SESSIONS_DIR, readState } = await import("../../src/cli/state");
+    const { CliSession } = await import("../../src/cli/cli-session");
+
+    mkdirSync(SESSIONS_DIR, { recursive: true });
+    writeFileSync(
+      join(SESSIONS_DIR, "session-1.json"),
+      JSON.stringify({
+        sessionId: "legacy",
+        localId: 1,
+        baseUrl: "https://api.aomi.dev",
+        svmPublicKey: "J2w7ZT5Wd4ACuQAH3dmzjWoRhaqejMRoMRL4C7Qbg5Ks",
+      }),
+    );
+    writeFileSync(join(stateDir, "active-session.txt"), "1");
+
+    const cli = CliSession.load();
+    expect(cli?.svmCluster).toBe("solana:mainnet");
+    // The invariant is persisted, not just in-memory.
+    expect(readState()?.svmCluster).toBe("solana:mainnet");
   });
 
   it("normalizes legacy signedTx AAAddress fields on load", async () => {

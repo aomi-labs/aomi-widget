@@ -123,15 +123,14 @@ async function accountLoginWithSiws(
     );
   }
 
-  const chainId = config.svmCluster ?? cli.svmCluster ?? "solana:mainnet";
+  const chainId = cli.resolvedSvmCluster(config.svmCluster);
   const result = await signInWithCliSiws({
     baseUrl: cli.baseUrl,
     privateKey: privateKey!,
     chainId,
   });
 
-  cli.setSvmWallet(privateKey!, result.address);
-  cli.setSvmCluster(chainId);
+  cli.setSvmWallet(privateKey!, result.address, chainId);
   cli.setAuthSession(result.auth);
 
   if (config.json) {
@@ -320,15 +319,14 @@ export async function accountLinkCommand(
           "Run `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`.",
       );
     }
-    const chainId = config.svmCluster ?? cli.svmCluster ?? "solana:mainnet";
+    const chainId = cli.resolvedSvmCluster(config.svmCluster);
     const result = await linkCliSiwsWallet({
       baseUrl: cli.baseUrl,
       sessionToken: cli.auth!.sessionToken,
       privateKey: privateKey!,
       chainId,
     });
-    cli.setSvmWallet(privateKey!, result.address);
-    cli.setSvmCluster(chainId);
+    cli.setSvmWallet(privateKey!, result.address, chainId);
     const account = await client.getAccount();
     if (config.json) {
       printJson({ ...result, account });

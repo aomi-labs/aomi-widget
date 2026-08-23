@@ -44,7 +44,23 @@ export class CliSession {
   /** Load the active session from disk. Returns null if none exists. */
   static load(): CliSession | null {
     const state = readState();
-    return state ? new CliSession(state) : null;
+    if (!state) return null;
+    const cli = new CliSession(state);
+    if (cli.ensureSvmClusterInvariant()) cli.save();
+    return cli;
+  }
+
+  /**
+   * A persisted Solana address must always carry a persisted cluster so that
+   * display, state file, and wire agree. State files written before
+   * `wallet set --solana` persisted clusters get stamped with mainnet once.
+   */
+  private ensureSvmClusterInvariant(): boolean {
+    if (this.state.svmPublicKey && !this.state.svmCluster) {
+      this.state.svmCluster = "solana:mainnet";
+      return true;
+    }
+    return false;
   }
 
   /** Load existing session or create a fresh one from config. */
@@ -105,6 +121,7 @@ export class CliSession {
       auth: seed?.auth,
     };
     const cli = new CliSession(state);
+    cli.ensureSvmClusterInvariant();
     cli.save();
     return cli;
   }
@@ -272,6 +289,7 @@ export class CliSession {
       this.state.clientId = crypto.randomUUID();
       changed = true;
     }
+    if (this.ensureSvmClusterInvariant()) changed = true;
 
     if (changed) this.save();
   }
@@ -303,9 +321,16 @@ export class CliSession {
     this.save();
   }
 
-  setSvmWallet(privateKey: string, publicKey: string): void {
+  setSvmWallet(
+    privateKey: string,
+    publicKey: string,
+    cluster?: NonNullable<CliSessionState["svmCluster"]>,
+  ): void {
     this.state.svmPrivateKey = privateKey;
     this.state.svmPublicKey = publicKey;
+    if (cluster !== undefined) {
+      this.state.svmCluster = cluster;
+    }
     this.save();
   }
 
@@ -316,13 +341,17 @@ export class CliSession {
     return fromConfig ?? this.state.svmPrivateKey;
   }
 
-  setChainId(id: number): void {
-    this.state.chainId = id;
-    this.save();
+  /** The effective runtime Solana cluster: `--cluster` wins, then the
+   * persisted choice, then mainnet. Persistence paths stamp their defaults
+   * before saving so display, state, and this resolver stay aligned. */
+  resolvedSvmCluster(
+    fromConfig?: CliSessionState["svmCluster"],
+  ): NonNullable<CliSessionState["svmCluster"]> {
+    return fromConfig ?? this.state.svmCluster ?? "solana:mainnet";
   }
 
-  setSvmCluster(cluster: NonNullable<CliSessionState["svmCluster"]>): void {
-    this.state.svmCluster = cluster;
+  setChainId(id: number): void {
+    this.state.chainId = id;
     this.save();
   }
 
@@ -600,9 +629,8 @@ export class CliSession {
     );
     session.resolveUserState(
       buildCliUserState(this.state.publicKey, this.state.chainId, {
-        app: this.state.app,
         svmAddress: this.state.svmPublicKey,
-        svmCluster: config?.svmCluster ?? this.state.svmCluster,
+        svmCluster: this.resolvedSvmCluster(config?.svmCluster),
       }),
     );
     return session;
