@@ -46,6 +46,11 @@ The durable walkthrough for this workspace lives in [../docs/topics/frontend-e2e
 - `Thread` renders the assistant UI.
 - `WalletTxHandler` consumes `pendingWalletRequests`, switches chains when needed, then resolves or rejects requests back into the runtime.
 - Settings pages use `sessionScopedFetch()`, which always sends `X-Session-Id` and conditionally sends `X-API-Key`.
+- Agent chat and MCP routes use the same-origin BFF. Set the server-only
+  `AOMI_AGENT_API_URL` to the Rust api-server origin (`http://127.0.0.1:8082`
+  locally, `https://agent-staging-tunnel.aomi.dev` for staging, and
+  `https://agent-tunnel.aomi.dev` for production). Hosted builds fail closed
+  when this value is absent.
 
 ## Local E2E
 
