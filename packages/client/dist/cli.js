@@ -4146,10 +4146,12 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
       continue;
     }
     const data = normalizePendingTxData(tx);
+    const from = normalizeMaybeAddress(tx.from);
     nextPendingTxs.push({
       id,
       kind: "transaction",
       txId: pendingId,
+      from,
       to,
       value: parseOptionalString(tx.value),
       data,
@@ -4159,6 +4161,7 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
       payload: {
         pending_tx_id: pendingId,
         txId: pendingId,
+        from,
         to,
         value: parseOptionalString(tx.value),
         data,
@@ -7963,6 +7966,198 @@ var init_simulate = __esm({
   }
 });
 
+// src/cli/eip5792.ts
+import { getAddress as getAddress4, toHex } from "viem";
+function normalizeAddress3(value, field) {
+  try {
+    return getAddress4(value);
+  } catch (e) {
+    throw new Error(`${field} must be a valid EVM address.`);
+  }
+}
+function normalizeChainId(value) {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error("chainId must be a positive safe integer.");
+  }
+  return value;
+}
+function normalizeData(value, index) {
+  const data = value != null ? value : "0x";
+  if (!/^0x(?:[0-9a-fA-F]{2})*$/.test(data)) {
+    throw new Error(`Call ${index + 1} data must be a hex byte string.`);
+  }
+  return data.toLowerCase();
+}
+function toEip5792SendCallsParams(input2) {
+  const chainId3 = normalizeChainId(input2.chainId);
+  if (input2.calls.length === 0) {
+    throw new Error("At least one EVM call is required.");
+  }
+  return {
+    version: "2.0.0",
+    from: normalizeAddress3(input2.from, "from"),
+    chainId: toHex(chainId3),
+    atomicRequired: false,
+    calls: input2.calls.map((call, index) => {
+      if (call.chainId !== chainId3) {
+        throw new Error("All calls must use the exported chainId.");
+      }
+      if (call.value < BigInt(0)) {
+        throw new Error(`Call ${index + 1} value cannot be negative.`);
+      }
+      return {
+        to: normalizeAddress3(call.to, `Call ${index + 1} to`),
+        data: normalizeData(call.data, index),
+        value: toHex(call.value)
+      };
+    })
+  };
+}
+var init_eip5792 = __esm({
+  "src/cli/eip5792.ts"() {
+    "use strict";
+  }
+});
+
+// src/cli/commands/export.ts
+var export_exports = {};
+__export(export_exports, {
+  exportCommand: () => exportCommand
+});
+import { getAddress as getAddress5 } from "viem";
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+function normalizeSender(value, label) {
+  try {
+    return getAddress5(value);
+  } catch (e) {
+    throw new Error(`${label} is not a valid EVM address.`);
+  }
+}
+function resolvePendingEvmTransactions(cli, selectors) {
+  const pending = selectors.map((selector) => {
+    const evm = cli.findPendingTx(selector);
+    const svm = cli.findPendingSolTx(selector);
+    if (!selector.includes(":") && evm && svm) {
+      throw new Error(
+        `Transaction "${selector}" is ambiguous. Use the chain-qualified selector shown by \`aomi tx list\`.`
+      );
+    }
+    if (!evm && svm) {
+      throw new Error(
+        `Transaction "${selector}" is a Solana request; EIP-5792 export supports pending EVM transactions only.`
+      );
+    }
+    if (!evm) {
+      const available = cli.pendingSelectors().join(", ") || "(none)";
+      throw new Error(
+        `Transaction "${selector}" not found.
+Available: ${available}`
+      );
+    }
+    if (evm.kind !== "transaction") {
+      throw new Error(
+        `Transaction "${selector}" is an EVM signing request; EIP-5792 export supports transaction calls only.`
+      );
+    }
+    return evm;
+  });
+  if (new Set(pending.map((tx) => tx.id)).size !== pending.length) {
+    throw new Error(
+      "Duplicate transaction IDs are not allowed in a single `aomi tx export` call."
+    );
+  }
+  return pending;
+}
+function resolveSender(pending, sessionSender) {
+  const normalizedSessionSender = sessionSender ? normalizeSender(sessionSender, "The active session sender") : void 0;
+  const senders = pending.map((tx) => {
+    const stagedSender = tx.from ? normalizeSender(tx.from, `Transaction "${tx.id}" sender`) : void 0;
+    if (stagedSender && normalizedSessionSender && stagedSender.toLowerCase() !== normalizedSessionSender.toLowerCase()) {
+      throw new Error(
+        `Transaction "${tx.id}" sender ${stagedSender} does not match the active session sender ${normalizedSessionSender}.`
+      );
+    }
+    const sender = stagedSender != null ? stagedSender : normalizedSessionSender;
+    if (!sender) {
+      throw new Error(
+        `Transaction "${tx.id}" has no sender and the active session has no EVM address.`
+      );
+    }
+    return sender;
+  });
+  if (new Set(senders.map((sender) => sender.toLowerCase())).size !== 1) {
+    throw new Error("Selected transactions must use one sender.");
+  }
+  return senders[0];
+}
+function resolveChainIds(pending, sessionChainId) {
+  const chainIds = pending.map((tx) => {
+    var _a3;
+    const chainId3 = (_a3 = tx.chainId) != null ? _a3 : sessionChainId;
+    if (!Number.isSafeInteger(chainId3) || (chainId3 != null ? chainId3 : 0) <= 0) {
+      throw new Error(
+        `Transaction "${tx.id}" has no valid chain ID; export will not default to Ethereum.`
+      );
+    }
+    return chainId3;
+  });
+  if (new Set(chainIds).size !== 1) {
+    throw new Error("Selected transactions must use one chain.");
+  }
+  return chainIds;
+}
+async function exportCommand(config, txIds) {
+  if (txIds.length === 0) {
+    fatal(
+      "Usage: aomi tx export <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs."
+    );
+  }
+  const cli = CliSession.load();
+  if (!cli) {
+    fatal("No active session. Run `aomi chat` first.");
+  }
+  cli.mergeConfig(config);
+  const session = cli.createClientSession(config);
+  try {
+    const state = await session.client.fetchState(
+      cli.sessionId,
+      void 0,
+      cli.clientId
+    );
+    cli.syncPendingFromUserState(state.user_state);
+  } finally {
+    session.close();
+  }
+  try {
+    const pending = resolvePendingEvmTransactions(cli, txIds);
+    const sender = resolveSender(pending, cli.publicKey);
+    const chainIds = resolveChainIds(pending, cli.chainId);
+    const calls = pending.flatMap(
+      (tx, index) => pendingTxToCallList(__spreadProps(__spreadValues({}, tx), { chainId: chainIds[index] }))
+    );
+    const payload = toEip5792SendCallsParams({
+      from: sender,
+      chainId: chainIds[0],
+      calls
+    });
+    process.stdout.write(`${JSON.stringify(payload, null, 2)}
+`);
+  } catch (error) {
+    fatal(errorMessage(error));
+  }
+}
+var init_export = __esm({
+  "src/cli/commands/export.ts"() {
+    "use strict";
+    init_cli_session();
+    init_eip5792();
+    init_errors();
+    init_transactions();
+  }
+});
+
 // src/cli/commands/sessions.ts
 var sessions_exports = {};
 __export(sessions_exports, {
@@ -10608,6 +10803,23 @@ var txSimulateDef = defineCommand2({
     await simulateCommand2(buildCliConfig(args), txIds);
   }
 });
+var txExportDef = defineCommand2({
+  meta: {
+    name: "export",
+    description: "Export pending EVM calls as an EIP-5792 wallet_sendCalls payload"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    txIds: {
+      type: "positional",
+      description: "Pending EVM transaction IDs to export",
+      required: false
+    }
+  }),
+  async run({ args }) {
+    const { exportCommand: exportCommand2 } = await Promise.resolve().then(() => (init_export(), export_exports));
+    await exportCommand2(buildCliConfig(args), getPositionals(args));
+  }
+});
 var txSignDef = defineCommand2({
   meta: { name: "sign", description: "Sign and submit pending transactions" },
   args: __spreadProps(__spreadValues({}, globalArgs), {
@@ -10644,6 +10856,7 @@ var txDef = defineCommand2({
   subCommands: {
     list: txListDef,
     simulate: txSimulateDef,
+    export: txExportDef,
     sign: txSignDef
   }
 });

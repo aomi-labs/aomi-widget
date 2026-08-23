@@ -138,6 +138,8 @@ npx @aomi-labs/client secret list                        # list configured secre
 npx @aomi-labs/client secret add ALCHEMY_API_KEY=...     # ingest a secret for the active session
 npx @aomi-labs/client session log                        # show full conversation history
 npx @aomi-labs/client tx list                            # list pending + signed txs
+npx @aomi-labs/client tx simulate tx-1                   # simulate pending calls
+npx @aomi-labs/client tx export tx-1 > execution.json    # export EIP-5792 calls
 npx @aomi-labs/client tx sign tx-1                       # sign a specific pending tx
 npx @aomi-labs/client session status                     # session info
 npx @aomi-labs/client session events                     # system events
@@ -284,6 +286,11 @@ $ npx @aomi-labs/client tx list
 Pending (1):
   ⏳ tx-1  to: 0x3fC9...7FAD  value: 1000000000000000000  chain: 1
 
+$ npx @aomi-labs/client tx simulate tx-1
+All steps passed.
+
+$ npx @aomi-labs/client tx export tx-1 > execution.json
+
 $ npx @aomi-labs/client tx sign tx-1 --private-key 0xac0974...
 Signer:  0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 IDs:     tx-1
@@ -299,6 +306,32 @@ $ npx @aomi-labs/client tx list
 Signed (1):
   ✅ tx-1  hash: 0xabc123...  to: 0x3fC9...7FAD  value: 1000000000000000000
 ```
+
+`aomi tx export <id>...` refreshes the backend's authoritative pending state
+and writes an EIP-5792 `wallet_sendCalls` version `2.0.0` parameter object to
+stdout. It requires no private key, preserves the selected call order, and
+fails if the calls do not share one sender and chain. Redirect stdout to keep
+the wallet handoff artifact separate from diagnostics:
+
+```bash
+aomi tx export evm:tx-1 evm:tx-2 > execution.json
+```
+
+The exported object contains canonical hexadecimal `chainId` and `value`
+quantities, `atomicRequired: false`, and `to`/`data`/`value` call tuples. The
+command does not sign, broadcast, append the local signer's execution-time Aomi
+service-fee call, notify the backend, or remove pending requests. Simulate the
+same ordered selection before handing it to an external wallet.
+
+MegaETH MOSS consumes the call array inside the standard parameter object:
+
+```bash
+jq '.calls' execution.json > moss-calls.json
+mega moss execute --calls moss-calls.json --network mainnet --json
+```
+
+MOSS still requires its own wallet login and an approved delegated key whose
+call and spend permissions cover every exported call.
 
 **EIP-712 signing** is also supported. When the backend requests a typed data
 signature (e.g. for CoW Protocol orders or permit approvals), it shows up as a

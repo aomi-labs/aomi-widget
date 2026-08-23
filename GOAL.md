@@ -8,6 +8,19 @@ configured `application_id`, and normalize the backend's explicit artifact
 availability status for partner UIs. The client is patch-bumped to
 `@aomi-labs/client@0.6.1`; publishing is intentionally outside this PR.
 
+## EIP-5792 transaction export
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** — add a
+wallet-neutral, read-only `aomi tx export <id>...` command to
+`@aomi-labs/client@0.6.1`. The command refreshes authoritative staged EVM calls,
+validates one sender and chain, and emits only an EIP-5792 `wallet_sendCalls`
+version `2.0.0` parameter object without signing, broadcasting, fee injection,
+or backend completion. The full 1,563-test repository suite, repository lint,
+root typecheck, client build, CLI help, and npm package dry run pass. MegaETH
+MOSS CLI v0.1.6 accepts the exported `.calls` shape through normalization and
+reaches wallet-profile loading; a live relay submission requires user wallet
+login and delegated-key approval.
+
 ## Chain logo refresh
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-21** — add

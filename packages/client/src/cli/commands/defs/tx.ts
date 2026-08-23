@@ -30,6 +30,26 @@ const txSimulateDef = defineCommand({
   },
 });
 
+const txExportDef = defineCommand({
+  meta: {
+    name: "export",
+    description:
+      "Export pending EVM calls as an EIP-5792 wallet_sendCalls payload",
+  },
+  args: {
+    ...globalArgs,
+    txIds: {
+      type: "positional",
+      description: "Pending EVM transaction IDs to export",
+      required: false,
+    },
+  },
+  async run({ args }) {
+    const { exportCommand } = await import("../export");
+    await exportCommand(buildCliConfig(args), getPositionals(args));
+  },
+});
+
 const txSignDef = defineCommand({
   meta: { name: "sign", description: "Sign and submit pending transactions" },
   args: {
@@ -71,6 +91,7 @@ export const txDef = defineCommand({
   subCommands: {
     list: txListDef,
     simulate: txSimulateDef,
+    export: txExportDef,
     sign: txSignDef,
   },
 });

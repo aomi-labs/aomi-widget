@@ -126,6 +126,31 @@ describe("pendingTxsFromBackendUserState", () => {
     });
   });
 
+  it("retains the authoritative staged sender", () => {
+    const result = pendingTxsFromBackendUserState({
+      pending: {
+        evm_txs: {
+          4: {
+            from: "0x1234567890abcdef1234567890abcdef12345678",
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "0",
+            data: "0x",
+            kind: "contract_call",
+            chain_id: 4326,
+          },
+        },
+      },
+    });
+
+    expect(result[0]).toMatchObject({
+      from: "0x1234567890AbcdEF1234567890aBcdef12345678",
+      chainId: 4326,
+    });
+    expect(result[0].payload).toMatchObject({
+      from: "0x1234567890AbcdEF1234567890aBcdef12345678",
+    });
+  });
+
   it("preserves data when kind is absent", () => {
     const result = pendingTxsFromBackendUserState({
       pending_txs: {
