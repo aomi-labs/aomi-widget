@@ -1,5 +1,17 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Codex worktree local environment parity
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** — copy
+ignored `.env*` files from the local checkout into Codex-managed worktrees via
+the repository-native `.worktreeinclude`, and keep TypeScript setup portable by
+removing the machine-specific source checkout path. Dependency setup continues
+to use pnpm's shared content-addressed store rather than copying branch-specific
+`node_modules`, `.next`, or other generated build outputs. A fresh detached
+worktree completed install and library build, then Portal rendered `/` and
+`/settings` against a fresh backend worktree with local BFF model, app, and
+thread requests returning 200.
+
 ## Canonical Agent working trace
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-21** — restore
