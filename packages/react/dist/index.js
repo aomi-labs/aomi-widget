@@ -324,56 +324,22 @@ function useAuthEndpointsImpl({
   apiKeyRef,
   getControlSessionId: getControlSessionId2,
   apiKey,
-  appPlatforms
+  appPlatforms,
+  applicationId
 }) {
+  var _a;
   const appPlatformsKey = Array.isArray(appPlatforms) ? appPlatforms.join("\0") : appPlatforms != null ? appPlatforms : "";
+  const appId = (_a = applicationId == null ? void 0 : applicationId.toString()) != null ? _a : "";
   const [availableModels, setAvailableModels] = useState3([]);
   const [defaultModel, setDefaultModel] = useState3(null);
   const [authorizedApps, setAuthorizedApps] = useState3([]);
   const [appDescriptors, setAppDescriptors] = useState3([]);
   const [defaultApp, setDefaultApp] = useState3(null);
-  useEffect3(() => {
-    const fetchApps = async () => {
-      var _a;
-      try {
-        const descriptors = await aomiClientRef.current.getApps(
-          getControlSessionId2(),
-          {
-            apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
-            platforms: appPlatforms
-          }
-        );
-        const names = namesFromDescriptors(descriptors);
-        setAuthorizedApps(names);
-        setAppDescriptors(descriptors);
-        setDefaultApp(getDefaultApp(names));
-      } catch (error) {
-        console.error("Failed to fetch apps:", error);
-        setAuthorizedApps(["default"]);
-        setAppDescriptors([{ name: "default" }]);
-        setDefaultApp("default");
-      }
-    };
-    void fetchApps();
-  }, [aomiClientRef, getControlSessionId2, apiKey, appPlatformsKey]);
-  useEffect3(() => {
-    const fetchModels = async () => {
-      try {
-        const models = await aomiClientRef.current.getModels(
-          getControlSessionId2()
-        );
-        setAvailableModels(models);
-        setDefaultModel(resolveAutoModel(models));
-      } catch (error) {
-        console.error("Failed to fetch models:", error);
-      }
-    };
-    void fetchModels();
-  }, [aomiClientRef, getControlSessionId2]);
   const getAvailableModels = useCallback3(async () => {
     try {
       const models = await aomiClientRef.current.getModels(
-        getControlSessionId2()
+        getControlSessionId2(),
+        { applicationId: appId }
       );
       setAvailableModels(models);
       setDefaultModel(resolveAutoModel(models));
@@ -382,15 +348,16 @@ function useAuthEndpointsImpl({
       console.error("Failed to fetch models:", error);
       return [];
     }
-  }, [aomiClientRef, getControlSessionId2]);
+  }, [aomiClientRef, getControlSessionId2, appId]);
   const getAuthorizedApps = useCallback3(async () => {
-    var _a;
+    var _a2;
     try {
       const descriptors = await aomiClientRef.current.getApps(
         getControlSessionId2(),
         {
-          apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
-          platforms: appPlatforms
+          apiKey: (_a2 = apiKeyRef.current) != null ? _a2 : void 0,
+          platforms: appPlatforms,
+          applicationId: appId
         }
       );
       const names = namesFromDescriptors(descriptors);
@@ -405,7 +372,13 @@ function useAuthEndpointsImpl({
       setDefaultApp("default");
       return ["default"];
     }
-  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appPlatformsKey]);
+  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appPlatformsKey, appId]);
+  useEffect3(() => {
+    void getAvailableModels();
+  }, [getAvailableModels]);
+  useEffect3(() => {
+    void getAuthorizedApps();
+  }, [getAuthorizedApps, apiKey]);
   return {
     state: {
       availableModels,
@@ -1154,7 +1127,8 @@ function ControlContextProvider({
   sessionId,
   getThreadMetadata,
   updateThreadMetadata,
-  appPlatforms
+  appPlatforms,
+  applicationId
 }) {
   const aomiClientRef = useRef(aomiClient);
   aomiClientRef.current = aomiClient;
@@ -1197,7 +1171,8 @@ function ControlContextProvider({
     apiKeyRef,
     getControlSessionId: getCurrentControlSessionId,
     apiKey: apiKey.state.apiKey,
-    appPlatforms
+    appPlatforms,
+    applicationId
   });
   const availableModelsRef = useRef(authEndpoints.state.availableModels);
   availableModelsRef.current = authEndpoints.state.availableModels;
@@ -4102,6 +4077,7 @@ function AomiRuntimeInner({
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       appPlatforms,
+      applicationId,
       children: /* @__PURE__ */ jsx8(
         EventContextProvider,
         {

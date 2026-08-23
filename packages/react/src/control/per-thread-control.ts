@@ -16,7 +16,11 @@
 
 import { useCallback, useEffect } from "react";
 import type { MutableRefObject } from "react";
-import type { AomiAppDescriptor, AomiClient } from "@aomi-labs/client";
+import type {
+  AomiAppDescriptor,
+  AomiClient,
+  ApplicationId,
+} from "@aomi-labs/client";
 import {
   initThreadControl,
   type ThreadControlState,
@@ -31,8 +35,6 @@ type StoredModelPreference = {
   mode: ModelSelectionMode;
   model: string | null;
 };
-
-type ApplicationId = number | string | null;
 
 type AppSelectionOptions = {
   applicationId?: ApplicationId;

@@ -30,6 +30,7 @@ import type {
   Logger,
   AomiHttpMethod,
   AomiPlatformFilter,
+  ApplicationId,
 } from "./types";
 import { UserState, type OwnedUserState } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
@@ -61,6 +62,13 @@ function joinApiPath(baseUrl: string, path: string): string {
 }
 
 type ApiQueryValue = string | readonly string[] | undefined;
+
+// Every session-scoped request of a hosted-app thread carries application_id
+// (discovery and polls included): the edge routes on it to a backend that
+// holds the app's artifact.
+function applicationIdParam(id: ApplicationId | undefined): string | undefined {
+  return id?.toString().trim() || undefined;
+}
 
 function buildApiUrl(
   baseUrl: string,
@@ -450,13 +458,12 @@ export class AomiClient {
     sessionId: string,
     userState?: OwnedUserState,
     clientId?: string,
-    options?: { app?: string; applicationId?: number | string | null },
+    options?: { app?: string; applicationId?: ApplicationId },
   ): Promise<AomiStateResponse> {
     const normalizedUserState = UserState.normalize(userState);
-    const applicationId = options?.applicationId?.toString().trim();
     const stateContext = {
       app: options?.app,
-      application_id: applicationId || undefined,
+      application_id: applicationIdParam(options?.applicationId),
     };
     const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", {
       ...stateContext,
@@ -476,7 +483,7 @@ export class AomiClient {
     this.logger?.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
       app: options?.app,
-      applicationId,
+      applicationId: options?.applicationId,
       clientId,
       hasUserState: Boolean(normalizedUserState),
     });
@@ -529,7 +536,7 @@ export class AomiClient {
     message: string,
     options?: {
       app?: string;
-      applicationId?: number | string | null;
+      applicationId?: ApplicationId;
       apiKey?: string;
       userState?: OwnedUserState;
       clientId?: string;
@@ -541,10 +548,9 @@ export class AomiClient {
     const app = options?.app ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
     const normalizedUserState = UserState.normalize(options?.userState);
-    const applicationId = options?.applicationId?.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
       app,
-      application_id: applicationId || undefined,
+      application_id: applicationIdParam(options?.applicationId),
       message,
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
@@ -556,7 +562,7 @@ export class AomiClient {
     this.logger?.debug("[aomi][client] POST /api/thread/chat prepared", {
       sessionId,
       app,
-      applicationId,
+      applicationId: options?.applicationId,
       clientId: options?.clientId,
       paymentMethod: options?.paymentMethod,
       hasUserState: Boolean(normalizedUserState),
@@ -602,7 +608,7 @@ export class AomiClient {
   async sendSystemMessage(
     sessionId: string,
     message: string,
-    options?: { app?: string; applicationId?: number | string | null },
+    options?: { app?: string; applicationId?: ApplicationId },
   ): Promise<AomiSystemResponse> {
     const payload: Record<string, unknown> = { message };
     if (options?.app) {
@@ -633,7 +639,7 @@ export class AomiClient {
    */
   async interrupt(
     sessionId: string,
-    options?: { app?: string; applicationId?: number | string | null },
+    options?: { app?: string; applicationId?: ApplicationId },
   ): Promise<AomiInterruptResponse> {
     this.logger?.debug("[aomi][client] POST /api/thread/interrupt prepared", {
       sessionId,
@@ -781,7 +787,7 @@ export class AomiClient {
     sessionId: string,
     onUpdate: (event: AomiSSEEvent) => void,
     onError?: (error: unknown) => void,
-    options?: { applicationId?: number | string | null },
+    options?: { applicationId?: ApplicationId },
   ): () => void {
     // A provider whose subscribe() appeared after construction (late-bound
     // host bridges) gets wired here, before the stream it must protect.
@@ -979,9 +985,11 @@ export class AomiClient {
   async getSystemEvents(
     sessionId: string,
     count?: number,
+    options?: { applicationId?: ApplicationId },
   ): Promise<AomiSystemEvent[]> {
     const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
       count: count !== undefined ? String(count) : undefined,
+      application_id: applicationIdParam(options?.applicationId),
     });
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
@@ -1006,11 +1014,16 @@ export class AomiClient {
    */
   async getApps(
     sessionId: string,
-    options?: { apiKey?: string; platforms?: AomiPlatformFilter },
+    options?: {
+      apiKey?: string;
+      platforms?: AomiPlatformFilter;
+      applicationId?: ApplicationId;
+    },
   ): Promise<AomiAppDescriptor[]> {
     const platforms = normalizePlatformFilter(options?.platforms);
     const url = buildApiUrl(this.baseUrl, "/api/thread/apps", {
       platform: platforms.length > 0 ? platforms : undefined,
+      application_id: applicationIdParam(options?.applicationId),
     });
 
     const apiKey = options?.apiKey ?? this.apiKey;
@@ -1141,9 +1154,11 @@ export class AomiClient {
    */
   async getModels(
     sessionId: string,
-    options?: { apiKey?: string },
+    options?: { apiKey?: string; applicationId?: ApplicationId },
   ): Promise<string[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/thread/models");
+    const url = buildApiUrl(this.baseUrl, "/api/thread/models", {
+      application_id: applicationIdParam(options?.applicationId),
+    });
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1169,7 +1184,7 @@ export class AomiClient {
     rig: string,
     options?: {
       app?: string;
-      applicationId?: number | string | null;
+      applicationId?: ApplicationId;
       apiKey?: string;
       clientId?: string;
     },
@@ -1180,11 +1195,10 @@ export class AomiClient {
     created: boolean;
   }> {
     const apiKey = options?.apiKey ?? this.apiKey;
-    const applicationId = options?.applicationId?.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/thread/model", {
       rig,
       app: options?.app,
-      application_id: applicationId || undefined,
+      application_id: applicationIdParam(options?.applicationId),
       client_id: options?.clientId,
     });
 

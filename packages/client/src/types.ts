@@ -74,6 +74,9 @@ export type AomiRequestQueryValue =
 
 export type AomiPlatformFilter = string | readonly string[] | null | undefined;
 
+/** Stable id of a hosted app; null/empty means "not app-scoped". */
+export type ApplicationId = number | string | null;
+
 export type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface AomiRequestOptions {
