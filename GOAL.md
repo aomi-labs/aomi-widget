@@ -281,15 +281,20 @@ through the canonical Session contract.
 
 ## MCP Chat Parity
 
-Current session goal: **IMPLEMENTED AND LIVE-CHAIN VERIFIED 2026-08-13** — make
-the OAuth MCP surface supervise the same asynchronous Aomi
-agent turns as the TS CLI. `/api/mcp` now has four chat/session tools with rich
-cursor deltas, task/tool narration, wallet-request handoff, and account-wallet
-hydration; the prior direct tool funnel remains at `/api/mcp/direct` behind the
-same OAuth resource metadata. SIWE → dynamic registration → PKCE/consent →
-refresh-token OAuth, real agent replies, resume/list/interrupt, a locally
-staged manual-wallet transaction, and the browser handoff into its exact
-conversation are all covered by the local smoke.
+Current session goal: **UNIFIED AUTH IMPLEMENTED AND LOCALLY VERIFIED
+2026-08-24** — the Agent and Pipeline MCP surfaces now use one Better Auth 1.7
+issuer at the canonical unversioned `/agent/mcp` and `/pipeline/mcp` resources.
+The former `/api/mcp` and `/api/mcp/direct` paths are absent. The same issuer,
+WalletKit-capable login/consent UI, exact resource policy, anonymous identity,
+refresh/revocation, and device authorization also serve developer and guest
+REST under `/v1/agent/*` and `/v1/pipeline/*`. Public tokens stop at the portal;
+only downscoped internal Aomi bearers cross the Rust trust boundary.
+
+The earlier live-chain parity evidence remains relevant to the frozen MCP tool
+schemas and Gate F business behavior. The 2026-08-24 cutover adds focused local
+auth, scope, DPoP, CSRF, guest-linking, SDK, migration, and backend enforcement
+coverage; shared-environment deployment and real-client canary checks remain
+explicitly outside this implementation session.
 The funded-wallet follow-up attached the local OAuth server to a fresh Codex
 process, made progress cursors self-contained after that client exposed a
 missing-session retry loop, imported the account-owned MCP thread into the CLI,

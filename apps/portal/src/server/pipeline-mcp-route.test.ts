@@ -29,7 +29,7 @@ describe("Pipeline MCP cutover", () => {
   });
 
   it("uses the Rust presenter by default without changing the public URL", async () => {
-    const request = new Request("https://portal.example/api/mcp/direct?x=1", {
+    const request = new Request("https://portal.example/pipeline/mcp?x=1", {
       method: "POST",
       body: "{}",
     });
@@ -37,18 +37,21 @@ describe("Pipeline MCP cutover", () => {
       "rust",
     );
 
-    const [proxied, user] = mocks.proxyAgentApi.mock.calls[0] as [
+    const [proxied, principal] = mocks.proxyAgentApi.mock.calls[0] as [
       Request,
-      string,
+      { canonicalUserId: string; scopes: string[] },
     ];
     expect(proxied.url).toBe("https://portal.example/v1/pipeline/mcp?x=1");
-    expect(user).toBe("user-1");
+    expect(principal).toMatchObject({
+      canonicalUserId: "user-1",
+      scopes: ["mcp:pipeline", "pipeline:catalog", "pipeline:execute"],
+    });
     expect(mocks.handleMcpPost).not.toHaveBeenCalled();
   });
 
   it("restores the retained TypeScript inventory on rollback", async () => {
     vi.stubEnv("AOMI_PIPELINE_ROLLBACK_MODE", "legacy");
-    const request = new Request("https://portal.example/api/mcp/direct", {
+    const request = new Request("https://portal.example/pipeline/mcp", {
       method: "POST",
       headers: {
         "idempotency-key": "mcp-1",
@@ -90,7 +93,7 @@ describe("Pipeline MCP cutover", () => {
 
   it("derives the Rust-compatible operation key when the caller omits one", async () => {
     vi.stubEnv("AOMI_PIPELINE_ROLLBACK_MODE", "legacy");
-    const request = new Request("https://portal.example/api/mcp/direct", {
+    const request = new Request("https://portal.example/pipeline/mcp", {
       method: "POST",
       body: "{}",
     });

@@ -13,6 +13,7 @@ type BetterAuthSessionResult = {
     emailVerified?: boolean;
     name?: string | null;
     image?: string | null;
+    isAnonymous?: boolean | null;
   };
   session?: {
     token?: string;

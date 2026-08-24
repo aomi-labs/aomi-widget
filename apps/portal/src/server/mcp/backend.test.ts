@@ -55,7 +55,7 @@ describe("MCP backend observability", () => {
     });
     expect(mocks.logPortalUpstreamFailure).toHaveBeenCalledTimes(1);
     expect(mocks.logPortalUpstreamFailure).toHaveBeenCalledWith({
-      routeFamily: "/api/mcp",
+      routeFamily: "/pipeline/mcp",
       operation: "mcp_resource_get",
       method: "GET",
       status: 200,

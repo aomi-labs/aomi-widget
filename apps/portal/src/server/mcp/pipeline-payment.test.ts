@@ -25,7 +25,7 @@ const body = JSON.stringify({
 });
 
 function request(paymentSignature?: string): Request {
-  return new Request("https://portal.example/api/mcp/direct", {
+  return new Request("https://portal.example/pipeline/mcp", {
     method: "POST",
     headers: {
       "content-type": "application/json",

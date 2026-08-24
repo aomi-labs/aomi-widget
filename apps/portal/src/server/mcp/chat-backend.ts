@@ -141,7 +141,7 @@ async function backendJson(
       status: response.status,
       response: { status: 200, error: "upstream_unavailable" },
       context: {
-        routeFamily: "/api/mcp",
+        routeFamily: "/agent/mcp",
         operation,
         method: typeof init.method === "string" ? init.method : "GET",
       },

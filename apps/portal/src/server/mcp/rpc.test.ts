@@ -10,7 +10,7 @@ const tool = {
 };
 
 function request(body: unknown): Request {
-  return new Request("https://portal.example/api/mcp", {
+  return new Request("https://portal.example/pipeline/mcp", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: typeof body === "string" ? body : JSON.stringify(body),

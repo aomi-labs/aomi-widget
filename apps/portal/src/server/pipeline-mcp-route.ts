@@ -4,6 +4,7 @@ import { proxyAgentApi } from "@portal/server/agent-api-proxy";
 import { handleMcpPost } from "@portal/server/mcp/rpc";
 import { mcpOperationKey } from "@portal/server/mcp/thread";
 import { MCP_TOOLS, dispatchTool } from "@portal/server/mcp/tools";
+import type { ApiPrincipal } from "@portal/server/oauth/principal";
 
 const DIRECT_INSTRUCTIONS = [
   "Aomi direct tools execute builtin public Web3 applications through a broad-to-narrow tool funnel.",
@@ -17,8 +18,10 @@ const DIRECT_INSTRUCTIONS = [
 /** Authenticated Pipeline MCP cutover with an explicit legacy rollback path. */
 export function handlePipelineMcp(
   request: Request,
-  canonicalUserId: string,
+  principal: ApiPrincipal | string,
 ): Promise<Response> {
+  const canonicalUserId =
+    typeof principal === "string" ? principal : principal.canonicalUserId;
   if (process.env.AOMI_PIPELINE_ROLLBACK_MODE === "legacy") {
     const idempotencyKey = request.headers.get("idempotency-key") ?? undefined;
     const paymentSignature =
@@ -37,5 +40,16 @@ export function handlePipelineMcp(
   }
   const url = new URL(request.url);
   url.pathname = "/v1/pipeline/mcp";
-  return proxyAgentApi(new Request(url, request), canonicalUserId);
+  return proxyAgentApi(
+    new Request(url, request),
+    typeof principal === "string"
+      ? {
+          canonicalUserId,
+          principalClass: "user",
+          authSource: "session",
+          resource: `${url.origin}/pipeline/mcp` as ApiPrincipal["resource"],
+          scopes: ["mcp:pipeline", "pipeline:catalog", "pipeline:execute"],
+        }
+      : principal,
+  );
 }
