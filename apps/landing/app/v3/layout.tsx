@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, PT_Serif } from "next/font/google";
 import { V3Footer } from "./components/footer";
 import { V3Nav } from "./components/nav";
 import styles from "./v3.module.css";
@@ -16,9 +16,16 @@ const geistMono = Geist_Mono({
   variable: "--font-v3-mono",
 });
 
+const ptSerif = PT_Serif({
+  subsets: ["latin"],
+  weight: ["400", "700"],
+  display: "swap",
+  variable: "--font-v3-display",
+});
+
 export default function V3Layout({ children }: { children: ReactNode }) {
   return (
-    <div className={`${styles.root} ${geist.variable} ${geistMono.variable}`}>
+    <div className={`${styles.root} ${geist.variable} ${geistMono.variable} ${ptSerif.variable}`}>
       <V3Nav />
       {children}
       <V3Footer />

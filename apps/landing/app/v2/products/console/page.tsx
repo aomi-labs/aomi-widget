@@ -26,7 +26,7 @@ import styles from "./plugin-sdk.module.css";
 export const metadata: Metadata = {
   title: "Plugin SDK | Aomi",
   description:
-    "Turn an API into an agent-ready Aomi App with the Rust Plugin SDK and Aomi Build toolchain.",
+    "Turn an API into a hosted, agent-ready plugin with the Rust Plugin SDK and Aomi Build toolchain.",
   robots: { index: false, follow: false },
 };
 
@@ -62,7 +62,7 @@ const architecture = [
   { icon: Braces, label: "Rust client", detail: "Typed requests" },
   { icon: Boxes, label: "3–8 tools", detail: "Curated intents" },
   { icon: FileCode2, label: "Preamble", detail: "Role + workflow" },
-  { icon: CloudCog, label: "Aomi App", detail: "Hosted runtime" },
+  { icon: CloudCog, label: "Hosted plugin", detail: "Aomi runtime" },
 ] as const;
 
 const safetyRules = [
@@ -90,13 +90,18 @@ const surfaces = [
     "Widget",
     "A complete execution surface inside your product.",
   ],
-  [Workflow, "REST APIs", "Render the same hosted App in your own interface."],
+  [
+    MessageSquareText,
+    "Telegram",
+    "Register a bot token and your plugin answers in chat.",
+  ],
+  [Workflow, "REST APIs", "Render the same plugin in your own interface."],
   [
     TerminalSquare,
     "Agentic Toolings",
-    "Use the App from Skills, hosted MCP, or CLI.",
+    "Use the plugin from Skills, hosted MCP, or CLI.",
   ],
-  [Component, "Aomi Portal", "Make the App selectable in Aomi's hosted chat."],
+  [Component, "Aomi Portal", "Make the plugin selectable in Aomi's hosted chat."],
 ] as const;
 
 export default function PluginSdkProductPage() {
@@ -112,9 +117,11 @@ export default function PluginSdkProductPage() {
               <em>agent-ready.</em>
             </h1>
             <p className={styles.heroSupport}>
-              Define behavior and typed tools in Rust. Aomi turns the plugin
-              into a hosted App with sessions, orchestration, deployment, and
-              wallet-aware execution already in place.
+              Think ChatGPT plugins, hosted by us. Start from your OpenAPI
+              description, define behavior and typed tools in Rust, and Aomi
+              runs the plugin as an agentic service—sessions, orchestration,
+              deployment, and wallet-aware execution included—reachable from
+              your Widget, Telegram, or our APIs.
             </p>
             <div className={styles.heroActions}>
               <a
@@ -123,7 +130,7 @@ export default function PluginSdkProductPage() {
                 rel="noreferrer"
                 className={styles.primaryButton}
               >
-                Build your first App
+                Build your first plugin
                 <ArrowUpRight aria-hidden />
               </a>
               <Link href="#architecture" className={styles.secondaryButton}>
@@ -146,7 +153,7 @@ export default function PluginSdkProductPage() {
       <section className={styles.layersSection}>
         <header className={styles.sectionIntro}>
           <p className={styles.eyebrow}>THE PLUGIN IS THE PRODUCT SPEC</p>
-          <h2>One App. Three deliberate layers.</h2>
+          <h2>One plugin. Three deliberate layers.</h2>
           <p>
             Keep reasoning, capabilities, and delivery separate enough to
             review—but close enough to ship as one runtime unit.
@@ -280,11 +287,12 @@ export default function PluginSdkProductPage() {
       <section className={styles.surfacesSection}>
         <div className={styles.surfaceCopy}>
           <p className={styles.eyebrow}>BUILD ONCE, DISTRIBUTE BY CONTEXT</p>
-          <h2>The App travels. The interface can change.</h2>
+          <h2>The plugin travels. The interface can change.</h2>
           <p>
-            The same hosted capability can meet a user in Aomi Portal, your
-            embedded Widget, a custom API experience, or the agentic tools your
-            team already uses.
+            Build it once. The same hosted plugin meets a user in your embedded
+            Widget, a Telegram bot you register in minutes, a custom API
+            experience, Aomi Portal, or the agentic tools your team already
+            uses.
           </p>
         </div>
         <div className={styles.surfaceList}>
@@ -305,7 +313,7 @@ export default function PluginSdkProductPage() {
         <div className={styles.ctaStamp} aria-hidden>
           <Gauge />
         </div>
-        <p className={styles.eyebrow}>SHIP AN AOMI APP</p>
+        <p className={styles.eyebrow}>SHIP A HOSTED PLUGIN</p>
         <h2>
           Bring the API.
           <br />

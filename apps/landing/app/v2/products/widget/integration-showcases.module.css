@@ -1,5 +1,6 @@
 .section {
-  padding: clamp(100px, 11vw, 168px) 0 clamp(88px, 10vw, 144px);
+  padding: clamp(100px, 11vw, 168px) 0
+    var(--v2-section-pad-bottom, clamp(88px, 10vw, 144px));
 }
 
 .shell {
@@ -29,15 +30,15 @@
 .caseCopy h3,
 .invariantStrip h3 {
   font-family: var(--v2-font-display), Georgia, serif;
-  font-weight: 450;
-  letter-spacing: -0.045em;
-  line-height: 0.98;
+  font-weight: var(--v2-display-weight, 450);
+  letter-spacing: var(--v2-display-tracking, -0.045em);
+  line-height: var(--v2-display-leading, 0.98);
 }
 
 .intro h2 {
-  max-width: 11ch;
+  max-width: var(--v2-display-measure, 11ch);
   margin-top: 22px;
-  font-size: clamp(48px, 6vw, 80px);
+  font-size: var(--v2-display-h2, clamp(48px, 6vw, 80px));
 }
 
 .introBody {
@@ -47,25 +48,69 @@
   color: var(--v2-fg);
 }
 
+.section {
+  overflow-x: clip;
+}
+
 .caseStudy {
   display: grid;
-  gap: clamp(36px, 5vw, 72px);
-  align-items: center;
-  padding: clamp(88px, 10vw, 150px) 0;
+  grid-template-rows: var(--v2-case-rows, none);
+  gap: var(--v2-case-row-gap, clamp(36px, 5vw, 72px)) clamp(36px, 5vw, 72px);
+  align-items: var(--v2-case-align, center);
+  padding: var(--v2-case-pad, clamp(88px, 10vw, 150px)) 0;
   border-top: 1px solid var(--v2-border);
 }
 
 .sommCase,
 .predictionCase {
-  grid-template-columns: minmax(270px, 0.55fr) minmax(0, 1.45fr);
+  grid-template-columns: var(
+    --v2-case-cols,
+    minmax(270px, 0.55fr) minmax(0, 1.45fr)
+  );
 }
 
 .tradingCase {
-  grid-template-columns: minmax(0, 1.45fr) minmax(270px, 0.55fr);
+  grid-template-columns: var(
+    --v2-case-cols,
+    minmax(0, 1.45fr) minmax(270px, 0.55fr)
+  );
+}
+
+.tradingCase .caseCopy {
+  padding-left: var(--v2-case-copy-indent, 72px);
 }
 
 .caseCopy {
+  display: var(--v2-case-copy-display, flex);
   min-width: 0;
+  flex-direction: column;
+  grid-column: var(--v2-case-copy-col, auto);
+  grid-row: var(--v2-case-copy-row, auto);
+}
+
+.caseStudy > :not(.caseCopy) {
+  order: var(--v2-case-demo-order, 0);
+  grid-column: var(--v2-case-demo-col, auto);
+  grid-row: var(--v2-case-demo-row, auto);
+  min-width: 0;
+}
+
+.caseCopy > .caseMeta,
+.caseCopy > .eyebrow,
+.caseCopy > h3 {
+  grid-column: var(--v2-case-head-col, auto);
+}
+
+.caseBody {
+  order: var(--v2-case-text-order, 0);
+  grid-column: var(--v2-case-text-col, auto);
+  width: var(--v2-case-text-width, auto);
+  margin-inline: var(--v2-case-text-margin, 0);
+}
+
+.casePoints {
+  order: var(--v2-case-points-order, 0);
+  grid-column: var(--v2-case-points-col, auto);
 }
 
 .caseMeta {
@@ -113,23 +158,29 @@
 }
 
 .caseCopy h3 {
-  max-width: 8.5ch;
+  max-width: var(--v2-case-measure, var(--v2-display-measure, 8.5ch));
   margin-top: 15px;
-  font-size: clamp(42px, 4.7vw, 65px);
+  font-size: var(
+    --v2-case-title,
+    var(--v2-display-h3, clamp(42px, 4.7vw, 65px))
+  );
 }
 
 .caseBody {
-  margin-top: 26px;
+  margin-top: var(--v2-case-body-gap, 26px);
+  padding-top: var(--v2-case-body-pad, 0);
+  border-top: var(--v2-case-body-rule, 0);
   font-family: var(--v2-font-sans), sans-serif;
-  font-size: 15px;
-  line-height: 1.68;
-  color: var(--v2-fg);
+  font-size: var(--v2-case-body-size, 15px);
+  font-weight: var(--v2-case-body-weight, 400);
+  line-height: var(--v2-case-body-leading, 1.68);
+  color: var(--v2-case-body-color, var(--v2-fg));
 }
 
 .casePoints {
   display: grid;
   gap: 12px;
-  margin-top: 27px;
+  margin-top: var(--v2-case-points-gap, 27px);
 }
 
 .casePoints li {
@@ -137,7 +188,7 @@
   align-items: flex-start;
   gap: 10px;
   font-family: var(--v2-font-sans), sans-serif;
-  font-size: 13px;
+  font-size: var(--v2-case-point-size, 13px);
   line-height: 1.45;
   color: var(--v2-heading);
 }
@@ -153,6 +204,11 @@
 .predictionDemo {
   min-width: 0;
   margin: 0;
+}
+
+.sommDemo {
+  width: var(--v2-somm-width, auto);
+  margin-left: var(--v2-somm-offset, 0);
 }
 
 .sommDemo > figcaption,
@@ -186,14 +242,17 @@
   color: #e8574d;
 }
 
+.sommDemo {
+  padding-top: 96px;
+}
+
 .sommFrame {
   position: relative;
   min-height: 760px;
-  overflow: hidden;
   border: 1px solid #3c3548;
   border-radius: 22px;
   background: #1b1723;
-  box-shadow: 0 30px 80px rgba(30, 21, 42, 0.2);
+  box-shadow: var(--v2-somm-shadow, 0 30px 80px rgba(30, 21, 42, 0.2));
   color: #f8f7fb;
 }
 
@@ -267,12 +326,11 @@
 .sommFloat {
   position: absolute;
   z-index: 2;
-  top: 118px;
-  right: 24px;
-  width: min(72%, 610px);
-  height: 560px;
+  top: -96px;
+  right: calc(-1 * clamp(0px, (100vw - 1240px) / 2 - 12px, 120px));
+  width: var(--v2-somm-float-width, min(66%, 560px));
+  height: var(--v2-somm-float-height, 560px);
   min-height: 0;
-  filter: drop-shadow(0 26px 46px rgba(8, 5, 12, 0.34));
 }
 
 .fixtureMount {
@@ -283,6 +341,33 @@
   overflow: hidden;
   border-radius: 14px;
   container-type: inline-size;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.fixtureEntering {
+  height: 100%;
+}
+
+.fixtureLeaving {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.fixtureEntering {
+  animation: fixtureIn 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes fixtureIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .fixtureRoot {
@@ -511,7 +596,9 @@
 }
 
 .venuePanel {
+  display: flex;
   min-height: 674px;
+  flex-direction: column;
   padding: 19px 24px 21px;
   border-top: 1px solid #352e40;
   background: #1f1a27;
@@ -527,33 +614,193 @@
   color: #9d95aa;
 }
 
+.sommMarket {
+  width: min(46%, 430px);
+  margin-top: 24px;
+  overflow: hidden;
+  border: 1px solid #393242;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #241f2c, #201b27);
+}
+
+.sommMarket > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #352e40;
+  font-family: var(--v2-font-mono), monospace;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  color: #a69dad;
+}
+
+.sommMarket > header small {
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  color: #746c7d;
+}
+
+.sommBalances {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-bottom: 1px solid #352e40;
+}
+
+.sommBalances > div {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+}
+
+.sommBalances > div + div {
+  border-left: 1px solid #352e40;
+}
+
+.sommBalances span,
+.sommBalances small,
+.sommYieldChart span,
+.sommYieldChart small {
+  font-family: var(--v2-font-mono), monospace;
+  font-size: 8px;
+  color: #898194;
+}
+
+.sommBalances strong {
+  font-family: var(--v2-font-mono), monospace;
+  font-size: 18px;
+  font-weight: 500;
+  color: #f0edf3;
+}
+
+.sommBalances small {
+  font-size: 7px;
+}
+
+.sommYieldChart {
+  padding: 14px 14px 0;
+}
+
+.sommYieldChart > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.sommYieldChart > div > div {
+  display: grid;
+  gap: 4px;
+}
+
+.sommYieldChart > div > div span {
+  font-family: var(--v2-font-sans), sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e6e1ec;
+}
+
+.sommYieldChart > strong,
+.sommYieldChart > div > strong {
+  font-family: var(--v2-font-mono), monospace;
+  font-size: 20px;
+  font-weight: 500;
+  color: #38d89f;
+}
+
+.sommYieldChart svg {
+  display: block;
+  width: 100%;
+  height: 62px;
+  margin-top: 8px;
+  overflow: visible;
+}
+
+.sommYieldArea {
+  fill: url("#somm-yield-fill");
+}
+
+.sommYieldLine {
+  fill: none;
+  stroke: #38d89f;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.sommMarketMetrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid #352e40;
+}
+
+.sommMarketMetrics > div {
+  min-width: 0;
+  padding: 10px 9px;
+}
+
+.sommMarketMetrics > div + div {
+  border-left: 1px solid #352e40;
+}
+
+.sommMarketMetrics dt,
+.sommMarketMetrics dd {
+  overflow: hidden;
+  margin: 0;
+  font-family: var(--v2-font-mono), monospace;
+  font-size: 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sommMarketMetrics dt {
+  color: #756d80;
+}
+
+.sommMarketMetrics dd {
+  margin-top: 4px;
+  color: #d9d3df;
+}
+
 .venueGrid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-  width: calc(28% - 10px);
-  margin-top: 14px;
+  grid-auto-flow: column;
+  grid-auto-columns: 236px;
+  gap: 12px;
+  width: 100%;
+  margin-top: auto;
+  padding: 4px 2px 10px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.venueGrid::-webkit-scrollbar {
+  display: none;
 }
 
 .venueCard {
   min-width: 0;
   appearance: none;
-  padding: 14px;
+  padding: 16px 16px 14px;
   border: 1px solid #393242;
-  border-radius: 12px;
+  border-radius: 14px;
   background: #241f2c;
   text-align: left;
   color: inherit;
   cursor: pointer;
+  scroll-snap-align: start;
   transition:
-    border-color 160ms ease,
-    background 160ms ease,
-    transform 160ms ease;
+    border-color 220ms ease,
+    background 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease;
 }
 
 .venueCard:hover {
   border-color: #62576f;
-  transform: translateY(-2px);
 }
 
 .venueCard:focus-visible {
@@ -573,41 +820,100 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #a3b52d;
+  background: #c9a227;
 }
 
 .venueCard strong {
+  flex: 1 1 auto;
   overflow: hidden;
   font-family: var(--v2-font-sans), sans-serif;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #c3bdcb;
+  color: #e6e1ec;
 }
 
-.venueCard > span,
-.venueCard small {
+.venueCard em {
+  flex: 0 0 auto;
+  border: 1px solid #3d3548;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-family: var(--v2-font-mono), monospace;
+  font-size: 8px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9d95aa;
+}
+
+.venueCard > span {
   display: block;
   margin-top: 9px;
   font-family: var(--v2-font-mono), monospace;
-  font-size: 8px;
+  font-size: 9.5px;
   color: #898194;
 }
 
 .venueCard p {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
   margin-top: 12px;
   font-family: var(--v2-font-mono), monospace;
-  font-size: 23px;
-  color: #b9b2c2;
+  font-size: 24px;
+  color: #d5d0dc;
+  transition: color 220ms ease;
+}
+
+.venueCard p small {
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #898194;
+}
+
+.venueCard dl {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  margin: 10px 0 0;
+  padding-top: 4px;
+  border-top: 1px solid #352e40;
+  font-family: var(--v2-font-mono), monospace;
+  font-size: 9.5px;
+  color: #9d95aa;
+}
+
+.venueCard dt,
+.venueCard dd {
+  margin: 0;
+  padding: 7px 0;
+  border-bottom: 1px solid #2d2736;
+}
+
+.venueCard dd {
+  text-align: right;
+  color: #d5d0dc;
+}
+
+.venueCard dt:last-of-type,
+.venueCard dd:last-of-type {
+  border-bottom: 0;
+}
+
+.venueOpen i {
+  background: #38d89f;
+}
+
+.venueOpen em {
+  border-color: #2c6b52;
+  color: #38d89f;
 }
 
 .venueSelected {
   border-color: #328962;
   background: linear-gradient(145deg, #232b2b, #211e29);
-}
-
-.venueSelected i {
-  background: #38d89f;
+  box-shadow: 0 0 0 3px rgba(56, 216, 159, 0.1);
 }
 
 .venueSelected p {
@@ -615,7 +921,7 @@
 }
 
 .venueNote {
-  margin-top: 13px;
+  margin-top: 8px;
   font-family: var(--v2-font-mono), monospace;
   font-size: 8px;
   text-align: center;
@@ -625,7 +931,7 @@
 /* Trading — dense sidecar embed */
 
 .tradingDemo {
-  overflow: hidden;
+  margin-top: 110px;
   border: 1px solid #263038;
   border-radius: 20px;
   background: #0d1216;
@@ -833,8 +1139,288 @@
   right: 28px;
   width: min(52%, 430px);
   height: 560px;
-  filter: drop-shadow(0 28px 48px rgba(0, 0, 0, 0.42));
   transition: height 220ms ease;
+}
+
+/* Trading — Telegram phone surface (Telegram-light palette by design,
+   mirrors the World Markets × Aomi campaign device) */
+
+.tradeFloat:has(.tgDevice) {
+  width: min(46%, 372px);
+  height: auto;
+  top: -110px;
+  right: -120px;
+}
+
+.tgDevice {
+  position: relative;
+  height: 520px;
+  overflow: hidden;
+  border: 1px solid #11151a;
+  border-radius: 28px;
+  background: #cfded4;
+  color: #111820;
+  font-family: Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+.tgTopbar {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  height: 58px;
+  padding: 0 9px;
+  background: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.tgIconButton {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  font-size: 20px;
+  color: #77838d;
+}
+
+.tgAvatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #0b0b0c;
+  color: #35e6a4;
+}
+
+.tgTitle {
+  flex: 1;
+  min-width: 0;
+  margin-left: 9px;
+  line-height: 1.16;
+}
+
+.tgTitle b {
+  display: block;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.tgTitle span {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: #3390ec;
+}
+
+.tgWallpaper {
+  position: absolute;
+  inset: 58px 0 54px;
+  padding: 12px 12px 10px;
+  overflow: hidden;
+  background-color: #d6e3da;
+  background-image:
+    radial-gradient(
+      circle at 18px 18px,
+      rgba(67, 99, 80, 0.07) 0 2px,
+      transparent 2.5px
+    ),
+    radial-gradient(
+      circle at 48px 39px,
+      transparent 0 8px,
+      rgba(67, 99, 80, 0.055) 8.5px 9.5px,
+      transparent 10px
+    ),
+    linear-gradient(
+      45deg,
+      transparent 47%,
+      rgba(67, 99, 80, 0.045) 48% 52%,
+      transparent 53%
+    );
+  background-size:
+    66px 66px,
+    82px 82px,
+    98px 98px;
+}
+
+.tgDate {
+  width: max-content;
+  margin: 0 auto 9px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background: rgba(89, 112, 99, 0.58);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.08);
+}
+
+.tgMessage {
+  position: relative;
+  padding: 8px 10px 18px;
+  font-size: 12.5px;
+  line-height: 1.38;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.12);
+}
+
+.tgMessage::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  width: 10px;
+  height: 13px;
+  background: inherit;
+}
+
+.tgOut {
+  max-width: 84%;
+  margin-left: auto;
+  border-radius: 15px 15px 4px 15px;
+  background: #eaffdc;
+}
+
+.tgOut::after {
+  right: -5px;
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+
+.tgInRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 7px;
+  margin-top: 7px;
+}
+
+.tgInRow > .tgAvatar {
+  width: 28px;
+  height: 28px;
+}
+
+.tgBotStack {
+  flex: 1;
+  min-width: 0;
+}
+
+.tgIn {
+  border-radius: 15px 15px 15px 4px;
+  background: #fff;
+}
+
+.tgIn::after {
+  left: -5px;
+  clip-path: polygon(100% 0, 0 100%, 100% 100%);
+}
+
+.tgLead {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tgIn b {
+  font-weight: 700;
+}
+
+.tgTime {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  font-size: 9.5px;
+  line-height: 1;
+  color: #76828a;
+}
+
+.tgOut .tgTime {
+  color: #5f8870;
+}
+
+.tgTime i {
+  margin-left: 2px;
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: -2px;
+  color: #3390ec;
+}
+
+.tgKeyboard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  margin-top: 3px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #2481cc;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+.tgKeyboardMuted {
+  color: #278d57;
+}
+
+.tgKeyboardMuted em {
+  margin-left: 4px;
+  font-style: normal;
+  font-weight: 500;
+  color: #76828a;
+}
+
+.tgComposer {
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 54px;
+  padding: 7px 9px;
+  background: #f7f8f9;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.tgMenu {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: 19px;
+  background: #3390ec;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.tgInput {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #dce2e6;
+  border-radius: 19px;
+  background: #fff;
+  color: #9aa3aa;
+  font-size: 13px;
+}
+
+.tgMic {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #71808b;
+  font-size: 16px;
 }
 
 .sidecarHeader,
@@ -976,7 +1562,7 @@
 /* Prediction markets — inline consumer embed */
 
 .predictionDemo {
-  overflow: hidden;
+  margin-bottom: 96px;
   border: 1px solid #d9dff2;
   border-radius: 22px;
   background: #f7f8ff;
@@ -1061,7 +1647,7 @@
 }
 
 .marketContext h4 {
-  max-width: 16ch;
+  max-width: 11ch;
   margin-top: 15px;
   font-family: var(--v2-font-sans), sans-serif;
   font-size: clamp(20px, 2.2vw, 30px);
@@ -1183,15 +1769,14 @@
 
 .inlineComposer {
   position: absolute;
-  right: 28px;
-  bottom: 28px;
+  right: calc(-1 * clamp(0px, (100vw - 1240px) / 2 - 12px, 120px));
+  bottom: -96px;
   width: min(62%, 480px);
   height: 410px;
   overflow: hidden;
   border: 1px solid #cfd6ea;
   border-radius: 18px;
   background: white;
-  box-shadow: 0 24px 60px rgba(38, 56, 115, 0.18);
 }
 
 .inlineTopbar {
@@ -1329,48 +1914,127 @@
 
 .invariantStrip {
   display: grid;
-  grid-template-columns: minmax(250px, 0.68fr) minmax(0, 1.32fr);
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
   gap: clamp(40px, 7vw, 96px);
   align-items: center;
   padding: clamp(52px, 7vw, 84px);
-  border-radius: 24px;
-  background: #17131e;
+  border-radius: var(--v2-panel-radius, 24px);
+  background: var(--v2-panel, #17131e);
   color: white;
 }
 
 .invariantStrip .eyebrow {
-  color: #a78bfa;
+  color: var(--v2-panel-accent, #a78bfa);
 }
 
 .invariantStrip h3 {
-  max-width: 8ch;
+  max-width: none;
   margin-top: 16px;
-  font-size: clamp(40px, 4.8vw, 64px);
+  font-size: clamp(34px, 3.4vw, 46px);
+  line-height: 1.08;
 }
 
 .invariantPoints {
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
+  border-top: 1px solid var(--v2-panel-line, rgba(255, 255, 255, 0.14));
 }
 
 .invariantPoints > div {
   display: grid;
   grid-template-columns: 34px 1fr;
   gap: 16px;
-  padding: 18px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 22px 0;
+  border-bottom: 1px solid var(--v2-panel-line, rgba(255, 255, 255, 0.14));
 }
 
 .invariantPoints span {
+  padding-top: 5px;
   font-family: var(--v2-font-mono), monospace;
-  font-size: 9px;
-  color: #a78bfa;
+  font-size: var(--v2-mono-size, 9px);
+  color: var(--v2-panel-accent, #a78bfa);
+}
+
+.invariantPoints h4 {
+  font-family: var(--v2-font-sans), sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: inherit;
 }
 
 .invariantPoints p {
+  margin-top: 6px;
   font-family: var(--v2-font-sans), sans-serif;
-  font-size: 14px;
-  line-height: 1.45;
-  color: #ded9e6;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--v2-panel-copy, #ded9e6);
+}
+
+.invariantSection {
+  padding: clamp(56px, 6vw, 88px) 0 0;
+}
+
+.invariantSection.flatSection {
+  padding-top: 32px;
+}
+
+.flatSection .caseStudy,
+.flatSection .caseMeta,
+.flatSection .invariantPoints,
+.flatSection .invariantPoints > div {
+  border: 0;
+}
+
+.flatSection {
+  padding-top: 0;
+}
+
+.flatSection .invariantStrip {
+  padding-top: 0;
+  padding-inline: 0;
+  background: var(--v2-bg);
+  color: var(--v2-heading);
+}
+
+.flatSection .invariantStrip .eyebrow,
+.flatSection .invariantPoints span {
+  color: var(--widget-accent);
+}
+
+.flatSection .invariantPoints h4 {
+  color: var(--v2-heading);
+}
+
+.flatSection .invariantPoints p {
+  color: var(--v2-fg);
+}
+
+.flatSection .caseStudy {
+  column-gap: clamp(24px, 2vw, 36px);
+}
+
+.flatSection .sommDemo {
+  width: 100%;
+}
+
+.flatSection .sommCase,
+.flatSection .predictionCase {
+  grid-template-columns: minmax(300px, 0.45fr) minmax(0, 1.55fr);
+}
+
+.flatSection .sommCase {
+  padding-top: clamp(112px, 10vw, 156px);
+}
+
+.flatSection.sommelierSegment {
+  padding-bottom: 0;
+}
+
+.flatSection.sommelierSegment .sommCase {
+  padding-bottom: clamp(72px, 7vw, 96px);
+}
+
+.flatSection .tradingCase {
+  grid-template-columns: minmax(300px, 0.45fr) minmax(0, 1.55fr);
 }
 
 @keyframes spin {
@@ -1386,8 +2050,22 @@
     grid-template-columns: 1fr;
   }
 
+  .flatSection .sommCase,
+  .flatSection .tradingCase,
+  .flatSection .predictionCase {
+    --v2-case-copy-col: 1;
+    --v2-case-copy-row: auto;
+    --v2-case-demo-col: 1;
+    --v2-case-demo-row: auto;
+    --v2-case-head-col: 1;
+    --v2-case-points-col: 1;
+    --v2-case-text-col: 1;
+    grid-template-columns: 1fr;
+  }
+
   .tradingCase .caseCopy {
     order: -1;
+    padding-left: 0;
   }
 
   .caseCopy {
@@ -1410,7 +2088,7 @@
   }
 
   .intro h2 {
-    font-size: clamp(45px, 13vw, 66px);
+    font-size: var(--v2-display-h2, clamp(45px, 13vw, 66px));
   }
 
   .caseStudy {
@@ -1440,6 +2118,18 @@
     min-height: 850px;
   }
 
+  .sommDemo {
+    padding-top: 0;
+  }
+
+  .flatSection .sommCase {
+    padding-top: 88px;
+  }
+
+  .sommMarket {
+    display: none;
+  }
+
   .sommFloat {
     top: 112px;
     right: 16px;
@@ -1447,6 +2137,24 @@
     width: auto;
     height: 610px;
     padding: 0;
+  }
+
+  .tradingDemo {
+    margin-top: 0;
+  }
+
+  .tradeFloat:has(.tgDevice) {
+    top: 24px;
+    right: 16px;
+  }
+
+  .predictionDemo {
+    margin-bottom: 0;
+  }
+
+  .inlineComposer {
+    right: 16px;
+    bottom: 16px;
   }
 
   .venuePanel {
@@ -1466,11 +2174,7 @@
   }
 
   .venueGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .venueCard:nth-child(n + 3) {
-    display: none;
+    grid-auto-columns: 210px;
   }
 
   .tradeHeader,
@@ -1538,7 +2242,40 @@
 @media (prefers-reduced-motion: reduce) {
   .venueCard,
   .tickers button,
-  .outcomeButtons button {
+  .outcomeButtons button,
+  .fixtureMount {
     transition: none;
   }
+
+  .fixtureEntering {
+    animation: none;
+  }
+}
+
+/* Host windows are no longer overflow-clipped (floats hang outside), so
+   round the inner blocks whose backgrounds reach the frame corners. */
+
+.sommHeader {
+  border-radius: 21px 21px 0 0;
+}
+
+.venuePanel {
+  border-radius: 0 0 21px 21px;
+}
+
+.tradeHeader {
+  border-radius: 19px 19px 0 0;
+}
+
+.marketPanel {
+  border-radius: 0 0 19px 19px;
+  overflow: hidden;
+}
+
+.predictionHeader {
+  border-radius: 21px 21px 0 0;
+}
+
+.predictionBody {
+  border-radius: 0 0 21px 21px;
 }

@@ -2,6 +2,128 @@
 
 ## Last Updated
 
+2026-08-24 — /v3/pricing rebuilt as an audience-first pricing page (Cecilia:
+"the point of pricing page is for audience to understand how we charge, not a
+technical explainer"). New `pricing-switch.tsx` client component: a
+For people / For businesses pill switch (V3 segmented-control tokens) driving
+two three-card plan grids — people: Included $0 / Pay as you go $0.01 per
+credit / BYOK $0; businesses: Hosting $10 per app-month / Model usage +10% /
+Revenue share 10-30%. Below each: an "add-on band" (outcome fees explained in
+plain language for people; what-you-can-charge-for + never-charged list for
+businesses). Then one plain-language worked example ($1,000 swap → $1.41
+total) and a six-question FAQ; blue CTA band. The old technical page (two
+arms, rails, statement rates, µUSD, ledger table names) is gone.
+NOTE: the tool take (10%) and outcome take (30%) are schema-reserved with no
+writer per the fee-model doc — the page presents them as the published rate
+card; flag if that should be softened. tsc + eslint clean; both tabs
+screenshot-verified.
+
+2026-08-24 — Fintech solution page: Somm case study restyled to the V3
+editorial language (GOAL.md: "editorial ledgers, contiguous process bands
+... instead of disconnected card collections"). Three rounded white cards
+with nested rounded code boxes → one full-bleed contiguous band (2px ink
+top rule, hairline column dividers, no radius/fills, content aligned to the
+page inset); code samples are hairline-ruled mono ledgers, not boxes;
+titles share a baseline via a 118px code min-height. Outcome slab → a
+full-bleed flat navy band; the three chips became a hairline mono ledger.
+`.mandateWorkspace` drop shadow removed. eslint clean; screenshots verified.
+
+2026-08-24 — REST APIs page re-aimed at fintech integration (per Cecilia:
+API = fintech integration; agents belong on Agent Toolings). Hero: "Onchain
+execution, as a REST API." + integration-oriented subline; CTAs "View the
+API reference" / "Integration checklist" (→ #integration); note line adds
+REST + JSON · OAuth 2.1. Workbench requests now show Authorization +
+Idempotency-Key headers. Proof rail → Contract v1 additive-only /
+Idempotency / Networks / Keys zero. Two-ports "best for" reframed (neobanks;
+trading platforms, treasuries, existing order flow). Client section → "Plain
+HTTP, or the client" with new `ClientExample` curl/TypeScript toggle
+(`v2/products/api/client-example.tsx`). NEW "Integration checklist" ledger
+section (#integration) with 8 rows sourced from the Aomi Developer API v1
+reference artifact (auth, fail-closed, idempotency, concurrency, custody
+models, verification, recovery, errors). Closing bridge reworded. tsc +
+eslint clean; screenshots verified.
+
+2026-08-23 (later) — Agent Toolings: hero diagram removed; hero right column
+is now a "Quick start" card (three install one-liners + signer note).
+"Choose your surface" rebuilt as `SurfaceFlow` (`v2/products/cli-mcp/
+surface-flow.tsx`): three surface nodes (title/body/best-for/CTA) on a rail
+→ SVG bus that lights per hovered/focused node → "Aomi execution harness"
+node with three facts → Simulate → Sign. Node CTAs route to the Setup tab via
+`?surface=`. Redundant "Shared harness" list section removed (content lives
+in the harness node). Collapses to stacked below 1180px. tsc + eslint clean;
+screenshots verified.
+
+2026-08-23 (later) — Agent Toolings Interactive Setup rebuilt per Cecilia's
+sketch: left copy column removed; the code panel spans the whole card and is
+now LIGHT (white bg, brand-blue accents; all purple removed page-wide, V2
+`--surface-accent` now #5288c2); description + steps moved into a horizontal
+band under the card (`.setupSteps` / `.setupLead` / `.stepRow`: lead on the
+left, 01/02/03 steps across). Works for Skills / MCP / CLI; OAuth notice now
+flows in content. Transcript restyled for light bg (`.tl_*`). tsc + eslint
+clean; screenshots verified.
+
+2026-08-23 (later) — Agent Toolings: hero reverted to the original
+`HarnessDiagram` (Cecilia preferred it). The animated session transcript now
+lives INSIDE the Interactive Setup terminal: `SessionTranscript({surface})`
+in `v2/products/cli-mcp/agent-session.tsx` (per-surface Skills/MCP/CLI
+scripts from the concurrent session's `SESSIONS` data, now exported), rendered
+by `agentic-lab.tsx` under the setup command and driven by the lab's
+Skills/MCP/CLI selector; play/pause/replay, stage pills (Build / Simulate /
+Awaiting signature|Signed & broadcast), prefers-reduced-motion honoured.
+Styled to the existing terminal panel (`.transcript*`, `.tl_*`); the earlier
+hero-session CSS block was removed and `.v3Tokens .harnessDiagram` restored.
+tsc + eslint clean; screenshots verified.
+
+2026-08-23 (later) — Human Interface: "The invariant" block extracted from
+`IntegrationShowcases` into exported `IntegrationInvariant` (same module,
+honours the concurrent `flat` prop) and rendered directly under the proof
+rail in `v2/products/widget/page.tsx`. Points rewritten as three titled
+steps in a fintech-professional, no-second-person register: build the Aomi
+app → integrate any customer surface → retain existing wallet infrastructure;
+body text 16px with 18px titles. Phone mock: 1px border, no shadow. Host
+window inner blocks rounded to restore frame corners after un-clipping.
+NOTE: a concurrent session added shiki highlighting + `flat` mode to the
+same files; both sets of edits coexist, tsc + eslint clean.
+
+2026-08-23 (later) — Human Interface showcases: all three floating panels
+(Somm widget, Trading Telegram phone, Prediction inline composer) now hang
+OFF their host window per Cecilia's sketch — `overflow: hidden` removed from
+`.sommFrame/.tradingDemo/.predictionDemo`, floats offset −96/−110px top (or
+−96px bottom for prediction) and −120px right; right-column demos use
+`right: calc(-1 * clamp(0px, (100vw - 1240px)/2 - 12px, 120px))` so they never
+clip at the viewport; `.section { overflow-x: clip }`; figure margins reserve
+the overhang; trading copy gets `padding-left: 72px` so the phone never
+covers it; all drop/box shadows on the floats removed. Mobile (≤760px)
+resets everything back inside. Verified with Playwright at 1440 and 1680
+(scrollWidth == clientWidth).
+
+2026-08-23 (later) — Human Interface showcase 02 (Trading): replaced the
+floating `FixtureWidget` chat with a `TelegramChat` phone mock in
+`v2/products/widget/integration-showcases.tsx` (+ `.tgDevice*` CSS), styled
+after the World Markets × Aomi campaign device (Telegram-light: white top
+bar, green patterned wallpaper, #eaffdc outgoing bubble with ✓✓, white bot
+bubble with bold lead, white inline-keyboard rows in Telegram blue, ☰ Menu
+composer, 7px dark device frame). Driven by the same `trading-eth`/`trading-btc`
+fixtures via `resolveWidgetFixture`, so the ETH/BTC ticker toggle still
+switches the conversation. CaseCopy rewritten to the Telegram story
+(own identity/wallet, policy before signing, `/permission` off by default).
+Verified by Playwright element screenshot; tsc + eslint clean.
+
+2026-08-23 — Product-page sales pass (V2 content components, reused by V3):
+`v2/products/widget/page.tsx` hero/proof rail mention Telegram + Portal, new
+`#telegram` section (4 steps mirroring build.aomi.dev/integrations, link to
+register a bot), Sommelier in-production line; `v2/products/api/page.tsx`
+in-production lines under both API cards, PREVIEW badge title, closing-CTA
+bridge to Human Interface / Plugin SDK (hrefs parametrized — V3 wrapper
+passes `/v3/products/widget` + `/v3/products/plugin-sdk`);
+`v2/products/console/*` "Aomi App" → "hosted plugin", hero analogy + OpenAPI
+start, Telegram added to surfaces list; `v2/products/cli-mcp/page.tsx` one
+bridge sentence to the APIs. CSS additions: `.proofLine`/`.finalBridge`
+(rest-api), `.telegramSection`/`.telegramLead`/`.heroProof` (widget).
+tsc + eslint clean; copy verified via curl on both V2 and V3 routes. Home
+and nav untouched by instruction. NOT done: World Markets example DeFi →
+Trading (Cecilia: "not yet"); DeFi hero retarget deferred with it.
+
 2026-08-23 — Enriched `/v2/products/console` and
 `/v2/solutions/trading` with components and fixture contracts grounded in the
 actual Aomi Build application. Plugin SDK now presents the real

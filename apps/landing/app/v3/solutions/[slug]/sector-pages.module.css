@@ -1,8 +1,8 @@
 .eyebrow {
   margin: 0;
   font-family: var(--v3-mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  letter-spacing: 0.16em;
   line-height: 1.4;
   text-transform: uppercase;
 }
@@ -39,10 +39,10 @@
   max-width: 670px;
   margin: 22px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(54px, 5.2vw, 78px);
-  font-weight: 600;
-  letter-spacing: -0.057em;
-  line-height: 0.96;
+  font-size: clamp(42px, 4.6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   text-wrap: balance;
 }
 
@@ -69,7 +69,7 @@
   border: 1px solid currentColor;
   border-radius: 999px;
   padding: 0 20px;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 560;
 }
 
@@ -89,7 +89,7 @@
   margin: 28px 0 0;
   color: color-mix(in srgb, currentColor 55%, transparent);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   line-height: 1.6;
   text-transform: uppercase;
@@ -99,7 +99,7 @@
   margin: 14px 0 0;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-align: right;
   text-transform: uppercase;
@@ -126,7 +126,7 @@
   display: block;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -135,8 +135,8 @@
   display: block;
   margin-top: 19px;
   font-family: var(--v3-serif);
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 19px;
+  font-weight: 700;
 }
 
 .splitHeading {
@@ -155,10 +155,10 @@
   max-width: 760px;
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(42px, 4.6vw, 64px);
-  font-weight: 600;
-  letter-spacing: -0.052em;
-  line-height: 0.98;
+  font-size: clamp(30px, 3vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   text-wrap: balance;
 }
 
@@ -168,7 +168,7 @@
 .reviewCopy > p {
   margin: 0;
   color: var(--v3-muted);
-  font-size: 13px;
+  font-size: 14.5px;
   line-height: 1.75;
 }
 
@@ -186,17 +186,17 @@
   max-width: 820px;
   margin: 22px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(48px, 5.5vw, 74px);
-  font-weight: 600;
-  letter-spacing: -0.055em;
-  line-height: 0.96;
+  font-size: clamp(42px, 4.6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .sectorCta > p:nth-of-type(2) {
   max-width: 620px;
   margin: 24px 0 0;
   color: var(--v3-muted);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.7;
 }
 
@@ -211,7 +211,7 @@
   padding: 0 22px;
   color: #fff;
   background: var(--v3-ink);
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 560;
 }
 
@@ -226,17 +226,16 @@
   grid-template-columns: minmax(0, 0.86fr) minmax(560px, 1.14fr);
   gap: 72px;
   align-items: center;
-  color: #17334c;
+  color: var(--v3-ink);
   background: var(--v3-blue-soft);
 }
 
 .mandateWorkspace {
   overflow: hidden;
   border: 1px solid rgba(53, 109, 159, 0.24);
-  border-radius: 2px;
+  border-radius: 16px;
   color: var(--v3-ink);
   background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 32px 90px rgba(40, 79, 112, 0.18);
 }
 
 .mandateTopline {
@@ -247,7 +246,7 @@
   padding: 0 22px;
   border-bottom: 1px solid var(--v3-border);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -284,14 +283,14 @@
   padding: 0 13px;
   color: var(--v3-muted);
   background: #fff;
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
 }
 
 .mandateTabs button[aria-selected="true"] {
-  border-color: #17334c;
+  border-color: var(--v3-ink);
   color: #fff;
-  background: #17334c;
+  background: var(--v3-ink);
 }
 
 .mandateBody {
@@ -306,7 +305,7 @@
 .mandateFooter span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -315,10 +314,10 @@
   max-width: 380px;
   margin: 12px 0 0;
   font-family: var(--v3-serif);
-  font-size: 30px;
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1.02;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .allocationBars {
@@ -330,7 +329,7 @@
 .allocationBars > div > div {
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .allocationBars i {
@@ -360,7 +359,7 @@
   align-items: center;
   padding: 15px 0;
   border-bottom: 1px solid var(--v3-border);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .mandatePolicy svg {
@@ -371,7 +370,7 @@
 .mandatePolicy small {
   color: var(--v3-green-dark);
   font-family: var(--v3-mono);
-  font-size: 7px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
@@ -395,7 +394,7 @@
   display: block;
   margin-top: 9px;
   font-family: var(--v3-serif);
-  font-size: 16px;
+  font-size: 19px;
 }
 
 .fintechOperating,
@@ -451,7 +450,7 @@
 .walletControls article > div span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .operatingGrid article > p,
@@ -459,7 +458,7 @@
   margin: 72px 0 0;
   color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -469,10 +468,10 @@
   max-width: 300px;
   margin: 14px 0 0;
   font-family: var(--v3-serif);
-  font-size: 27px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1.02;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .operatingGrid article > span,
@@ -480,7 +479,7 @@
   display: block;
   margin-top: 20px;
   color: var(--v3-muted);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.7;
 }
 
@@ -496,17 +495,17 @@
   max-width: 500px;
   margin: 20px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(42px, 4.3vw, 62px);
-  font-weight: 600;
-  letter-spacing: -0.052em;
-  line-height: 0.98;
+  font-size: clamp(30px, 3vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .lifecycleIntro > p:last-child {
   max-width: 480px;
   margin: 28px 0 0;
   color: var(--v3-muted);
-  font-size: 13px;
+  font-size: 14.5px;
   line-height: 1.75;
 }
 
@@ -529,18 +528,18 @@
 .lifecycleList li > span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .lifecycleList strong {
   font-family: var(--v3-serif);
-  font-size: 20px;
+  font-size: 19px;
 }
 
 .lifecycleList p {
   margin: 7px 0 0;
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .lifecycleList svg {
@@ -557,19 +556,19 @@
 
 .fintechFit > div {
   display: grid;
-  min-height: 380px;
+  min-height: 0;
   align-content: center;
-  padding: 60px var(--v3-page-inset);
+  padding: 40px var(--v3-page-inset);
 }
 
 .fintechFit > div:first-child {
-  color: #17334c;
+  color: var(--v3-ink);
   background: var(--v3-blue-soft);
 }
 
 .fintechFit > div:last-child {
   color: #fff;
-  background: #17334c;
+  background: var(--v3-ink);
 }
 
 .fintechFit svg {
@@ -580,16 +579,395 @@
 .fintechFit span {
   margin-bottom: 16px;
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .fintechFit strong {
   font-family: var(--v3-serif);
-  font-size: 26px;
-  font-weight: 600;
+  font-size: 23px;
+  font-weight: 700;
   line-height: 1.25;
+}
+
+/* Fintech · stats rail */
+
+.fintechStats {
+  grid-template-columns: 1.25fr repeat(4, 1fr);
+  border-top: 1px solid var(--v3-border);
+}
+
+.fintechStats > div:not(:first-child) strong {
+  margin-top: 0;
+  font-size: 30px;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.fintechStats strong em {
+  color: var(--v3-blue-dark);
+  font-size: 15px;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.fintechStats > div:not(:first-child) span {
+  margin-top: 14px;
+  color: var(--v3-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  line-height: 1.6;
+  text-transform: none;
+}
+
+/* Fintech · execution trace inside the mandate card */
+
+.mandateTrace {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0 22px 22px;
+  list-style: none;
+}
+
+.mandateTrace li {
+  display: grid;
+  grid-template-columns: 14px auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-height: 30px;
+  border: 1px solid var(--v3-border);
+  border-radius: 16px;
+  padding: 0 11px;
+  background: var(--v3-wash);
+  font-family: var(--v3-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  animation: traceEnter 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.mandateTrace li svg {
+  width: 11px;
+  color: var(--v3-green);
+}
+
+.mandateTrace li span {
+  color: var(--v3-ink);
+}
+
+.mandateTrace li small {
+  color: var(--v3-muted);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mandateTraceSign {
+  border-color: rgba(53, 109, 159, 0.38) !important;
+  background: var(--v3-blue-soft) !important;
+}
+
+.mandateTraceSign svg {
+  color: var(--v3-blue-dark) !important;
+}
+
+.mandateTraceSign span {
+  font-weight: 600;
+}
+
+@keyframes traceEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Fintech · Somm case study */
+
+.caseSection {
+  padding: 112px var(--v3-page-inset);
+  border-top: 1px solid var(--v3-border);
+  background: #fff;
+}
+
+.caseHeading {
+  max-width: 760px;
+}
+
+.caseHeading h2 {
+  margin: 22px 0 0;
+  font-family: var(--v3-serif);
+  font-size: clamp(30px, 3vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+
+.caseHeading > p:last-child {
+  max-width: 640px;
+  margin: 26px 0 0;
+  color: var(--v3-muted);
+  font-size: 14.5px;
+  line-height: 1.75;
+}
+
+.caseTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  border: 0.5px solid var(--v3-border);
+  border-radius: 999px;
+  padding: 6px 13px;
+  background: #fff;
+  font-family: var(--v3-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.caseTag i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--v3-green);
+}
+
+.caseGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 56px calc(-1 * var(--v3-page-inset)) 0;
+  border-top: 2px solid var(--v3-ink);
+  border-bottom: 1px solid var(--v3-border);
+  background: #fff;
+}
+
+.caseGrid article {
+  display: flex;
+  flex-direction: column;
+  min-height: 340px;
+  padding: 26px 30px 30px;
+}
+
+.caseGrid article + article {
+  border-left: 1px solid var(--v3-border);
+}
+
+.caseGrid article:first-child {
+  padding-left: var(--v3-page-inset);
+}
+
+.caseGrid article:last-child {
+  padding-right: var(--v3-page-inset);
+}
+
+.caseStepLabel {
+  margin: 0;
+  min-height: 32px;
+  color: var(--v3-faint);
+  font-family: var(--v3-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.caseCode {
+  display: grid;
+  gap: 6px;
+  margin: 22px 0 0;
+  border-left: 1px solid var(--v3-border);
+  padding: 2px 0 2px 16px;
+  min-height: 118px;
+  color: var(--v3-copy);
+  font-family: var(--v3-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.caseGrid article h3 {
+  margin: 0;
+  padding-top: 46px;
+  font-family: var(--v3-serif);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+
+.caseGrid article > p:last-child {
+  margin: 10px 0 auto;
+  color: var(--v3-muted);
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.caseOutcome {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
+  gap: 56px;
+  align-items: center;
+  margin: 0 calc(-1 * var(--v3-page-inset));
+  padding: 52px var(--v3-page-inset);
+  color: #fff;
+  background: var(--v3-blue);
+}
+
+.caseOutcome span {
+  display: block;
+  color: rgba(255, 255, 255, 0.72);
+  font-family: var(--v3-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.caseOutcome strong {
+  display: block;
+  margin-top: 16px;
+  font-family: var(--v3-serif);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.caseOutcome ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.caseOutcome li {
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+  color: #fff;
+  font-family: var(--v3-mono);
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 900px) {
+  .caseGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .caseGrid article + article {
+    border-left: 0;
+    border-top: 1px solid var(--v3-border);
+  }
+
+  .caseGrid article {
+    padding-inline: var(--v3-page-inset);
+  }
+
+  .caseOutcome {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+}
+
+/* Fintech · control framework table */
+
+.controlsSection {
+  width: var(--v3-page-width);
+  margin-inline: auto;
+  padding: 112px 0;
+  border-top: 1px solid var(--v3-border);
+}
+
+.controlsTable {
+  width: 100%;
+  margin-top: 56px;
+  border-collapse: collapse;
+  border-top: 2px solid var(--v3-ink);
+}
+
+.controlsTable th,
+.controlsTable td {
+  padding: 20px 18px 20px 0;
+  border-bottom: 1px solid var(--v3-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.controlsTable thead th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  color: var(--v3-faint);
+  font-family: var(--v3-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.controlsTable tbody th {
+  width: 30%;
+  font-family: var(--v3-serif);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.controlsTable tbody td:nth-child(2) {
+  color: var(--v3-muted);
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.controlsTable tbody td:last-child {
+  width: 140px;
+  padding-right: 0;
+}
+
+.statusPill {
+  display: inline-block;
+  border: 1px solid var(--v3-border);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-family: var(--v3-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.status-live {
+  border-color: var(--v3-green-soft);
+  color: var(--v3-green-dark);
+  background: var(--v3-green-soft);
+}
+
+.status-roadmap {
+  border-color: var(--v3-blue-soft);
+  color: var(--v3-blue-dark);
+  background: var(--v3-blue-soft);
+}
+
+.status-preparing {
+  color: var(--v3-muted);
+  background: var(--v3-wash);
+}
+
+.controlsNote {
+  margin: 18px 0 0;
+  color: var(--v3-faint);
+  font-family: var(--v3-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
 }
 
 /* Trading */
@@ -628,7 +1006,7 @@
   margin-top: 28px;
   color: rgba(255, 255, 255, 0.58);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -664,7 +1042,7 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.5);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -714,7 +1092,7 @@
 .signerGate > span {
   color: #7592ff;
   font-family: var(--v3-mono);
-  font-size: 7px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -724,7 +1102,7 @@
 .signerGate > strong {
   margin-top: 12px;
   font-family: var(--v3-serif);
-  font-size: 21px;
+  font-size: 19px;
   line-height: 1.05;
 }
 
@@ -733,7 +1111,7 @@
   margin-top: 9px;
   color: rgba(255, 255, 255, 0.38);
   font-family: var(--v3-mono);
-  font-size: 7px;
+  font-size: 11px;
 }
 
 .strategyCluster > i {
@@ -744,7 +1122,7 @@
   color: rgba(255, 255, 255, 0.52);
   background: #11131a;
   font-family: var(--v3-mono);
-  font-size: 6px;
+  font-size: 11px;
   font-style: normal;
   text-transform: uppercase;
 }
@@ -771,7 +1149,7 @@
   position: absolute;
   transform: translateY(-23px);
   font-family: var(--v3-mono);
-  font-size: 6px;
+  font-size: 11px;
 }
 
 .topologyRail i {
@@ -802,7 +1180,7 @@
   margin-top: 24px;
   color: rgba(255, 255, 255, 0.48);
   font-family: var(--v3-mono);
-  font-size: 7px;
+  font-size: 11px;
 }
 
 .signerGate {
@@ -837,17 +1215,17 @@
 .tradingBoundary h2 {
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(52px, 6vw, 82px);
-  font-weight: 600;
-  letter-spacing: -0.057em;
-  line-height: 0.94;
+  font-size: clamp(42px, 4.6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .tradingBoundary header > p:last-child {
   max-width: 660px;
   margin: 26px 0 0;
   color: var(--v3-muted);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.7;
 }
 
@@ -875,15 +1253,15 @@
   margin-bottom: 22px;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .ownershipSeam > div > strong {
   font-family: var(--v3-serif);
-  font-size: 25px;
-  font-weight: 600;
+  font-size: 23px;
+  font-weight: 700;
 }
 
 .seamContract {
@@ -901,7 +1279,7 @@
   color: #355dcc;
   background: #eef2ff;
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .seamContract i {
@@ -915,7 +1293,7 @@
   margin: 10px 0;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 7px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
@@ -952,7 +1330,7 @@
   display: block;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   text-align: right;
 }
 
@@ -965,14 +1343,14 @@
 .planGrid h3 {
   margin: 58px 0 0;
   font-family: var(--v3-serif);
-  font-size: 24px;
+  font-size: 23px;
   line-height: 1.05;
 }
 
 .planGrid p {
   margin: 16px 0 0;
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.65;
 }
 
@@ -992,10 +1370,10 @@
   max-width: 900px;
   margin: 22px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(50px, 6vw, 80px);
-  font-weight: 600;
-  letter-spacing: -0.057em;
-  line-height: 0.94;
+  font-size: clamp(42px, 4.6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .tradingFit > div {
@@ -1010,7 +1388,7 @@
 .tradingFit > div p {
   margin: 0;
   color: rgba(255, 255, 255, 0.62);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.7;
 }
 
@@ -1019,14 +1397,14 @@
   margin-bottom: 8px;
   color: #7895ff;
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
 .tradingFit > div b {
   color: #7895ff;
   font-family: var(--v3-serif);
-  font-size: 36px;
+  font-size: 38px;
 }
 
 .tradingFit > a {
@@ -1063,7 +1441,7 @@
 
 .nftHeroCopy h1 {
   max-width: 870px;
-  font-size: clamp(64px, 7.2vw, 104px);
+  font-size: clamp(42px, 4.6vw, 60px);
 }
 
 .nftHeroStatement {
@@ -1085,10 +1463,10 @@
 .nftHeroStatement strong {
   margin: 0;
   font-family: var(--v3-serif);
-  font-size: 31px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1.04;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .nftHeroStatement strong {
@@ -1099,7 +1477,7 @@
   margin-top: 30px;
   color: rgba(75, 24, 48, 0.56);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   line-height: 1.6;
   text-transform: uppercase;
 }
@@ -1126,7 +1504,7 @@
 .collectionQuery > small {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1134,8 +1512,8 @@
 .collectionQuery p {
   margin: 0;
   font-family: var(--v3-serif);
-  font-size: 24px;
-  letter-spacing: -0.025em;
+  font-size: 23px;
+  letter-spacing: -0.02em;
 }
 
 .collectionGrid {
@@ -1183,13 +1561,13 @@
 .collectionGrid em {
   color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   font-style: normal;
 }
 
 .collectionGrid strong {
   font-family: var(--v3-serif);
-  font-size: 18px;
+  font-size: 19px;
 }
 
 .collectionReceipt {
@@ -1220,21 +1598,21 @@
 .collectionReceipt dt {
   color: rgba(255, 255, 255, 0.42);
   font-family: var(--v3-mono);
-  font-size: 7px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
 .collectionSelected h3 {
   margin: 8px 0 0;
   font-family: var(--v3-serif);
-  font-size: 24px;
+  font-size: 23px;
   line-height: 1;
 }
 
 .collectionSelected p {
   margin: 8px 0 0;
   color: rgba(255, 255, 255, 0.52);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .collectionReceipt dl {
@@ -1252,7 +1630,7 @@
 .collectionReceipt dd {
   margin: 12px 0 0;
   font-family: var(--v3-serif);
-  font-size: 17px;
+  font-size: 19px;
 }
 
 .collectionChecks {
@@ -1264,7 +1642,7 @@
   border-top: 1px solid rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.55);
   font-family: var(--v3-mono);
-  font-size: 7px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
@@ -1302,19 +1680,19 @@
 .collectorMotivations article > span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .collectorMotivations h3 {
   margin: 82px 0 0;
   font-family: var(--v3-serif);
-  font-size: 28px;
+  font-size: 23px;
 }
 
 .collectorMotivations article p {
   margin: 16px 0 0;
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.65;
 }
 
@@ -1357,21 +1735,21 @@
 .trustStack span {
   color: var(--v3-pink-dark);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
 .trustStack h3 {
   margin: 9px 0 0;
   font-family: var(--v3-serif);
-  font-size: 24px;
+  font-size: 23px;
   line-height: 1.05;
 }
 
 .trustStack p {
   margin: 12px 0 0;
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.65;
 }
 
@@ -1417,7 +1795,7 @@
   margin-top: 32px;
   color: rgba(255, 255, 255, 0.54);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
@@ -1453,7 +1831,7 @@
   color: rgba(255, 255, 255, 0.48);
   background: transparent;
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   text-align: left;
   cursor: pointer;
 }
@@ -1486,7 +1864,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .walletDevice > header > div span {
@@ -1503,7 +1881,7 @@
 .walletDevice > header small {
   color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .walletBalance {
@@ -1516,7 +1894,7 @@
   display: block;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
@@ -1524,7 +1902,7 @@
   display: block;
   margin-top: 7px;
   font-family: var(--v3-serif);
-  font-size: 32px;
+  font-size: 23px;
 }
 
 .walletBalance small {
@@ -1542,10 +1920,10 @@
   max-width: 430px;
   margin: 12px 0 0;
   font-family: var(--v3-serif);
-  font-size: 32px;
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  line-height: 1.02;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .walletAction > p {
@@ -1553,7 +1931,7 @@
   min-height: 46px;
   margin: 16px 0 0;
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.65;
 }
 
@@ -1566,7 +1944,7 @@
   border-top: 1px solid var(--v3-border);
   padding-top: 17px;
   color: var(--v3-green-dark);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .walletAction > div svg {
@@ -1582,7 +1960,7 @@
   color: var(--v3-muted);
   background: #eef2f5;
   font-family: var(--v3-mono);
-  font-size: 7px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
@@ -1636,7 +2014,7 @@
   margin-top: 30px;
   color: var(--v3-green-dark);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
@@ -1670,7 +2048,7 @@
   gap: 8px;
   color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
@@ -1682,14 +2060,14 @@
 .walletReceipt > header > strong {
   color: var(--v3-green-dark);
   font-family: var(--v3-mono);
-  font-size: 7px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
 .walletReceipt > h3 {
   margin: 28px 0 0;
   font-family: var(--v3-serif);
-  font-size: 34px;
+  font-size: 23px;
   line-height: 1;
 }
 
@@ -1708,13 +2086,13 @@
 
 .walletReceipt dt {
   color: var(--v3-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .walletReceipt dd {
   margin: 0;
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 600;
 }
 
@@ -1726,7 +2104,7 @@
   padding: 18px;
   color: var(--v3-muted);
   background: var(--v3-blue-soft);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.5;
 }
 
@@ -1738,8 +2116,8 @@
 
 .walletReceipt > footer strong {
   display: block;
-  color: #17334c;
-  font-size: 11px;
+  color: var(--v3-ink);
+  font-size: 12px;
 }
 
 .walletFit {
@@ -1764,7 +2142,7 @@
   display: block;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
@@ -1773,7 +2151,7 @@
   max-width: 480px;
   margin-top: 54px;
   font-family: var(--v3-serif);
-  font-size: 28px;
+  font-size: 23px;
   line-height: 1.1;
 }
 
@@ -1866,6 +2244,61 @@
   .fintechFit,
   .walletFit {
     grid-template-columns: 1fr;
+  }
+
+  .fintechStats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .fintechStats > div:nth-child(3) {
+    border-right: 0;
+  }
+
+  .fintechStats > div:nth-child(-n + 4) {
+    border-bottom: 1px solid var(--v3-border);
+  }
+
+  .caseGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .caseGrid article {
+    min-height: auto;
+  }
+
+  .caseOutcome {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  .caseOutcome ul {
+    grid-template-columns: 1fr;
+  }
+
+  .controlsTable tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .controlsTable tbody th {
+    width: auto;
+    border-bottom: 0;
+    padding-bottom: 6px;
+  }
+
+  .controlsTable tbody td:nth-child(2) {
+    grid-column: 1 / -1;
+    padding-top: 0;
+  }
+
+  .controlsTable tbody td:last-child {
+    width: auto;
+    border-bottom: 0;
+    padding-bottom: 6px;
+  }
+
+  .controlsTable thead {
+    display: none;
   }
 
   .topologyCanvas {
@@ -1961,6 +2394,38 @@
     min-height: 96px;
     border-right: 0;
     border-bottom: 1px solid var(--v3-border);
+  }
+
+  .fintechStats {
+    grid-template-columns: 1fr;
+  }
+
+  .fintechStats > div {
+    border-right: 0;
+  }
+
+  .mandateTrace li {
+    grid-template-columns: 14px minmax(0, 1fr);
+  }
+
+  .mandateTrace li small {
+    grid-column: 2;
+    text-align: left;
+    white-space: normal;
+  }
+
+  .caseSection,
+  .controlsSection {
+    padding-top: 80px;
+    padding-bottom: 80px;
+  }
+
+  .caseOutcome {
+    padding: 26px 22px;
+  }
+
+  .caseOutcome li {
+    white-space: normal;
   }
 
   .mandateBody,
@@ -2075,6 +2540,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .mandateTrace li {
+    animation: none;
+  }
+
   .allocationBars b {
     animation: none;
   }
@@ -2154,26 +2623,28 @@
 }
 
 .walletCta {
-  color: #fff;
+  color: var(--v3-ink);
   background:
-    linear-gradient(rgba(141, 181, 220, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(141, 181, 220, 0.06) 1px, transparent 1px),
-    var(--v3-ink);
+    linear-gradient(rgba(82, 136, 194, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(82, 136, 194, 0.045) 1px, transparent 1px),
+    var(--v3-paper);
   background-size: 56px 56px;
+  border-top: 1px solid var(--v3-border);
+  border-bottom: 1px solid var(--v3-border);
 }
 
 .walletCta .eyebrow {
-  color: #91c4ee;
+  color: var(--v3-blue-dark);
 }
 
 .walletCta > p:nth-of-type(2) {
-  color: rgba(255, 255, 255, 0.66);
+  color: var(--v3-muted);
 }
 
 .walletCta > a {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: var(--v3-ink);
-  background: #fff;
+  border: 1px solid var(--v3-ink);
+  color: #fff;
+  background: var(--v3-ink);
 }
 
 .nftHeroStatement {
@@ -2198,26 +2669,28 @@
 }
 
 .nftCta {
-  color: #fff;
+  color: var(--v3-ink);
   background:
-    linear-gradient(rgba(141, 181, 220, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(141, 181, 220, 0.06) 1px, transparent 1px),
-    var(--v3-ink);
+    linear-gradient(rgba(82, 136, 194, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(82, 136, 194, 0.045) 1px, transparent 1px),
+    var(--v3-paper);
   background-size: 56px 56px;
+  border-top: 1px solid var(--v3-border);
+  border-bottom: 1px solid var(--v3-border);
 }
 
 .nftCta .eyebrow {
-  color: #91c4ee;
+  color: var(--v3-blue-dark);
 }
 
 .nftCta > p:nth-of-type(2) {
-  color: rgba(255, 255, 255, 0.66);
+  color: var(--v3-muted);
 }
 
 .nftCta > a {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: var(--v3-ink);
-  background: #fff;
+  border: 1px solid var(--v3-ink);
+  color: #fff;
+  background: var(--v3-ink);
 }
 
 .walletsHero {

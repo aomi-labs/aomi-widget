@@ -3,7 +3,10 @@
 import { Check, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import styles from "./defi.module.css";
-import { WorldMarketsAnimation } from "./world-markets-animation";
+import {
+  WorldMarketsAnimation,
+  WorldMarketsStoryboard,
+} from "./world-markets-animation";
 
 const views = [
   {
@@ -69,7 +72,11 @@ const views = [
   },
 ] as const;
 
-export function WorldMarketsExample() {
+export function WorldMarketsExample({
+  presentation = "animation",
+}: {
+  presentation?: "animation" | "storyboard";
+}) {
   const [activeId, setActiveId] =
     useState<(typeof views)[number]["id"]>("flow");
   const active = views.find((view) => view.id === activeId) ?? views[0];
@@ -94,7 +101,11 @@ export function WorldMarketsExample() {
       </header>
 
       <div className={styles.worldShowcase}>
-        <WorldMarketsAnimation />
+        {presentation === "storyboard" ? (
+          <WorldMarketsStoryboard />
+        ) : (
+          <WorldMarketsAnimation />
+        )}
 
         <div className={styles.worldPanel}>
           <div className={styles.worldTabs} role="tablist">

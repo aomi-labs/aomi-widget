@@ -402,6 +402,54 @@ const scenes = [
   CloseScene,
 ] as const;
 
+const sceneLabels = [
+  "Telegram trading hook",
+  "Account handoff",
+  "Trade by message",
+  "Security boundary",
+  "Onchain mandate",
+  "Product promise",
+] as const;
+
+export function WorldMarketsStoryboard() {
+  return (
+    <div
+      className={styles.storyboard}
+      aria-label="World Markets product frames"
+    >
+      {scenes.map((Scene, index) => (
+        <article key={sceneLabels[index]} className={styles.storyboardFrame}>
+          <header>
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            <strong>{sceneLabels[index]}</strong>
+          </header>
+          <div className={styles.animation} data-scene={index}>
+            <BrandBar />
+            <section
+              className={`${styles.scene} ${styles.sceneActive} ${styles.sceneStatic}`}
+            >
+              <Scene />
+            </section>
+            <footer className={styles.animationFooter}>
+              <div>
+                {scenes.map((_, progressIndex) => (
+                  <span
+                    key={progressIndex}
+                    data-active={progressIndex <= index}
+                  />
+                ))}
+              </div>
+              <span>
+                Frame {String(index + 1).padStart(2, "0")} / {scenes.length}
+              </span>
+            </footer>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export function WorldMarketsAnimation() {
   const rootRef = useRef<HTMLDivElement>(null);
   const elapsedRef = useRef(0);

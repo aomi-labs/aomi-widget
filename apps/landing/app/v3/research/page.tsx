@@ -17,6 +17,22 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+const publishedResearch = [
+  {
+    href: "https://aomi.dev/research/execution-harnesses-agentic-payments",
+    slug: "execution-harnesses-agentic-payments",
+    title: "The State of Execution Harnesses for Agentic Payments",
+    date: "August 13, 2026",
+    tag: "research",
+    subtitle:
+      "Breaking down the seven-layer agentic payments stack and identifying the missing execution harness that makes financial agents efficient, reliable, and operational.",
+  },
+  ...researchPosts.map((post) => ({
+    ...post,
+    href: `/research/${post.slug}`,
+  })),
+];
+
 export default function ResearchPage() {
   return (
     <main className={styles.editorialPage}>
@@ -63,8 +79,8 @@ export default function ResearchPage() {
           <h2>Research notes and benchmarks</h2>
         </div>
         <div>
-          {researchPosts.map((post, index) => (
-            <Link href={`/research/${post.slug}`} key={post.slug}>
+          {publishedResearch.map((post, index) => (
+            <Link href={post.href} key={post.slug}>
               <span className={styles.researchNumber}>0{index + 1}</span>
               <span className={styles.researchIcon}>
                 <BookOpen aria-hidden />

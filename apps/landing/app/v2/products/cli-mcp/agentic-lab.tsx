@@ -2,6 +2,7 @@
 
 import { Check, Copy, ExternalLink, KeyRound, LogIn } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { SessionTranscript } from "./agent-session";
 import styles from "./agentic-surfaces.module.css";
 
 type Surface = "skills" | "mcp" | "cli";
@@ -65,55 +66,78 @@ const mcpClients: Record<
   },
 };
 
-const taskPaths: Record<
-  Surface,
-  { label: string; owner: string; steps: string[]; result: string }
-> = {
-  skills: {
-    label: "Skills",
-    owner: "Coding agent + local CLI",
-    steps: [
-      "Read aomi-transact",
-      "Resolve Base context",
-      "Call local CLI",
-      "Simulate",
-      "Request local signing",
-    ],
-    result:
-      "The coding agent follows a durable safety workflow while your local CLI owns account and wallet operations.",
-  },
-  mcp: {
-    label: "MCP",
-    owner: "MCP client + account thread",
-    steps: [
-      "Browser OAuth",
-      "Open account thread",
-      "Resolve Base context",
-      "Stage request",
-      "awaiting_user",
-    ],
-    result:
-      "The transaction request stays in the hosted account thread until you approve it through Portal or a supported CLI flow.",
-  },
-  cli: {
-    label: "CLI",
-    owner: "Terminal + local wallet",
-    steps: [
-      "Start Aomi chat",
-      "Read Base balance",
+const surfaceMatrix = [
+  {
+    id: "skills",
+    name: "Skills",
+    sub: "aomi-transact · aomi-build",
+    api: "Agent API, through the CLI",
+    runs: "Your machine",
+    state: "Local session · ~/.aomi/",
+    signing: "Local key · tx sign",
+    trace: [
+      "agent reads SKILL.md",
+      "aomi chat --new-session",
       "tx list",
       "tx simulate",
       "tx sign",
     ],
-    result:
-      "The operator inspects and advances every transaction checkpoint directly from the machine controlling the wallet.",
   },
-};
+  {
+    id: "mcp-agent",
+    name: "MCP · agent",
+    sub: "/api/mcp",
+    api: "Agent API · aomi_chat",
+    runs: "Aomi server",
+    state: "Thread on your account",
+    signing: "Hand-off → portal or CLI",
+    trace: [
+      "aomi_chat",
+      "aomi_check …",
+      "awaiting_user",
+      "sign in portal / CLI",
+      "aomi_check ✓",
+    ],
+  },
+  {
+    id: "mcp-direct",
+    name: "MCP · direct",
+    sub: "/api/mcp/direct",
+    api: "Pipeline API · aomi_call_tool",
+    runs: "Aomi server",
+    state: "Stateless · App passed per call",
+    signing: "Hand-off → portal or CLI",
+    trace: [
+      "aomi_search_tools",
+      "aomi_describe_tool",
+      "aomi_run",
+      "awaiting_user",
+      "confirmed ✓",
+    ],
+  },
+  {
+    id: "cli",
+    name: "CLI",
+    sub: "@aomi-labs/client",
+    api: "Both · chat and tx",
+    runs: "Your machine",
+    state: "Local sessions · session resume",
+    signing: "Local key · tx sign",
+    trace: [
+      "aomi --prompt",
+      "tx list",
+      "tx simulate",
+      "tx sign",
+      "session resume",
+    ],
+  },
+] as const;
+
+const matrixColumns = ["Talks to", "Runs where", "State", "Signing"] as const;
 
 export function AgenticLab() {
   const [surface, setSurface] = useState<Surface>("skills");
   const [mcpClient, setMcpClient] = useState<McpClient>("codex");
-  const [taskSurface, setTaskSurface] = useState<Surface>("skills");
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -133,8 +157,6 @@ export function AgenticLab() {
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
   };
-
-  const task = taskPaths[taskSurface];
 
   return (
     <>
@@ -169,58 +191,6 @@ export function AgenticLab() {
           </div>
 
           <div className={styles.setupPanel}>
-            <div className={styles.setupCopy}>
-              {surface === "mcp" ? (
-                <>
-                  <p className={styles.panelEyebrow}>
-                    Connect through browser OAuth
-                  </p>
-                  <h3>
-                    Give the client access to your Aomi account—not your wallet
-                    keys.
-                  </h3>
-                  <p>
-                    Add the hosted endpoint, then complete authorization in the
-                    browser. The MCP client works inside account-owned Aomi
-                    sessions.
-                  </p>
-                  <ol className={styles.oauthSteps}>
-                    <li>
-                      <span>1</span>
-                      <strong>Add the endpoint</strong>
-                    </li>
-                    <li>
-                      <span>2</span>
-                      <strong>
-                        <LogIn aria-hidden />
-                        Authorize in browser
-                      </strong>
-                    </li>
-                    <li>
-                      <span>3</span>
-                      <strong>Resume the account thread</strong>
-                    </li>
-                  </ol>
-                </>
-              ) : (
-                <>
-                  <p className={styles.panelEyebrow}>
-                    {setupContent[surface].eyebrow}
-                  </p>
-                  <h3>{setupContent[surface].title}</h3>
-                  <p>{setupContent[surface].body}</p>
-                  <ul className={styles.setupFacts}>
-                    {setupContent[surface].facts.map((fact) => (
-                      <li key={fact}>
-                        <Check aria-hidden />
-                        {fact}
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </div>
-
             <div className={styles.codePanel}>
               <div className={styles.codeTopbar}>
                 {surface === "mcp" ? (
@@ -269,6 +239,7 @@ export function AgenticLab() {
               <pre>
                 <code>{activeCode}</code>
               </pre>
+              <SessionTranscript surface={surface} />
               {surface === "skills" ? (
                 <div className={styles.installedSkills}>
                   <span>
@@ -292,6 +263,58 @@ export function AgenticLab() {
               ) : null}
             </div>
           </div>
+
+          <div className={styles.setupSteps}>
+            {surface === "mcp" ? (
+              <>
+                <p className={styles.setupLead}>
+                  <span className={styles.panelEyebrow}>
+                    Connect through browser OAuth
+                  </span>
+                  Add the hosted endpoint, then complete authorization in the
+                  browser. The MCP client works inside account-owned Aomi
+                  sessions.
+                </p>
+                <ol className={styles.stepRow}>
+                  <li>
+                    <span>01</span>
+                    <strong>Add the endpoint</strong>
+                  </li>
+                  <li>
+                    <span>02</span>
+                    <strong>
+                      <LogIn aria-hidden />
+                      Authorize in browser
+                    </strong>
+                  </li>
+                  <li>
+                    <span>03</span>
+                    <strong>Resume the account thread</strong>
+                  </li>
+                </ol>
+              </>
+            ) : (
+              <>
+                <p className={styles.setupLead}>
+                  <span className={styles.panelEyebrow}>
+                    {setupContent[surface].eyebrow}
+                  </span>
+                  {setupContent[surface].body}
+                </p>
+                <ol className={styles.stepRow}>
+                  {setupContent[surface].facts.map((fact, index) => (
+                    <li key={fact}>
+                      <span>0{index + 1}</span>
+                      <strong>
+                        <Check aria-hidden />
+                        {fact}
+                      </strong>
+                    </li>
+                  ))}
+                </ol>
+              </>
+            )}
+          </div>
         </div>
       </section>
 
@@ -299,51 +322,45 @@ export function AgenticLab() {
         <div className={styles.shell}>
           <div className={styles.taskHeading}>
             <div>
-              <p className={styles.eyebrow}>ONE TASK, THREE PATHS</p>
-              <h2>See where execution and approval actually happen.</h2>
+              <p className={styles.eyebrow}>ONE TASK, FOUR PATHS</p>
+              <h2>
+                Same prompt. Different place to run, keep state, and sign.
+              </h2>
             </div>
-            <div className={styles.taskPrompt}>
-              <span>Prompt</span>
-              <p>
-                “Find my USDC balance on Base, then prepare a simulated
-                deposit.”
-              </p>
-            </div>
+            <p className={styles.taskIntro}>
+              They compose. MCP gives any client the catalog and the account
+              thread; Skills give a coding agent the guided local workflow; the
+              CLI is where a pending request gets simulated and signed.
+            </p>
           </div>
 
-          <div className={styles.taskLab}>
-            <div
-              className={styles.taskTabs}
-              role="tablist"
-              aria-label="Task execution surface"
-            >
-              {surfaceTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={taskSurface === tab.id}
-                  className={taskSurface === tab.id ? styles.activeTaskTab : ""}
-                  onClick={() => setTaskSurface(tab.id)}
-                >
-                  {tab.label}
-                </button>
+          <div className={styles.matrix}>
+            <div className={`${styles.matrixRow} ${styles.matrixHead}`}>
+              <span>Surface</span>
+              {matrixColumns.map((column) => (
+                <span key={column}>{column}</span>
               ))}
             </div>
-            <div className={styles.taskOwner}>
-              <span>Execution owner</span>
-              <strong>{task.owner}</strong>
-            </div>
-            <div className={styles.taskPath}>
-              {task.steps.map((step, index) => (
-                <div key={step}>
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  <strong>{step}</strong>
-                  {index < task.steps.length - 1 ? <i aria-hidden /> : null}
+            {surfaceMatrix.map((row) => (
+              <div key={row.id} className={styles.matrixRow}>
+                <div className={styles.matrixName}>
+                  <strong>{row.name}</strong>
+                  <span>{row.sub}</span>
                 </div>
-              ))}
-            </div>
-            <p className={styles.taskResult}>{task.result}</p>
+                <span>{row.api}</span>
+                <span>{row.runs}</span>
+                <span>{row.state}</span>
+                <span>{row.signing}</span>
+                <ol
+                  className={styles.matrixTrace}
+                  aria-label={`${row.name} trace`}
+                >
+                  {row.trace.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+              </div>
+            ))}
           </div>
           <a
             className={styles.taskDocs}

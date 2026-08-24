@@ -3,7 +3,10 @@ export type WidgetFixtureScenario = "somm" | "trading" | "prediction";
 export type WidgetFixtureKey =
   | "somm-aave"
   | "somm-sky"
+  | "somm-morpho"
+  | "somm-susds"
   | "somm-compound"
+  | "somm-usdt"
   | "trading-eth"
   | "trading-btc"
   | "prediction-yes"
@@ -87,6 +90,69 @@ export const widgetFixtureCatalog: Record<WidgetFixtureKey, WidgetFixture> = {
     ],
     answer:
       "**Compound v3 passes the mandate, but Aave remains 7 bps better net.** No rebalance is warranted after gas and bridge costs, so the existing Base allocation stays in place.",
+  },
+  "somm-morpho": {
+    scenario: "somm",
+    title: "Morpho band check",
+    prompt: "Could the idle USDC earn more in the Morpho USDe market?",
+    steps: [
+      {
+        name: "inspect_venue",
+        topic: "Reading Morpho USDe market",
+        arguments: { venue: "morpho", asset: "USDe", chain: "base" },
+        result: { net_apy: "4.47%", utilization: "91.2%", risk_band: "B" },
+      },
+      {
+        name: "check_mandate",
+        topic: "Checking Somm mandate",
+        arguments: { venue: "morpho", risk_band: "B" },
+        result: { max_band: "A", passed: false },
+      },
+    ],
+    answer:
+      "**Morpho is outside the mandate.** The USDe market pays 4.47% net but sits in risk band B, and this mandate stops at band A. It stays tracked; no transaction was prepared.",
+  },
+  "somm-susds": {
+    scenario: "somm",
+    title: "sUSDS comparison",
+    prompt: "Is sUSDS on Ethereum worth moving into from Base?",
+    steps: [
+      {
+        name: "compare_net_yield",
+        topic: "Comparing net yield after bridge + gas",
+        arguments: { venue: "sky-susds", asset: "sUSDS", from: "base" },
+        result: { gross: "3.52%", bridge_and_gas: "-0.21%", net: "3.31%" },
+      },
+      {
+        name: "check_mandate",
+        topic: "Checking Somm mandate",
+        arguments: { venue: "sky-susds", risk_band: "A" },
+        result: { passed: true, deposit_status: "post-v1" },
+      },
+    ],
+    answer:
+      "**sUSDS passes the mandate but loses on net.** After bridging USDC to Ethereum and gas, 3.52% becomes 3.31% — under the 3.37% already earned on Base. Tracked for the next cycle.",
+  },
+  "somm-usdt": {
+    scenario: "somm",
+    title: "Compound USDT review",
+    prompt: "Check the Compound v3 USDT market against the open position.",
+    steps: [
+      {
+        name: "inspect_venue",
+        topic: "Reading Compound v3 USDT market",
+        arguments: { venue: "compound-v3", asset: "USDT", chain: "ethereum" },
+        result: { net_apy: "3.24%", tvl: "$198M", risk_band: "A" },
+      },
+      {
+        name: "check_mandate",
+        topic: "Checking Somm mandate",
+        arguments: { venue: "compound-v3", asset: "USDT" },
+        result: { asset_allowlist: "USDC only", passed: false },
+      },
+    ],
+    answer:
+      "**USDT is not on the mandate's asset allowlist.** Compound v3 USDT is band A at 3.24% net, but this mandate is scoped to USDC, so the venue stays tracked only.",
   },
   "trading-eth": {
     scenario: "trading",

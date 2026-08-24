@@ -217,8 +217,48 @@
 }
 
 .choiceSection,
-.flowSection {
+.flowSection,
+.telegramSection {
   padding: clamp(88px, 10vw, 148px) 0;
+}
+
+.telegramSection {
+  border-top: 1px solid var(--v2-border);
+}
+
+.telegramSection h2 {
+  max-width: 9ch;
+  margin-top: 22px;
+  font-size: clamp(43px, 5.2vw, 72px);
+}
+
+.telegramLead {
+  max-width: 42ch;
+  margin-top: 22px;
+  font-family: var(--v2-font-sans), sans-serif;
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--v2-fg);
+}
+
+.telegramSection .textLink {
+  margin-top: 24px;
+}
+
+.heroProof {
+  margin-top: 14px;
+  font-family: var(--v2-font-sans), sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--v2-fg);
+}
+
+.heroProof span {
+  margin-right: 10px;
+  font-family: var(--v2-font-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  color: #15803d;
 }
 
 .installCopy h2,
@@ -302,36 +342,172 @@
   text-underline-offset: 4px;
 }
 
-.codeCard {
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 18px;
-  background: #111016;
-  box-shadow: 0 24px 70px rgba(24, 16, 35, 0.16);
-  color: #f4f4f5;
+.installCodeDemo {
+  min-width: 0;
 }
 
-.codeHeader {
+.installCodeTabs {
   display: flex;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 14px 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  font-family: var(--v2-font-mono), monospace;
-  font-size: 10px;
-  color: #a1a1aa;
+  align-items: flex-end;
+  gap: 26px;
+  border-bottom: 1px solid var(--v2-border);
 }
 
-.codeCard pre {
-  overflow: auto;
-  padding: 28px;
+.installCodeTabs > div:first-child {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-end;
+  gap: 26px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.codeCard code {
-  font-family: var(--v2-font-mono), monospace;
+.installCodeTabs > div:first-child::-webkit-scrollbar {
+  display: none;
+}
+
+.installCodeTabs > div:first-child button {
+  flex: none;
+  margin-bottom: -1px;
+  padding: 0 2px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font-family: var(--v2-font-sans), sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--v2-fg-subtle);
+  cursor: pointer;
+}
+
+.installCodeTabs > div:first-child button[aria-selected="true"] {
+  border-bottom-color: var(--v2-heading);
+  font-weight: 600;
+  color: var(--v2-heading);
+}
+
+.installModeSwitch {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  margin-bottom: 8px;
+  padding: 3px;
+  border: 1px solid var(--v2-border);
+  border-radius: 999px;
+  background: var(--v2-bg-muted);
+}
+
+.installModeSwitch button {
+  width: 76px;
+  padding: 5px 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--v2-font-sans), sans-serif;
   font-size: 12px;
-  line-height: 1.8;
+  font-weight: 500;
+  color: var(--v2-fg-subtle);
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    background 160ms ease;
+}
+
+.installModeSwitch button[aria-selected="true"] {
+  background: var(--widget-accent);
+  color: white;
+}
+
+.installCodeDescription {
+  min-height: 48px;
+  margin: 20px 0;
+  font-family: var(--v2-font-sans), sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--v2-heading);
+}
+
+.installCodeSurface {
+  position: relative;
+  min-height: 520px;
+  overflow: hidden;
+  border: 1px solid var(--v2-border);
+  border-radius: 16px;
+  background: #fafafa;
+}
+
+.installCodeCopy {
+  position: absolute;
+  z-index: 2;
+  top: 16px;
+  right: 18px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #a1a1aa;
+  cursor: pointer;
+}
+
+.installCodeCopy svg {
+  width: 15px;
+  height: 15px;
+}
+
+.installSyntax {
+  min-height: 520px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 22px 26px;
+  overflow-x: auto;
+  font-family: var(--v2-font-mono), monospace;
+  font-size: clamp(11.5px, 0.85vw, 13px);
+  line-height: 1.85;
   white-space: pre;
+  color: #3f3f46;
+}
+
+.installSyntax code > span {
+  display: block;
+  min-height: 1.85em;
+}
+
+.installSyntax i {
+  font-style: normal;
+  color: #c8527f;
+}
+
+.installSyntax b {
+  font-weight: 400;
+  color: #7c5cd6;
+}
+
+.installSyntax em {
+  font-style: normal;
+  color: #2e9e6b;
+}
+
+.installSyntax u {
+  text-decoration: none;
+  color: var(--widget-accent);
+}
+
+.installSyntax .installSyntaxFocus {
+  margin-inline: -26px;
+  padding-inline: 26px;
+  background: #e2eef8;
+}
+
+.installTerminalSyntax {
+  color: var(--v2-heading);
+}
+
+.installTerminalSyntax .installSyntaxComment {
+  color: var(--v2-fg-subtle);
 }
 
 .choiceHeading {
@@ -533,7 +709,8 @@
     border: 1px solid var(--v2-border);
   }
 
-  .codeCard pre {
+  .codeExample :global(.shiki) {
+    min-height: 440px;
     padding: 22px;
   }
 
@@ -570,27 +747,60 @@
   --v2-font-mono: var(--v3-mono);
   --v2-font-sans: var(--v3-sans);
   --v2-heading: var(--v3-ink);
+  --v2-display-weight: 700;
+  --v2-display-tracking: -0.015em;
+  --v2-display-leading: 1.12;
+  --v2-display-measure: 18ch;
+  --v2-display-h2: clamp(30px, 3vw, 38px);
+  --v2-display-h3: 23px;
+  --v2-case-title: clamp(30px, 3vw, 38px);
+  --v2-case-measure: 14ch;
+  --v2-case-align: start;
+  --v2-case-cols: minmax(300px, 0.5fr) minmax(0, 1.5fr);
+  --v2-somm-width: 88%;
+  --v2-somm-offset: auto;
+  --v2-somm-float-width: min(58%, 448px);
+  --v2-somm-float-height: 448px;
+  --v2-somm-shadow: 0 18px 40px rgba(9, 9, 11, 0.14);
+  --v2-case-point-size: 18px;
+  --v2-case-rows: none;
+  --v2-case-row-gap: 0px;
+  --v2-case-copy-display: flex;
+  --v2-case-copy-col: 1;
+  --v2-case-copy-row: 1;
+  --v2-case-copy-indent: 0;
+  --v2-case-head-col: 1;
+  --v2-case-points-col: 1;
+  --v2-case-points-order: 0;
+  --v2-case-points-gap: 22px;
+  --v2-case-demo-col: 2;
+  --v2-case-demo-row: auto;
+  --v2-case-demo-order: 0;
+  --v2-case-text-order: 1;
+  --v2-case-text-col: auto;
+  --v2-case-text-width: auto;
+  --v2-case-text-margin: 0;
+  --v2-case-body-size: clamp(17px, 1.35vw, 19px);
+  --v2-case-body-leading: 1.6;
+  --v2-case-body-color: var(--v3-ink);
+  --v2-case-body-gap: 40px;
+  --v2-case-body-weight: 300;
+  --v2-case-body-pad: 0;
+  --v2-case-body-rule: 0;
+  --v2-section-pad-bottom: 64px;
+  --v2-case-pad: 64px;
+  --v2-panel: var(--v3-ink);
+  --v2-panel-accent: #aecbe8;
+  --v2-panel-copy: rgba(255, 255, 255, 0.78);
+  --v2-panel-line: rgba(255, 255, 255, 0.14);
+  --v2-panel-radius: 16px;
+  --v2-mono-size: 11px;
+  --v2-body-size: 15px;
 }
 
-.v3Tokens .shell {
-  width: var(--v3-page-width);
-}
-
-.v3Tokens .productStage {
-  background:
-    radial-gradient(
-        circle at 1px 1px,
-        rgba(255, 255, 255, 0.18) 1px,
-        transparent 0
-      )
-      0 0 / 13px 13px,
-    linear-gradient(145deg, #44444a, #202024);
-  box-shadow: 0 32px 90px rgba(17, 17, 20, 0.18);
-}
-
-.v3Tokens .choiceGrid,
-.v3Tokens .codeCard {
-  border-radius: 0;
+.v3Tokens .checkIcon {
+  background: var(--v3-blue-soft);
+  color: var(--v3-blue-dark);
 }
 
 .v3Tokens .finalCta {
@@ -598,5 +808,205 @@
 }
 
 .v3Tokens .finalCta .eyebrow {
-  color: #91c4ee;
+  color: #aecbe8;
+}
+
+.v3Tokens .choiceHeading h2,
+.v3Tokens .installCopy h2,
+.v3Tokens .flowGrid h2,
+.v3Tokens .finalCta h2 {
+  max-width: 26ch;
+  text-wrap: balance;
+}
+
+.v3Tokens .shell {
+  width: var(--v3-page-width);
+}
+
+.v3Tokens .productStage {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.v3Tokens .stageHeader {
+  display: none;
+}
+
+.v3Tokens .proofGrid strong {
+  font-weight: 400;
+}
+
+.v3Tokens .choiceGrid {
+  border-radius: 0;
+}
+
+.flatPage {
+  --v2-bg-muted: var(--v3-paper);
+  --v2-panel: var(--v3-paper);
+  --v2-panel-copy: var(--v3-copy);
+  --v2-panel-line: transparent;
+  background: var(--v3-paper);
+}
+
+.flatPage .proofRail,
+.flatPage .telegramSection,
+.flatPage .flowSection,
+.flatPage .proofGrid > div,
+.flatPage .proofGrid > div:first-child,
+.flatPage .flowSteps,
+.flatPage .flowSteps li {
+  border: 0;
+}
+
+.v3Tokens .flatPage .proofRail {
+  border-top: 1px solid var(--v3-border);
+  border-bottom: 1px solid var(--v3-border);
+}
+
+.v3Tokens .flatPage .proofGrid > div {
+  border-right: 1px solid var(--v3-border);
+}
+
+.v3Tokens .flatPage .proofGrid > div:first-child {
+  border-left: 1px solid var(--v3-border);
+}
+
+.flatPage .installSection,
+.flatPage .choiceGrid article,
+.flatPage .finalCta {
+  background: var(--v3-paper);
+}
+
+.flatPage .choiceGrid {
+  gap: clamp(28px, 4vw, 52px);
+  border: 0;
+  background: transparent;
+}
+
+.flatPage .choiceGrid article {
+  padding-inline: 0;
+}
+
+.flatPage .finalCta {
+  color: var(--v3-ink);
+}
+
+.flatPage .finalCta .eyebrow {
+  color: var(--v3-blue);
+}
+
+.flatPage .finalSecondary {
+  border-color: var(--v3-border);
+  color: var(--v3-ink);
+}
+
+.flatPage .finalSecondary:hover {
+  border-color: var(--v3-muted);
+  background: var(--v3-wash);
+}
+
+/* v3 type scale — matches the /v3 home page (PT Serif 700 · 60/38/23 · mono 11px eyebrows) */
+
+.v3Tokens .heroCopy h1,
+.v3Tokens .choiceHeading h2,
+.v3Tokens .finalCta h2,
+.v3Tokens .flowGrid h2,
+.v3Tokens .installCopy h2,
+.v3Tokens .choiceGrid h3,
+.v3Tokens .flowSteps h3 {
+  font-family: var(--v3-serif);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.v3Tokens .heroCopy h1 {
+  max-width: 16ch;
+  font-size: clamp(42px, 4.6vw, 60px);
+}
+
+.v3Tokens .choiceHeading h2,
+.v3Tokens .finalCta h2,
+.v3Tokens .flowGrid h2,
+.v3Tokens .installCopy h2 {
+  font-size: clamp(30px, 3vw, 38px);
+  letter-spacing: -0.015em;
+  line-height: 1.12;
+}
+
+.v3Tokens .choiceGrid h3,
+.v3Tokens .flowSteps h3 {
+  font-size: 23px;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.v3Tokens .eyebrow {
+  font-family: var(--v3-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.v3Tokens .heroSupport {
+  font-size: 16.5px;
+  line-height: 1.65;
+}
+
+.v3Tokens .primaryButton,
+.v3Tokens .primaryButton:hover {
+  color: #fff;
+}
+
+.v3Tokens .finalPrimary,
+.v3Tokens .finalPrimary:hover {
+  color: #fff;
+}
+
+.v3Tokens .choiceHeading h2,
+.v3Tokens .finalCta h2,
+.v3Tokens .flowGrid h2,
+.v3Tokens .installCopy h2 {
+  max-width: 26ch;
+  text-wrap: balance;
+}
+
+.v3Tokens .choiceGrid h3,
+.v3Tokens .flowSteps h3 {
+  max-width: 28ch;
+}
+
+.v3Tokens .primaryButton:hover,
+.v3Tokens .finalPrimary:hover {
+  transform: none;
+}
+
+@media (max-width: 760px) {
+  .v3Tokens .flatPage .proofGrid > div,
+  .v3Tokens .flatPage .proofGrid > div:first-child {
+    border-right: 0;
+    border-bottom: 1px solid var(--v3-border);
+    border-left: 0;
+  }
+
+  .v3Tokens .flatPage .proofGrid > div:last-child {
+    border-bottom: 0;
+  }
+}
+
+/* v3: the execution-boundary checklist is covered by the case studies */
+.v3Tokens .flowSection {
+  display: none;
+}
+
+/* v3 vertical rhythm: 64px per side, matching the integration-model block */
+.v3Tokens .installSection,
+.v3Tokens .telegramSection,
+.v3Tokens .choiceSection,
+.v3Tokens .finalCta {
+  padding-top: 64px;
+  padding-bottom: 64px;
 }

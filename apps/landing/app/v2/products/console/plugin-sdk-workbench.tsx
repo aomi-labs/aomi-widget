@@ -88,7 +88,7 @@ const stageCopy: Record<
   },
   compile_test: {
     kicker: "VERIFY",
-    title: "Compile and exercise the App.",
+    title: "Compile and exercise the plugin.",
     body: "A build is not shippable until SDK compatibility, compilation, and a product-specific smoke test pass.",
   },
   ship: {

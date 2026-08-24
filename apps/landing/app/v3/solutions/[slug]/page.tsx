@@ -19,6 +19,14 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const solution = solutionPages[slug as keyof typeof solutionPages];
+  if (slug === "trading") {
+    return {
+      title: "Trading | Aomi V3",
+      description:
+        "World Markets and Aomi bring account-aware trading to Telegram while keeping authority and portfolio-risk enforcement onchain.",
+      robots: { index: false, follow: false },
+    };
+  }
   return solution
     ? {
         title: `${solutions.find((item) => item.slug === slug)?.title ?? "Solution"} | Aomi V3`,
@@ -38,7 +46,7 @@ export default async function SolutionPage({
   if (!solution) notFound();
   if (slug === "defi") return <V3DefiPage solution={solution} />;
   if (slug === "fintech") return <V3FintechPage solution={solution} />;
-  if (slug === "trading") return <V3TradingPage solution={solution} />;
+  if (slug === "trading") return <V3TradingPage />;
   if (slug === "nft") return <V3NftPage solution={solution} />;
   if (slug === "wallets") return <V3WalletsPage solution={solution} />;
   notFound();

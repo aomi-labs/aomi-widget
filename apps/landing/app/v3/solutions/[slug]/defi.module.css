@@ -5,8 +5,8 @@
 .eyebrow {
   margin: 0;
   font-family: var(--v3-mono);
-  font-size: 10px;
-  letter-spacing: 0.14em;
+  font-size: 11px;
+  letter-spacing: 0.16em;
   line-height: 1.4;
   text-transform: uppercase;
 }
@@ -45,10 +45,10 @@
   max-width: 700px;
   margin: 22px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(52px, 5.2vw, 76px);
-  font-weight: 600;
-  letter-spacing: -0.055em;
-  line-height: 0.98;
+  font-size: clamp(42px, 4.6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   text-wrap: balance;
 }
 
@@ -75,7 +75,7 @@
   border: 1px solid currentColor;
   border-radius: 999px;
   padding: 0 20px;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 550;
 }
 
@@ -108,7 +108,7 @@
   display: block;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -117,15 +117,15 @@
   display: block;
   margin-top: 20px;
   font-family: var(--v3-serif);
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 19px;
+  font-weight: 700;
 }
 
 .proofAudience p {
   max-width: 400px;
   margin: 17px 0 0;
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
@@ -149,10 +149,10 @@
   max-width: 760px;
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(42px, 4.5vw, 64px);
-  font-weight: 600;
-  letter-spacing: -0.052em;
-  line-height: 0.98;
+  font-size: clamp(30px, 3vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   text-wrap: balance;
 }
 
@@ -166,7 +166,7 @@
   color: var(--v3-blue-dark);
   background: var(--v3-blue-soft);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -175,7 +175,7 @@
 .sectionHeading > p {
   margin: 18px 0 0;
   color: var(--v3-muted);
-  font-size: 13px;
+  font-size: 14.5px;
   line-height: 1.75;
 }
 
@@ -209,7 +209,7 @@
   padding: 0 13px;
   color: var(--v3-muted);
   background: #fff;
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
 }
 
@@ -231,16 +231,16 @@
 .worldPanelCopy h3 {
   margin: 13px 0 0;
   font-family: var(--v3-serif);
-  font-size: 29px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.05;
 }
 
 .worldPanelCopy > p:last-child {
   margin: 14px 0 0;
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.65;
 }
 
@@ -266,20 +266,20 @@
 .worldSteps li > span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
 .worldSteps strong {
   display: block;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 600;
 }
 
 .worldSteps p {
   margin: 5px 0 0;
   color: var(--v3-muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.55;
 }
 
@@ -299,9 +299,9 @@
   max-width: 420px;
   margin: 14px 0 0;
   font-family: var(--v3-serif);
-  font-size: 27px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.08;
 }
 
@@ -319,7 +319,7 @@
   align-items: flex-start;
   gap: 8px;
   color: rgba(23, 51, 76, 0.72);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -365,22 +365,22 @@
 .needGrid article > div span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .needGrid h3 {
   margin: 58px 0 0;
   font-family: var(--v3-serif);
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.08;
 }
 
 .needGrid p {
   margin: 15px 0 0;
   color: var(--v3-muted);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.7;
 }
 
@@ -400,10 +400,10 @@
   max-width: 800px;
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(42px, 4.8vw, 68px);
-  font-weight: 600;
-  letter-spacing: -0.05em;
-  line-height: 0.98;
+  font-size: clamp(42px, 4.6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   text-wrap: balance;
 }
 
@@ -411,7 +411,7 @@
   max-width: 570px;
   margin: 22px 0 0;
   color: rgba(22, 63, 45, 0.7);
-  font-size: 13px;
+  font-size: 14.5px;
   line-height: 1.7;
 }
 
@@ -425,7 +425,7 @@
   padding: 0 20px;
   color: #fff;
   background: var(--v3-ink);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .cta a svg {
@@ -442,7 +442,7 @@
 
   .heroCopy h1 {
     max-width: 760px;
-    font-size: clamp(48px, 10vw, 68px);
+    font-size: clamp(42px, 4.6vw, 60px);
   }
 
   .proof {
@@ -567,24 +567,26 @@
 }
 
 .cta {
-  color: #fff;
+  color: var(--v3-ink);
   background:
-    linear-gradient(rgba(141, 181, 220, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(141, 181, 220, 0.06) 1px, transparent 1px),
-    var(--v3-ink);
+    linear-gradient(rgba(82, 136, 194, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(82, 136, 194, 0.045) 1px, transparent 1px),
+    var(--v3-paper);
   background-size: 56px 56px;
+  border-top: 1px solid var(--v3-border);
+  border-bottom: 1px solid var(--v3-border);
 }
 
 .cta .eyebrow {
-  color: #91c4ee;
+  color: var(--v3-blue-dark);
 }
 
 .cta > p:not(.eyebrow) {
-  color: rgba(255, 255, 255, 0.66);
+  color: var(--v3-muted);
 }
 
 .cta a {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: var(--v3-ink);
-  background: #fff;
+  border: 1px solid var(--v3-ink);
+  color: #fff;
+  background: var(--v3-ink);
 }

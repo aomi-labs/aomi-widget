@@ -12,7 +12,11 @@ export const metadata: Metadata = {
 export default function RestApiProductPage() {
   return (
     <div className={apiStyles.v3Tokens}>
-      <RestApiProductPageContent />
+      <RestApiProductPageContent
+        humanInterfaceHref="/v3/products/widget"
+        pluginSdkHref="/v3/products/plugin-sdk"
+        useV3Layout
+      />
     </div>
   );
 }

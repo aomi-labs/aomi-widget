@@ -8,16 +8,6 @@
       section: "Value propositions",
       progress: 0.56,
     },
-    {
-      position: "problem-center",
-      section: "Problem",
-      progress: 0.82,
-    },
-    {
-      position: "feature-left",
-      section: "Feature matrix",
-      progress: 0.34,
-    },
     { position: "bottom-center", section: "One install", progress: 0.5 },
   ];
 

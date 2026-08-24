@@ -18,7 +18,8 @@
   --v3-sans: var(--font-v3-sans), ui-sans-serif, system-ui, sans-serif;
   --v3-mono:
     var(--font-v3-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-  --v3-serif: var(--font-source-serif-4), "Source Serif 4", Georgia, serif;
+  --v3-serif: var(--font-v3-display), "PT Serif", Georgia, serif;
+  --v3-display: var(--font-v3-display), "PT Serif", Georgia, serif;
   --v3-page-width: min(1220px, calc(100% - 128px));
   --v3-page-inset: max(64px, calc((100vw - 1220px) / 2));
   min-height: 100vh;
@@ -143,6 +144,11 @@
   transition:
     color 160ms ease,
     background 160ms ease;
+}
+
+.navDock .navTrigger,
+.navDock .navTextLink {
+  font-size: 14px;
 }
 
 .navTrigger:hover,
@@ -415,9 +421,9 @@
 .heroEyebrow {
   margin: 0;
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
@@ -481,10 +487,10 @@
   margin: 22px 0 0;
   color: #fff;
   font-family: var(--v3-serif);
-  font-size: clamp(48px, 5.35vw, 74px);
-  font-weight: 600;
-  letter-spacing: -0.052em;
-  line-height: 0.96;
+  font-size: clamp(42px, 4.6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   text-wrap: balance;
 }
 
@@ -516,7 +522,7 @@
   padding: 0 22px;
   color: #fff;
   background: rgba(9, 9, 11, 0.2);
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 500;
   cursor: pointer;
   backdrop-filter: blur(12px);
@@ -529,7 +535,7 @@
 }
 
 .heroInstaller h2 {
-  font-size: clamp(42px, 4.8vw, 66px);
+  font-size: clamp(42px, 4.6vw, 60px);
 }
 
 .heroCommandRow {
@@ -541,7 +547,7 @@
   gap: 12px;
   margin-top: 32px;
   border: 1px solid rgba(255, 255, 255, 0.32);
-  border-radius: 13px;
+  border-radius: 14px;
   padding: 7px 8px 7px 16px;
   background: rgba(9, 9, 11, 0.45);
   backdrop-filter: blur(16px);
@@ -556,7 +562,7 @@
   overflow: hidden;
   color: #fff;
   font-family: var(--v3-mono);
-  font-size: 12px;
+  font-size: 13.5px;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -570,7 +576,7 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   color: var(--v3-muted);
   background: var(--v3-wash);
   cursor: pointer;
@@ -597,11 +603,11 @@
   align-items: center;
   gap: 8px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 12px;
   padding: 0 12px;
   color: #fff;
   background: rgba(255, 255, 255, 0.12);
-  font-size: 12px;
+  font-size: 13.5px;
   cursor: pointer;
 }
 
@@ -620,7 +626,7 @@
   right: 0;
   width: 180px;
   border: 1px solid var(--v3-border);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 6px;
   color: var(--v3-ink);
   background: #fff;
@@ -633,11 +639,11 @@
   align-items: center;
   gap: 9px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 9px;
   color: var(--v3-copy);
   background: transparent;
-  font-size: 12px;
+  font-size: 13.5px;
   cursor: pointer;
 }
 
@@ -653,7 +659,7 @@
 .heroInstallNote {
   margin-top: 17px;
   color: rgba(255, 255, 255, 0.65);
-  font-size: 12px;
+  font-size: 13.5px;
 }
 
 .heroToolIcons {
@@ -669,7 +675,7 @@
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 9px;
+  border-radius: 12px;
   color: var(--v3-ink);
   background: rgba(255, 255, 255, 0.92);
 }
@@ -702,7 +708,7 @@
 .validationLabel,
 .backers {
   font-family: var(--v3-mono);
-  font-size: 12px;
+  font-size: 13.5px;
 }
 
 .validationIntro {
@@ -730,7 +736,7 @@
   border-right: 1px solid var(--v3-border);
   color: var(--v3-copy);
   font-family: var(--v3-mono);
-  font-size: 12px;
+  font-size: 13.5px;
   white-space: nowrap;
 }
 
@@ -742,7 +748,7 @@
   justify-content: center;
   border: 1px solid var(--v3-faint);
   border-radius: 50%;
-  font-size: 8px;
+  font-size: 11px;
   font-style: normal;
 }
 
@@ -795,7 +801,7 @@
   padding: 0 18px;
   color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -816,7 +822,7 @@
 
 .backers strong {
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
 }
 
@@ -851,10 +857,10 @@
 .detailSectionLeadLight h2 {
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(38px, 4vw, 58px);
-  font-weight: 600;
-  letter-spacing: -0.048em;
-  line-height: 1.02;
+  font-size: clamp(30px, 3vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   text-wrap: balance;
 }
 
@@ -887,7 +893,7 @@
 .traceCopy > strong {
   display: block;
   margin-top: 22px;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .traceCopy > a,
@@ -899,7 +905,7 @@
   margin-top: 28px;
   color: var(--v3-blue);
   font-family: var(--v3-mono);
-  font-size: 12px;
+  font-size: 13.5px;
 }
 
 .traceCopy > a svg,
@@ -949,7 +955,7 @@
 .traceSteps span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -957,7 +963,7 @@
 .traceIntent strong,
 .traceReceipt strong,
 .traceSteps strong {
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 550;
 }
 
@@ -1006,7 +1012,7 @@
   grid-template-columns: 36px 1fr;
   gap: 2px 12px;
   border: 1px solid rgba(82, 136, 194, 0.24);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 14px;
   background: rgba(255, 255, 255, 0.94);
 }
@@ -1062,7 +1068,7 @@
 .enterpriseCards p {
   margin: 54px 0 0;
   font-family: var(--v3-serif);
-  font-size: 20px;
+  font-size: 19px;
   line-height: 1.35;
 }
 
@@ -1076,13 +1082,13 @@
   margin-top: 5px;
   opacity: 0.7;
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .enterpriseCards strong {
   margin-top: 25px;
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
 }
 
@@ -1113,7 +1119,7 @@
 .sectionHeaderLight > p:last-child {
   color: rgba(255, 255, 255, 0.55);
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .problemGrid {
@@ -1135,7 +1141,7 @@
 .problemLabel {
   color: rgba(255, 255, 255, 0.62);
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -1163,20 +1169,20 @@
 }
 
 .problemRows strong {
-  font-size: 13px;
+  font-size: 14.5px;
   font-weight: 550;
 }
 
 .problemRows small {
   color: rgba(255, 255, 255, 0.42);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .problemRows em {
   color: #f08ab2;
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: 12px;
   font-style: normal;
   white-space: nowrap;
 }
@@ -1185,7 +1191,7 @@
   margin: 20px 0 0;
   color: rgba(255, 255, 255, 0.58);
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.65;
 }
 
@@ -1195,7 +1201,7 @@
   justify-content: center;
   color: rgba(255, 255, 255, 0.38);
   font-family: var(--v3-serif);
-  font-size: 20px;
+  font-size: 19px;
   font-style: italic;
 }
 
@@ -1220,7 +1226,7 @@
   grid-row: 1 / 3;
   width: 40px;
   height: 40px;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 9px;
   color: #fff;
   background: var(--v3-blue);
@@ -1228,14 +1234,14 @@
 
 .problemAomiMark span {
   font-family: var(--v3-serif);
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 19px;
+  font-weight: 700;
 }
 
 .problemAomiMark small {
   color: rgba(255, 255, 255, 0.48);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .problemAomi > div:not(.problemAomiMark) {
@@ -1249,13 +1255,13 @@
 
 .problemAomi > div > span {
   color: rgba(255, 255, 255, 0.58);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .problemAomi s {
   color: rgba(255, 255, 255, 0.42);
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .problemAomi > div > svg {
@@ -1266,7 +1272,7 @@
 .problemAomi > div > strong {
   color: #91c4ee;
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .problemAomi > p {
@@ -1274,7 +1280,7 @@
   border-top: 1px solid rgba(255, 255, 255, 0.11);
   padding-top: 22px;
   color: rgba(255, 255, 255, 0.62);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.65;
 }
 
@@ -1334,7 +1340,7 @@
   padding: 8px 12px;
   color: var(--v3-muted);
   background: transparent;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -1366,7 +1372,7 @@
   color: var(--v3-muted);
   background: #fff;
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .runtimeAssistant {
@@ -1383,7 +1389,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -1394,11 +1400,11 @@
 
 .runtimePrompt {
   margin: 16px 0 0;
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 12px;
   color: #fff;
   background: var(--v3-ink);
-  font-size: 12px;
+  font-size: 13.5px;
 }
 
 .runtimeChecks {
@@ -1407,7 +1413,7 @@
   margin-top: 13px;
   color: var(--v3-green);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .runtimeBuild {
@@ -1415,17 +1421,17 @@
   gap: 6px;
   margin-top: 15px;
   border: 1px solid var(--v3-border);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 12px;
   color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .runtimeBuild strong {
   margin-bottom: 3px;
   color: var(--v3-ink);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .runtimeBuild em {
@@ -1438,11 +1444,11 @@
   width: 100%;
   margin-top: 12px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 12px;
   padding: 10px;
   color: #fff;
   background: var(--v3-blue);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .runtimeAssistant > small {
@@ -1450,7 +1456,7 @@
   margin-top: 8px;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   text-align: center;
 }
 
@@ -1483,12 +1489,12 @@
 }
 
 .approvalModes strong {
-  font-size: 13px;
+  font-size: 14.5px;
 }
 
 .approvalModes small {
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.55;
 }
 
@@ -1514,7 +1520,7 @@
 .walletDescription {
   margin: 14px 5px 15px;
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .codeWindow {
@@ -1551,7 +1557,7 @@
   padding: 20px;
   color: #29303a;
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.85;
   white-space: pre;
 }
@@ -1597,7 +1603,7 @@
 .featureGrid article > div span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .featurePrimary > div span {
@@ -1607,16 +1613,16 @@
 .featureGrid h3 {
   margin: 55px 0 0;
   font-family: var(--v3-serif);
-  font-size: 25px;
-  font-weight: 600;
-  letter-spacing: -0.025em;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.12;
 }
 
 .featureGrid article > p {
   margin: 16px 0 0;
   color: var(--v3-muted);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.65;
 }
 
@@ -1629,7 +1635,7 @@
   padding-top: 24px;
   color: var(--v3-blue);
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .featurePrimary > a {
@@ -1653,10 +1659,10 @@
 .installGrid > div:first-child h2 {
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(38px, 4vw, 58px);
-  font-weight: 600;
-  letter-spacing: -0.048em;
-  line-height: 1.02;
+  font-size: clamp(30px, 3vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .installGrid > div:first-child > p:last-child {
@@ -1679,7 +1685,7 @@
   align-items: center;
   gap: 12px;
   border: 1px solid var(--v3-border);
-  border-radius: 11px;
+  border-radius: 14px;
   padding: 8px 8px 8px 14px;
   background: #fafafa;
 }
@@ -1693,7 +1699,7 @@
   overflow: hidden;
   color: var(--v3-ink);
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1713,10 +1719,10 @@
   justify-content: center;
   gap: 8px;
   border: 1px solid var(--v3-border);
-  border-radius: 11px;
+  border-radius: 14px;
   color: var(--v3-muted);
   background: #fff;
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
 }
 
@@ -1734,7 +1740,7 @@
 .installPanel > p {
   margin: 14px 0 0;
   color: var(--v3-faint);
-  font-size: 10px;
+  font-size: 11px;
   text-align: center;
 }
 
@@ -1758,7 +1764,7 @@
   padding: 0 28px;
   color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -1837,7 +1843,7 @@
   margin: 0;
   padding: 0 36px 24px 0;
   color: var(--v3-muted);
-  font-size: 13px;
+  font-size: 14.5px;
   line-height: 1.75;
 }
 
@@ -1897,10 +1903,10 @@
   max-width: 820px;
   margin: 22px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(50px, 5.3vw, 78px);
-  font-weight: 600;
-  letter-spacing: -0.055em;
-  line-height: 0.98;
+  font-size: clamp(42px, 4.6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   text-wrap: balance;
 }
 
@@ -1928,7 +1934,7 @@
   border: 1px solid currentColor;
   border-radius: 999px;
   padding: 0 20px;
-  font-size: 12px;
+  font-size: 13.5px;
   font-weight: 550;
 }
 
@@ -1966,7 +1972,7 @@
   align-items: center;
   gap: 8px;
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -2020,14 +2026,14 @@
   margin: 0;
   color: currentColor;
   opacity: 0.5;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .detailHeroSignal strong {
   display: block;
   font-family: var(--v3-serif);
-  font-size: 28px;
-  font-weight: 600;
+  font-size: 23px;
+  font-weight: 700;
 }
 
 .detailHeroSignal small {
@@ -2035,7 +2041,7 @@
   margin-top: 7px;
   opacity: 0.68;
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .detailContext {
@@ -2062,7 +2068,7 @@
 
 .detailContext span {
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -2070,7 +2076,7 @@
 .detailContext p {
   margin: 0;
   color: var(--v3-muted);
-  font-size: 13px;
+  font-size: 14.5px;
   line-height: 1.65;
 }
 
@@ -2125,22 +2131,22 @@
 .detailCapabilityGrid article > div span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .detailCapabilityGrid h3 {
   margin: 58px 0 0;
   font-family: var(--v3-serif);
-  font-size: 27px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .detailCapabilityGrid p {
   max-width: 480px;
   margin: 15px 0 0;
   color: var(--v3-muted);
-  font-size: 13px;
+  font-size: 14.5px;
   line-height: 1.7;
 }
 
@@ -2180,20 +2186,20 @@
 .detailFlowSteps article span {
   color: rgba(255, 255, 255, 0.35);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .detailFlowSteps h3 {
   margin: 58px 0 0;
   font-family: var(--v3-serif);
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 23px;
+  font-weight: 700;
 }
 
 .detailFlowSteps p {
   margin: 14px 0 0;
   color: rgba(255, 255, 255, 0.57);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.65;
 }
 
@@ -2204,7 +2210,7 @@
   margin-top: 22px;
   color: rgba(255, 255, 255, 0.66);
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .detailFlowReceipt svg {
@@ -2239,7 +2245,7 @@
 .relatedGrid span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
@@ -2247,14 +2253,14 @@
 .relatedGrid h3 {
   margin: 42px 0 0;
   font-family: var(--v3-serif);
-  font-size: 27px;
-  font-weight: 600;
+  font-size: 23px;
+  font-weight: 700;
 }
 
 .relatedGrid p {
   margin: 12px 0 0;
   color: var(--v3-muted);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.65;
 }
 
@@ -2265,7 +2271,7 @@
   margin-top: auto;
   color: var(--v3-blue);
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
 }
 
@@ -2298,9 +2304,9 @@
   max-width: 760px;
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(40px, 4.4vw, 64px);
-  font-weight: 600;
-  letter-spacing: -0.05em;
+  font-size: clamp(30px, 3vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1;
 }
 
@@ -2315,7 +2321,7 @@
   padding: 0 22px;
   color: #fff;
   background: var(--v3-ink);
-  font-size: 12px;
+  font-size: 13.5px;
 }
 
 .detailCta a svg,
@@ -2361,10 +2367,10 @@
   max-width: 700px;
   margin: 22px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(52px, 5.2vw, 76px);
-  font-weight: 600;
-  letter-spacing: -0.055em;
-  line-height: 0.98;
+  font-size: clamp(42px, 4.6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   text-wrap: balance;
 }
 
@@ -2410,7 +2416,7 @@
 .solutionShowcasePrompt > span,
 .solutionShowcaseResult > span {
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 400;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -2435,7 +2441,7 @@
   padding: 0 13px;
   color: rgba(255, 255, 255, 0.55);
   background: transparent;
-  font-size: 10px;
+  font-size: 11px;
   cursor: pointer;
 }
 
@@ -2461,7 +2467,7 @@
 .solutionShowcasePrompt p {
   margin: 8px 0 0;
   color: rgba(255, 255, 255, 0.77);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.55;
 }
 
@@ -2472,16 +2478,16 @@
 .solutionShowcaseResult h2 {
   margin: 10px 0 0;
   font-family: var(--v3-serif);
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.05;
 }
 
 .solutionShowcaseResult p {
   margin: 9px 0 0;
   color: rgba(255, 255, 255, 0.48);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .solutionShowcaseMetrics {
@@ -2506,7 +2512,7 @@
   overflow: hidden;
   color: rgba(255, 255, 255, 0.36);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
@@ -2539,7 +2545,7 @@
   gap: 4px;
   color: rgba(255, 255, 255, 0.48);
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .solutionShowcase > footer svg {
@@ -2551,7 +2557,7 @@
   flex: none;
   color: #77d4aa;
   font-family: var(--v3-mono);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 400;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2577,7 +2583,7 @@
   display: block;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -2586,15 +2592,15 @@
   display: block;
   margin-top: 20px;
   font-family: var(--v3-serif);
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 19px;
+  font-weight: 700;
 }
 
 .solutionProofAudience p {
   max-width: 400px;
   margin: 17px 0 0;
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
@@ -2617,9 +2623,9 @@
   max-width: 720px;
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(40px, 4.3vw, 62px);
-  font-weight: 600;
-  letter-spacing: -0.05em;
+  font-size: clamp(30px, 3vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1;
   text-wrap: balance;
 }
@@ -2628,7 +2634,7 @@
 .solutionFlowHeader > p:last-child {
   margin: 0;
   color: var(--v3-muted);
-  font-size: 13px;
+  font-size: 14.5px;
   line-height: 1.75;
 }
 
@@ -2666,7 +2672,7 @@
 .solutionPathGrid > a > div span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.08em;
 }
 
@@ -2674,9 +2680,9 @@
 .solutionPathGrid h3 {
   margin: 58px 0 0;
   font-family: var(--v3-serif);
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.08;
 }
 
@@ -2684,7 +2690,7 @@
 .solutionPathGrid p {
   margin: 15px 0 0;
   color: var(--v3-muted);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.7;
 }
 
@@ -2730,20 +2736,20 @@
 .solutionFlow li > span {
   color: #91c4ee;
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .solutionFlow li h3 {
   margin: 68px 0 0;
   font-family: var(--v3-serif);
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 23px;
+  font-weight: 700;
 }
 
 .solutionFlow li p {
   margin: 14px 0 0;
   color: rgba(255, 255, 255, 0.53);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.65;
 }
 
@@ -2758,7 +2764,7 @@
 }
 
 .solutionPathGrid > a > div strong {
-  font-size: 13px;
+  font-size: 14.5px;
 }
 
 .solutionPathGrid > a > div span {
@@ -2772,7 +2778,7 @@
   margin-top: auto;
   color: var(--v3-blue-dark);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .solutionPathGrid small svg {
@@ -2795,10 +2801,10 @@
   max-width: 800px;
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(42px, 4.8vw, 68px);
-  font-weight: 600;
-  letter-spacing: -0.05em;
-  line-height: 0.98;
+  font-size: clamp(42px, 4.6vw, 60px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
   text-wrap: balance;
 }
 
@@ -2806,7 +2812,7 @@
   max-width: 570px;
   margin: 22px 0 0;
   color: rgba(23, 51, 76, 0.68);
-  font-size: 13px;
+  font-size: 14.5px;
   line-height: 1.7;
 }
 
@@ -2824,7 +2830,7 @@
   border: 1px solid var(--v3-ink);
   border-radius: 999px;
   padding: 0 20px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .solutionCta a:first-child {
@@ -2850,7 +2856,7 @@
   margin-top: 30px;
   color: var(--v3-blue-dark);
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .editorialHero > a svg,
@@ -2914,27 +2920,27 @@
 .pricingTop span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
 .pricingGrid h2 {
   margin: 54px 0 0;
   font-family: var(--v3-serif);
-  font-size: 34px;
-  font-weight: 600;
+  font-size: 23px;
+  font-weight: 700;
 }
 
 .pricingGrid article > strong {
   margin-top: 8px;
   color: var(--v3-blue-dark);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .pricingGrid article > p {
   margin: 22px 0 0;
   color: var(--v3-muted);
-  font-size: 13px;
+  font-size: 14.5px;
   line-height: 1.7;
 }
 
@@ -2944,7 +2950,7 @@
   margin: 28px 0 0;
   padding: 0;
   color: var(--v3-copy);
-  font-size: 12px;
+  font-size: 13.5px;
   list-style: none;
 }
 
@@ -2963,7 +2969,7 @@
   padding-top: 20px;
   color: var(--v3-blue);
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .pricingGrid article > a svg {
@@ -2988,10 +2994,10 @@
 .pricingPrinciples h2 {
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: 44px;
-  font-weight: 600;
-  letter-spacing: -0.045em;
-  line-height: 1.04;
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .pricingPrinciples > div:last-child {
@@ -3010,19 +3016,19 @@
 .pricingPrinciples article span {
   color: rgba(255, 255, 255, 0.35);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .pricingPrinciples article h3 {
   margin: 38px 0 0;
   font-family: var(--v3-serif);
-  font-size: 22px;
+  font-size: 19px;
 }
 
 .pricingPrinciples article p {
   margin: 12px 0 0;
   color: rgba(255, 255, 255, 0.54);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.65;
 }
 
@@ -3038,9 +3044,9 @@
 .aboutStatement blockquote {
   margin: 0;
   font-family: var(--v3-serif);
-  font-size: clamp(34px, 4vw, 54px);
-  font-weight: 600;
-  letter-spacing: -0.045em;
+  font-size: clamp(30px, 3vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.08;
 }
 
@@ -3051,7 +3057,7 @@
   border-top: 1px solid var(--v3-border);
   padding-top: 24px;
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .aboutStatement > div span {
@@ -3086,15 +3092,15 @@
 .aboutPrinciples article h3 {
   margin: 65px 0 0;
   font-family: var(--v3-serif);
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 19px;
+  font-weight: 700;
   line-height: 1.15;
 }
 
 .aboutPrinciples article p {
   margin: 14px 0 0;
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.65;
 }
 
@@ -3118,14 +3124,14 @@
   display: block;
   margin-top: 48px;
   font-family: var(--v3-serif);
-  font-size: 26px;
-  font-weight: 600;
+  font-size: 23px;
+  font-weight: 700;
 }
 
 .researchFocus p {
   margin: 13px 0 0;
   color: var(--v3-muted);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.65;
 }
 
@@ -3158,7 +3164,7 @@
 .researchNumber {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .researchIcon {
@@ -3185,14 +3191,14 @@
 .researchList a small {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .researchList a strong {
   font-family: var(--v3-serif);
-  font-size: 24px;
+  font-size: 23px;
   line-height: 1.15;
 }
 
@@ -3200,7 +3206,7 @@
   max-width: 760px;
   margin: 0;
   color: var(--v3-muted);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
 }
 
@@ -3241,7 +3247,7 @@
 .newsGrid a > div span,
 .newsGrid a > div small {
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   text-transform: uppercase;
 }
 
@@ -3256,16 +3262,16 @@
 .newsGrid h2 {
   margin: 75px 0 0;
   font-family: var(--v3-serif);
-  font-size: 32px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   line-height: 1.08;
 }
 
 .newsGrid a > p {
   margin: 16px 0 0;
   color: var(--v3-muted);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.65;
 }
 
@@ -3280,7 +3286,7 @@
   margin-top: auto;
   color: var(--v3-pink-dark);
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
 }
 
@@ -3313,9 +3319,9 @@
   max-width: 680px;
   margin: 11px 0 0;
   font-family: var(--v3-serif);
-  font-size: 34px;
-  font-weight: 600;
-  letter-spacing: -0.035em;
+  font-size: 23px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .newsSignal > a,
@@ -3327,7 +3333,7 @@
   border-radius: 999px;
   padding: 12px 18px;
   font-family: var(--v3-mono);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .newsSignal > a svg,
@@ -3361,20 +3367,20 @@
 .contactPaths article > div span {
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .contactPaths h2 {
   margin: 64px 0 0;
   font-family: var(--v3-serif);
-  font-size: 29px;
-  font-weight: 600;
+  font-size: 23px;
+  font-weight: 700;
 }
 
 .contactPaths article > p {
   margin: 15px 0 0;
   color: var(--v3-muted);
-  font-size: 12px;
+  font-size: 13.5px;
   line-height: 1.65;
 }
 
@@ -3385,7 +3391,7 @@
   padding-top: 20px;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.65;
 }
 
@@ -3399,7 +3405,7 @@
   margin: 0;
   padding: 0;
   color: rgba(255, 255, 255, 0.66);
-  font-size: 11px;
+  font-size: 12px;
   list-style: none;
 }
 
@@ -3411,7 +3417,7 @@
 .contactDirect li span {
   color: #91c4ee;
   font-family: var(--v3-mono);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 @media (max-width: 1080px) {
@@ -3566,7 +3572,7 @@
   }
   .heroCopy h1,
   .heroInstaller h2 {
-    font-size: clamp(44px, 11vw, 62px);
+    font-size: clamp(30px, 3vw, 38px);
   }
   .heroCommandRow {
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -3646,7 +3652,7 @@
   }
   .detailHeroInner h1,
   .editorialHero h1 {
-    font-size: clamp(46px, 11vw, 66px);
+    font-size: clamp(42px, 4.6vw, 60px);
   }
   .detailHeroSignal {
     width: min(100%, 520px);
@@ -3689,7 +3695,7 @@
   }
   .solutionHeroCopy h1 {
     max-width: 780px;
-    font-size: clamp(48px, 10vw, 68px);
+    font-size: clamp(42px, 4.6vw, 60px);
   }
   .solutionShowcase {
     width: min(100%, 680px);
@@ -3787,7 +3793,7 @@
   .heroCopy > p:not(.heroEyebrow),
   .heroInstaller > p:not(.heroEyebrow) {
     margin-top: 22px;
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.6;
   }
   .heroActions {
@@ -3903,7 +3909,7 @@
   }
   .codeWindow pre {
     min-height: 290px;
-    font-size: 9px;
+    font-size: 11px;
   }
   .featureGrid {
     grid-template-columns: 1fr;
@@ -4198,22 +4204,24 @@
 }
 
 .editorialCta {
-  color: #fff;
+  color: var(--v3-ink);
   background:
-    linear-gradient(rgba(141, 181, 220, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(141, 181, 220, 0.06) 1px, transparent 1px),
-    var(--v3-ink);
+    linear-gradient(rgba(82, 136, 194, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(82, 136, 194, 0.045) 1px, transparent 1px),
+    var(--v3-paper);
   background-size: 56px 56px;
+  border-top: 1px solid var(--v3-border);
+  border-bottom: 1px solid var(--v3-border);
 }
 
 .editorialCta .eyebrow {
-  color: #91c4ee;
+  color: var(--v3-blue-dark);
 }
 
 .editorialCta a {
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: var(--v3-ink);
-  background: #fff;
+  border: 1px solid var(--v3-ink);
+  color: #fff;
+  background: var(--v3-ink);
 }
 
 @media (max-width: 800px) {

@@ -7,9 +7,10 @@ import {
   TrendingUp,
   Wallet,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { LandingWalletKitProvider } from "../../../components/landing-wallet-kit-provider";
 import { FixtureWidget } from "./fixture-widget";
+import { resolveWidgetFixture } from "./fixture-data";
 import styles from "./integration-showcases.module.css";
 
 const sommVenues = [
@@ -18,7 +19,12 @@ const sommVenues = [
     name: "Aave v3",
     asset: "USDC · Base",
     apy: "3.37%",
-    meta: "band A · open",
+    avg30: "3.21%",
+    tvl: "$24.1M",
+    band: "A",
+    delta: "+16 bps",
+    path: "M0 72 C30 68 44 54 72 58 S118 69 148 47 S196 50 226 34 S278 38 312 21 S344 25 360 14",
+    status: "open",
     fixture: "somm-aave",
   },
   {
@@ -26,16 +32,65 @@ const sommVenues = [
     name: "Sky Lending",
     asset: "USDS · Ethereum",
     apy: "6.12%",
-    meta: "band A · tracked",
+    avg30: "5.88%",
+    tvl: "$1.42B",
+    band: "A",
+    delta: "+24 bps",
+    path: "M0 66 C28 57 47 64 76 49 S121 57 151 42 S194 46 226 31 S275 35 309 20 S344 22 360 10",
+    status: "post-v1",
     fixture: "somm-sky",
+  },
+  {
+    id: "morpho",
+    name: "Morpho",
+    asset: "USDe · Base",
+    apy: "4.47%",
+    avg30: "4.62%",
+    tvl: "$86.3M",
+    band: "B",
+    delta: "−15 bps",
+    path: "M0 28 C30 22 49 31 75 26 S120 35 149 34 S196 42 225 45 S274 39 310 53 S343 50 360 63",
+    status: "post-v1",
+    fixture: "somm-morpho",
+  },
+  {
+    id: "susds",
+    name: "Sky Lending",
+    asset: "sUSDS · Ethereum",
+    apy: "3.52%",
+    avg30: "3.50%",
+    tvl: "$2.10B",
+    band: "A",
+    delta: "+2 bps",
+    path: "M0 58 C29 55 47 60 75 49 S120 54 149 45 S195 49 224 39 S274 44 309 33 S344 35 360 29",
+    status: "post-v1",
+    fixture: "somm-susds",
   },
   {
     id: "compound",
     name: "Compound v3",
     asset: "USDC · Ethereum",
     apy: "3.30%",
-    meta: "band A · tracked",
+    avg30: "3.14%",
+    tvl: "$412M",
+    band: "A",
+    delta: "+16 bps",
+    path: "M0 69 C30 64 48 69 76 55 S121 61 151 49 S195 54 226 40 S275 46 310 30 S344 32 360 20",
+    status: "post-v1",
     fixture: "somm-compound",
+  },
+  {
+    id: "usdt",
+    name: "Compound v3",
+    asset: "USDT · Ethereum",
+    apy: "3.24%",
+    avg30: "3.09%",
+    tvl: "$198M",
+    band: "A",
+    delta: "+15 bps",
+    path: "M0 70 C29 65 48 69 76 57 S121 62 150 50 S196 55 226 43 S274 47 309 34 S344 36 360 23",
+    status: "post-v1",
+    fixture: "somm-usdt",
   },
 ] as const;
 
@@ -73,100 +128,145 @@ const tradeMarkets = {
 } as const;
 
 const integrationPoints = [
-  "Your application data becomes agent tools",
-  "Your limits become enforced execution policy",
-  "Your signer approves the exact simulated payload",
+  {
+    title: "Build the Aomi app",
+    body: "Existing product endpoints are wrapped as a curated set of typed tools, governed by an operating mandate, and deployed to Aomi's hosted runtime. Exposure limits, venue allowlists, and authorization requirements are enforced as execution policy outside the model.",
+  },
+  {
+    title: "Integrate any customer surface",
+    body: "The same hosted app is delivered through an embedded Widget, a registered Telegram bot, or Aomi Portal. One application, every channel, with no additional integration work per surface.",
+  },
+  {
+    title: "Retain the existing wallet infrastructure",
+    body: "Browser wallets, embedded providers such as Para and Privy, Safe, or an institutional signer remain the authority. Aomi constructs and simulates the exact payload; the designated signer approves it. No private keys are held by Aomi.",
+  },
 ] as const;
 
-export function IntegrationShowcases() {
+export function IntegrationInvariant({ flat = false }: { flat?: boolean }) {
   return (
-    <section className={styles.section}>
+    <section
+      className={`${styles.invariantSection} ${flat ? styles.flatSection : ""}`}
+    >
       <div className={styles.shell}>
-        <div className={styles.intro}>
+        <div className={styles.invariantStrip}>
           <div>
-            <p className={styles.eyebrow}>ONE SURFACE, DIFFERENT PRODUCTS</p>
-            <h2>Built into the product. Not bolted onto it.</h2>
+            <p className={styles.eyebrow}>INTEGRATION MODEL</p>
+            <h3>
+              One application across every surface, under customized API
+              contracts
+            </h3>
           </div>
-          <p className={styles.introBody}>
-            Use Aomi as a complete assistant, a trading sidecar, or an inline
-            transaction composer. The host experience changes. The execution
-            boundary does not.
-          </p>
+          <div className={styles.invariantPoints}>
+            {integrationPoints.map((point, index) => (
+              <div key={point.title}>
+                <span>0{index + 1}</span>
+                <div>
+                  <h4>{point.title}</h4>
+                  <p>{point.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
+      </div>
+    </section>
+  );
+}
+
+export function IntegrationShowcases({
+  flat = false,
+  afterTrading = null,
+  segment = "all",
+}: {
+  flat?: boolean;
+  afterTrading?: ReactNode;
+  segment?: "all" | "sommelier" | "remaining";
+}) {
+  return (
+    <section
+      className={`${styles.section} ${flat ? styles.flatSection : ""} ${segment === "sommelier" ? styles.sommelierSegment : ""}`}
+    >
+      <div className={styles.shell}>
+        {!flat && segment === "all" ? (
+          <div className={styles.intro}>
+            <div>
+              <p className={styles.eyebrow}>ONE SURFACE, DIFFERENT PRODUCTS</p>
+              <h2>Built into the product. Not bolted onto it.</h2>
+            </div>
+            <p className={styles.introBody}>
+              Use Aomi as a complete assistant, a trading sidecar, or an inline
+              transaction composer. The host experience changes. The execution
+              boundary does not.
+            </p>
+          </div>
+        ) : null}
 
         <LandingWalletKitProvider>
-          <article
-            id="somm"
-            className={`${styles.caseStudy} ${styles.sommCase}`}
-          >
-            <CaseCopy
-              number="01"
-              label="Shipped · agentic.somm.finance"
-              live
-              eyebrow="Managed assets"
-              title="Make the mandate visible."
-              body="Sommelier turns its existing strategy endpoints and risk mandate into an operator- and depositor-facing execution product. The agent proposes each move; the manager retains approval and custody."
-              points={[
-                "Strategy endpoints wrapped as agent tools",
-                "Risk bands and venue limits enforced every turn",
-                "One branded surface for operators and depositors",
-              ]}
-            />
-            <SommDemo />
-          </article>
+          {segment !== "remaining" ? (
+            <article
+              id="somm"
+              className={`${styles.caseStudy} ${styles.sommCase}`}
+            >
+              <CaseCopy
+                number="01"
+                label="Shipped · agentic.somm.finance"
+                live
+                eyebrow="Managed assets"
+                title="Make the mandate visible."
+                body="Sommelier turns its existing strategy endpoints and risk mandate into an operator- and depositor-facing execution product. The agent proposes each move; the manager retains approval and custody."
+                points={[
+                  "Strategy endpoints wrapped as agent tools",
+                  "Risk bands and venue limits enforced every turn",
+                  "One branded surface for operators and depositors",
+                ]}
+              />
+              <SommDemo showCaption={!flat} showMarketData={flat} />
+            </article>
+          ) : null}
 
-          <article
-            id="trading"
-            className={`${styles.caseStudy} ${styles.tradingCase}`}
-          >
-            <TradingDemo />
-            <CaseCopy
-              number="02"
-              label="Integration concept"
-              eyebrow="Trading"
-              title="An execution sidecar for every market."
-              body="Dock the Widget beside the chart and order book. Users describe the outcome; the application supplies market data and venue access; Aomi returns a routed, simulated order for the existing wallet to sign."
-              points={[
-                "Venue and liquidity discovery inside the conversation",
-                "Slippage, notional, and route policy checked before signing",
-                "A compact side panel instead of a separate destination",
-              ]}
-            />
-          </article>
+          {segment !== "sommelier" ? (
+            <>
+              <article
+                id="trading"
+                className={`${styles.caseStudy} ${styles.tradingCase}`}
+              >
+                <TradingDemo />
+                <CaseCopy
+                  number="02"
+                  label="Integration concept"
+                  eyebrow="Trading · Telegram"
+                  title="The same desk, from a Telegram chat."
+                  body="Register a bot token, attach the desk's plugin, and traders message it like a colleague. Aomi quotes the venues you expose, simulates the split route, checks your slippage and notional policy, and returns the order for the trader's own wallet—no custody, no new app."
+                  points={[
+                    "Each trader chats on their own Aomi identity and wallet",
+                    "Route, slippage, and notional policy checked before signing",
+                    "Autonomous signing is off until the trader turns it on with /permission",
+                  ]}
+                />
+              </article>
 
-          <article
-            id="prediction-markets"
-            className={`${styles.caseStudy} ${styles.predictionCase}`}
-          >
-            <CaseCopy
-              number="03"
-              label="Integration concept"
-              eyebrow="Prediction markets"
-              title="Turn research into a bounded position."
-              body="Place an inline assistant directly on a market page. The Widget can explain the resolution criteria, read liquidity, enforce a price and loss cap, and stage the exact position without taking the user out of context."
-              points={[
-                "Market context and portfolio state already in scope",
-                "Price, exposure, and maximum-loss limits made explicit",
-                "The selected outcome drives a deterministic position preview",
-              ]}
-            />
-            <PredictionDemo />
-          </article>
+              {afterTrading}
 
-          <div className={styles.invariantStrip}>
-            <div>
-              <p className={styles.eyebrow}>THE INVARIANT</p>
-              <h3>Different interface. Same contract.</h3>
-            </div>
-            <div className={styles.invariantPoints}>
-              {integrationPoints.map((point, index) => (
-                <div key={point}>
-                  <span>0{index + 1}</span>
-                  <p>{point}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+              <article
+                id="prediction-markets"
+                className={`${styles.caseStudy} ${styles.predictionCase}`}
+              >
+                <CaseCopy
+                  number="03"
+                  label="Integration concept"
+                  eyebrow="Prediction markets"
+                  title="Turn research into a bounded position."
+                  body="Place an inline assistant directly on a market page. The Widget can explain the resolution criteria, read liquidity, enforce a price and loss cap, and stage the exact position without taking the user out of context."
+                  points={[
+                    "Market context and portfolio state already in scope",
+                    "Price, exposure, and maximum-loss limits made explicit",
+                    "The selected outcome drives a deterministic position preview",
+                  ]}
+                />
+                <PredictionDemo />
+              </article>
+            </>
+          ) : null}
         </LandingWalletKitProvider>
       </div>
     </section>
@@ -216,7 +316,13 @@ function CaseCopy({
   );
 }
 
-function SommDemo() {
+function SommDemo({
+  showCaption = true,
+  showMarketData = false,
+}: {
+  showCaption?: boolean;
+  showMarketData?: boolean;
+}) {
   const [selectedVenue, setSelectedVenue] = useState<
     (typeof sommVenues)[number]
   >(sommVenues[0]);
@@ -249,27 +355,119 @@ function SommDemo() {
             <span>VENUES · NET YIELD</span>
             <span>1 OPEN · 5 TRACKED</span>
           </div>
-          <div className={styles.venueGrid}>
-            {sommVenues.map((venue) => (
-              <button
-                type="button"
-                key={venue.name}
-                className={`${styles.venueCard} ${venue.id === selectedVenue.id ? styles.venueSelected : ""}`}
-                onClick={() => setSelectedVenue(venue)}
-                aria-pressed={venue.id === selectedVenue.id}
-              >
+          {showMarketData ? (
+            <section
+              className={styles.sommMarket}
+              aria-label="Deterministic market context"
+            >
+              <header>
+                <span>MARKET CONTEXT</span>
+                <small>FIXTURE · CYCLE 08:42 UTC</small>
+              </header>
+              <div className={styles.sommBalances}>
                 <div>
-                  <i aria-hidden />
-                  <strong>{venue.name}</strong>
+                  <span>Idle USDC</span>
+                  <strong>$2.40M</strong>
+                  <small>62% of treasury</small>
                 </div>
-                <span>{venue.asset}</span>
-                <p>{venue.apy}</p>
-                <small>{venue.meta}</small>
-              </button>
-            ))}
+                <div>
+                  <span>Deployable</span>
+                  <strong>$1.56M</strong>
+                  <small>35% reserve retained</small>
+                </div>
+              </div>
+              <div className={styles.sommYieldChart}>
+                <div>
+                  <div>
+                    <span>{selectedVenue.name}</span>
+                    <small>{selectedVenue.asset}</small>
+                  </div>
+                  <strong>{selectedVenue.apy}</strong>
+                </div>
+                <svg
+                  viewBox="0 0 360 90"
+                  role="img"
+                  aria-label={`${selectedVenue.name} net APY trend fixture`}
+                  preserveAspectRatio="none"
+                >
+                  <defs>
+                    <linearGradient
+                      id="somm-yield-fill"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop offset="0" stopColor="#38d89f" stopOpacity="0.2" />
+                      <stop offset="1" stopColor="#38d89f" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <path
+                    className={styles.sommYieldArea}
+                    d={`${selectedVenue.path} L360 90 L0 90 Z`}
+                  />
+                  <path
+                    className={styles.sommYieldLine}
+                    d={selectedVenue.path}
+                  />
+                </svg>
+              </div>
+              <dl className={styles.sommMarketMetrics}>
+                <div>
+                  <dt>30d avg</dt>
+                  <dd>{selectedVenue.avg30}</dd>
+                </div>
+                <div>
+                  <dt>vs 30d</dt>
+                  <dd>{selectedVenue.delta}</dd>
+                </div>
+                <div>
+                  <dt>TVL</dt>
+                  <dd>{selectedVenue.tvl}</dd>
+                </div>
+                <div>
+                  <dt>Mandate</dt>
+                  <dd>Band {selectedVenue.band}</dd>
+                </div>
+              </dl>
+            </section>
+          ) : null}
+          <div className={styles.venueGrid} role="tablist">
+            {sommVenues.map((venue) => {
+              const selected = venue.id === selectedVenue.id;
+              return (
+                <button
+                  type="button"
+                  key={venue.id}
+                  role="tab"
+                  className={`${styles.venueCard} ${selected ? styles.venueSelected : ""} ${venue.status === "open" ? styles.venueOpen : ""}`}
+                  onClick={() => setSelectedVenue(venue)}
+                  aria-selected={selected}
+                >
+                  <div>
+                    <i aria-hidden />
+                    <strong>{venue.name}</strong>
+                    <em>{venue.status}</em>
+                  </div>
+                  <span>{venue.asset}</span>
+                  <p>
+                    {venue.apy} <small>net apy</small>
+                  </p>
+                  <dl>
+                    <dt>30d avg</dt>
+                    <dd>{venue.avg30}</dd>
+                    <dt>tvl</dt>
+                    <dd>{venue.tvl}</dd>
+                    <dt>risk band</dt>
+                    <dd>{venue.band}</dd>
+                  </dl>
+                </button>
+              );
+            })}
           </div>
           <p className={styles.venueNote}>
-            Example cycle · only eligible venues can reach approval
+            rates refreshed each cycle · only band A with deposits open is
+            eligible today
           </p>
         </div>
 
@@ -281,9 +479,11 @@ function SommDemo() {
           />
         </div>
       </div>
-      <figcaption>
-        Full-surface embed · application tools + mandate + existing signer
-      </figcaption>
+      {showCaption ? (
+        <figcaption>
+          Full-surface embed · application tools + mandate + existing signer
+        </figcaption>
+      ) : null}
     </figure>
   );
 }
@@ -373,17 +573,95 @@ function TradingDemo() {
         </div>
 
         <div className={styles.tradeFloat}>
-          <FixtureWidget
-            scenario="trading"
-            fixture={market.fixture}
-            label={`${market.symbol} route preview`}
-          />
+          <TelegramChat fixture={market.fixture} symbol={market.symbol} />
         </div>
       </div>
       <figcaption>
-        Sidecar embed · live venue data + route policy + connected wallet
+        Telegram bot · desk plugin + route policy + trader&apos;s own wallet
       </figcaption>
     </figure>
+  );
+}
+
+function renderBold(text: string) {
+  return text
+    .split(/(\*\*[^*]+\*\*)/g)
+    .map((part, index) =>
+      part.startsWith("**") ? (
+        <b key={index}>{part.slice(2, -2)}</b>
+      ) : (
+        <span key={index}>{part}</span>
+      ),
+    );
+}
+
+function TelegramChat({
+  fixture,
+  symbol,
+}: {
+  fixture: string;
+  symbol: string;
+}) {
+  const [, data] = resolveWidgetFixture(fixture);
+
+  return (
+    <div
+      className={styles.tgDevice}
+      aria-label={`Telegram bot ${symbol} route preview`}
+    >
+      <div className={styles.tgTopbar}>
+        <span className={styles.tgIconButton} aria-hidden>
+          ‹
+        </span>
+        <span className={styles.tgAvatar} aria-hidden>
+          <TrendingUp className="size-4" />
+        </span>
+        <div className={styles.tgTitle}>
+          <b>Vertex Desk Agent</b>
+          <span>bot</span>
+        </div>
+        <span className={styles.tgIconButton} aria-hidden>
+          ⌕
+        </span>
+        <span className={styles.tgIconButton} aria-hidden>
+          ⋮
+        </span>
+      </div>
+      <div className={styles.tgWallpaper}>
+        <div className={styles.tgDate}>Today</div>
+        <div className={`${styles.tgMessage} ${styles.tgOut}`}>
+          {data.prompt}
+          <span className={styles.tgTime}>
+            10:42 <i>✓✓</i>
+          </span>
+        </div>
+        <div className={styles.tgInRow}>
+          <span className={styles.tgAvatar} aria-hidden>
+            <TrendingUp className="size-3" />
+          </span>
+          <div className={styles.tgBotStack}>
+            <div className={`${styles.tgMessage} ${styles.tgIn}`}>
+              <b className={styles.tgLead}>{data.title} prepared.</b>
+              {renderBold(data.answer)} Your policy checks will apply before
+              signing.
+              <span className={styles.tgTime}>10:42</span>
+            </div>
+            <div className={styles.tgKeyboard}>Review order · {data.title}</div>
+            <div className={styles.tgKeyboard}>Approve &amp; sign&nbsp;↗</div>
+            <div className={`${styles.tgKeyboard} ${styles.tgKeyboardMuted}`}>
+              /permission · manual <em>· agent cannot sign alone</em>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className={styles.tgComposer}>
+        <span className={styles.tgMenu}>☰&nbsp; Menu</span>
+        <span className={styles.tgInput}>Message</span>
+        <span className={styles.tgMic} aria-hidden>
+          ●
+        </span>
+      </div>
+    </div>
   );
 }
 

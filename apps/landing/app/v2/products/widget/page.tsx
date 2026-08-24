@@ -2,24 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowUpRight, Check, Code2 } from "lucide-react";
 import { HumanDemo } from "../../sections/human-demo";
-import { IntegrationShowcases } from "./integration-showcases";
+import {
+  IntegrationInvariant,
+  IntegrationShowcases,
+} from "./integration-showcases";
+import { WidgetInstallCode } from "./widget-install-code";
 import pageStyles from "./widget-product.module.css";
 
 const INSTALL_COMMAND = "npx shadcn add https://aomi.dev/r/aomi-frame.json";
-
-const WIDGET_EXAMPLE = `import { AomiWidget } from "@aomi-labs/widget-lib";
-import "@aomi-labs/widget-lib/styles.css";
-
-export function OnchainAssistant() {
-  return (
-    <AomiWidget
-      applicationId={import.meta.env.VITE_AOMI_APPLICATION_ID}
-      apiUrl="https://chat.aomi.dev"
-      auth={{ kind: "browser_wallet" }}
-      height="640px"
-    />
-  );
-}`;
 
 export const metadata: Metadata = {
   title: "Widget | Aomi",
@@ -46,12 +36,90 @@ const integrationChoices = [
 export function WidgetProductPageContent({
   contactHref = "/v2/contact",
   productName = "AOMI WIDGET",
+  flat = false,
 }: {
   contactHref?: string;
   productName?: string;
+  flat?: boolean;
 }) {
+  const telegramSection = (
+    <section id="telegram" className={pageStyles.telegramSection}>
+      <div className={pageStyles.shell}>
+        <div className={pageStyles.flowGrid}>
+          <div>
+            <p className={pageStyles.eyebrow}>TELEGRAM</p>
+            <h2>Set up integration with no code</h2>
+            <p className={pageStyles.telegramLead}>
+              Paste a BotFather token, attach your hosted plugin, and Aomi runs
+              the bot. Every user chats on their own Aomi identity and
+              wallet—and decides for themselves whether the agent may sign.
+            </p>
+            <a
+              href="https://build.aomi.dev/integrations"
+              target="_blank"
+              rel="noreferrer"
+              className={pageStyles.textLink}
+            >
+              Register a bot in Aomi Build
+              <ArrowUpRight aria-hidden className="size-4" />
+            </a>
+          </div>
+          <ol className={pageStyles.flowSteps}>
+            {[
+              [
+                "01",
+                "Create the bot",
+                "Message @BotFather, send /newbot, copy the token.",
+              ],
+              [
+                "02",
+                "Register it",
+                "Paste the token and pick the apps it serves. Aomi verifies it with Telegram and activates the webhook.",
+              ],
+              [
+                "03",
+                "Users just chat",
+                "Each person messages on their own Aomi identity, wallets, and threads. /app switches between attached apps.",
+              ],
+              [
+                "04",
+                "Users choose how the agent signs",
+                "Agent wallets start unable to sign. /permission turns autonomous signing on—or back off—per user.",
+              ],
+            ].map(([number, title, body]) => (
+              <li key={number}>
+                <span>{number}</span>
+                <div>
+                  <h3>{title}</h3>
+                  <p>{body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </section>
+  );
+
+  const integrationContent = flat ? (
+    <>
+      <IntegrationShowcases flat segment="sommelier" />
+      <IntegrationInvariant flat />
+      <IntegrationShowcases
+        flat
+        segment="remaining"
+        afterTrading={telegramSection}
+      />
+    </>
+  ) : (
+    <>
+      <IntegrationInvariant />
+      <IntegrationShowcases />
+    </>
+  );
+
   return (
-    <main className={pageStyles.page}>
+    <main className={`${pageStyles.page} ${flat ? pageStyles.flatPage : ""}`}>
       <section className={pageStyles.hero}>
         <div className={pageStyles.shell}>
           <div className={pageStyles.heroGrid}>
@@ -59,9 +127,10 @@ export function WidgetProductPageContent({
               <p className={pageStyles.eyebrow}>{productName}</p>
               <h1>Onchain execution, inside your product.</h1>
               <p className={pageStyles.heroSupport}>
-                Embed the same chat-to-transaction experience used by Aomi
-                Portal. Bring your application, authentication, and signer. Aomi
-                brings the execution harness.
+                Put the same chat-to-transaction experience used by Aomi Portal
+                where your users already are: embedded in your product, or in a
+                Telegram bot you register in minutes. Bring your application,
+                authentication, and signer. Aomi brings the execution harness.
               </p>
               <div className={pageStyles.heroActions}>
                 <Link href="#install" className={pageStyles.primaryButton}>
@@ -78,7 +147,12 @@ export function WidgetProductPageContent({
                 </a>
               </div>
               <p className={pageStyles.heroNote}>
-                React · EVM + Solana · browser, Para, or Privy authentication
+                Web widget · Telegram · Portal · EVM + Solana · browser, Para,
+                or Privy authentication
+              </p>
+              <p className={pageStyles.heroProof}>
+                <span>IN PRODUCTION</span> Sommelier ships its liquidity
+                assistant on this surface.
               </p>
             </div>
 
@@ -105,8 +179,8 @@ export function WidgetProductPageContent({
               <strong>One component</strong>
             </div>
             <div>
-              <span>Forms</span>
-              <strong>Full · sidecar · inline</strong>
+              <span>Surfaces</span>
+              <strong>Widget · Telegram · Portal</strong>
             </div>
             <div>
               <span>Networks</span>
@@ -120,7 +194,7 @@ export function WidgetProductPageContent({
         </div>
       </section>
 
-      <IntegrationShowcases />
+      {integrationContent}
 
       <section id="install" className={pageStyles.installSection}>
         <div className={pageStyles.shell}>
@@ -148,18 +222,12 @@ export function WidgetProductPageContent({
               </a>
             </div>
 
-            <div className={pageStyles.codeCard}>
-              <div className={pageStyles.codeHeader}>
-                <span>OnchainAssistant.tsx</span>
-                <span>React</span>
-              </div>
-              <pre>
-                <code>{WIDGET_EXAMPLE}</code>
-              </pre>
-            </div>
+            <WidgetInstallCode />
           </div>
         </div>
       </section>
+
+      {!flat ? telegramSection : null}
 
       <section className={pageStyles.choiceSection}>
         <div className={pageStyles.shell}>

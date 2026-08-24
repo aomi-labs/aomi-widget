@@ -1,0 +1,10 @@
+[data-screen-label="Problem"],
+[data-screen-label="Hosted runtime"],
+[data-screen-label="Wallet agnostic"] {
+  background-color: #fff !important;
+  background-image:
+    linear-gradient(rgba(82, 136, 194, 0.085) 0.5px, transparent 0.5px),
+    linear-gradient(90deg, rgba(82, 136, 194, 0.085) 0.5px, transparent 0.5px) !important;
+  background-position: center top !important;
+  background-size: 72px 72px !important;
+}

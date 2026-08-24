@@ -1,147 +1,165 @@
 import type { Metadata } from "next";
-import {
-  ArrowRight,
-  BadgeDollarSign,
-  Building2,
-  FlaskConical,
-  Gauge,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { V3 } from "../site";
-import styles from "../v3.module.css";
+import { PricingSwitch } from "./pricing-switch";
+import styles from "./pricing.module.css";
 
 export const metadata: Metadata = {
   title: "Pricing | Aomi V3",
   description:
-    "Commercial paths for evaluating, integrating, and operating Aomi.",
+    "What Aomi costs: pay for the work an agent does, plus an optional fee when it moves value onchain. Flat hosting for businesses.",
   robots: { index: false, follow: false },
 };
 
-const paths = [
+const example = [
   {
-    icon: FlaskConical,
-    label: "Evaluate",
-    title: "Sandbox",
-    price: "Start with the workflow",
-    body: "Validate the product boundary, tools, wallet path, and deterministic fixtures before committing to a production integration.",
-    items: [
-      "Agent Skills and documentation",
-      "Local SDK development",
-      "Deterministic integration fixtures",
-      "Architecture review",
-    ],
-    cta: "Plan an evaluation",
+    step: "The ask",
+    detail: "“Swap $1,000 of ETH for USDC on Base.”",
+    amount: "",
   },
   {
-    icon: Gauge,
-    label: "Integrate",
-    title: "Usage",
-    price: "Aligned to execution",
-    body: "Move from test traffic to a hosted application, API, or embedded surface with pricing shaped by the runtime and transaction workload.",
-    items: [
-      "Hosted application runtime",
-      "Human Interface, API, MCP, and CLI surfaces",
-      "Simulation and execution pipeline",
-      "Operational evidence",
-    ],
-    cta: "Discuss the workload",
+    step: "The agent's work",
+    detail: "Reading balances, quoting venues, simulating the batch",
+    amount: "$0.40",
   },
   {
-    icon: Building2,
-    label: "Operate",
-    title: "Enterprise",
-    price: "Designed around the mandate",
-    body: "Create a commercial and operational model for white-label products, custom policy, platform onboarding, and sustained transaction flow.",
-    items: [
-      "Partner platform onboarding",
-      "Custom authorization policy",
-      "Integration and launch support",
-      "Commercial terms for executed flow",
-    ],
-    cta: "Design the engagement",
+    step: "The app's tool fee",
+    detail: "A flat price the app set on its order tool",
+    amount: "$0.01",
+  },
+  {
+    step: "The app's cut of the swap",
+    detail: "0.10% of the $1,000 moved, taken in the token",
+    amount: "$1.00",
+  },
+] as const;
+
+const details = [
+  {
+    q: "What is a credit?",
+    a: "The unit Aomi meters work in. One credit is one cent. A turn's cost is the model tokens it used plus any priced tools it called, converted at published per-model rates.",
+  },
+  {
+    q: "How do I pay?",
+    a: "Card or stablecoin. Businesses can also settle over an open payment channel and be billed after the fact rather than before each turn.",
+  },
+  {
+    q: "What happens when I run out?",
+    a: "The turn stops and asks you to top up. Nothing is executed, nothing is signed, and you are not charged for the interrupted turn.",
+  },
+  {
+    q: "Who pays the network gas?",
+    a: "The wallet that signs, exactly as it would for any transaction. An app can choose to sponsor gas for its users instead.",
+  },
+  {
+    q: "Do outcome fees apply to every transaction?",
+    a: "No. They exist only if the app declares one, they are capped by the app's own configuration, and they appear in the confirmation before signing.",
+  },
+  {
+    q: "Is there an enterprise agreement?",
+    a: "Yes. Volume hosting, custom revenue share, and dedicated support are handled per contract — talk to us.",
   },
 ] as const;
 
 export default function PricingPage() {
   return (
-    <main className={styles.editorialPage}>
-      <header className={styles.editorialHero}>
-        <p className={styles.eyebrow}>Pricing</p>
-        <h1>
-          Start with the execution boundary. Price the workload that follows.
-        </h1>
-        <p>
-          Aomi spans developer tooling, hosted runtime, transaction
-          infrastructure, and partner delivery. We scope the commercial path
-          around the surface, execution volume, and operational guarantees the
-          product requires.
-        </p>
+    <main className={styles.page}>
+      <header className={styles.hero}>
+        <div className={styles.heroInner}>
+          <p className={styles.eyebrow}>Pricing</p>
+          <h1>Pay for what the agent does.</h1>
+          <p className={styles.heroCopy}>
+            No seats, no subscriptions, no minimums. You pay for the work a turn
+            actually performs — and, if an app charges one, a small fee on value
+            it moves for you.
+          </p>
+          <PricingSwitch />
+        </div>
       </header>
 
-      <section className={styles.pricingGrid}>
-        {paths.map((path, index) => (
-          <article
-            key={path.title}
-            className={index === 1 ? styles.pricingFeatured : ""}
-          >
-            <div className={styles.pricingTop}>
-              <path.icon aria-hidden />
-              <span>{path.label}</span>
+      <section id="example" className={styles.exampleSection}>
+        <div className={styles.sectionInner}>
+          <div className={styles.sectionIntro}>
+            <div>
+              <p className={styles.eyebrow}>What it looks like</p>
+              <h2>One swap, priced end to end.</h2>
             </div>
-            <h2>{path.title}</h2>
-            <strong>{path.price}</strong>
-            <p>{path.body}</p>
-            <ul>
-              {path.items.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-            <Link href={`${V3}/contact`}>
-              {path.cta} <ArrowRight aria-hidden />
-            </Link>
-          </article>
-        ))}
+            <p>
+              A real turn on a $1,000 swap through an app that charges a tool
+              fee and takes 10 basis points of the amount moved.
+            </p>
+          </div>
+
+          <ol className={styles.exampleList}>
+            {example.map((row) => (
+              <li key={row.step}>
+                <strong>{row.step}</strong>
+                <span>{row.detail}</span>
+                <b>{row.amount}</b>
+              </li>
+            ))}
+          </ol>
+
+          <div className={styles.exampleTotal}>
+            <div>
+              <span>Total</span>
+              <strong>$1.41</strong>
+            </div>
+            <p>
+              $0.41 in credits for the agent&apos;s work, and $1.00 taken inside
+              the swap itself. Had the transaction failed, only the work would
+              have been charged.
+            </p>
+          </div>
+        </div>
       </section>
 
-      <section className={styles.pricingPrinciples}>
-        <div>
-          <BadgeDollarSign aria-hidden />
-          <p className={styles.eyebrow}>Pricing principles</p>
-          <h2>Pay for an operated execution system—not custody.</h2>
+      <section id="details" className={styles.detailsSection}>
+        <div className={styles.sectionInner}>
+          <div className={styles.sectionIntro}>
+            <div>
+              <p className={styles.eyebrow}>The details</p>
+              <h2>Questions people ask.</h2>
+            </div>
+            <p>
+              The full schedule — per-model rates, payment rails, and how the
+              builder statement is calculated — is in the documentation.
+            </p>
+          </div>
+
+          <dl className={styles.faq}>
+            {details.map((item) => (
+              <div key={item.q}>
+                <dt>{item.q}</dt>
+                <dd>{item.a}</dd>
+              </div>
+            ))}
+          </dl>
         </div>
-        <div>
-          <article>
-            <span>01</span>
-            <h3>Surface</h3>
-            <p>
-              Human Interface, hosted agent, API, MCP, and CLI place different
-              demands on delivery and support.
-            </p>
-          </article>
-          <article>
-            <span>02</span>
-            <h3>Runtime</h3>
-            <p>
-              Session volume, tool workloads, simulation, automation, and data
-              retention shape infrastructure use.
-            </p>
-          </article>
-          <article>
-            <span>03</span>
-            <h3>Flow</h3>
-            <p>
-              Executed transaction volume can support commercial alignment with
-              the value the product settles.
-            </p>
-          </article>
-          <article>
-            <span>04</span>
-            <h3>Assurance</h3>
-            <p>
-              Platform onboarding, custom policy, operational commitments, and
-              integration support define enterprise scope.
-            </p>
-          </article>
+      </section>
+
+      <section className={styles.cta}>
+        <div className={styles.sectionInner}>
+          <div>
+            <p className={styles.eyebrow}>Get started</p>
+            <h2>Try it before you pay anything.</h2>
+          </div>
+          <div className={styles.ctaActions}>
+            <a
+              href="https://chat.aomi.dev"
+              target="_blank"
+              rel="noreferrer"
+              className={styles.ctaPrimary}
+            >
+              Open Aomi
+              <ArrowUpRight aria-hidden />
+            </a>
+            <Link href={`${V3}/contact`} className={styles.ctaSecondary}>
+              Talk to us
+              <ArrowRight aria-hidden />
+            </Link>
+          </div>
         </div>
       </section>
     </main>

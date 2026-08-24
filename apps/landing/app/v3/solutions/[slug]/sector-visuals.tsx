@@ -16,6 +16,12 @@ const mandateViews = {
       { label: "Approved tokenized bills", value: "60%", width: "60%" },
     ],
     rules: ["Issuer allowlist", "40% liquidity floor", "Single-venue cap"],
+    trace: [
+      { label: "scanning venues", detail: "4 approved issuers · Base" },
+      { label: "mandate check", detail: "3 controls · passed" },
+      { label: "building transaction", detail: "approve → subscribe · 1.44M USDC" },
+      { label: "simulated", detail: "forked live state · ~200 ms" },
+    ],
   },
   income: {
     label: "Maximize income",
@@ -28,6 +34,12 @@ const mandateViews = {
       { label: "Venues B + C", value: "35%", width: "35%" },
     ],
     rules: ["35% venue cap", "Daily liquidity", "Issuer concentration"],
+    trace: [
+      { label: "scanning venues", detail: "6 markets · 3 chains" },
+      { label: "mandate check", detail: "3 controls · passed" },
+      { label: "building transaction", detail: "3 venues · weighted · batched" },
+      { label: "simulated", detail: "forked live state · ~200 ms" },
+    ],
   },
 } as const;
 
@@ -90,9 +102,11 @@ export function FintechMandate() {
         </aside>
       </div>
 
+      <MandateTrace key={viewId} trace={view.trace} />
+
       <footer className={styles.mandateFooter}>
         <div>
-          <span>Projected yield</span>
+          <span>Projected yield · illustrative</span>
           <strong>{view.yield}</strong>
         </div>
         <div>
@@ -105,6 +119,30 @@ export function FintechMandate() {
         </div>
       </footer>
     </div>
+  );
+}
+
+type TraceStep = { label: string; detail: string };
+
+function MandateTrace({ trace }: { trace: readonly TraceStep[] }) {
+  return (
+    <ol className={styles.mandateTrace} aria-label="Execution trace">
+      {trace.map((step, index) => (
+        <li key={step.label} style={{ animationDelay: `${index * 260}ms` }}>
+          <Check aria-hidden />
+          <span>{step.label}</span>
+          <small>{step.detail}</small>
+        </li>
+      ))}
+      <li
+        className={styles.mandateTraceSign}
+        style={{ animationDelay: `${trace.length * 260}ms` }}
+      >
+        <LockKeyhole aria-hidden />
+        <span>Review &amp; sign</span>
+        <small>batched → 1 signature · your wallet</small>
+      </li>
+    </ol>
   );
 }
 

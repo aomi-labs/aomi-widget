@@ -17,6 +17,36 @@
   isolation: isolate;
 }
 
+.storyboard {
+  display: grid;
+  gap: 72px;
+}
+
+.storyboardFrame > header {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  margin-bottom: 16px;
+  font-family: var(--v3-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.storyboardFrame > header span {
+  color: var(--v3-blue);
+}
+
+.storyboardFrame > header strong {
+  color: var(--v3-muted);
+  font-weight: 500;
+}
+
+.sceneStatic,
+.sceneStatic * {
+  animation: none !important;
+}
+
 .animation[data-playing="true"] {
   --play-state: running;
 }
@@ -959,14 +989,16 @@
   margin: 1.4cqw auto 0;
   font-family: var(--v3-serif);
   font-size: clamp(21px, 5.15cqw, 62px);
-  letter-spacing: -0.04em;
-  line-height: 1.04;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.06;
 }
 
 .closeScene > div {
   max-width: 71cqw;
   margin: 1.6cqw auto 0;
   color: var(--muted);
+  font-family: var(--v3-sans);
   font-size: clamp(7px, 1.65cqw, 20px);
   line-height: 1.45;
 }

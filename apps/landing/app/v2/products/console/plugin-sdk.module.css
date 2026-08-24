@@ -2705,3 +2705,275 @@
 .operateFooter span:nth-of-type(2) {
   display: none;
 }
+
+/* v3 type scale — matches the /v3 home page (PT Serif 700 · 60/38/23 · mono 11px eyebrows) */
+
+.v3Tokens .heroCopy h1,
+.v3Tokens .architectureLead h2,
+.v3Tokens .buildStage h2,
+.v3Tokens .ctaSection h2,
+.v3Tokens .ownershipTitle h2,
+.v3Tokens .safetyHeader h2,
+.v3Tokens .sectionIntro h2,
+.v3Tokens .surfaceCopy h2,
+.v3Tokens .toolchainHeading h2,
+.v3Tokens .layerLedger h3,
+.v3Tokens .ruleList h3,
+.v3Tokens .surfaceList h3 {
+  font-family: var(--v3-serif);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.v3Tokens .heroCopy h1 {
+  max-width: 16ch;
+  font-size: clamp(42px, 4.6vw, 60px);
+}
+
+.v3Tokens .architectureLead h2,
+.v3Tokens .buildStage h2,
+.v3Tokens .ctaSection h2,
+.v3Tokens .ownershipTitle h2,
+.v3Tokens .safetyHeader h2,
+.v3Tokens .sectionIntro h2,
+.v3Tokens .surfaceCopy h2,
+.v3Tokens .toolchainHeading h2 {
+  font-size: clamp(30px, 3vw, 38px);
+  letter-spacing: -0.015em;
+  line-height: 1.12;
+}
+
+.v3Tokens .layerLedger h3,
+.v3Tokens .ruleList h3,
+.v3Tokens .surfaceList h3 {
+  font-size: 23px;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.v3Tokens .eyebrow {
+  font-family: var(--v3-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.v3Tokens .heroSupport {
+  font-size: 16.5px;
+  line-height: 1.65;
+}
+
+.v3Tokens .primaryButton,
+.v3Tokens .primaryButton:hover {
+  color: #fff;
+}
+
+.v3Tokens .architectureLead h2,
+.v3Tokens .buildStage h2,
+.v3Tokens .ctaSection h2,
+.v3Tokens .ownershipTitle h2,
+.v3Tokens .safetyHeader h2,
+.v3Tokens .sectionIntro h2,
+.v3Tokens .surfaceCopy h2,
+.v3Tokens .toolchainHeading h2 {
+  max-width: 26ch;
+  text-wrap: balance;
+}
+
+.v3Tokens .layerLedger h3,
+.v3Tokens .ruleList h3,
+.v3Tokens .surfaceList h3 {
+  max-width: 28ch;
+}
+
+.v3Tokens .verifyButton:hover {
+  box-shadow: none;
+  transform: none;
+}
+
+.v3Tokens .primaryButton:hover,
+.v3Tokens .finalPrimary:hover {
+  transform: none;
+}
+
+/* v3: spacing rhythm (64px per side) + purple → blue, lime → green */
+.v3Tokens .hero {
+  padding-bottom: 48px;
+}
+
+.v3Tokens .layersSection,
+.v3Tokens .architectureSection,
+.v3Tokens .toolchainSection,
+.v3Tokens .ownershipSection,
+.v3Tokens .safetySection,
+.v3Tokens .surfacesSection {
+  padding-top: 64px;
+  padding-bottom: 64px;
+}
+
+.v3Tokens .ctaSection {
+  padding-top: 96px;
+  padding-bottom: 96px;
+}
+
+.v3Tokens .primaryButton:hover {
+  background: var(--v3-blue-dark);
+}
+
+.v3Tokens .windowDots i:first-child,
+.v3Tokens .workbenchStatusbar {
+  background: var(--v3-blue);
+}
+
+.v3Tokens .fileRail .activeFile {
+  background: rgba(82, 136, 194, 0.14);
+}
+
+.v3Tokens .ctaSection::before {
+  border-color: rgba(82, 136, 194, 0.4);
+}
+
+.v3Tokens .fixtureLabel {
+  border-color: rgba(112, 196, 155, 0.3);
+}
+
+.v3Tokens .deployRail .stepComplete .stepIcon {
+  border-color: rgba(112, 196, 155, 0.35);
+  background: rgba(112, 196, 155, 0.1);
+}
+
+/* v3: remaining workbench violets → blue */
+
+.v3Tokens .fileRail .activeFile {
+  background: rgba(82, 136, 194, 0.11);
+}
+
+.v3Tokens .fileRail .activeFile small,
+.v3Tokens .fileRail .activeFile span {
+  color: var(--v3-blue);
+}
+
+.v3Tokens .ctaSection::before {
+  border: 1px solid rgba(82, 136, 194, 0.4);
+  box-shadow: 0 0 0 80px rgba(82, 136, 194, 0.04),
+    0 0 0 160px rgba(82, 136, 194, 0.025);
+}
+
+.v3Tokens .buildJourney .buildJourneyActive {
+  background: linear-gradient(90deg, rgba(82, 136, 194, 0.16), transparent);
+}
+
+.v3Tokens .buildJourney .buildJourneyActive > span {
+  box-shadow: 0 0 0 5px rgba(82, 136, 194, 0.11);
+}
+
+.v3Tokens .buildStage header > span {
+  color: var(--v3-blue);
+}
+
+.v3Tokens .intentFixture > span,
+.v3Tokens .shipFixture span {
+  color: var(--v3-blue);
+}
+
+.v3Tokens .planFixture li > span {
+  color: var(--v3-blue);
+}
+
+.v3Tokens .verifyFixture > div > svg:first-child {
+  color: var(--v3-blue);
+}
+
+.v3Tokens .shipFixture {
+  background: linear-gradient(
+    135deg,
+    rgba(186, 242, 103, 0.09),
+    rgba(82, 136, 194, 0.08)
+  );
+}
+
+.v3Tokens .fixtureTreeRow > svg:nth-child(2) {
+  color: var(--v3-blue);
+}
+
+.v3Tokens .fixtureTreeRowActive {
+  background: rgba(82, 136, 194, 0.13);
+}
+
+.v3Tokens .buildProgress span {
+  color: var(--v3-blue);
+}
+
+.v3Tokens .projectIdentity > svg {
+  color: var(--v3-blue);
+}
+
+.v3Tokens .operateHeader > div:first-child > span {
+  color: var(--v3-blue);
+}
+
+.v3Tokens .operatePanelHeader svg {
+  color: var(--v3-blue);
+}
+
+.v3Tokens .activityBars i,
+.v3Tokens .activityBars b {
+  background: var(--v3-blue-dark);
+}
+
+.v3Tokens .operateFooter span:first-child {
+  color: var(--v3-blue);
+}
+
+.v3Tokens .operateFunnel i {
+  color: var(--v3-blue);
+}
+
+/* v3 improvements: hero accent, header alignment, compact operate funnel */
+.v3Tokens .heroCopy h1 em {
+  font-style: normal;
+}
+
+.v3Tokens .sectionIntro {
+  grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+  gap: 20px 80px;
+  align-items: end;
+}
+
+.v3Tokens .sectionIntro > .eyebrow {
+  grid-column: 1 / -1;
+}
+
+.v3Tokens .ownershipTitle {
+  display: block;
+}
+
+.v3Tokens .ownershipTitle h2 {
+  max-width: 24ch;
+  margin-top: 14px;
+  text-align: left;
+}
+
+.v3Tokens .operateFunnel {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.v3Tokens .operateFunnel > div {
+  min-height: 0;
+  grid-template-columns: none;
+  justify-items: start;
+  place-items: start;
+  padding: 18px 20px;
+  border-right: 1px solid rgba(255, 255, 255, 0.09);
+  border-bottom: 0;
+}
+
+.v3Tokens .operateFunnel > div:last-child {
+  border-right: 0;
+}
+
+.v3Tokens .operateFunnel span {
+  font-size: 25px;
+}

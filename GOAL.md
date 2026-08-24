@@ -1,5 +1,21 @@
 # Landing V2 Build-backed Product Proof
 
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** —
+sales-oriented improvements to the four product pages within the current
+layout and navigation (home page and nav untouched by Cecilia's instruction).
+Human Interface now covers Telegram as a second human-facing surface using
+the real Aomi Build bot flow (BotFather token → register → users chat on
+their own identity → per-user `/permission` signing), with a Sommelier
+in-production line; Discord/Slack deliberately omitted (not shipped). REST
+APIs adds in-production references (Sommelier on Agent API, World Markets on
+Pipeline API), explains the Pipeline PREVIEW badge, and bridges to the
+full-stack harness (Human Interface + Plugin SDK) in the closing CTA. Plugin
+SDK drops the "Aomi App" noun for "hosted plugin", leads with the
+"ChatGPT plugins, hosted by us / start from OpenAPI" framing, and lists
+Telegram among distribution surfaces. Agent Toolings gains one sentence tying
+its surfaces back to the Agent/Pipeline API. World Markets example stays on
+the DeFi solution page for now (move to Trading deferred by Cecilia).
+
 # Landing V3 Editorial Unification
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** — port the complete V2 Human
@@ -10,6 +26,81 @@ architecture and interactive artifacts—not unrelated pastel page palettes or a
 repeated generic card template. Sector demos and ownership boundaries remain
 distinct; company pages use editorial ledgers, contiguous process bands, and
 responsibility statements instead of disconnected card collections.
+The V3 REST API proof-ledger values use regular sans-serif weight rather than
+bold display emphasis; V2 keeps its existing treatment.
+The two V3 REST API cards omit their decorative corner glow and use one shared
+blue treatment for both API icons and status badges.
+The V3 REST API client example uses the approved Human Interface installation
+treatment: a light bordered code surface, blue mode control, syntax tokens,
+focused-line highlight, working copy action, and no horizontal scrollbar.
+The V3 Agent API and Pipeline API comparison is one contiguous square-edged
+grid with a shared divider rather than two separate cards; V2 retains the
+original card treatment.
+The V3 guarded lifecycle and contract-guarantee sections are consolidated into
+one shared-pipeline narrative. Agent API accepts customer intent and lets Aomi
+plan; Pipeline API accepts the integrator's selected action or ordered batch.
+Both resolve to the same sealed Action, cross the same Plan, Simulate, Guard,
+Sign, and Verify path, and inherit the same durability, custody, fail-closed,
+onchain-verification, and exactly-once-resume guarantees. V2 retains the two
+separate sections.
+
+The V3 REST API hero uses the same centered, copy-led composition as Agent
+Toolings. Its interactive Agent/Pipeline workbench lives in the dark shared
+contract section instead of competing with the hero; V2 keeps its prior layout.
+Inside that dark section, the editorial introduction spans the page before a
+full-width workbench. Complete curl request and JSON response examples occupy
+separate, spacious code surfaces; below them, the user-facing Action summary is
+a square API-client component beside a matching two-by-two
+request/seal/sign/resume lifecycle grid. All use
+the V3 paper, ink, border, muted, blue, and wash tokens for high-contrast light
+presentation while the surrounding contract section remains dark.
+The redundant V3 "Integrate from any stack" code/client section is omitted;
+the original V2 page still includes it.
+The V3 Agent Toolings MCP client selector uses a near-black rail and pale-blue
+active tab with dark text, making the selected client unambiguous on the dark
+terminal surface without changing the V2 token treatment.
+The V3 Agent Toolings OAuth handoff row uses larger explanatory, step-number,
+and step-label typography while preserving its existing grid, with a slightly
+larger separation from the terminal panel above.
+The V3 Agent Toolings surface comparison is an editorial ledger: a two-column
+section introduction, strong top rule, horizontal row separators, serif surface
+names, muted operational copy, and inline green completion text replace the
+full-bleed boxed grid and blue first-column panels.
+Its column header row uses bold mono labels with additional vertical breathing
+room so the table hierarchy is immediately legible.
+The V3 Agent Toolings closing CTA has no horizontal divider above it; its
+spacing and actions remain unchanged.
+The Human Interface proof facts render as a bordered ledger with full-width
+top and bottom rules and vertical desktop cell dividers, matching the V3 home
+validation grid; its mobile stack keeps horizontal row separators.
+The V3 flat composition begins directly with its shipped integration examples;
+the redundant “One surface, different products” introduction remains only on
+the V2 page.
+The V3 Sommelier demo omits the redundant full-surface embed caption beneath
+the product frame; V2 retains that explanatory caption.
+The V3 integration descriptions retain their spacing without the full-width
+top divider that previously separated each demo from its body copy.
+V3 integration body copy stays with its headline and checklist in the text
+column instead of dropping below the full height of the adjacent demo.
+Trading uses the same compact-copy, wide-demo ratio as the other integration
+examples instead of squeezing its product surface into a narrow right rail.
+V3 places the generalized integration model immediately after the shipped
+Sommelier example and before Trading; V2 retains the model-first section order.
+The V3 Sommelier demo uses its open workspace for a deterministic
+market-context panel covering treasury balance, deployable capital,
+selected-venue yield, 30-day spread, TVL, and risk band; it is explicitly
+labeled as fixture data. V2 retains its previous composition.
+The V3 Fintech Somm case-study section uses a clean white surface and a finer
+half-pixel border around its in-production proof pill.
+The V3 Fintech operating-model proof rail keeps its full-width top rule visible
+above the horizontal statistics grid.
+The first V3 Sommelier case has a larger desktop lead-in below the proof ledger
+while retaining a tighter mobile offset and leaving later case spacing intact.
+Its split section removes duplicate bottom padding before the integration model,
+then adds one deliberate responsive whitespace interval after the Sommelier
+product frame so the following model reads as a separate idea.
+The flat integration-model panel also removes its redundant top inset so the
+visible transition is controlled entirely by that shared interval.
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** —
 enrich the Plugin SDK and Trading pages with the actual Aomi Build lifecycle
@@ -27,6 +118,35 @@ Actions, signer submissions, confirmations, attributable exceptions, runtime,
 and releases. It does not imply that Aomi owns the platform's data, models,
 strategy, venue selection, routing, or risk decisions. All interactions remain
 local and call no Build, repository, model, signer, or transaction endpoint.
+
+The V3 Plugin SDK hero now leads with a deterministic moving
+`polymarket-trader` fixture instead of an abstract three-layer card. The demo
+uses the existing prediction-market fixture to show typed Plugin SDK tools
+reading an integrator-owned market API before the selected order enters Aomi's
+shared transaction pipeline for construction, simulation, policy enforcement,
+user-owned signing, and receipt correlation. The following code section makes
+the two capability layers explicit. It calls no live market, wallet, signer, or
+transaction endpoint.
+Its composition sits directly on the white page surface without decorative
+window chrome, an outer card border, rounded corners, or drop shadow.
+The V3 Plugin SDK page omits the generic Tool design rules section so the
+product narrative moves directly from the operated workbench to deployment.
+Its former three-card shipping section is a connected Build, Test, Deploy, and
+Operate delivery pipeline. The stages distinguish `aomi-build` compilation,
+local real-model inspection through `aomi-run`, hosted release activation, and
+ongoing Developer Platform status, logs, metrics, usage, tool health, and
+channel operations; each stage links to its corresponding official guide. The
+four pipeline stages use square corners so the sequence reads as infrastructure
+rather than a row of floating cards.
+The following capability section is a simplified clickable
+`polymarket-trader` file explorer. Visitors can switch among the registration,
+API client, tool, normalized type, and Cargo files to understand how the hosted
+plugin is organized without reproducing the full GitHub interface.
+The redundant six-public-APIs SDK surface ledger is omitted so the page moves
+directly from the concrete plugin code example into the tool-design guidance.
+The Build operations section follows the two-capability-layer section
+immediately, promoting release health, cost, logs, and transaction outcomes
+before the later tool-design and shipping guidance.
 
 # Landing V3 Sector-Specific Solution Pages
 
@@ -48,6 +168,19 @@ ownership of those concepts. Interactive examples are deterministic frontend
 fixtures and do not claim live capital movement, marketplace inventory, or
 production settlement. Desktop and 390px mobile layouts, interactive tab and
 selection states, targeted ESLint, and the production Next build are verified.
+Trading temporarily replaces its prior generic harness narrative with the World
+Markets × Aomi example already used on DeFi. Its six existing animated scenes
+are rendered as a complete static storyboard, one full frame at a time, while
+DeFi keeps the current animated presentation unchanged until the content is
+removed there in a later pass.
+The storyboard closing frame uses the approved V3 type pairing: bold PT Serif
+for the promise and Geist for the supporting explanation.
+Trading now opens with a Para-style product hero that layers the real Aomi Build
+creation and Telegram Integrations surfaces together. The copy explains the
+sequence: build governed agent tools once, connect the same app to a channel,
+then preserve each trader's identity, wallet, thread, and explicit signing
+permission. The World Markets storyboard follows as the application of that
+integration pattern.
 
 # Landing V2 Trading Solution Deep Dive
 
@@ -85,10 +218,13 @@ noise displacement, and randomized multi-sample diffuse pass. V3 now runs that
 exact original Unicorn project and runtime in two background-positioned scene
 instances; only placement, grayscale treatment, and opacity differ from the
 legacy solution effect. The hero and validation-grid masking remains local to
-V3. The effect is no longer fixed to the viewport: four 30 fps scene instances
+V3. The effect is no longer fixed to the viewport: two 30 fps scene instances
 are scattered down the page background and scroll with the content. Each scene
 is positioned from the live bounds of the exact screenshot target section:
-Value propositions, Problem, Feature Matrix, and One install. Their alternating
+Value propositions and One install. The Feature Matrix remains a clean white
+editorial surface. The Problem, Hosted runtime, and Wallet agnostic sections
+share a restrained 72px pale-blue graph-paper grid with half-pixel, clearly
+visible lines while preserving their existing content and layout. The remaining scenes' alternating
 left/right placement and
 small-to-large scale rhythm follows the approved vertical composition sketch,
 while feathered outer edges prevent rectangular render boundaries from
@@ -161,6 +297,15 @@ Agentic Toolings as Agent Toolings while retaining the established route slugs
 for backward-compatible links. Dropdown item labels match the regular Geist
 weight used by their parent navigation labels.
 
+The V3 pricing route now presents the Sidecar v1 fee model as three explicit
+money paths: user turn charges in offchain credits, user outcome fees in the
+flowed token onchain, and the platform-to-builder derived statement. It records
+the default quota/BYOK/Tempo/Coinbase rail order, turn and outcome formulas,
+the committed builder take rates and implementation status, and one worked
+example that keeps user charges separate from builder economics. Its hero uses
+plain-language copy and a three-step run, execute, and reconcile sequence so a
+visitor can understand the charging model before encountering ledger details.
+
 The V3 DeFi route now has a sector-specific composition: it keeps the current
 Earn/Swap value proposition, adds a World Markets product-integration preview
 with the actual campaign walkthrough, and makes the product flow, onchain
@@ -189,6 +334,8 @@ V3 content matrices are rectilinear: capability, lifecycle, related-product,
 solution, pricing, principle, research, news, contact, and comparison grids use
 square outer and card corners. Pills, floating navigation, and embedded product
 demo windows retain their intentional rounding.
+The V3 Research index links all three published studies: the execution-harness
+paper, the multi-wallet authentication study, and the AomiBench benchmark.
 The V3 Plugin SDK route reuses the complete V2 Plugin SDK page composition and
 interactive workbench rather than the generic V3 product template. Its section
 order, responsive grids, content, and controls remain shared with V2; a scoped
@@ -263,6 +410,18 @@ above it. The prediction-market
 composition preserves the approved overlapping card; Sommelier and trading use
 the same floating hierarchy instead of wrapping the Widget inside the host UI.
 The old `/v2/products/portal` URL remains a redirect.
+
+The `/v3/products/widget` adapter keeps this content and interaction model but
+uses the V3 editorial treatment: the outer demo frame is removed, proof values
+use regular weight, structural section dividers and dark section fills are
+absent, and the page remains white around the intentionally product-colored
+mockups. Its integration case studies use tighter copy-to-demo columns so the
+two sides read as one composition without changing the stacked tablet and
+mobile layout. Installation examples use a light, rounded,
+syntax-highlighted code surface rather than the legacy dark terminal card. The
+V3 Human Interface install example reuses the approved wallet-code treatment:
+Browser wallet, Para, and Privy tabs; UI and Terminal modes; contextual copy;
+a selected-line highlight; and a working copy action.
 
 # Landing V2 Nav Skeleton
 
@@ -1468,3 +1627,14 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   clears it; an ordinary non-persisted pageshow does not). The spec was
   mutation-tested: neutering the handler fails the restore case and passes the
   control case. Verified with the full launch suite, 32 files / 191 tests.
+- 2026-08-24 V3 Plugin SDK operate preview: promoted the Operate section below
+  the runtime layers and copied Build's raw control-plane presentation into the
+  landing page. Observability, Transactions, Usage, and Logs are interactive
+  tabs backed by deterministic preview data; Usage keeps the Build summary,
+  partner-payment, revenue, charge, and model-detail views while deliberately
+  omitting only the long Entries ledger. The entire band and its controls use a
+  scrollbar-free monochrome black surface with only white and muted text. Its
+  deterministic fixture tells one coherent portfolio story across
+  `sommelier-liquidity-manager`, `polymarket-trader`,
+  `hyperliquid-arb-bot`, and `world-market-telegram`, including matching
+  tools, transactions, logs, revenue, charges, and partner payments.
