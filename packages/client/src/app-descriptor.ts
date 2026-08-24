@@ -1,4 +1,10 @@
-import type { AomiAppDescriptor } from "./types";
+import type { AomiAppDescriptor, AomiArtifactStatus } from "./types";
+
+const ARTIFACT_STATUSES = new Set<AomiArtifactStatus>([
+  "ready",
+  "pending",
+  "fetch_backoff",
+]);
 
 /**
  * Canonical home for app-descriptor identity logic. The backend speaks
@@ -13,7 +19,9 @@ import type { AomiAppDescriptor } from "./types";
  * object) into a single camelCase {@link AomiAppDescriptor}. Returns null for
  * anything without a usable `name`.
  */
-export function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null {
+export function normalizeAppDescriptor(
+  item: unknown,
+): AomiAppDescriptor | null {
   if (typeof item === "string") {
     const name = item.trim();
     return name ? { name } : null;
@@ -54,6 +62,13 @@ export function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null 
   } else if (typeof raw.artifact_ready === "boolean") {
     descriptor.artifactReady = raw.artifact_ready;
   }
+  const artifactStatus = raw.artifactStatus ?? raw.artifact_status;
+  if (
+    typeof artifactStatus === "string" &&
+    ARTIFACT_STATUSES.has(artifactStatus as AomiArtifactStatus)
+  ) {
+    descriptor.artifactStatus = artifactStatus as AomiArtifactStatus;
+  }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
   // Drop the source twins carried over by the spread so the descriptor exposes
   // a single camelCase identity (no `id`/`application_id`/`applicationId`
@@ -65,6 +80,7 @@ export function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null 
     "is_active",
     "is_public",
     "artifact_ready",
+    "artifact_status",
   ]) {
     delete (descriptor as unknown as Record<string, unknown>)[key];
   }

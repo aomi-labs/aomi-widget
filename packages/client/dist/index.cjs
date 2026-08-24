@@ -751,8 +751,13 @@ function createSseSubscriber({
 }
 
 // src/app-descriptor.ts
+var ARTIFACT_STATUSES = /* @__PURE__ */ new Set([
+  "ready",
+  "pending",
+  "fetch_backoff"
+]);
 function normalizeAppDescriptor(item) {
-  var _a, _b;
+  var _a, _b, _c;
   if (typeof item === "string") {
     const name2 = item.trim();
     return name2 ? { name: name2 } : null;
@@ -790,6 +795,10 @@ function normalizeAppDescriptor(item) {
   } else if (typeof raw.artifact_ready === "boolean") {
     descriptor.artifactReady = raw.artifact_ready;
   }
+  const artifactStatus = (_c = raw.artifactStatus) != null ? _c : raw.artifact_status;
+  if (typeof artifactStatus === "string" && ARTIFACT_STATUSES.has(artifactStatus)) {
+    descriptor.artifactStatus = artifactStatus;
+  }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
   for (const key of [
     "id",
@@ -797,7 +806,8 @@ function normalizeAppDescriptor(item) {
     "app_release_tag",
     "is_active",
     "is_public",
-    "artifact_ready"
+    "artifact_ready",
+    "artifact_status"
   ]) {
     delete descriptor[key];
   }
