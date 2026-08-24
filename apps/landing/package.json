@@ -8,6 +8,7 @@
     "postinstall": "fumadocs-mdx",
     "dev": "next dev",
     "dev:localhost": "NEXT_PUBLIC_ANVIL_FOR_WALLET=true next dev",
+    "marketing:extract": "node scripts/extract-v3-reference.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

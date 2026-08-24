@@ -1,0 +1,261 @@
+/*
+ * Static-home theme bridge derived from aomi-design/src/tokens/tokens.css.
+ * Source commit: 8c6a8b351a4154ad46580f79cff4340ca3253da5
+ * The extracted reference uses inline styles, so exact light-role values are
+ * remapped to the same semantic dark roles used by the React marketing pages.
+ */
+
+:root {
+  --v3-theme-bg: #ffffff;
+  --v3-theme-surface: #ffffff;
+  --v3-theme-raised: #ffffff;
+  --v3-theme-subtle: #f4f4f5;
+  --v3-theme-text: #09090b;
+  --v3-theme-copy: #52525b;
+  --v3-theme-muted: #71717a;
+  --v3-theme-faint: #a1a1aa;
+  --v3-theme-border: #e4e4e7;
+  --v3-theme-blue-soft: #e2eef8;
+  --v3-theme-green-soft: #e5f4ed;
+  --v3-theme-pink-soft: #fbe4ef;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --v3-theme-bg: #09090b;
+  --v3-theme-surface: #18181b;
+  --v3-theme-raised: #27272a;
+  --v3-theme-subtle: #202024;
+  --v3-theme-text: #fafafa;
+  --v3-theme-copy: #d4d4d8;
+  --v3-theme-muted: #a1a1aa;
+  --v3-theme-faint: #71717a;
+  --v3-theme-border: #27272a;
+  --v3-theme-blue-soft: #28354a;
+  --v3-theme-green-soft: #163f2d;
+  --v3-theme-pink-soft: #45202e;
+}
+
+html[data-theme="dark"] body {
+  color: var(--v3-theme-text);
+  background: var(--v3-theme-bg);
+}
+
+html[data-theme="dark"]
+  [data-screen-label="Validation"]
+  img[src="/assets/logos/para.svg"],
+html[data-theme="dark"]
+  [data-screen-label="Validation"]
+  img[src="/assets/logos/world-markets.png"],
+html[data-theme="dark"]
+  [data-screen-label="Validation"]
+  img[src="/assets/logos/x.svg"] {
+  filter: grayscale(1) invert(1) !important;
+}
+
+html[data-theme="dark"]
+  div[data-screen-label="First page"]
+  > section[data-screen-label="Validation"],
+html[data-theme="dark"]
+  div[data-screen-label="First page"]
+  > section[data-screen-label="Feature matrix"] {
+  background: var(--v3-theme-bg) !important;
+}
+
+html[data-theme="dark"] [data-screen-label="Problem"],
+html[data-theme="dark"] [data-screen-label="Hosted runtime"],
+html[data-theme="dark"] [data-screen-label="Wallet agnostic"] {
+  background-color: var(--v3-theme-bg) !important;
+  background-image:
+    linear-gradient(rgba(82, 136, 194, 0.14) 0.5px, transparent 0.5px),
+    linear-gradient(90deg, rgba(82, 136, 194, 0.14) 0.5px, transparent 0.5px) !important;
+}
+
+html[data-theme="dark"]
+  div[data-screen-label="First page"]
+  > section[data-screen-label]:not([data-screen-label="Validation"]):not(
+    [data-screen-label="Problem"]
+  ):not([data-screen-label="Hosted runtime"]):not(
+    [data-screen-label="Wallet agnostic"]
+  ):not([data-screen-label="Feature matrix"]) {
+  background: linear-gradient(
+    90deg,
+    rgba(9, 9, 11, 0.18) 0%,
+    rgba(9, 9, 11, 0.64) 20%,
+    rgba(9, 9, 11, 0.88) 38%,
+    rgba(9, 9, 11, 0.88) 62%,
+    rgba(9, 9, 11, 0.64) 80%,
+    rgba(9, 9, 11, 0.18) 100%
+  ) !important;
+}
+
+html[data-theme="dark"] [style*="background:#fff"],
+html[data-theme="dark"] [style*="background: #fff"],
+html[data-theme="dark"] [style*="background:#ffffff"],
+html[data-theme="dark"] [style*="background: #ffffff"] {
+  background: var(--v3-theme-raised) !important;
+}
+
+html[data-theme="dark"]
+  :not(a):not(summary)[style*="background: rgb(255, 255, 255)"] {
+  background: var(--v3-theme-raised) !important;
+}
+
+html[data-theme="dark"] [style*="background:#fafafa"],
+html[data-theme="dark"] [style*="background: #fafafa"],
+html[data-theme="dark"] [style*="background:#f4f4f5"],
+html[data-theme="dark"] [style*="background: #f4f4f5"],
+html[data-theme="dark"] [style*="background: rgb(250, 250, 250)"],
+html[data-theme="dark"] [style*="background: rgb(244, 244, 245)"] {
+  background: var(--v3-theme-subtle) !important;
+}
+
+html[data-theme="dark"] [style*="background:#e2eef8"],
+html[data-theme="dark"] [style*="background: #e2eef8"],
+html[data-theme="dark"] [style*="background:#f1f7fc"],
+html[data-theme="dark"] [style*="background: #f1f7fc"],
+html[data-theme="dark"] [style*="background: rgb(226, 238, 248)"],
+html[data-theme="dark"] [style*="background: rgb(241, 247, 252)"] {
+  background: var(--v3-theme-blue-soft) !important;
+}
+
+html[data-theme="dark"] [style*="background:#e9f6f0"],
+html[data-theme="dark"] [style*="background: #e9f6f0"],
+html[data-theme="dark"] [style*="background:#effdde"],
+html[data-theme="dark"] [style*="background: #effdde"],
+html[data-theme="dark"] [style*="background: rgb(233, 246, 240)"],
+html[data-theme="dark"] [style*="background: rgb(239, 253, 222)"] {
+  background: var(--v3-theme-green-soft) !important;
+}
+
+html[data-theme="dark"] [style*="background:#fdf2f7"],
+html[data-theme="dark"] [style*="background: #fdf2f7"],
+html[data-theme="dark"] [style*="background: rgb(253, 242, 247)"] {
+  background: var(--v3-theme-pink-soft) !important;
+}
+
+html[data-theme="dark"] [style*="color:#09090b"],
+html[data-theme="dark"] [style*="color: #09090b"],
+html[data-theme="dark"] [style*="color:#111114"],
+html[data-theme="dark"] [style*="color: #111114"],
+html[data-theme="dark"] :not(a):not(summary)[style*="color: rgb(9, 9, 11)"],
+html[data-theme="dark"] :not(a):not(summary)[style*="color: rgb(17, 17, 20)"] {
+  color: var(--v3-theme-text) !important;
+}
+
+html[data-theme="dark"] [style*="color:#52525b"],
+html[data-theme="dark"] [style*="color: #52525b"],
+html[data-theme="dark"] [style*="color:#3f3f46"],
+html[data-theme="dark"] [style*="color: #3f3f46"],
+html[data-theme="dark"] [style*="color: rgb(82, 82, 91)"],
+html[data-theme="dark"] [style*="color: rgb(63, 63, 70)"] {
+  color: var(--v3-theme-copy) !important;
+}
+
+html[data-theme="dark"] [style*="color:#71717a"],
+html[data-theme="dark"] [style*="color: #71717a"],
+html[data-theme="dark"] [style*="color: rgb(113, 113, 122)"] {
+  color: var(--v3-theme-muted) !important;
+}
+
+html[data-theme="dark"] [style*="color:#a1a1aa"],
+html[data-theme="dark"] [style*="color: #a1a1aa"],
+html[data-theme="dark"] [style*="color: rgb(161, 161, 170)"] {
+  color: var(--v3-theme-faint) !important;
+}
+
+html[data-theme="dark"] [style*="#e4e4e7"],
+html[data-theme="dark"] [style*="#ececec"],
+html[data-theme="dark"] [style*="#dbdee1"],
+html[data-theme="dark"] [style*="rgb(228, 228, 231)"],
+html[data-theme="dark"] [style*="rgb(236, 236, 236)"],
+html[data-theme="dark"] [style*="rgb(219, 222, 225)"] {
+  border-color: var(--v3-theme-border) !important;
+}
+
+html[data-theme="dark"] header a[style*="background: rgb(255, 255, 255)"] {
+  color: #09090b !important;
+}
+
+html[data-theme="dark"] section[data-screen-label="Problem"],
+html[data-theme="dark"] section[data-screen-label="Hosted runtime"],
+html[data-theme="dark"] section[data-screen-label="Wallet agnostic"] {
+  background-color: var(--v3-theme-bg) !important;
+  background-image:
+    linear-gradient(rgba(161, 161, 170, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(161, 161, 170, 0.07) 1px, transparent 1px) !important;
+  background-position: center top !important;
+  background-size: 54px 54px !important;
+}
+
+.v3-reference-theme-toggle {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  flex: none;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.v3-reference-theme-corner {
+  position: fixed;
+  z-index: 50;
+  top: 22px;
+  right: 28px;
+  display: grid;
+  place-items: center;
+}
+
+.v3-reference-theme-toggle:hover {
+  border-color: rgba(255, 255, 255, 0.34);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+}
+
+.v3-reference-theme-toggle:focus-visible {
+  outline: 2px solid #aecbe8;
+  outline-offset: 2px;
+}
+
+.v3-reference-theme-toggle span {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.v3-reference-nav-actions > a:last-child {
+  color: #09090b !important;
+  background: #ffffff !important;
+}
+
+@media (max-width: 1159px) {
+  .v3-reference-theme-corner {
+    top: 18px;
+    right: 16px;
+  }
+
+  .v3-reference-theme-toggle {
+    width: 48px;
+    height: 48px;
+  }
+
+  .v3-reference-theme-toggle span {
+    font-size: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .v3-reference-theme-toggle {
+    transition: none;
+  }
+}

@@ -1,3 +1,61 @@
+# Canonical V3 Landing Cutover
+
+Current session goal: **NAV-MATCHED THEME SWITCHER VERIFIED 2026-08-25** — the
+fixed light/dark switcher diameter now exactly matches the navigation height:
+54px on desktop and 48px on compact mobile, on the homepage and React subpages.
+Browser measurements confirm equal width, height, and top alignment with zero
+overflow; theme switching still works. TypeScript, Prettier, route/asset
+checks, and `git diff --check` pass.
+
+Previous session goal: **FIXED AND COMPACT MOBILE NAVIGATION VERIFIED
+2026-08-25** — the static V3 homepage navigation now remains fixed at its
+22px desktop and 18px mobile viewport offsets while scrolling. Mobile
+navigation is reduced to a 48px pill with a 32px homepage menu control and a
+36px React menu control, tighter horizontal insets, and 20px clearance from the
+homepage theme control. Browser checks confirm it stays visible at scrollY 1100
+and 1800, the 19-link drawer still opens, and mobile overflow remains zero.
+TypeScript, Prettier, route/asset checks, and `git diff --check` pass.
+
+## Validation-grid official logos
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-25** — replace
+the V3 landing validation grid's letter placeholders and text-only entries with
+official partner, chain, protocol, and backer artwork, while preserving its
+existing labels, layout, grayscale treatment, and marquee behavior.
+
+Previous session goal: **UPPER-RIGHT THEME CONTROL VERIFIED 2026-08-25** — the
+V3 appearance control now lives in one fixed upper-right position, outside the
+navigation, on both the static homepage and every React marketing subpage. At
+phone widths the navigation reserves room for it, with no overlap or horizontal
+overflow. Desktop and mobile browser checks confirm one working theme control,
+functional mobile drawers, and clean spacing; TypeScript, scoped ESLint,
+JavaScript syntax, all marketing route/asset checks, and `git diff --check`
+pass. The current worktree is running at http://localhost:3001/.
+
+Previous session goal: **MOBILE V3 ADAPTATION VERIFIED 2026-08-25** — the
+canonical V3 marketing surface now reflows from 320px phones through tablet
+widths instead of retaining the static homepage's 1160px desktop canvas. The
+homepage has a native, touch-friendly 19-link drawer; hero/front-back install
+views, validation rails, comparison content, feature cards, FAQ, and footer
+stack without document-level horizontal overflow. The existing React mobile
+drawer also navigates correctly. All 15 marketing routes are overflow-clean at
+320px, the homepage is clean at 390px and 768px, and the 1440px desktop remains
+visually identical to V3 with all 39 motion signatures unchanged. JavaScript
+syntax, landing TypeScript, scoped ESLint, route/asset checks, and
+`git diff --check` pass. No public `/v2` or `/v3` copy was restored.
+
+## Marketing light/dark theme
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-25** — apply
+the Aomi design palette through semantic landing roles, honor system theme on
+first visit, persist an explicit choice across the static homepage and React
+marketing routes, and prevent a pre-hydration color flash. Dark-mode grids,
+borders, product canvases, code samples, and the Trading/World Markets visuals
+now use restrained, readable surface roles rather than leftover light colors.
+The homepage and every navbar route expose the same accessible theme control;
+TypeScript, scoped ESLint, Prettier, `git diff --check`, and browser checks for
+toggle persistence, route continuity, contrast, and console errors pass.
+
 # Auth BFF BetterAuth Cleanup Goal
 
 ## Application-scoped discovery regressions

@@ -1,0 +1,92 @@
+{
+  "Products": [
+    {
+      "title": "Human Interface",
+      "href": "/products/widget",
+      "description": "Embed chat-to-transaction in your product."
+    },
+    {
+      "title": "Agent Toolings",
+      "href": "/products/agentic-toolings",
+      "description": "Skills, hosted MCP, and CLI for the agents you use."
+    },
+    {
+      "title": "REST APIs",
+      "href": "/products/rest-apis",
+      "description": "Orchestration or direct transaction-pipeline control."
+    },
+    {
+      "title": "Plugin SDK",
+      "href": "/products/plugin-sdk",
+      "description": "Build and host applications on Aomi's shared runtime."
+    }
+  ],
+  "Solutions": [
+    {
+      "title": "Fintech",
+      "href": "/solutions/fintech",
+      "description": "Governed operations for tokenized assets and treasuries."
+    },
+    {
+      "title": "DeFi",
+      "href": "/solutions/defi",
+      "description": "Intent-to-transaction flows for protocols and frontends."
+    },
+    {
+      "title": "Trading",
+      "href": "/solutions/trading",
+      "description": "Guarded multi-venue execution for traders and agents."
+    },
+    {
+      "title": "NFT",
+      "href": "/solutions/nft",
+      "description": "Trusted conversational commerce for collectibles."
+    },
+    {
+      "title": "Wallets",
+      "href": "/solutions/wallets",
+      "description": "A non-custodial execution layer above the signer."
+    }
+  ],
+  "Resource": [
+    {
+      "title": "About",
+      "href": "/about",
+      "description": "Why Aomi exists and how we think about execution."
+    },
+    {
+      "title": "Research",
+      "href": "/research",
+      "description": "Authentication, evaluation, and onchain systems."
+    },
+    {
+      "title": "News",
+      "href": "/news",
+      "description": "Product notes, company updates, and announcements."
+    },
+    {
+      "title": "Contact",
+      "href": "/contact",
+      "description": "Talk with the team about a product or integration."
+    }
+  ],
+  "Developers": [
+    {
+      "title": "Documentation",
+      "href": "https://aomi.dev/docs/",
+      "description": "Guides and references for Aomi products.",
+      "external": true
+    },
+    {
+      "title": "Agents",
+      "href": "/agents.md",
+      "description": "Machine-readable instructions for coding agents."
+    },
+    {
+      "title": "GitHub",
+      "href": "https://github.com/aomi-labs",
+      "description": "SDKs, Skills, examples, and open source tooling.",
+      "external": true
+    }
+  ]
+}

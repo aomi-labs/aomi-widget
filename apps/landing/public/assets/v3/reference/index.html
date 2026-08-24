@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html><head><base href="/assets/v3/reference/"><title>Aomi — Execution harness for onchain finance</title><link rel="icon" href="/assets/images/bubble.svg"><link rel="stylesheet" href="./atmosphere.css"><link rel="stylesheet" href="./navigation.css?v=2"><link rel="stylesheet" href="./grid-sections.css"><link rel="stylesheet" href="./mobile.css?v=6"><link rel="stylesheet" href="./theme.css?v=7"><script src="./theme.js?v=2"></script><script src="./resources.js"></script><script src="./atmosphere.js" defer></script><script src="./navigation.js?v=4" defer></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./assets/84cc7dc7-632c-44d7-85cb-026043f27441.js"></script>
+
+
+
+
+
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics="">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<style>/* cyrillic-ext */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/6dbd4309-963b-481e-a3bd-f02e7f7765fb.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/58898b1b-e74d-4b68-a61f-aafcf739cbd9.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/19772163-8e50-4a3c-bdff-56322187386c.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/2b8323a9-85b5-4f6f-b24d-ece6ccc8b77c.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/9c806f79-e26f-4864-91d8-e883f415bab7.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/6dbd4309-963b-481e-a3bd-f02e7f7765fb.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/58898b1b-e74d-4b68-a61f-aafcf739cbd9.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/19772163-8e50-4a3c-bdff-56322187386c.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/2b8323a9-85b5-4f6f-b24d-ece6ccc8b77c.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/9c806f79-e26f-4864-91d8-e883f415bab7.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/6dbd4309-963b-481e-a3bd-f02e7f7765fb.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/58898b1b-e74d-4b68-a61f-aafcf739cbd9.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/19772163-8e50-4a3c-bdff-56322187386c.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/2b8323a9-85b5-4f6f-b24d-ece6ccc8b77c.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/9c806f79-e26f-4864-91d8-e883f415bab7.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/6dbd4309-963b-481e-a3bd-f02e7f7765fb.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/58898b1b-e74d-4b68-a61f-aafcf739cbd9.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/19772163-8e50-4a3c-bdff-56322187386c.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/2b8323a9-85b5-4f6f-b24d-ece6ccc8b77c.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Geist';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/9c806f79-e26f-4864-91d8-e883f415bab7.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/533a8253-991a-4b96-8242-6cec8c292aae.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/e29a4151-3c74-4dad-8c44-23894423ab16.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* symbols2 */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/ee6d9b51-6ea7-47fa-a9b5-84e6cb3a053f.woff2") format('woff2');
+  unicode-range: U+2000-2001, U+2004-2008, U+200A, U+23B8-23BD, U+2500-259F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/b3eb78a3-57ca-4caf-bb12-c2f9313cbb4d.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/b3797557-4eb2-4a9c-94f6-4bdcb0f6090d.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/12717e66-0183-43e5-b005-b6768045d1b2.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/533a8253-991a-4b96-8242-6cec8c292aae.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/e29a4151-3c74-4dad-8c44-23894423ab16.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* symbols2 */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/ee6d9b51-6ea7-47fa-a9b5-84e6cb3a053f.woff2") format('woff2');
+  unicode-range: U+2000-2001, U+2004-2008, U+200A, U+23B8-23BD, U+2500-259F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/b3eb78a3-57ca-4caf-bb12-c2f9313cbb4d.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/b3797557-4eb2-4a9c-94f6-4bdcb0f6090d.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./assets/12717e66-0183-43e5-b005-b6768045d1b2.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/533a8253-991a-4b96-8242-6cec8c292aae.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/e29a4151-3c74-4dad-8c44-23894423ab16.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* symbols2 */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/ee6d9b51-6ea7-47fa-a9b5-84e6cb3a053f.woff2") format('woff2');
+  unicode-range: U+2000-2001, U+2004-2008, U+200A, U+23B8-23BD, U+2500-259F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/b3eb78a3-57ca-4caf-bb12-c2f9313cbb4d.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/b3797557-4eb2-4a9c-94f6-4bdcb0f6090d.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Geist Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/12717e66-0183-43e5-b005-b6768045d1b2.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/ce581fcb-6818-4172-950e-5f0494ce62fe.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/c0de3271-14c7-4404-80c4-5ae7a0d414e9.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/f73a2f42-f58e-4c10-9eb8-38b50a93a5ab.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/1711f36d-00bc-4a8a-a389-d2c96af29630.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/8a46605b-0f69-4788-8608-7f1d91be2acf.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/22922a73-d2ff-4f23-9ca8-4f6a9fab0de8.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/fd79fdb0-18f8-49d9-ab30-8e5e776decbf.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./assets/f17f9cc9-137d-4b8e-b5c5-cf8502feb0ab.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/8c30c59a-e6e9-4401-a73c-752ff81ed6bd.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/c3509224-22bd-481a-8d61-9208bb64dab0.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/ebd453cd-1705-40b0-b8f9-27c5f1099f56.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'PT Serif';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/ec49af07-698b-4897-9b3b-4195683dd573.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/96f63468-82c6-4226-b023-44ead7049323.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/94e1c113-fe54-4bfb-af8c-8285c06b92f0.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/696b18c9-7684-4b9a-bf7e-227599170d63.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/303958d5-b556-43f4-bb32-e679ef305cbb.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/3fecd62b-de60-4bf7-81c4-8d82ed3ab6d1.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./assets/7e0eb5cf-f585-44fe-ba5f-c6b32406c731.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/96f63468-82c6-4226-b023-44ead7049323.woff2") format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/94e1c113-fe54-4bfb-af8c-8285c06b92f0.woff2") format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/696b18c9-7684-4b9a-bf7e-227599170d63.woff2") format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/303958d5-b556-43f4-bb32-e679ef305cbb.woff2") format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/3fecd62b-de60-4bf7-81c4-8d82ed3ab6d1.woff2") format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Source Serif 4';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./assets/7e0eb5cf-f585-44fe-ba5f-c6b32406c731.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
+<style>body{margin:0;background:#fff;font-family:'Geist',system-ui,sans-serif;-webkit-font-smoothing:antialiased}a{color:#5288c2;text-decoration:none}a:hover{color:#416cac}@keyframes om-marquee{from{transform:translateX(-50%)}to{transform:translateX(0)}}@keyframes om-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}@keyframes om-rise{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}@keyframes om-spin{to{transform:rotate(360deg)}}@keyframes om-blink{50%{opacity:0}}@keyframes om-marquee-rev{from{transform:translateX(0)}to{transform:translateX(-50%)}}@keyframes om-cube-dock{0%{opacity:0;transform:translate(-96px,-210px) scale(1.18)}12%{opacity:1}55%{opacity:1;transform:translate(0,0) scale(1)}82%{opacity:1;transform:translate(0,0) scale(1)}100%{opacity:0;transform:translate(0,0) scale(1)}}@keyframes om-cube-dash{0%,55%{opacity:1}70%,88%{opacity:0}100%{opacity:1}}@keyframes om-cube-src{0%{opacity:1}10%,88%{opacity:0}100%{opacity:1}}@keyframes om-teeter{0%,100%{transform:rotate(.45deg)}50%{transform:rotate(-.55deg)}}.om-fm-cell{position:relative;overflow:hidden}.om-fm-cell::before{content:"";position:absolute;inset:0;background:#5288c2;transform:translateX(-101%);transition:transform .38s cubic-bezier(.4,0,.2,1);z-index:1;pointer-events:none}.om-fm-cell:hover::before{transform:translateX(0)}.om-fm-cell .om-fm-link{position:relative;z-index:2;opacity:0;color:#fff !important;text-decoration:underline;text-underline-offset:4px;transition:opacity .22s ease .12s}.om-fm-cell:hover .om-fm-link{opacity:1}</style>
+</helmet>
+<div class="v3-reference-page" data-screen-label="First page" style="min-width:1160px;position:relative">
+<nav class="v3-reference-nav" style="position:absolute;top:22px;left:50%;transform:translateX(-50%);z-index:10;box-sizing:border-box;display:flex;align-items:stretch;gap:32px;padding:8px 8px 8px 30px;height:54px;border-radius:999px;background:linear-gradient(115deg,rgba(255,255,255,.22),rgba(255,255,255,.08) 45%,rgba(255,255,255,.16));backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -1px 0 rgba(255,255,255,.08),0 12px 40px rgba(9,9,11,.16)">
+<div style="display:flex;align-items:center;gap:8px"><svg sc-camel-view-box="0 0 362 362" style="width:20px;height:20px;color:#fff;flex:none" fill="currentColor"><path d="M321.778 94.2349C321.778 64.4045 297.595 40.2222 267.765 40.2222C237.935 40.2222 213.752 64.4045 213.752 94.2349C213.752 124.065 237.935 148.248 267.765 148.248C297.595 148.248 321.778 124.065 321.778 94.2349ZM362 94.2349C362 146.279 319.81 188.47 267.765 188.47C215.721 188.47 173.53 146.279 173.53 94.2349C173.53 42.1904 215.721 1.33271e-06 267.765 0C319.81 0 362 42.1904 362 94.2349Z"></path><path d="M181 0C184.792 0 188.556 0.116399 192.289 0.346221C189.506 2.74481 186.833 5.26892 184.28 7.90977C170.997 20.759 160.669 36.6452 154.42 54.4509C95.7682 66.7078 51.7143 118.709 51.7143 181C51.7143 252.403 109.597 310.286 181 310.286C243.292 310.286 295.291 266.231 307.547 207.58C325.364 201.327 341.259 190.99 354.113 177.695C356.745 175.149 359.261 172.486 361.653 169.71C361.883 173.444 362 177.208 362 181C362 280.964 280.964 362 181 362C81.0365 362 0 280.964 0 181C0 81.0365 81.0365 0 181 0Z"></path></svg></div>
+<div style="display:flex;align-items:center;gap:24px;font-size:14px">
+<a href="#" style="color:rgba(255,255,255,.88)">Products</a><a href="#" style="color:rgba(255,255,255,.88)">Solutions</a><a href="#" style="color:rgba(255,255,255,.88)">Resource</a><a href="#" style="color:rgba(255,255,255,.88)">Developers</a><a href="#" style="color:rgba(255,255,255,.88)">Pricing</a></div>
+<div style="display:flex;align-items:stretch;gap:8px;margin-left:6px">
+<a href="https://build.aomi.dev" style="display:flex;align-items:center;font-size:13.5px;color:#fff;background:rgba(255,255,255,.14);border-radius:999px;padding:0 22px;backdrop-filter:blur(4px);white-space:nowrap">Console</a>
+<a href="https://chat.aomi.dev" style="display:flex;align-items:center;font-size:13.5px;color:#09090b;background:#fff;border-radius:999px;padding:0 23px;font-weight:500;white-space:nowrap;gap:7px">App<span>→</span></a></div>
+<div class="v3-reference-nav-menu" data-v3-menu="Products" role="menu" aria-label="Products" aria-hidden="true" style="display:none"><div class="v3-reference-nav-menu-grid"><a href="/products/widget" class="v3-reference-nav-menu-item" role="menuitem"><span>Human Interface</span><small>Embed chat-to-transaction in your product.</small></a><a href="/products/agentic-toolings" class="v3-reference-nav-menu-item" role="menuitem"><span>Agent Toolings</span><small>Skills, hosted MCP, and CLI for the agents you use.</small></a><a href="/products/rest-apis" class="v3-reference-nav-menu-item" role="menuitem"><span>REST APIs</span><small>Orchestration or direct transaction-pipeline control.</small></a><a href="/products/plugin-sdk" class="v3-reference-nav-menu-item" role="menuitem"><span>Plugin SDK</span><small>Build and host applications on Aomi's shared runtime.</small></a></div></div><div class="v3-reference-nav-menu" data-v3-menu="Solutions" role="menu" aria-label="Solutions" aria-hidden="true" style="display:none"><div class="v3-reference-nav-menu-grid"><a href="/solutions/fintech" class="v3-reference-nav-menu-item" role="menuitem"><span>Fintech</span><small>Governed operations for tokenized assets and treasuries.</small></a><a href="/solutions/defi" class="v3-reference-nav-menu-item" role="menuitem"><span>DeFi</span><small>Intent-to-transaction flows for protocols and frontends.</small></a><a href="/solutions/trading" class="v3-reference-nav-menu-item" role="menuitem"><span>Trading</span><small>Guarded multi-venue execution for traders and agents.</small></a><a href="/solutions/nft" class="v3-reference-nav-menu-item" role="menuitem"><span>NFT</span><small>Trusted conversational commerce for collectibles.</small></a><a href="/solutions/wallets" class="v3-reference-nav-menu-item" role="menuitem"><span>Wallets</span><small>A non-custodial execution layer above the signer.</small></a></div></div><div class="v3-reference-nav-menu" data-v3-menu="Resource" role="menu" aria-label="Resource" aria-hidden="true" style="display:none"><div class="v3-reference-nav-menu-grid"><a href="/about" class="v3-reference-nav-menu-item" role="menuitem"><span>About</span><small>Why Aomi exists and how we think about execution.</small></a><a href="/research" class="v3-reference-nav-menu-item" role="menuitem"><span>Research</span><small>Authentication, evaluation, and onchain systems.</small></a><a href="/news" class="v3-reference-nav-menu-item" role="menuitem"><span>News</span><small>Product notes, company updates, and announcements.</small></a><a href="/contact" class="v3-reference-nav-menu-item" role="menuitem"><span>Contact</span><small>Talk with the team about a product or integration.</small></a></div></div><div class="v3-reference-nav-menu" data-v3-menu="Developers" role="menu" aria-label="Developers" aria-hidden="true" style="display:none"><div class="v3-reference-nav-menu-grid"><a href="https://aomi.dev/docs/" class="v3-reference-nav-menu-item" role="menuitem" target="_blank" rel="noreferrer"><span>Documentation</span><small>Guides and references for Aomi products.</small></a><a href="/agents.md" class="v3-reference-nav-menu-item" role="menuitem"><span>Agents</span><small>Machine-readable instructions for coding agents.</small></a><a href="https://github.com/aomi-labs" class="v3-reference-nav-menu-item" role="menuitem" target="_blank" rel="noreferrer"><span>GitHub</span><small>SDKs, Skills, examples, and open source tooling.</small></a></div></div></nav>
+<header class="v3-reference-hero" style="position:relative;border-bottom:1px solid #e4e4e7;background:url(&quot;./assets/b2ca8f1d-5d5a-4f0b-b9f1-ec73d344ebb3.jpg&quot;) center/cover;aspect-ratio:3220/1804;display:flex;align-items:center;justify-content:center;overflow:hidden">
+<div style="position:absolute;inset:0;background:linear-gradient(rgba(9,9,11,.5),rgba(9,9,11,.46) 45%,rgba(9,9,11,.5))"></div>
+<div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(1000px,92%);height:64%;background:radial-gradient(ellipse at center,rgba(9,9,11,.42),rgba(9,9,11,0) 72%)"></div>
+<div class="v3-reference-hero-stage" style="position:relative;perspective:1600px;max-width:840px;margin:0 auto;width:100%">
+<div class="v3-reference-hero-flip" style="display:grid;transform-style:preserve-3d;transition:transform .8s cubic-bezier(.45,.05,.2,1);transform:{{heroFlipT}}">
+<div class="v3-reference-hero-face v3-reference-hero-front" style="grid-area:1/1;backface-visibility:hidden;-webkit-backface-visibility:hidden;pointer-events:{{heroFrontPE}};padding:80px 48px 40px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box">
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#e2eef8;margin-bottom:20px">aomi labs</div>
+<h1 style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:60px;line-height:1.05;letter-spacing:-.02em;color:#fff;margin:0 0 22px;text-wrap:balance;text-shadow:0 2px 24px rgba(9,9,11,.35)">Execution harness for onchain Finance</h1>
+<p style="font-size:16.5px;line-height:1.65;color:rgba(255,255,255,.92);margin:0 0 32px;max-width:560px;text-shadow:0 1px 12px rgba(9,9,11,.35)">Hosted solution for blockchain AI. Clients bring arbitrary LLMs and customized APIs, we provide the agentic harness. Build, simulate, sign, broadcast — driven by agents, human in full control.<br>Non-custodial, wallet agnostic.</p>
+<div style="display:flex;gap:12px;justify-content:center"><a sc-camel-on-click="{{heroFlip}}" style="background:#fff;color:#09090b;font-size:14px;font-weight:500;padding:11px 22px;border-radius:999px;cursor:pointer">Start with Agents</a><a href="https://chat.aomi.dev" style="color:#fff;font-size:14px;padding:11px 22px;border-radius:999px;background:linear-gradient(115deg,rgba(255,255,255,.22),rgba(255,255,255,.08) 45%,rgba(255,255,255,.16));backdrop-filter:blur(22px) saturate(1.5);-webkit-backdrop-filter:blur(22px) saturate(1.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.28),inset 0 -1px 0 rgba(255,255,255,.08)">Contact us</a></div>
+</div>
+<div class="v3-reference-hero-face v3-reference-hero-back" style="grid-area:1/1;transform:rotateY(180deg);backface-visibility:hidden;-webkit-backface-visibility:hidden;pointer-events:{{heroBackPE}};padding:64px 48px 40px;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;box-sizing:border-box">
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#e2eef8;margin-bottom:20px">aomi labs</div>
+<h2 style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:44px;line-height:1.1;letter-spacing:-.02em;color:#fff;margin:0 0 16px;text-wrap:balance;text-shadow:0 2px 24px rgba(9,9,11,.35)">Empower your agents onchain</h2>
+<p style="font-size:15px;line-height:1.65;color:rgba(255,255,255,.9);margin:0 0 30px;max-width:540px;text-shadow:0 1px 12px rgba(9,9,11,.35)">Install Aomi to Claude Code, Codex, Cursor, OpenCode, or Hermes agents. Harness accessible via CLI, MCP, or API calls.</p>
+<div style="position:relative;width:100%;max-width:{{instRowMax}};transition:max-width .2s">
+<div style="display:flex;gap:12px;align-items:flex-start">
+<div style="flex:1;display:flex;align-items:flex-start;gap:10px;border:1px solid rgba(255,255,255,.32);border-radius:11px;padding:12px 16px;font-family:'Geist Mono',monospace;font-size:12px;color:#fff;background:rgba(9,9,11,.42);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)">
+<span style="color:#aecbe8;font-weight:700;line-height:1.75">&gt;</span>
+<span style="flex:1;text-align:{{instAlign}};white-space:pre-wrap;line-height:1.75">{{instCommand}}</span>
+<span sc-camel-on-click="{{instCopy}}" style="cursor:pointer;display:inline-flex;flex:none;margin-top:3px">
+<sc-if value="{{instNotCopied}}" hint-placeholder-val="{{true}}"><svg sc-camel-view-box="0 0 16 16" style="width:15px;height:15px"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="1.4"></rect><path d="M10.5 3.5v-1a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h1" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="1.4"></path></svg></sc-if>
+<sc-if value="{{instCopied}}" hint-placeholder-val="{{false}}"><svg sc-camel-view-box="0 0 16 16" style="width:15px;height:15px"><path d="M3 8.5l3.5 3.5L13 5" fill="none" stroke="#2e9e6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></sc-if>
+</span>
+</div>
+<div sc-camel-on-click="{{instToggle}}" style="cursor:pointer;display:flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.32);border-radius:11px;padding:0 15px;height:47px;box-sizing:border-box;font-size:12px;font-weight:500;color:#fff;min-width:118px;background:rgba(9,9,11,.42);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)" style-hover="background:rgba(255,255,255,.12)">
+{{instLogoImgLight}}
+<span style="flex:1;text-align:left">{{instLabel}}</span>
+<svg sc-camel-view-box="0 0 16 16" style="width:12px;height:12px;flex:none"><path d="M4 6l4 4 4-4" fill="none" stroke="rgba(255,255,255,.7)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<sc-if value="{{instOpen}}" hint-placeholder-val="{{false}}">
+<div style="position:absolute;top:calc(100% + 6px);right:0;width:190px;background:#fff;border:1px solid #e4e4e7;border-radius:12px;box-shadow:0 8px 24px rgba(9,9,11,.25);padding:6px;z-index:20;text-align:left">
+<sc-for list="{{instTools}}" as="t" hint-placeholder-count="0">
+<div sc-camel-on-click="{{t.pick}}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:500;color:#09090b;background:{{t.bg}}" style-hover="background:#f4f4f5">
+{{t.logoImg14}}
+<span style="flex:1">{{t.label}}</span>
+<sc-if value="{{t.on}}" hint-placeholder-val="{{false}}"><svg sc-camel-view-box="0 0 16 16" style="width:12px;height:12px;flex:none"><path d="M3 8.5l3.5 3.5L13 5" fill="none" stroke="#2e9e6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></sc-if>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<div style="font-size:12px;color:rgba(255,255,255,.65);margin-top:18px;text-shadow:0 1px 8px rgba(9,9,11,.4)">Embed is one surface among others, not the product.</div>
+<div style="display:flex;gap:10px;justify-content:center;margin-top:24px">
+<sc-for list="{{instTools}}" as="t" hint-placeholder-count="0">
+<span title="{{t.label}}" style="width:38px;height:38px;border:1px solid rgba(255,255,255,.3);border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:rgba(255,255,255,.92)">{{t.logoImg16}}</span>
+</sc-for>
+</div>
+<div sc-camel-on-click="{{heroFlip}}" style="margin-top:30px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;color:#fff;font-size:13.5px;font-weight:500;border:1px solid rgba(255,255,255,.35);border-radius:999px;padding:9px 18px" style-hover="background:rgba(255,255,255,.12)"><svg sc-camel-view-box="0 0 16 16" style="width:12px;height:12px;flex:none"><path d="M10 4L6 8l4 4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>Back</div>
+</div>
+</div>
+</div>
+</header>
+<section data-screen-label="Validation" style="border-bottom:1px solid #e4e4e7">
+<div style="display:grid;grid-template-columns:250px 1fr 230px;border-top:1px solid #e4e4e7">
+<div style="padding:26px 24px 26px 48px;border-right:1px solid #e4e4e7;border-bottom:1px solid #e4e4e7;display:flex;align-items:center">
+<div style="font-family:'Geist Mono',monospace;font-size:12.5px;line-height:1.6;color:#09090b">Trusted by<br>teams in production</div>
+</div>
+<div style="grid-column:2 / span 2;border-bottom:1px solid #e4e4e7;display:grid;grid-template-columns:repeat(6,1fr)">
+<div style="border-right:1px solid #e4e4e7;padding:32px 18px;display:flex;align-items:center;justify-content:center;gap:9px;font-family:'Geist Mono',monospace;font-size:14px;color:#52525b"><img src="/assets/logos/sommelier.png" alt="" style="width:18px;height:18px;object-fit:contain;filter:grayscale(1);opacity:.65">Sommelier</div>
+<div style="border-right:1px solid #e4e4e7;padding:32px 18px;display:flex;align-items:center;justify-content:center;gap:9px;font-family:'Geist Mono',monospace;font-size:14px;color:#52525b"><img src="/assets/logos/para.svg" alt="" style="width:18px;height:18px;object-fit:contain;filter:grayscale(1);opacity:.65">Para</div>
+<div style="border-right:1px solid #e4e4e7;padding:32px 18px;display:flex;align-items:center;justify-content:center;gap:9px;font-family:'Geist Mono',monospace;font-size:14px;color:#52525b"><img src="./assets/1649324e-7a20-4c7d-8e7b-6bd502a1870d.png" alt="" style="width:18px;height:18px;object-fit:contain;filter:grayscale(1);opacity:.65">Khalani</div>
+<div style="border-right:1px solid #e4e4e7;padding:32px 18px;display:flex;align-items:center;justify-content:center;gap:9px;font-family:'Geist Mono',monospace;font-size:14px;color:#52525b"><img src="/assets/logos/world-markets.png" alt="" style="width:18px;height:18px;object-fit:contain;filter:grayscale(1);opacity:.65">Worlds Market</div>
+<div style="border-right:1px solid #e4e4e7;padding:32px 18px;display:flex;align-items:center;justify-content:center;gap:9px;font-family:'Geist Mono',monospace;font-size:14px;color:#52525b"><img src="/assets/logos/swig.png" alt="" style="width:18px;height:18px;object-fit:contain;filter:grayscale(1);opacity:.65">Swig</div>
+<div style="padding:32px 18px;display:flex;align-items:center;justify-content:center;gap:9px;font-family:'Geist Mono',monospace;font-size:14px;color:#52525b"><img src="./assets/d30f78df-244f-4540-8b78-beb2a64f3e2a.svg" alt="" style="width:18px;height:18px;object-fit:contain;filter:grayscale(1);opacity:.65">Molinar</div>
+</div>
+<div style="grid-column:1 / span 2;border-bottom:1px solid #e4e4e7;display:flex;align-items:stretch;overflow:hidden">
+<span style="font-family:'Geist Mono',monospace;font-size:12.5px;line-height:1.6;color:#09090b;flex:none;width:150px;display:flex;align-items:center;padding-left:48px;box-sizing:content-box">Supported chains</span>
+<span style="flex:none;display:flex;align-items:center;justify-content:center;width:150px;border-left:1px solid #e4e4e7;border-right:1px solid #e4e4e7;font-family:'Geist Mono',monospace;font-size:15px;color:#09090b;margin-left:8px">10+</span>
+<div style="flex:1;min-width:0;display:flex;align-items:center;padding:30px 0 30px 32px;overflow:hidden">
+
+<div style="flex:1;min-width:0;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)">
+<div style="display:flex;width:max-content;animation:om-marquee 36s linear infinite">
+<span style="display:flex;gap:34px;align-items:center;white-space:nowrap;padding-right:34px;font-family:'Geist Mono',monospace;font-size:12.5px;line-height:15px;color:#71717a">
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/c0d220c3-52b4-41a2-84cf-f17d06088e8d.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Ethereum</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/arbitrum.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Arbitrum One</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/optimism.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">OP Mainnet</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/base.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Base</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/polygon.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Polygon</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/linea.ico" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Linea</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/monad.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Monad</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/robinhood.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Robinhood Chain</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/megaeth.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">MegaETH</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/36c969cb-d10e-4e38-b38f-37cbbb059f18.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Solana</span>
+</span>
+<span style="display:flex;gap:34px;align-items:center;white-space:nowrap;padding-right:34px;font-family:'Geist Mono',monospace;font-size:12.5px;line-height:15px;color:#71717a" aria-hidden="true">
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/c0d220c3-52b4-41a2-84cf-f17d06088e8d.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Ethereum</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/arbitrum.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Arbitrum One</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/optimism.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">OP Mainnet</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/base.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Base</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/polygon.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Polygon</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/linea.ico" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Linea</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/monad.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Monad</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/robinhood.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Robinhood Chain</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/megaeth.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">MegaETH</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/36c969cb-d10e-4e38-b38f-37cbbb059f18.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Solana</span>
+</span>
+</div>
+</div>
+</div>
+</div>
+<div style="grid-column:1 / span 2;display:flex;align-items:stretch;overflow:hidden">
+<div style="flex:1;min-width:0;display:flex;align-items:center;padding:30px 0 30px 48px;overflow:hidden">
+<div style="flex:1;min-width:0;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent);mask-image:linear-gradient(90deg,transparent,#000 6%,#000 94%,transparent)">
+<div style="display:flex;width:max-content;animation:om-marquee-rev 60s linear infinite">
+<span id="om-proto-a" style="display:flex;gap:30px;align-items:center;white-space:nowrap;padding-right:30px;font-family:'Geist Mono',monospace;font-size:12.5px;line-height:15px;color:#71717a">
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/f172ab94-c1ce-4a05-b71c-ae3f655dedb4.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Across</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/9ae65c39-59a4-4868-8072-99b1418eedf0.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Binance</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/09463f60-0c8d-4f19-837b-fdc19f2b10b7.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Bybit</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/c494ac16-61af-4915-98be-d3ce5f260c99.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">CoW Protocol</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/48b76ea4-40bf-4c80-bec7-03401ac54969.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">DefiLlama</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/delta.jpg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Delta</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/5c88eec0-39bc-4b46-8556-06076819a4a2.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Dune</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/d0493d18-917c-4ead-b9b5-14c96fe183e2.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">dYdX</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/737b5a9a-c68c-4aed-8abc-1196e0e45488.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">GMX</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/f5ad1d19-e3fa-4b4d-9c87-f04bb0164a76.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Hyperliquid</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/jupiter.jpg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Jupiter</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/bda4a4d3-55cb-4bbf-b4aa-bbcd0ba5fda6.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Kaito</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/a5f60a01-460d-4e3b-a3a6-8ed2554e6beb.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Kalshi</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/1649324e-7a20-4c7d-8e7b-6bd502a1870d.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Khalani</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/krexa.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Krexa</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/dac9c51c-d5df-49d6-9c95-87bd8ce046b6.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">LI.FI</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/9186f0e3-596c-4da6-8734-609dcba09e1e.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Limitless</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/manifold.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Manifold</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/marinade.ico" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Marinade</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/d30f78df-244f-4540-8b78-beb2a64f3e2a.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Molinar</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/b4c5dc54-1d91-4c29-ac57-8473c1e6de64.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Morpho</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/73ee1eeb-fa33-4894-adea-3bf62e9c4a58.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Neynar</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/aab0fcfc-9aa5-418e-9b0b-1fd64900f9c6.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">OKX</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/a04b2cd4-c088-4279-860f-e4b6fc424eaf.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">1inch</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/para.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Para</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/4a95ad0d-e9bf-444d-98c5-6b6346d54226.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Pelagos</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/94a17438-1f04-4d81-a0a2-e002a3fc150f.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Polymarket</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/36c969cb-d10e-4e38-b38f-37cbbb059f18.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Solana transfer</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/world-markets.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">World Markets</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="/assets/logos/x.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">X</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/8a11131a-e46a-49a9-8118-b142b0de9646.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Yearn</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/08dbe835-52da-4f10-9526-7394198b6a15.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">0x</span>
+<span style="display:flex;align-items:center;gap:7px"><img src="./assets/b3dcf881-cfd1-4b00-81fd-bdc7ac3c4e6d.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Zora</span>
+</span>
+<span id="om-proto-b" style="display:flex;gap:30px;align-items:center;white-space:nowrap;padding-right:30px;font-family:'Geist Mono',monospace;font-size:12.5px;line-height:15px;color:#71717a" aria-hidden="true"></span>
+</div>
+</div>
+</div>
+<span style="flex:none;display:flex;align-items:center;justify-content:center;width:150px;border-left:1px solid #e4e4e7;border-right:1px solid #e4e4e7;font-family:'Geist Mono',monospace;font-size:15px;color:#09090b;margin-right:8px">33</span>
+<span style="font-family:'Geist Mono',monospace;font-size:12.5px;line-height:1.6;color:#09090b;flex:none;display:flex;align-items:center;padding-right:48px;padding-left:20px">Supported protocols</span>
+</div>
+<div style="grid-column:3;grid-row:2 / span 2;border-left:1px solid #e4e4e7;display:flex;flex-direction:column;gap:22px;padding:26px 48px 26px 28px">
+<span style="font-family:'Geist Mono',monospace;font-size:12.5px;line-height:1.6;color:#09090b">Backed by</span>
+<span style="display:flex;flex-direction:column;gap:16px;font-family:'Geist Mono',monospace;font-size:12.5px;line-height:15px;color:#71717a">
+<span style="display:flex;align-items:center;gap:9px"><img src="/assets/logos/anagram.png" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Anagram</span>
+<span style="display:flex;align-items:center;gap:9px"><img src="/assets/logos/nascent.svg" alt="" style="width:15px;height:15px;object-fit:contain;filter:grayscale(1);opacity:.65">Nascent</span>
+</span>
+<a href="#" style="font-family:'Geist Mono',monospace;font-size:12.5px;color:#5288c2;margin-top:auto">Join Them →</a>
+</div>
+</div>
+</section>
+<section id="om-trace-showcase" data-screen-label="Agent trace" style="background:#fff">
+<div style="max-width:1160px;margin:0 auto;box-sizing:border-box;padding:96px 48px 56px;display:grid;grid-template-columns:390px 1fr;gap:64px;align-items:start">
+<div style="display:flex;flex-direction:column">
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#5288c2;margin-bottom:18px">The Product</div>
+<h2 style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:38px;line-height:1.12;letter-spacing:-.015em;color:#09090b;margin:0 0 16px;text-wrap:balance">From intent to universal execution</h2>
+<p style="font-size:15px;line-height:1.65;color:#52525b;margin:0 0 30px">Aomi Labs builds a runtime that turns <strong style="color:#09090b;font-weight:600">intent into onchain execution</strong>. Exact transaction is composed and <strong style="color:#09090b;font-weight:600">rehearsed on a forked copy of live blockchain</strong>, and returns it to the user's wallet for signature. The runtime is <strong style="color:#09090b;font-weight:600">non-custodial</strong>, account-abstracted, and protocol-agnostic across EVM and SVM. <strong style="color:#09090b;font-weight:600">No malformed transaction ever reaches a signature.</strong></p>
+<div style="display:flex;flex-direction:column">
+<sc-for list="{{captions}}" as="cap" hint-placeholder-count="4">
+<div style="border-top:1px solid #e4e4e7;padding:15px 0">
+<sc-if value="{{cap.on}}" hint-placeholder-val="{{false}}">
+<div style="animation:om-rise .3s ease-out both">
+<div style="font-size:14.5px;font-weight:600;color:#09090b">{{cap.t}}</div>
+<div style="font-size:13px;line-height:1.55;color:#52525b;margin-top:4px">{{cap.s}}</div>
+</div>
+</sc-if>
+<sc-if value="{{cap.off}}" hint-placeholder-val="{{true}}">
+<div style="font-size:14.5px;font-weight:500;color:#a1a1aa">{{cap.t}}</div>
+</sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="padding:24px 28px 28px;box-sizing:border-box;min-height:460px;display:flex;flex-direction:column" data-comment-anchor="1f9fad070c-div">
+
+<div style="display:flex;flex-direction:column;gap:28px">
+<sc-if value="{{bubbleOn}}" hint-placeholder-val="{{false}}">
+<div style="align-self:flex-end;max-width:78%;background:#f4f4f5;border-radius:16px;padding:12px 16px;font-size:14px;line-height:1.55;color:#09090b;animation:om-rise .3s ease-out both">{{typedText}}<sc-if value="{{cursorOn}}" hint-placeholder-val="{{false}}"><span style="display:inline-block;width:2px;height:14px;background:#09090b;margin-left:2px;vertical-align:-2px;animation:om-blink 1s steps(2) infinite"></span></sc-if></div>
+</sc-if>
+<sc-if value="{{traceOpen}}" hint-placeholder-val="{{false}}">
+<div style="border:1px solid #e4e4e7;border-radius:12px;overflow:hidden;animation:om-rise .3s ease-out both">
+<div style="display:flex;align-items:center;gap:10px;background:#fafafa;padding:10px 14px">
+<span style="font-size:13px;font-weight:500;background:linear-gradient(90deg,#71717a 35%,#09090b 50%,#71717a 65%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:om-shimmer 1.6s linear infinite">Working</span>
+<sc-if value="{{stepsOn}}" hint-placeholder-val="{{false}}"><span style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#71717a">{{stepsLabel}}</span></sc-if>
+<span style="flex:1"></span>
+<svg sc-camel-view-box="0 0 16 16" style="width:12px;height:12px;flex:none"><path d="M4 6l4 4 4-4" fill="none" stroke="#a1a1aa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+<sc-if value="{{hasRows}}" hint-placeholder-val="{{false}}">
+<div id="om-trace-viewport" style="max-height:290px;overflow-y:auto;border-top:1px solid #e4e4e7;padding:12px 14px;display:flex;flex-direction:column;gap:2px">
+<sc-for list="{{rows}}" as="row" hint-placeholder-count="2">
+<sc-if value="{{row.isNote}}" hint-placeholder-val="{{false}}">
+<div style="display:flex;gap:10px;padding:3px 0;animation:om-rise .3s ease-out both">
+<span style="width:16px;flex:none;display:flex;justify-content:center;padding-top:7px"><span style="width:4px;height:4px;border-radius:50%;background:#a1a1aa"></span></span>
+<span style="flex:1;font-size:13px;line-height:1.55;color:#71717a">{{row.text}}</span>
+</div>
+</sc-if>
+<sc-if value="{{row.isTool}}" hint-placeholder-val="{{false}}">
+<div style="padding:2px 0;animation:om-rise .3s ease-out both">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="width:16px;height:16px;flex:none;display:flex;align-items:center;justify-content:center">
+<sc-if value="{{row.done}}" hint-placeholder-val="{{true}}"><svg sc-camel-view-box="0 0 16 16" style="width:13px;height:13px"><path d="M3 8.5l3.5 3.5L13 5" fill="none" stroke="#2e9e6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></sc-if>
+<sc-if value="{{row.pending}}" hint-placeholder-val="{{false}}"><span style="width:11px;height:11px;border-radius:50%;border:2px solid #e4e4e7;border-top-color:#5288c2;animation:om-spin .8s linear infinite;display:block"></span></sc-if>
+</span>
+<sc-if value="{{row.active}}" hint-placeholder-val="{{false}}"><span style="font-family:'Geist Mono',monospace;font-size:13px;font-weight:500;background:linear-gradient(90deg,#71717a 35%,#09090b 50%,#71717a 65%);background-size:200% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;animation:om-shimmer 1.6s linear infinite">{{row.title}}</span></sc-if>
+<sc-if value="{{row.idle}}" hint-placeholder-val="{{true}}"><span style="font-family:'Geist Mono',monospace;font-size:13px;color:#09090b">{{row.title}}</span></sc-if>
+</div>
+<sc-if value="{{row.hasChips}}" hint-placeholder-val="{{false}}">
+<div style="margin:6px 0 3px 26px;display:flex;flex-wrap:wrap;gap:6px;animation:om-rise .3s ease-out .12s both">
+<sc-for list="{{row.chips}}" as="chip" hint-placeholder-count="2">
+<span style="display:inline-flex;align-items:center;gap:6px;background:#f4f4f5;border-radius:999px;padding:4px 10px;font-family:'Geist Mono',monospace;font-size:11.5px;line-height:1.3;color:#52525b"><span style="width:5px;height:5px;border-radius:50%;background:#5288c2;flex:none"></span>{{chip.label}}</span>
+</sc-for>
+<sc-if value="{{row.more}}" hint-placeholder-val="{{false}}"><span style="display:inline-flex;align-items:center;background:#f4f4f5;border-radius:999px;padding:4px 10px;font-family:'Geist Mono',monospace;font-size:11.5px;line-height:1.3;color:#71717a">{{row.moreLabel}}</span></sc-if>
+</div>
+</sc-if>
+</div>
+</sc-if>
+</sc-for>
+<sc-if value="{{signOn}}" hint-placeholder-val="{{false}}">
+<div style="display:flex;align-items:center;gap:12px;margin:24px 0 4px 26px;animation:om-rise .3s ease-out both">
+<sc-if value="{{signIdle}}" hint-placeholder-val="{{true}}"><span style="display:inline-flex;align-items:center;gap:8px;background:#09090b;color:#fff;font-size:13px;font-weight:500;padding:9px 20px;border-radius:999px;transition:transform .12s ease;cursor:pointer">⌘ Approve &amp; Sign</span></sc-if>
+<sc-if value="{{signPressed}}" hint-placeholder-val="{{false}}"><span style="display:inline-flex;align-items:center;gap:8px;background:#27272a;color:#fff;font-size:13px;font-weight:500;padding:9px 20px;border-radius:999px;transform:scale(.94)">⌘ Approve &amp; Sign</span></sc-if>
+<sc-if value="{{signSigned}}" hint-placeholder-val="{{false}}"><span style="display:inline-flex;align-items:center;gap:8px;background:#e9f6f0;color:#2e9e6b;font-size:13px;font-weight:500;padding:9px 20px;border-radius:999px"><svg sc-camel-view-box="0 0 16 16" style="width:13px;height:13px"><path d="M3 8.5l3.5 3.5L13 5" fill="none" stroke="#2e9e6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>Signed</span></sc-if>
+<span style="font-family:'Geist Mono',monospace;font-size:10.5px;color:#a1a1aa">keys never leave your wallet</span>
+</div>
+</sc-if>
+</div>
+</sc-if>
+</div>
+</sc-if>
+<sc-if value="{{collapsed}}" hint-placeholder-val="{{false}}">
+<div style="display:flex;flex-direction:column;gap:12px;animation:om-rise .3s ease-out both">
+<div sc-camel-on-click="{{toggleExpanded}}" style="display:flex;cursor:pointer">
+<div style="display:inline-flex;align-items:center;gap:8px;border:1px solid #e4e4e7;background:#fafafa;border-radius:999px;padding:7px 14px" style-hover="{{pillHover}}">
+<svg sc-camel-view-box="0 0 16 16" style="width:13px;height:13px;flex:none"><path d="M3 8.5l3.5 3.5L13 5" fill="none" stroke="#2e9e6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+<span style="font-size:13px;font-weight:500;color:#09090b">Worked for 3m 4s</span>
+<span style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#71717a">15 steps</span>
+<sc-if value="{{expanded}}" hint-placeholder-val="{{false}}"><svg sc-camel-view-box="0 0 16 16" style="width:12px;height:12px;flex:none"><path d="M4 10l4-4 4 4" fill="none" stroke="#a1a1aa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></sc-if>
+<sc-if value="{{notExpanded}}" hint-placeholder-val="{{true}}"><svg sc-camel-view-box="0 0 16 16" style="width:12px;height:12px;flex:none"><path d="M4 6l4 4 4-4" fill="none" stroke="#a1a1aa" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></sc-if>
+</div>
+</div>
+<sc-if value="{{expanded}}" hint-placeholder-val="{{false}}">
+<div style="border:1px solid #e4e4e7;border-radius:12px;max-height:290px;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:2px;animation:om-rise .25s ease-out both">
+<sc-for list="{{allRows}}" as="row" hint-placeholder-count="3">
+<sc-if value="{{row.isNote}}" hint-placeholder-val="{{false}}">
+<div style="display:flex;gap:10px;padding:3px 0">
+<span style="width:16px;flex:none;display:flex;justify-content:center;padding-top:7px"><span style="width:4px;height:4px;border-radius:50%;background:#a1a1aa"></span></span>
+<span style="flex:1;font-size:13px;line-height:1.55;color:#71717a">{{row.text}}</span>
+</div>
+</sc-if>
+<sc-if value="{{row.isTool}}" hint-placeholder-val="{{false}}">
+<div style="padding:2px 0">
+<div style="display:flex;align-items:center;gap:10px">
+<span style="width:16px;height:16px;flex:none;display:flex;align-items:center;justify-content:center"><svg sc-camel-view-box="0 0 16 16" style="width:13px;height:13px"><path d="M3 8.5l3.5 3.5L13 5" fill="none" stroke="#2e9e6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></span>
+<span style="font-family:'Geist Mono',monospace;font-size:13px;color:#09090b">{{row.title}}</span>
+</div>
+<sc-if value="{{row.hasChips}}" hint-placeholder-val="{{false}}">
+<div style="margin:6px 0 3px 26px;display:flex;flex-wrap:wrap;gap:6px">
+<sc-for list="{{row.chips}}" as="chip" hint-placeholder-count="2">
+<span style="display:inline-flex;align-items:center;gap:6px;background:#f4f4f5;border-radius:999px;padding:4px 10px;font-family:'Geist Mono',monospace;font-size:11.5px;line-height:1.3;color:#52525b"><span style="width:5px;height:5px;border-radius:50%;background:#5288c2;flex:none"></span>{{chip.label}}</span>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-if>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</sc-if>
+<sc-if value="{{answerOn}}" hint-placeholder-val="{{false}}">
+<div style="animation:om-rise .45s ease-out both;display:flex;flex-direction:column;gap:12px">
+<p style="margin:0;font-size:14px;line-height:1.65;color:#09090b">All six transactions committed and confirmed on-chain — the full sequence executed atomically: staked 5 ETH → Lido (~5.0001 stETH), wrapped to wstETH, supplied as Aave collateral, and borrowed 1000 USDC to your wallet.</p>
+<div style="display:flex;gap:6px;flex-wrap:wrap">
+<span style="display:inline-flex;align-items:center;gap:6px;background:#f4f4f5;border-radius:999px;padding:4px 10px;font-family:'Geist Mono',monospace;font-size:11.5px;color:#52525b">tx 0x5919b2a5…71bd9464</span>
+<span style="display:inline-flex;align-items:center;gap:6px;background:#e9f6f0;border-radius:999px;padding:4px 10px;font-family:'Geist Mono',monospace;font-size:11.5px;color:#2e9e6b">success</span>
+</div>
+</div>
+</sc-if>
+</div>
+</div>
+</div>
+</section>
+<section data-screen-label="Value propositions" style="background:#fff">
+<div style="max-width:1160px;margin:0 auto;box-sizing:border-box;padding:96px 48px">
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#5288c2;margin-bottom:18px;text-align:center">Enterprise Proposition</div>
+<h2 style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:38px;line-height:1.12;letter-spacing:-.015em;color:#09090b;margin:0 0 72px;text-wrap:balance;text-align:center">Institutional onchain settlement needs agentic automation</h2>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0">
+<a href="https://scrum.aomi.dev/api/core/trading" style="text-decoration:none;display:flex;flex-direction:column;padding:0 40px 0 0;border-right:1px solid #e4e4e7">
+<p style="font-size:14.5px;line-height:1.65;color:#52525b;margin:0 0 22px;flex:1">Expand your product offering with programmable order types, portfolio automation, and cross-chain execution. Aomi manages the execution lifecycle—from transaction construction and simulation to signing and settlement—while your platform retains the customer relationship and fee economics.</p>
+<div style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:23px;line-height:1.2;color:#09090b;margin-bottom:10px">Trading platforms</div>
+<div style="font-family:'Geist Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#71717a;margin-bottom:14px">exchanges · prediction markets · trading platforms</div>
+<span style="font-size:13.5px;font-weight:500;color:#5288c2">For trading platforms →</span>
+</a>
+<a href="https://scrum.aomi.dev/api/core/asset-mgmt" style="text-decoration:none;display:flex;flex-direction:column;padding:0 40px;border-right:1px solid #e4e4e7">
+<p style="font-size:14.5px;line-height:1.65;color:#52525b;margin:0 0 22px;flex:1">Operationalize investment strategies across vaults, venues, and chains. Aomi converts existing models and mandates into continuously running workflows governed by exposure limits, venue allowlists, scoped authorization, pre-trade simulation, and auditable execution records.</p>
+<div style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:23px;line-height:1.2;color:#09090b;margin-bottom:10px">Asset managers</div>
+<div style="font-family:'Geist Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#71717a;margin-bottom:14px">vaults · funds · treasuries</div>
+<span style="font-size:13.5px;font-weight:500;color:#5288c2">For asset managers →</span>
+</a>
+<a href="https://scrum.aomi.dev/api/core/wallets" style="text-decoration:none;display:flex;flex-direction:column;padding:0 0 0 40px">
+<p style="font-size:14.5px;line-height:1.65;color:#52525b;margin:0 0 22px;flex:1">Launch native conversational and automated investing experiences without rebuilding your signing or custody stack. Aomi translates customer intent into policy-checked, simulated transactions that users authorize through your existing wallet infrastructure.</p>
+<div style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:23px;line-height:1.2;color:#09090b;margin-bottom:10px">Wallets and fintechs</div>
+<div style="font-family:'Geist Mono',monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#71717a;margin-bottom:14px">wallets · retail fintech · neo banks</div>
+<span style="font-size:13.5px;font-weight:500;color:#5288c2">For wallets and fintechs →</span>
+</a>
+</div>
+</div>
+</section>
+<section data-screen-label="Problem" style="background:#fff">
+<div style="max-width:1160px;margin:0 auto;box-sizing:border-box;padding:96px 48px 128px 128px">
+<div style="text-align:left">
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#5288c2;margin-bottom:18px">The problem</div>
+<h2 style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:38px;line-height:1.15;letter-spacing:-.015em;color:#09090b;margin:0 0 14px;text-wrap:balance">Cost of AI adoption on blockchain rails</h2>
+<div style="font-family:'Geist Mono',monospace;font-size:12.5px;color:#71717a;margin-bottom:44px">onchain agents · digital-asset automation · vault management · trading bots …</div>
+</div>
+<div style="display:grid;grid-template-columns:1fr 70px 1fr;gap:0;align-items:start">
+<div>
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#5288c2;margin-bottom:16px">Without aomi · You build</div>
+<div style="display:flex;flex-direction:column;gap:10px;transform-origin:50% 100%;animation:om-teeter 5.5s ease-in-out infinite">
+<div style="display:flex;align-items:center;gap:14px;border:1px solid #e4e4e7;border-radius:14px;padding:14px 18px;background:#fff;rotate:-.7deg;margin-left:12px;margin-right:2px;box-shadow:0 6px 18px rgba(9,9,11,.07)">
+<div style="flex:1"><div style="font-size:14.5px;font-weight:600;color:#09090b">Surfaces</div><div style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#71717a;margin-top:3px">web widget · telegram · discord</div></div>
+<span style="font-family:'Geist Mono',monospace;font-size:12px;color:#5288c2;flex:none">+2 mo</span>
+</div>
+<div style="display:flex;align-items:center;gap:14px;border:1px solid #e4e4e7;border-radius:14px;padding:14px 18px;background:#fff;rotate:.6deg;margin-right:14px;box-shadow:0 6px 18px rgba(9,9,11,.07)">
+<div style="flex:1"><div style="font-size:14.5px;font-weight:600;color:#09090b">Solana path</div><div style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#71717a;margin-top:3px">separate stack · jito bundles</div></div>
+<span style="font-family:'Geist Mono',monospace;font-size:12px;color:#5288c2;flex:none">+1.5 mo</span>
+</div>
+<div style="display:flex;align-items:center;gap:14px;border:1px solid #e4e4e7;border-radius:14px;padding:14px 18px;background:#fff;rotate:-.7deg;margin-left:12px;margin-right:2px;box-shadow:0 6px 18px rgba(9,9,11,.07)">
+<div style="flex:1"><div style="font-size:14.5px;font-weight:600;color:#09090b">AA bundler + paymaster</div><div style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#71717a;margin-top:3px">erc-4337 userOps · sponsorship</div></div>
+<span style="font-family:'Geist Mono',monospace;font-size:12px;color:#5288c2;flex:none">+1.5 mo</span>
+</div>
+<div style="display:flex;align-items:center;gap:14px;border:1px solid #aecbe8;border-radius:14px;padding:14px 18px;background:#e2eef8;rotate:.6deg;margin-right:14px;box-shadow:0 6px 18px rgba(82,136,194,.16)">
+<div style="flex:1"><div style="font-size:14.5px;font-weight:600;color:#09090b">Simulation infra</div><div style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#71717a;margin-top:3px">full nodes × 6 chains · fresh forks</div></div>
+<span style="font-family:'Geist Mono',monospace;font-size:12px;color:#5288c2;flex:none">+3 mo</span>
+</div>
+<div style="display:flex;align-items:center;gap:14px;border:1px solid #e4e4e7;border-radius:14px;padding:14px 18px;background:#fff;rotate:-.7deg;margin-left:12px;margin-right:2px;box-shadow:0 6px 18px rgba(9,9,11,.07)">
+<div style="flex:1"><div style="font-size:14.5px;font-weight:600;color:#09090b">TX pipeline</div><div style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#71717a;margin-top:3px">nonce · gas · retries · batching</div></div>
+<span style="font-family:'Geist Mono',monospace;font-size:12px;color:#5288c2;flex:none">+2 mo</span>
+</div>
+<div style="display:flex;align-items:center;gap:14px;border:1px solid #e4e4e7;border-radius:14px;padding:14px 18px;background:#fff;rotate:.6deg;margin-right:14px;box-shadow:0 6px 18px rgba(9,9,11,.07)">
+<div style="flex:1"><div style="font-size:14.5px;font-weight:600;color:#09090b">Agent orchestration</div><div style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#71717a;margin-top:3px">one instance / user · llm loop · sessions</div></div>
+<span style="font-family:'Geist Mono',monospace;font-size:12px;color:#5288c2;flex:none">+3 mo</span>
+</div>
+</div>
+<div style="border-top:1px dashed #e4e4e7;margin-top:18px;padding-top:16px;font-family:'Geist Mono',monospace;font-size:12px;line-height:1.9;color:#71717a">≈ <span style="color:#5288c2;font-weight:700">4 crypto engineers</span> · <span style="color:#5288c2;font-weight:700">9 months</span> · <span style="color:#5288c2;font-weight:700">~$1M</span> before the first user signs<br>then <span style="color:#5288c2;font-weight:700">$100k+/yr infra</span> · <span style="color:#5288c2;font-weight:700">$20/user·mo</span> per dedicated instance · 1 FTE chasing hardforks — forever</div>
+</div>
+<div style="display:flex;justify-content:center;padding-top:220px"><span style="font-family:'PT Serif',Georgia,serif;font-style:italic;font-size:20px;color:#a1a1aa">vs</span></div>
+<div>
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#5288c2;margin-bottom:20px">With aomi</div>
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:36px">
+<svg sc-camel-view-box="0 0 100 110" style="width:46px;height:51px;flex:none"><polygon points="50,2 95,27 95,79 50,104 5,79 5,27" fill="#fdf2f7" stroke="#df5d90" stroke-width="2.4" stroke-linejoin="round"></polygon><polygon points="50,2 95,27 50,52 5,27" fill="#fff" stroke="#df5d90" stroke-width="2.4" stroke-linejoin="round"></polygon><polyline points="50,52 50,104" fill="none" stroke="#df5d90" stroke-width="2.4"></polyline></svg>
+<span style="color:#a1a1aa;font-size:16px">→</span>
+<span style="display:inline-flex;align-items:center;gap:9px;border:1px solid #aecbe8;background:#e2eef8;border-radius:12px;padding:12px 18px">
+<svg sc-camel-view-box="0 0 362 362" style="width:16px;height:16px;color:#09090b" fill="currentColor"><path d="M321.778 94.2349C321.778 64.4045 297.595 40.2222 267.765 40.2222C237.935 40.2222 213.752 64.4045 213.752 94.2349C213.752 124.065 237.935 148.248 267.765 148.248C297.595 148.248 321.778 124.065 321.778 94.2349ZM362 94.2349C362 146.279 319.81 188.47 267.765 188.47C215.721 188.47 173.53 146.279 173.53 94.2349C173.53 42.1904 215.721 1.33271e-06 267.765 0C319.81 0 362 42.1904 362 94.2349Z"></path><path d="M181 0C184.792 0 188.556 0.116399 192.289 0.346221C189.506 2.74481 186.833 5.26892 184.28 7.90977C170.997 20.759 160.669 36.6452 154.42 54.4509C95.7682 66.7078 51.7143 118.709 51.7143 181C51.7143 252.403 109.597 310.286 181 310.286C243.292 310.286 295.291 266.231 307.547 207.58C325.364 201.327 341.259 190.99 354.113 177.695C356.745 175.149 359.261 172.486 361.653 169.71C361.883 173.444 362 177.208 362 181C362 280.964 280.964 362 181 362C81.0365 362 0 280.964 0 181C0 81.0365 81.0365 0 181 0Z"></path></svg>
+<span style="font-family:'Source Serif 4',serif;font-weight:600;font-size:16px;color:#09090b">aomi</span>
+<span style="font-family:'Geist Mono',monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#5288c2">Hosted runtime</span>
+</span>
+</div>
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#71717a;margin-bottom:8px">Build time</div>
+<div style="display:flex;align-items:baseline;gap:16px;margin-bottom:28px"><span style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:34px;color:#5288c2;text-decoration:line-through;text-decoration-thickness:3px">9 months</span><span style="color:#a1a1aa">→</span><span style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:42px;color:#2e9e6b">3 days</span></div>
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#71717a;margin-bottom:8px">Platform infra · Per year</div>
+<div style="display:flex;align-items:baseline;gap:16px;margin-bottom:28px"><span style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:34px;color:#5288c2;text-decoration:line-through;text-decoration-thickness:3px">$100k+/yr</span><span style="color:#a1a1aa">→</span><span style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:42px;color:#2e9e6b">$0</span></div>
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#71717a;margin-bottom:8px">Per-user runtime · Monthly</div>
+<div style="display:flex;align-items:baseline;gap:16px;margin-bottom:28px"><span style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:34px;color:#5288c2;text-decoration:line-through;text-decoration-thickness:3px">$20</span><span style="color:#a1a1aa">→</span><span style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:42px;color:#2e9e6b">~$0</span><span style="font-family:'Geist Mono',monospace;font-size:13px;color:#71717a">/ user</span></div>
+<div style="font-family:'Geist Mono',monospace;font-size:12px;line-height:1.9;color:#71717a">one runtime serves <span style="color:#5288c2">thousands</span> of users · ≈ <span style="color:#5288c2">250× cheaper</span><br>at 10k users that's <span style="color:#5288c2">$2.4M/yr</span> of idle containers — <span style="color:#5288c2">gone</span></div>
+</div>
+</div>
+</div>
+</section>
+<section data-screen-label="Hosted runtime" style="background:#fff">
+<div style="max-width:1160px;margin:0 auto;box-sizing:border-box;padding:96px 48px;display:grid;grid-template-columns:390px 1fr;gap:64px;align-items:start">
+<div style="display:flex;flex-direction:column">
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#5288c2;margin-bottom:18px">Customized Agentic Solution</div>
+<h2 style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:38px;line-height:1.12;letter-spacing:-.015em;color:#09090b;margin:0 0 24px;text-wrap:balance">Hosted service for enterprise and developer</h2>
+<div style="font-family:'Geist Mono',monospace;font-size:13px;line-height:2.15;color:#3f3f46;margin-bottom:26px">
+<div><span style="color:#2e9e6b;font-weight:700">GET</span> /idle_assets</div>
+<div><span style="color:#2e9e6b;font-weight:700">GET</span> /risk_snapshot</div>
+<div><span style="color:#c8527f;font-weight:700">POST</span> /assess-position</div>
+<div><span style="color:#2e9e6b;font-weight:700">GET</span> /credit-balance</div>
+<div><span style="color:#c8527f;font-weight:700">POST</span> /propose-intent</div>
+</div>
+<div style="display:flex;align-items:center;gap:16px;margin-bottom:30px">
+<svg sc-camel-view-box="0 0 100 110" style="width:62px;height:68px;flex:none;animation:om-cube-src 5s ease-in-out infinite">
+<polygon points="50,2 95,27 95,79 50,104 5,79 5,27" fill="#ffffff" stroke="#09090b" stroke-width="2.4" stroke-linejoin="round"></polygon>
+<polygon points="50,2 95,27 50,52 5,27" fill="#f4f4f5" stroke="#09090b" stroke-width="2.4" stroke-linejoin="round"></polygon>
+<polygon points="50,52 95,27 95,79 50,104" fill="#fafafa" stroke="#09090b" stroke-width="2.4" stroke-linejoin="round"></polygon>
+<g transform="translate(17,56)"><circle cx="0" cy="0" r="4.1" fill="#df5d90"></circle><circle cx="10" cy="0" r="4.1" fill="#df5d90"></circle><circle cx="20" cy="0" r="4.1" fill="#df5d90"></circle><circle cx="0" cy="10" r="4.1" fill="#df5d90"></circle><circle cx="10" cy="10" r="4.1" fill="#df5d90"></circle><circle cx="20" cy="10" r="4.1" fill="#df5d90"></circle><circle cx="0" cy="20" r="4.1" fill="#df5d90"></circle><circle cx="10" cy="20" r="4.1" fill="#df5d90"></circle><circle cx="20" cy="20" r="4.1" fill="#df5d90"></circle></g>
+</svg>
+<div style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:19px;line-height:1.25;color:#09090b">Sommelier Liquidity<br>Manager</div>
+</div>
+<div style="border:1px solid #aecbe8;background:#f1f7fc;border-radius:16px;padding:20px 22px">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+<span style="font-size:14px;font-weight:600;color:#09090b">aomi · Hosted Runtime</span>
+<span style="font-family:'Geist Mono',monospace;font-size:10.5px;color:#2e9e6b;background:#fff;border:1px solid #e4e4e7;border-radius:999px;padding:3px 10px">Tx Pipeline: EVM/SVM</span>
+</div>
+<div style="display:flex;gap:22px">
+<div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+<svg sc-camel-view-box="0 0 100 110" style="width:52px;height:57px"><polygon points="50,2 95,27 95,79 50,104 5,79 5,27" fill="#ffffff" stroke="#5288c2" stroke-width="2.2" stroke-linejoin="round"></polygon><polygon points="50,2 95,27 50,52 5,27" fill="#e2eef8" stroke="#5288c2" stroke-width="2.2" stroke-linejoin="round"></polygon><polygon points="50,52 95,27 95,79 50,104" fill="#f1f7fc" stroke="#5288c2" stroke-width="2.2" stroke-linejoin="round"></polygon></svg>
+<span style="font-family:'Geist Mono',monospace;font-size:10.5px;color:#71717a" data-comment-anchor="2368deabc7-span">LiFi</span>
+</div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+<svg sc-camel-view-box="0 0 100 110" style="width:52px;height:57px"><polygon points="50,2 95,27 95,79 50,104 5,79 5,27" fill="#ffffff" stroke="#5288c2" stroke-width="2.2" stroke-linejoin="round"></polygon><polygon points="50,2 95,27 50,52 5,27" fill="#e2eef8" stroke="#5288c2" stroke-width="2.2" stroke-linejoin="round"></polygon><polygon points="50,52 95,27 95,79 50,104" fill="#f1f7fc" stroke="#5288c2" stroke-width="2.2" stroke-linejoin="round"></polygon></svg>
+<span style="font-family:'Geist Mono',monospace;font-size:10.5px;color:#71717a">Polymarket</span>
+</div>
+<div style="display:flex;flex-direction:column;align-items:center;gap:7px">
+<span style="position:relative;width:52px;height:57px;display:inline-block">
+<svg sc-camel-view-box="0 0 100 110" style="width:52px;height:57px;animation:om-cube-dash 5s ease-in-out infinite"><polygon points="50,2 95,27 95,79 50,104 5,79 5,27" fill="none" stroke="#efa6c5" stroke-width="2" stroke-dasharray="6 5" stroke-linejoin="round"></polygon><polyline points="5,27 50,52 95,27" fill="none" stroke="#efa6c5" stroke-width="2" stroke-dasharray="6 5"></polyline><line x1="50" y1="52" x2="50" y2="104" stroke="#efa6c5" stroke-width="2" stroke-dasharray="6 5"></line></svg>
+<svg sc-camel-view-box="0 0 100 110" style="position:absolute;left:0;top:0;width:52px;height:57px;animation:om-cube-dock 5s ease-in-out infinite">
+<polygon points="50,2 95,27 95,79 50,104 5,79 5,27" fill="#ffffff" stroke="#09090b" stroke-width="2.4" stroke-linejoin="round"></polygon>
+<polygon points="50,2 95,27 50,52 5,27" fill="#f4f4f5" stroke="#09090b" stroke-width="2.4" stroke-linejoin="round"></polygon>
+<polygon points="50,52 95,27 95,79 50,104" fill="#fafafa" stroke="#09090b" stroke-width="2.4" stroke-linejoin="round"></polygon>
+<g transform="translate(17,56)"><circle cx="0" cy="0" r="4.1" fill="#df5d90"></circle><circle cx="10" cy="0" r="4.1" fill="#df5d90"></circle><circle cx="20" cy="0" r="4.1" fill="#df5d90"></circle><circle cx="0" cy="10" r="4.1" fill="#df5d90"></circle><circle cx="10" cy="10" r="4.1" fill="#df5d90"></circle><circle cx="20" cy="10" r="4.1" fill="#df5d90"></circle><circle cx="0" cy="20" r="4.1" fill="#df5d90"></circle><circle cx="10" cy="20" r="4.1" fill="#df5d90"></circle><circle cx="20" cy="20" r="4.1" fill="#df5d90"></circle></g>
+</svg>
+</span>
+<span style="font-family:'Geist Mono',monospace;font-size:10.5px;color:#df5d90">+ new</span>
+</div>
+</div>
+</div>
+<div style="margin-top:36px;font-size:14px"><a href="#" style="color:#5288c2;text-decoration:underline;text-underline-offset:3px">Case Study: Agentifying Liquidity management with Sommelier →</a></div>
+</div>
+<div style="display:flex;flex-direction:column">
+<p style="font-size:15px;line-height:1.65;color:#52525b;margin:0 0 20px">Aomi Labs hosts serverless, memory-less agents that need transaction capability. We call them Aomi Apps, in the spirit of ChatGPT plugins or Claude Connectors. Developers build them with aomi-sdk and manage them in the developer console. Think of it as <strong style="color:#09090b">Vercel for crypto agents</strong>, serving traders, builders, and enterprises.</p>
+<div style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:19px;line-height:1.25;color:#09090b;margin:16px 0 18px">Out-of-the-box Integrations for product surface</div>
+<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:32px">
+<span sc-camel-on-click="{{surfWeb}}" style="cursor:pointer;display:inline-flex;align-items:center;gap:8px;border:1px solid {{surfWebBorder}};background:{{surfWebBg}};color:{{surfWebColor}};border-radius:999px;padding:6px 14px;font-size:12px;font-weight:500;transition:all .2s">Somm Frontend</span>
+<span sc-camel-on-click="{{surfTg}}" style="cursor:pointer;display:inline-flex;align-items:center;gap:8px;border:1px solid {{surfTgBorder}};background:{{surfTgBg}};color:{{surfTgColor}};border-radius:999px;padding:6px 14px;font-size:12px;font-weight:500;transition:all .2s">Telegram</span>
+<span sc-camel-on-click="{{surfDc}}" style="cursor:pointer;display:inline-flex;align-items:center;gap:8px;border:1px solid {{surfDcBorder}};background:{{surfDcBg}};color:{{surfDcColor}};border-radius:999px;padding:6px 14px;font-size:12px;font-weight:500;transition:all .2s">Discord</span>
+<span sc-camel-on-click="{{surfSl}}" style="cursor:pointer;display:inline-flex;align-items:center;gap:8px;border:1px solid {{surfSlBorder}};background:{{surfSlBg}};color:{{surfSlColor}};border-radius:999px;padding:6px 14px;font-size:12px;font-weight:500;transition:all .2s">Slack</span>
+</div>
+<div style="min-height:440px">
+<sc-if value="{{surfIsWeb}}" hint-placeholder-val="{{true}}">
+<div style="border:1px solid #e4e4e7;border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgba(9,9,11,.04)">
+<div style="display:flex;align-items:center;gap:6px;padding:10px 14px;border-bottom:1px solid #e4e4e7;background:#fafafa"><span style="width:9px;height:9px;border-radius:50%;background:#e4e4e7"></span><span style="width:9px;height:9px;border-radius:50%;background:#e4e4e7"></span><span style="width:9px;height:9px;border-radius:50%;background:#e4e4e7"></span><span style="flex:1;text-align:center;font-family:'Geist Mono',monospace;font-size:11px;color:#71717a">somm.finance</span></div>
+<div style="padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+<div style="font-size:12.5px;color:#71717a"><b style="color:#09090b">Somm Assistant</b> · powered by aomi</div>
+<div style="align-self:flex-end;max-width:75%;background:#f4f4f5;border-radius:16px;padding:10px 14px;font-size:13.5px;color:#09090b">Rebalance my liquidity from EtherFi to Morpho</div>
+<div style="font-family:'Geist Mono',monospace;font-size:12px;line-height:1.9;color:#3f3f46">
+<div><span style="color:#2e9e6b">✓</span> querying your positions<span style="color:#a1a1aa"> — 2,400 weETH · etherfi</span></div>
+<div><span style="color:#2e9e6b">✓</span> risk check<span style="color:#a1a1aa"> — morpho band A · +1.9%</span></div>
+</div>
+<div style="border-left:2px solid #5288c2;background:#f1f7fc;border-radius:0 10px 10px 0;padding:12px 16px;font-family:'Geist Mono',monospace;font-size:12px;line-height:1.9;color:#3f3f46">
+<div style="color:#5288c2;font-weight:700">building transaction · aomi core pipeline</div>
+<div>→ withdraw · etherfi · 2,400 weETH</div>
+<div>→ approve · weETH → morpho blue</div>
+<div>→ supply · morpho @ 91.2% util</div>
+<div style="color:#2e9e6b">batched → 1 signature · SIMULATED ✓</div>
+</div>
+<div style="display:flex;align-items:center;gap:14px">
+<span style="display:inline-flex;align-items:center;gap:8px;background:#09090b;color:#fff;font-size:13px;font-weight:500;padding:9px 20px;border-radius:999px">⌘ Approve &amp; Sign</span>
+<span style="font-family:'Geist Mono',monospace;font-size:10.5px;color:#a1a1aa">runs on aomi</span>
+</div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{surfIsTg}}" hint-placeholder-val="{{false}}">
+<div style="border:1px solid #e4e4e7;border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgba(9,9,11,.04)">
+<div style="display:flex;align-items:center;gap:11px;padding:9px 16px;background:#fff;border-bottom:1px solid #ececec">
+<span style="width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#e786ab,#d1447e);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;flex:none">S</span>
+<span style="display:flex;flex-direction:column;line-height:1.25"><span style="font-size:13.5px;font-weight:600;color:#000">Somm Assistant</span><span style="font-size:11.5px;color:#3a95d5">bot</span></span>
+<span style="margin-left:auto;color:#a3a3a3;font-size:15px;letter-spacing:6px">🔍⋮</span>
+</div>
+<div style="padding:18px 18px 14px;display:flex;flex-direction:column;gap:8px;background:linear-gradient(160deg,#cfdec7 0%,#c3d9b8 45%,#b7d3ac 100%)">
+<div style="align-self:center;background:rgba(0,0,0,.18);color:#fff;font-size:11.5px;font-weight:500;border-radius:999px;padding:3px 12px">August 21</div>
+<div style="align-self:flex-end;max-width:75%;background:#effdde;border-radius:12px 12px 0 12px;padding:7px 10px 6px 12px;font-size:13.5px;line-height:1.45;color:#000;box-shadow:0 1px 1px rgba(0,0,0,.08)">Rebalance my liquidity from EtherFi to Morpho<span style="float:right;margin:7px 0 0 8px;font-size:10.5px;color:#5db159">11:33 AM ✓✓</span></div>
+<div style="align-self:flex-start;max-width:88%;background:#fff;border-radius:12px 12px 12px 0;padding:8px 12px 6px;box-shadow:0 1px 1px rgba(0,0,0,.08)">
+<div style="font-size:13px;font-weight:600;color:#c8527f;margin-bottom:3px">Somm Assistant</div>
+<div style="font-family:'Geist Mono',monospace;font-size:11.5px;line-height:1.85;color:#333">
+<div><span style="color:#5db159">✓</span> querying your positions — 2,400 weETH · etherfi</div>
+<div><span style="color:#5db159">✓</span> risk check — morpho band A · +1.9%</div>
+<div style="color:#3a95d5;font-weight:700;margin-top:4px">building transaction · aomi core pipeline</div>
+<div>→ withdraw · etherfi · 2,400 weETH</div>
+<div>→ approve · weETH → morpho blue</div>
+<div>→ supply · morpho @ 91.2% util</div>
+<div style="color:#5db159">batched → 1 signature · SIMULATED ✓</div>
+</div>
+<div style="text-align:right;font-size:10.5px;color:#a3a3a3;margin-top:2px">11:33 AM</div>
+</div>
+<div style="align-self:flex-start;width:88%;box-sizing:border-box;text-align:center;background:rgba(255,255,255,.82);color:#3a95d5;border-radius:8px;padding:8px 0;font-size:13px;font-weight:500;box-shadow:0 1px 1px rgba(0,0,0,.06)">⌘ Approve &amp; Sign</div>
+</div>
+<div style="display:flex;align-items:center;gap:12px;background:#fff;padding:10px 16px;border-top:1px solid #ececec">
+<span style="color:#a3a3a3;font-size:16px">📎</span>
+<span style="flex:1;font-size:13.5px;color:#a3a3a3">Message</span>
+<span style="color:#a3a3a3;font-size:15px">😊</span>
+<span style="color:#a3a3a3;font-size:16px">🎤</span>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{surfIsDc}}" hint-placeholder-val="{{false}}">
+<div style="border:1px solid #e4e4e7;border-radius:16px;overflow:hidden;background:#313338;box-shadow:0 1px 2px rgba(9,9,11,.04)">
+<div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid #232428;color:#f2f3f5;font-size:13.5px;font-weight:600"><span style="color:#80848e">#</span> somm-assistant<span style="font-size:11px;font-weight:400;color:#80848e;margin-left:8px">aomi-powered treasury agent</span></div>
+<div style="padding:18px 20px;display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;gap:12px"><span style="width:30px;height:30px;border-radius:50%;background:#5865f2;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex:none">C</span><div><span style="font-size:13px;font-weight:600;color:#e77ba6">cecilia</span><span style="font-size:10.5px;color:#80848e"> &nbsp;Today at 9:41 AM</span><div style="font-size:13.5px;color:#dbdee1;margin-top:2px">Rebalance my liquidity from EtherFi to Morpho</div></div></div>
+<div style="display:flex;gap:12px"><span style="width:30px;height:30px;border-radius:50%;background:#df5d90;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex:none">S</span><div style="min-width:0">
+<span style="font-size:13px;font-weight:600;color:#9db4d8">Somm Assistant</span><span style="font-size:9px;font-weight:700;color:#fff;background:#5865f2;border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:1px">✓ APP</span><span style="font-size:10.5px;color:#80848e"> &nbsp;Today at 9:41 AM</span>
+<div style="font-size:12.5px;color:#dbdee1;margin-top:2px">✓ positions — 2,400 weETH · etherfi&nbsp;&nbsp;✓ risk — morpho band A · +1.9%</div>
+<div style="border-left:3px solid #5288c2;background:#2b2d31;border-radius:4px;padding:12px 16px;margin-top:8px;font-family:'Geist Mono',monospace;font-size:11.5px;line-height:1.9;color:#b5bac1">
+<div style="color:#9db4d8;font-weight:700">building transaction · aomi core pipeline</div>
+<div>→ withdraw · etherfi · 2,400 weETH</div>
+<div>→ approve · weETH → morpho blue</div>
+<div>→ supply · morpho @ 91.2% util</div>
+<div style="color:#41bd8c">batched → 1 signature · SIMULATED ✓</div>
+<div style="display:flex;gap:8px;margin-top:10px"><span style="background:#41bd8c;color:#09090b;font-family:'Geist',sans-serif;font-size:12px;font-weight:600;border-radius:4px;padding:6px 14px">Approve &amp; Sign</span><span style="background:#4e5058;color:#fff;font-family:'Geist',sans-serif;font-size:12px;font-weight:600;border-radius:4px;padding:6px 14px">Details</span></div>
+</div>
+</div></div>
+<div style="background:#383a40;border-radius:8px;padding:10px 14px;font-size:12.5px;color:#80848e"><span style="margin-right:8px">+</span>Message #somm-assistant</div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{surfIsSl}}" hint-placeholder-val="{{false}}">
+<div style="border:1px solid #e4e4e7;border-radius:16px;overflow:hidden;display:flex;box-shadow:0 1px 2px rgba(9,9,11,.04)">
+<div style="width:150px;flex:none;background:#4a154b;color:#fff;padding:14px 12px;display:flex;flex-direction:column;gap:8px">
+<div style="font-size:13px;font-weight:700;margin-bottom:6px">Somm ⌄</div>
+<div style="font-size:11px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.06em">Channels</div>
+<div style="font-size:12.5px;color:rgba(255,255,255,.75)"># treasury</div>
+<div style="font-size:12.5px;background:#1164a3;border-radius:6px;padding:3px 8px;margin:0 -8px"># somm-assistant</div>
+<div style="font-size:12.5px;color:rgba(255,255,255,.75)"># general</div>
+</div>
+<div style="flex:1;min-width:0;background:#fff">
+<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #e4e4e7"><b style="font-size:13.5px;color:#09090b"># somm-assistant</b><span style="font-size:11px;color:#71717a">☆&nbsp; 24 members</span></div>
+<div style="padding:16px 18px;display:flex;flex-direction:column;gap:14px">
+<div style="display:flex;gap:10px"><span style="width:28px;height:28px;border-radius:6px;background:#416cac;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex:none">C</span><div><span style="font-size:13px;font-weight:700;color:#09090b">cecilia</span><span style="font-size:10.5px;color:#71717a"> &nbsp;9:41 AM</span><div style="font-size:13px;color:#09090b;margin-top:1px">Rebalance my liquidity from EtherFi to Morpho</div></div></div>
+<div style="display:flex;gap:10px"><span style="width:28px;height:28px;border-radius:6px;background:#df5d90;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex:none">S</span><div style="min-width:0">
+<span style="font-size:13px;font-weight:700;color:#09090b">Somm Assistant</span><span style="font-size:9px;font-weight:700;color:#71717a;background:#f4f4f5;border-radius:3px;padding:1px 4px;margin-left:6px;vertical-align:1px">APP</span><span style="font-size:10.5px;color:#71717a"> &nbsp;9:41 AM</span>
+<div style="font-size:12px;color:#3f3f46;margin-top:2px">✓ positions — 2,400 weETH · etherfi&nbsp;&nbsp;✓ risk — morpho band A · +1.9%</div>
+<div style="border-left:3px solid #e4e4e7;padding:10px 14px;margin-top:8px;font-family:'Geist Mono',monospace;font-size:11.5px;line-height:1.9;color:#3f3f46">
+<div style="color:#5288c2;font-weight:700">building transaction · aomi core pipeline</div>
+<div>→ withdraw · etherfi · 2,400 weETH</div>
+<div>→ approve · weETH → morpho blue</div>
+<div>→ supply · morpho @ 91.2% util</div>
+<div style="color:#2e9e6b">batched → 1 signature · SIMULATED ✓</div>
+<div style="display:flex;gap:8px;margin-top:10px"><span style="background:#2e9e6b;color:#fff;font-family:'Geist',sans-serif;font-size:12px;font-weight:600;border-radius:6px;padding:6px 14px">Approve &amp; Sign</span><span style="border:1px solid #e4e4e7;color:#09090b;font-family:'Geist',sans-serif;font-size:12px;font-weight:600;border-radius:6px;padding:6px 14px">Cancel</span></div>
+</div>
+</div></div>
+<div style="border:1px solid #e4e4e7;border-radius:8px;padding:9px 14px;font-size:12.5px;color:#a1a1aa">Message #somm-assistant</div>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</div>
+</div>
+</section>
+<section data-screen-label="Wallet agnostic" style="background:#fff">
+<div style="max-width:1160px;margin:0 auto;box-sizing:border-box;padding:74px 48px 110px;display:grid;grid-template-columns:560px 1fr;gap:64px;align-items:end">
+<div style="display:flex;flex-direction:column;order:2">
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#5288c2;margin-bottom:18px">Integration pattern</div>
+<h2 style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:38px;line-height:1.12;letter-spacing:-.015em;color:#09090b;margin:0 0 16px;text-wrap:balance">Wallet agnostic with zero custody</h2>
+<p style="font-size:15px;line-height:1.65;color:#52525b;margin:0 0 14px">Integrators customized wallet providers, Aomi returns transactions to the wallet.</p>
+<p style="font-size:15px;line-height:1.65;color:#52525b;margin:0 0 30px">Asynchronous execution is supported with access control policies. Three mode: manual, auto-approve, and bypass permission.</p>
+<div style="display:flex;flex-direction:column">
+<div style="padding:16px 18px;border-left:2px solid #e4e4e7">
+<div style="font-size:14.5px;font-weight:600;color:#09090b;margin-bottom:4px">Manual</div>
+<div style="font-size:13px;line-height:1.55;color:#71717a">Every transaction returned to the wallet with user manually signing.</div>
+</div>
+<div style="padding:16px 18px;border-left:2px solid #e4e4e7">
+<div style="font-size:14.5px;font-weight:600;color:#09090b;margin-bottom:4px">Auto-approve</div>
+<div style="font-size:13px;line-height:1.55;color:#71717a">The server doesn't hold the key. A browser or CLI session signs with a JWT token, without clicking buttons per transaction.</div>
+</div>
+<div style="padding:16px 18px;border-left:2px solid #e4e4e7">
+<div style="font-size:14.5px;font-weight:600;color:#09090b;margin-bottom:4px">Bypass permission</div>
+<div style="font-size:13px;line-height:1.55;color:#71717a">With an authenticated, delegated key from the embedded provider, the runtime signs directly, whether the wallet has funds or not.</div>
+</div>
+</div>
+</div>
+<div style="display:flex;flex-direction:column;order:1">
+<sc-if value="{{wmIsUi}}" hint-placeholder-val="{{true}}">
+<div style="display:flex;align-items:flex-end;gap:26px;border-bottom:1px solid #e4e4e7">
+<span sc-camel-on-click="{{wtab0}}" style="flex:none;white-space:nowrap;cursor:pointer;font-size:14px;font-weight:{{w0TabWeight}};padding:0 2px 10px;margin-bottom:-1px;border-bottom:2px solid {{w0TabBg}};color:{{w0TabColor}}">Browser wallet</span>
+<span sc-camel-on-click="{{wtab1}}" style="flex:none;white-space:nowrap;cursor:pointer;font-size:14px;font-weight:{{w1TabWeight}};padding:0 2px 10px;margin-bottom:-1px;border-bottom:2px solid {{w1TabBg}};color:{{w1TabColor}}">Para</span>
+<span sc-camel-on-click="{{wtab2}}" style="flex:none;white-space:nowrap;cursor:pointer;font-size:14px;font-weight:{{w2TabWeight}};padding:0 2px 10px;margin-bottom:-1px;border-bottom:2px solid {{w2TabBg}};color:{{w2TabColor}}">Privy</span>
+<span style="flex:1"></span>
+<span style="display:inline-flex;background:#f4f4f5;border:1px solid #e4e4e7;border-radius:999px;padding:3px;gap:2px;margin-bottom:8px">
+<span sc-camel-on-click="{{wmUi}}" style="cursor:pointer;border-radius:999px;padding:5px 0;width:76px;text-align:center;font-size:12px;font-weight:500;color:{{wmUiColor}};background:{{wmUiBg}};transition:background .2s,color .2s">UI</span>
+<span sc-camel-on-click="{{wmTerm}}" style="cursor:pointer;border-radius:999px;padding:5px 0;width:76px;text-align:center;font-size:12px;font-weight:500;color:{{wmTermColor}};background:{{wmTermBg}};transition:background .2s,color .2s">Terminal</span>
+</span>
+</div>
+<p style="font-size:15px;line-height:1.6;color:#3f3f46;margin:20px 0;min-height:48px">{{wFootnote}}</p>
+<div style="position:relative;border:1px solid #e4e4e7;border-radius:16px;background:#fafafa;overflow:hidden">
+<svg sc-camel-view-box="0 0 16 16" style="position:absolute;top:16px;right:18px;width:15px;height:15px"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="#a1a1aa" stroke-width="1.4"></rect><path d="M10.5 3.5v-1a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h1" fill="none" stroke="#a1a1aa" stroke-width="1.4"></path></svg>
+<div style="padding:22px 26px;min-height:461px;box-sizing:border-box;font-family:'Geist Mono',monospace;font-size:12.5px;line-height:1.85;color:#3f3f46;overflow-x:auto">
+<div><span style="color:#c8527f">import</span> { AomiWidget } <span style="color:#c8527f">from</span> <span style="color:#2e9e6b">"@aomi-labs/widget-lib"</span>;</div>
+<sc-if value="{{wImportOn}}" hint-placeholder-val="{{false}}"><div style="background:#e2eef8;margin:0 -26px;padding:0 26px"><span style="color:#c8527f">import</span> <span style="color:#2e9e6b">"@aomi-labs/widget-lib/providers/{{wProvider}}"</span>;</div></sc-if>
+<div><span style="color:#c8527f">import</span> <span style="color:#2e9e6b">"@aomi-labs/widget-lib/styles.css"</span>;</div>
+<div>&nbsp;</div>
+<div><span style="color:#c8527f">export default function</span> <span style="color:#7c5cd6">AssistantPage</span>() {</div>
+<div><span style="color:#c8527f">&nbsp;&nbsp;return</span> (</div>
+<div>&nbsp;&nbsp;&nbsp;&nbsp;&lt;<span style="color:#2e9e6b">AomiWidget</span></div>
+<div><span style="color:#5288c2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;applicationId</span>={process.env.AOMI_APPLICATION_ID!}</div>
+<div><span style="color:#5288c2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;apiUrl</span>={process.env.AOMI_API_URL!}</div>
+<sc-if value="{{wBrowser}}" hint-placeholder-val="{{true}}">
+<div style="background:#e2eef8;margin:0 -26px;padding:0 26px"><span style="color:#5288c2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;auth</span>={{ kind: <span style="color:#2e9e6b">"browser_wallet"</span> }}</div>
+</sc-if>
+<sc-if value="{{wEmbedded}}" hint-placeholder-val="{{false}}">
+<div style="background:#e2eef8;margin:0 -26px;padding:0 26px"><span style="color:#5288c2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;auth</span>={{</div>
+<div style="background:#e2eef8;margin:0 -26px;padding:0 26px">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;kind: <span style="color:#2e9e6b">"embedded_wallet"</span>,</div>
+<div style="background:#e2eef8;margin:0 -26px;padding:0 26px">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;provider: <span style="color:#2e9e6b">"{{wProvider}}"</span>,</div>
+<div style="background:#e2eef8;margin:0 -26px;padding:0 26px">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;environment: <span style="color:#2e9e6b">"{{wEnv}}"</span>,</div>
+<div style="background:#e2eef8;margin:0 -26px;padding:0 26px">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;}}</div>
+</sc-if>
+<div><span style="color:#5288c2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;height</span>=<span style="color:#2e9e6b">"calc(100dvh - 32px)"</span></div>
+<div>&nbsp;&nbsp;&nbsp;&nbsp;/&gt;</div>
+<div>&nbsp;&nbsp;);</div>
+<div>}</div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{wmIsTerm}}" hint-placeholder-val="{{false}}">
+<div style="display:flex;align-items:flex-end;gap:26px;border-bottom:1px solid #e4e4e7">
+<span sc-camel-on-click="{{ttab0}}" style="flex:none;white-space:nowrap;cursor:pointer;font-size:14px;font-weight:{{t0Weight}};padding:0 2px 10px;margin-bottom:-1px;border-bottom:2px solid {{t0Border}};color:{{t0Color}}">CLI</span>
+<span sc-camel-on-click="{{ttab1}}" style="flex:none;white-space:nowrap;cursor:pointer;font-size:14px;font-weight:{{t1Weight}};padding:0 2px 10px;margin-bottom:-1px;border-bottom:2px solid {{t1Border}};color:{{t1Color}}">MCP</span>
+<span style="flex:1"></span>
+<span style="display:inline-flex;background:#f4f4f5;border:1px solid #e4e4e7;border-radius:999px;padding:3px;gap:2px;margin-bottom:8px">
+<span sc-camel-on-click="{{wmUi}}" style="cursor:pointer;border-radius:999px;padding:5px 0;width:76px;text-align:center;font-size:12px;font-weight:500;color:{{wmUiColor}};background:{{wmUiBg}};transition:background .2s,color .2s">UI</span>
+<span sc-camel-on-click="{{wmTerm}}" style="cursor:pointer;border-radius:999px;padding:5px 0;width:76px;text-align:center;font-size:12px;font-weight:500;color:{{wmTermColor}};background:{{wmTermBg}};transition:background .2s,color .2s">Terminal</span>
+</span>
+</div>
+<p style="font-size:15px;line-height:1.6;color:#3f3f46;margin:20px 0;min-height:48px">{{tCaption}}</p>
+<div style="border-radius:16px;background:#fafafa;border:1px solid #e4e4e7;overflow:hidden;padding:22px 26px;min-height:461px;box-sizing:border-box;font-family:'Geist Mono',monospace;font-size:12.5px;line-height:1.85;text-align:left">
+<sc-if value="{{tIsCli}}" hint-placeholder-val="{{true}}">
+<div style="color:#71717a"># Sign in with Privy or Para in your browser — no keys on this machine</div>
+<div style="color:#09090b">aomi account login --provider privy</div>
+<div>&nbsp;</div>
+<div style="color:#71717a"># Or authenticate with the wallet itself (SIWE / SIWS)</div>
+<div style="color:#09090b">aomi account login --siwe</div>
+<div>&nbsp;</div>
+<div style="color:#71717a"># Or go fully local: persist a signing key, EVM or Solana</div>
+<div style="color:#09090b">aomi wallet set 0xYOUR_EVM_PRIVATE_KEY</div>
+<div style="color:#09090b">aomi wallet set --solana YOUR_BASE58_SOLANA_KEY</div>
+<div>&nbsp;</div>
+<div style="color:#09090b">aomi wallet current --json</div>
+<div style="color:#71717a">{</div>
+<div style="color:#71717a">&nbsp;&nbsp;"active": true,</div>
+<div style="color:#71717a">&nbsp;&nbsp;"wallets": [</div>
+<div style="color:#71717a">&nbsp;&nbsp;&nbsp;&nbsp;{ "family": "evm", "address": "0x5D90…4c9B", "chainId": 1, "hasSavedSigner": true },</div>
+<div style="color:#71717a">&nbsp;&nbsp;&nbsp;&nbsp;{ "family": "solana", "address": "Gkzr…zXsG", "cluster": "solana:mainnet", "hasSavedSigner": true }</div>
+<div style="color:#71717a">&nbsp;&nbsp;]</div>
+<div style="color:#71717a">}</div>
+</sc-if>
+<sc-if value="{{tIsMcp}}" hint-placeholder-val="{{false}}">
+<div style="color:#71717a"># Add the Aomi MCP server (opens browser OAuth)</div>
+<div style="color:#09090b">claude mcp add --transport http aomi https://mcp.aomi.dev</div>
+<div>&nbsp;</div>
+<div style="color:#71717a">Starting the OAuth flow for aomi (chat.aomi.dev).</div>
+<div style="color:#71717a">Open this in your browser to authorize:</div>
+<div style="color:#71717a">https://chat.aomi.dev/api/auth/mcp/authorize?response_type=code&amp;…</div>
+<div>&nbsp;</div>
+<div style="color:#71717a"># Authenticated. The aomi agent tools are now live:</div>
+<div style="color:#09090b">aomi_chat<span style="color:#71717a"> — start a turn with the Aomi agent</span></div>
+<div style="color:#09090b">aomi_check<span style="color:#71717a"> — poll a running turn</span></div>
+<div style="color:#09090b">aomi_interrupt<span style="color:#71717a"> — stop a running turn</span></div>
+<div style="color:#09090b">aomi_list_sessions<span style="color:#71717a"> — find prior conversations</span></div>
+<div>&nbsp;</div>
+<div style="color:#71717a"># Wallets are account-scoped — embedded wallets ride on your login</div>
+<div style="color:#09090b">Privy · EVM 0xdc27…80e12&nbsp;&nbsp;Privy · SVM DUcPA…M7L4U</div>
+</sc-if>
+</div>
+</sc-if>
+</div>
+</div>
+</section>
+<section data-screen-label="Feature matrix" style="background:#fff">
+<div style="max-width:1160px;margin:0 auto;box-sizing:border-box;padding:96px 48px 128px">
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#5288c2;margin-bottom:18px;text-align:center">Feature Matrix</div>
+<h2 style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:38px;line-height:1.12;letter-spacing:-.015em;color:#09090b;margin:0 0 20px;text-wrap:balance;text-align:center">Fintech infrastructure for transaction lifecycle</h2>
+<p style="font-size:15px;line-height:1.65;color:#52525b;margin:0 auto 64px;max-width:640px;text-align:center">A complete execution lifecycle for digital asset products—from policy enforcement and transaction construction to authorization, cross-chain settlement, and operational reporting.</p>
+<div style="display:grid;grid-template-columns:repeat(12,1fr);border-top:1px solid #e4e4e7;border-left:1px solid #e4e4e7">
+<div class="om-fm-cell" style="grid-column:1/6;grid-row:1/3;border-right:1px solid #e4e4e7;border-bottom:1px solid #e4e4e7;padding:40px 44px;display:flex;flex-direction:column">
+<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:28px">
+<span style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#5288c2;white-space:nowrap;flex:none">Defining principle</span>
+<span style="font-family:'Geist Mono',monospace;font-size:12px;color:#a1a1aa;white-space:nowrap;flex:none">01 / 06</span>
+</div>
+<div style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:32px;line-height:1.15;letter-spacing:-.015em;color:#09090b;margin-bottom:18px">Non-custodial by design</div>
+<p style="font-size:14.5px;line-height:1.7;color:#52525b;margin:0;flex:1;max-width:440px">Aomi constructs and coordinates transactions while assets and signing authority remain within the customer's existing wallet infrastructure. Aomi never requires custody of client funds or access to private keys.</p>
+<div style="margin-top:40px"><a href="#" class="om-fm-link" style="font-size:13px;font-weight:500;color:#5288c2;align-self:flex-start">Explore security policy →</a></div>
+</div>
+<div class="om-fm-cell" style="grid-column:6/10;grid-row:1;border-right:1px solid #e4e4e7;border-bottom:1px solid #e4e4e7;padding:32px 30px;display:flex;flex-direction:column">
+<div style="text-align:right;font-family:'Geist Mono',monospace;font-size:12px;color:#a1a1aa;margin-bottom:20px">02 / 06</div>
+<div style="font-size:17px;font-weight:600;color:#09090b;margin-bottom:12px">Policy-governed execution</div>
+<p style="font-size:13.5px;line-height:1.65;color:#52525b;margin:0 0 20px;flex:1">Define value limits, approved assets, venue allowlists, risk thresholds, and authorization requirements. Controls are enforced outside the model, preventing out-of-policy transactions from reaching the signer.</p>
+<a href="#" class="om-fm-link" style="font-size:13px;font-weight:500;color:#5288c2;align-self:flex-start">Explore execution controls →</a>
+</div>
+<div class="om-fm-cell" style="grid-column:10/13;grid-row:1/3;border-right:1px solid #e4e4e7;border-bottom:1px solid #e4e4e7;padding:32px 30px;display:flex;flex-direction:column">
+<div style="text-align:right;font-family:'Geist Mono',monospace;font-size:12px;color:#a1a1aa;margin-bottom:20px">03 / 06</div>
+<div style="font-size:17px;font-weight:600;color:#09090b;margin-bottom:12px">Simulation and execution evidence</div>
+<p style="font-size:13.5px;line-height:1.65;color:#52525b;margin:0 0 20px;flex:1">Every proposed transaction is tested against forked live chain state before signature. The originating instruction, policy decision, simulated outcome, authorization, and onchain receipt form a complete execution record.</p>
+<a href="#" class="om-fm-link" style="font-size:13px;font-weight:500;color:#5288c2;align-self:flex-start">Explore verifiable execution →</a>
+</div>
+<div class="om-fm-cell" style="grid-column:6/10;grid-row:2;border-right:1px solid #e4e4e7;border-bottom:1px solid #e4e4e7;padding:32px 30px;display:flex;flex-direction:column">
+<div style="text-align:right;font-family:'Geist Mono',monospace;font-size:12px;color:#a1a1aa;margin-bottom:20px">04 / 06</div>
+<div style="font-size:17px;font-weight:600;color:#09090b;margin-bottom:12px">Account abstraction and gas sponsorship</div>
+<p style="font-size:13.5px;line-height:1.65;color:#52525b;margin:0 0 20px;flex:1">Support transaction batching, scoped authorization, and sponsored network fees through account abstraction. Users complete complex workflows with fewer approvals and without maintaining native gas balances on supported networks.</p>
+<a href="#" class="om-fm-link" style="font-size:13px;font-weight:500;color:#5288c2;align-self:flex-start">Explore account abstraction →</a>
+</div>
+<div class="om-fm-cell" style="grid-column:1/8;grid-row:3;border-right:1px solid #e4e4e7;border-bottom:1px solid #e4e4e7;padding:32px 44px;display:flex;flex-direction:column">
+<div style="text-align:right;font-family:'Geist Mono',monospace;font-size:12px;color:#a1a1aa;margin-bottom:20px">05 / 06</div>
+<div style="font-size:17px;font-weight:600;color:#09090b;margin-bottom:12px">Cross-chain execution</div>
+<p style="font-size:13.5px;line-height:1.65;color:#52525b;margin:0 0 20px;flex:1">Coordinate swaps, bridges, lending, staking, and portfolio operations across EVM and SVM networks through one execution layer. Each step is constructed, verified, authorized, and settled through a consistent workflow.</p>
+<a href="#" class="om-fm-link" style="font-size:13px;font-weight:500;color:#5288c2;align-self:flex-start">View supported networks →</a>
+</div>
+<div class="om-fm-cell" style="grid-column:8/13;grid-row:3;border-right:1px solid #e4e4e7;border-bottom:1px solid #e4e4e7;padding:32px 30px;display:flex;flex-direction:column">
+<div style="text-align:right;font-family:'Geist Mono',monospace;font-size:12px;color:#a1a1aa;margin-bottom:20px">06 / 06</div>
+<div style="font-size:17px;font-weight:600;color:#09090b;margin-bottom:12px">Persistent automation</div>
+<p style="font-size:13.5px;line-height:1.65;color:#52525b;margin:0 0 20px;flex:1">Run scheduled rebalances, DCA, limit and stop logic, liquidation safeguards, and treasury workflows after the interface closes. Automation operates within predefined, monitored, and revocable authority.</p>
+<a href="#" class="om-fm-link" style="font-size:13px;font-weight:500;color:#5288c2;align-self:flex-start">Explore automated workflows →</a>
+</div>
+</div>
+</div>
+</section>
+<section data-screen-label="One install" style="background:#fff;padding:96px 48px 104px;text-align:center">
+<h2 style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:44px;line-height:1.1;letter-spacing:-.02em;color:#09090b;margin:0 0 18px;text-wrap:balance">Empower your agents onchain</h2>
+<p style="font-size:15px;line-height:1.65;color:#52525b;margin:0 auto 40px;max-width:540px">Install Aomi to Claude Code, Codex, Cursor, OpenCode, or Hermes agents. Harness accessible via CLI, MCP, or API calls.</p>
+<div style="position:relative;max-width:{{instRowMax}};margin:0 auto;transition:max-width .2s">
+<div style="display:flex;gap:14px;align-items:flex-start">
+<div style="flex:1;display:flex;align-items:flex-start;gap:10px;border:1px solid #e4e4e7;border-radius:11px;padding:12px 16px;font-family:'Geist Mono',monospace;font-size:12px;color:#09090b">
+<span style="color:#5288c2;font-weight:700;line-height:1.75" data-comment-anchor="b85b178ed9-span">&gt;</span>
+<span style="flex:1;text-align:{{instAlign}};white-space:pre-wrap;line-height:1.75">{{instCommand}}</span>
+<span sc-camel-on-click="{{instCopy}}" style="cursor:pointer;display:inline-flex;flex:none;margin-top:3px">
+<sc-if value="{{instNotCopied}}" hint-placeholder-val="{{true}}"><svg sc-camel-view-box="0 0 16 16" style="width:15px;height:15px"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="#a1a1aa" stroke-width="1.4"></rect><path d="M10.5 3.5v-1a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h1" fill="none" stroke="#a1a1aa" stroke-width="1.4"></path></svg></sc-if>
+<sc-if value="{{instCopied}}" hint-placeholder-val="{{false}}"><svg sc-camel-view-box="0 0 16 16" style="width:15px;height:15px"><path d="M3 8.5l3.5 3.5L13 5" fill="none" stroke="#2e9e6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></sc-if>
+</span>
+</div>
+<div sc-camel-on-click="{{instToggle}}" style="cursor:pointer;display:flex;align-items:center;gap:8px;border:1px solid #e4e4e7;border-radius:11px;padding:0 15px;height:47px;box-sizing:border-box;font-size:12px;font-weight:500;color:#09090b;min-width:118px" style-hover="background:#fafafa">
+{{instLogoImg}}
+<span style="flex:1;text-align:left">{{instLabel}}</span>
+<svg sc-camel-view-box="0 0 16 16" style="width:12px;height:12px;flex:none"><path d="M4 6l4 4 4-4" fill="none" stroke="#71717a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<sc-if value="{{instOpen}}" hint-placeholder-val="{{false}}">
+<div style="position:absolute;top:calc(100% + 6px);right:0;width:190px;background:#fff;border:1px solid #e4e4e7;border-radius:12px;box-shadow:0 8px 24px rgba(9,9,11,.1);padding:6px;z-index:20;text-align:left">
+<sc-for list="{{instTools}}" as="t" hint-placeholder-count="0">
+<div sc-camel-on-click="{{t.pick}}" style="display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:8px;cursor:pointer;font-size:12.5px;font-weight:500;color:#09090b;background:{{t.bg}}" style-hover="background:#f4f4f5">
+{{t.logoImg14}}
+<span style="flex:1">{{t.label}}</span>
+<sc-if value="{{t.on}}" hint-placeholder-val="{{false}}"><svg sc-camel-view-box="0 0 16 16" style="width:12px;height:12px;flex:none"><path d="M3 8.5l3.5 3.5L13 5" fill="none" stroke="#2e9e6b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg></sc-if>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+<div style="font-size:12px;color:#71717a;margin-top:20px">Embed is one surface among others, not the product.</div>
+<div style="display:flex;gap:10px;justify-content:center;margin-top:30px">
+<sc-for list="{{instTools}}" as="t" hint-placeholder-count="0">
+<span title="{{t.label}}" style="width:38px;height:38px;border:1px solid #e4e4e7;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;background:#fff">{{t.logoImg16}}</span>
+</sc-for>
+</div>
+</section>
+<section data-screen-label="FAQ" style="padding:96px 48px;background:#fff">
+<div style="max-width:760px;margin:0 auto">
+<div style="font-family:'Geist Mono',monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#5288c2;margin-bottom:18px">FAQ</div>
+<h2 style="font-family:'PT Serif',Georgia,serif;font-weight:700;font-size:34px;line-height:1.12;letter-spacing:-.02em;color:#09090b;margin:0 0 28px;text-wrap:balance">Questions before you start.</h2>
+<div style="border-top:1px solid #e4e4e7">
+<sc-for list="{{faqs}}" as="f" hint-placeholder-count="6">
+<div style="border-bottom:1px solid #e4e4e7">
+<div sc-camel-on-click="{{f.toggle}}" style="display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:17px 2px;font-size:15px;font-weight:500;color:#09090b;cursor:pointer">{{f.q}}<span style="color:#a1a1aa;font-family:'Geist Mono',monospace;flex:none">{{f.mark}}</span></div>
+<sc-if value="{{f.open}}" hint-placeholder-val="{{false}}"><div style="font-size:13.5px;color:#52525b;line-height:1.65;padding:0 2px 18px;max-width:640px">{{f.a}}</div></sc-if>
+</div>
+</sc-for>
+</div>
+</div>
+</section>
+<footer data-screen-label="Footer" style="background:#5288c2;padding:56px 48px 0">
+<div style="max-width:1160px;margin:0 auto">
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:48px;flex-wrap:wrap;margin-bottom:56px">
+<div style="display:flex;flex-direction:column;gap:16px">
+<div style="display:flex;align-items:center;gap:8px"><svg sc-camel-view-box="0 0 362 362" style="width:15px;height:15px;color:#fff" fill="currentColor"><path d="M321.778 94.2349C321.778 64.4045 297.595 40.2222 267.765 40.2222C237.935 40.2222 213.752 64.4045 213.752 94.2349C213.752 124.065 237.935 148.248 267.765 148.248C297.595 148.248 321.778 124.065 321.778 94.2349ZM362 94.2349C362 146.279 319.81 188.47 267.765 188.47C215.721 188.47 173.53 146.279 173.53 94.2349C173.53 42.1904 215.721 1.33271e-06 267.765 0C319.81 0 362 42.1904 362 94.2349Z"></path><path d="M181 0C184.792 0 188.556 0.116399 192.289 0.346221C189.506 2.74481 186.833 5.26892 184.28 7.90977C170.997 20.759 160.669 36.6452 154.42 54.4509C95.7682 66.7078 51.7143 118.709 51.7143 181C51.7143 252.403 109.597 310.286 181 310.286C243.292 310.286 295.291 266.231 307.547 207.58C325.364 201.327 341.259 190.99 354.113 177.695C356.745 175.149 359.261 172.486 361.653 169.71C361.883 173.444 362 177.208 362 181C362 280.964 280.964 362 181 362C81.0365 362 0 280.964 0 181C0 81.0365 81.0365 0 181 0Z"></path></svg><span style="font-family:'Source Serif 4',serif;font-weight:600;font-size:15px;color:#fff">aomi</span></div>
+<p style="font-size:12px;line-height:1.7;color:#e2eef8;max-width:290px;margin:0">Execution infrastructure for onchain finance. Agent-driven settlement with institutional-grade controls. Non-custodial, wallet agnostic.</p>
+</div>
+<div style="display:flex;gap:64px;flex-wrap:wrap">
+<div style="display:flex;flex-direction:column;gap:12px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#fff">Product</span>
+<a href="#" style="font-size:12px;color:#e2eef8" style-hover="color:#fff">Features</a>
+<a href="#" style="font-size:12px;color:#e2eef8" style-hover="color:#fff">Integrations</a>
+<a href="#" style="font-size:12px;color:#e2eef8" style-hover="color:#fff">Changelog</a>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#fff">Company</span>
+<a href="#" style="font-size:12px;color:#e2eef8" style-hover="color:#fff">About</a>
+<a href="https://substack.com/@aomilabs" target="_blank" style="font-size:12px;color:#e2eef8" style-hover="color:#fff">Blog</a>
+<a href="https://www.linkedin.com/company/aomi-labs/" target="_blank" style="font-size:12px;color:#e2eef8" style-hover="color:#fff">Careers</a>
+<a href="/contact" style="font-size:12px;color:#e2eef8" style-hover="color:#fff">Contact</a>
+</div>
+<div style="display:flex;flex-direction:column;gap:12px">
+<span style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#fff">Legal</span>
+<a href="/privacy" style="font-size:12px;color:#e2eef8" style-hover="color:#fff">Privacy</a>
+<a href="/terms" style="font-size:12px;color:#e2eef8" style-hover="color:#fff">Terms</a>
+</div>
+</div>
+</div>
+<div style="display:flex;justify-content:space-between;align-items:center;border-top:1px solid rgba(255,255,255,.18);padding:22px 0">
+<span style="font-family:'Geist Mono',monospace;font-size:10px;color:#e2eef8">(c) 2026 Aomi Labs. All rights reserved.</span>
+<div style="display:flex;align-items:center;gap:16px">
+<a href="https://x.com/aomi_labs" target="_blank" style="color:#e2eef8;display:inline-flex" style-hover="color:#fff"><svg sc-camel-view-box="0 0 24 24" fill="currentColor" style="width:15px;height:15px"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg></a>
+<a href="https://discord.gg/uk5ZAMuepJ" target="_blank" style="color:#e2eef8;display:inline-flex" style-hover="color:#fff"><svg sc-camel-view-box="0 0 24 24" fill="currentColor" style="width:16px;height:16px"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515a.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0a12.64 12.64 0 0 0-.617-1.25a.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057a19.9 19.9 0 0 0 5.993 3.03a.078.078 0 0 0 .084-.028a14.09 14.09 0 0 0 1.226-1.994a.076.076 0 0 0-.041-.106a13.107 13.107 0 0 1-1.872-.892a.077.077 0 0 1-.008-.128a10.2 10.2 0 0 0 .372-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127a12.299 12.299 0 0 1-1.873.892a.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028a19.839 19.839 0 0 0 6.002-3.03a.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.956-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419c0-1.333.955-2.419 2.157-2.419c1.21 0 2.176 1.096 2.157 2.42c0 1.333-.946 2.418-2.157 2.418z"></path></svg></a>
+<a href="https://github.com/aomi-labs" target="_blank" style="color:#e2eef8;display:inline-flex" style-hover="color:#fff"><svg sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"></path><path d="M9 18c-4.51 2-5-2-7-2"></path></svg></a>
+</div>
+</div>
+</div>
+</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" id="aomi-v3-component" data-dc-script="" data-props="{&quot;pace&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:1,&quot;min&quot;:0.5,&quot;max&quot;:2,&quot;step&quot;:0.1,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Trace replay&quot;,&quot;label&quot;:&quot;Playback speed&quot;},&quot;loop&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Trace replay&quot;,&quot;label&quot;:&quot;Loop the replay&quot;}}"></script><script src="./component-source.js"></script>
+
+
+</body></html>
