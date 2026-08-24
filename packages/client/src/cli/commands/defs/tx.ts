@@ -33,11 +33,14 @@ const txSimulateDef = defineCommand({
 const txExportDef = defineCommand({
   meta: {
     name: "export",
-    description:
-      "Export pending EVM calls as an EIP-5792 wallet_sendCalls payload",
+    description: "Export pending EVM calls for an external wallet",
   },
   args: {
     ...globalArgs,
+    format: {
+      type: "string",
+      description: "Output format: eip5792 (default), moss, or metamask",
+    },
     txIds: {
       type: "positional",
       description: "Pending EVM transaction IDs to export",
@@ -46,7 +49,11 @@ const txExportDef = defineCommand({
   },
   async run({ args }) {
     const { exportCommand } = await import("../export");
-    await exportCommand(buildCliConfig(args), getPositionals(args));
+    await exportCommand(
+      buildCliConfig(args),
+      getPositionals(args),
+      typeof args.format === "string" ? args.format : undefined,
+    );
   },
 });
 

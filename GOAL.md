@@ -10,16 +10,21 @@ availability status for partner UIs. The client is patch-bumped to
 
 ## EIP-5792 transaction export
 
-Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** — add a
-wallet-neutral, read-only `aomi tx export <id>...` command to
-`@aomi-labs/client@0.6.1`. The command refreshes authoritative staged EVM calls,
-validates one sender and chain, and emits only an EIP-5792 `wallet_sendCalls`
-version `2.0.0` parameter object without signing, broadcasting, fee injection,
-or backend completion. The full 1,563-test repository suite, repository lint,
-root typecheck, client build, CLI help, and npm package dry run pass. MegaETH
-MOSS CLI v0.1.6 accepts the exported `.calls` shape through normalization and
-reaches wallet-profile loading; a live relay submission requires user wallet
-login and delegated-key approval.
+Current session goal: **EXPANDED AND LOCALLY VERIFIED 2026-08-24** — ship the
+wallet-neutral, read-only `aomi tx export <id>...` command in
+`@aomi-labs/client@0.6.2` with explicit `eip5792`, `moss`, and `metamask`
+formats. EIP-5792 `wallet_sendCalls` version `2.0.0` remains the canonical and
+default representation; MOSS emits the ordered call array, while MetaMask emits
+the decimal chain argument and one raw transaction payload expected by Agent
+Wallet. The MetaMask adapter rejects multiple calls instead of silently losing
+batch or atomic semantics. The command still refreshes authoritative staged EVM
+calls, validates one sender and chain, and never signs, broadcasts, injects the
+execution-time service fee, or reports backend completion. The full 1,574-test
+repository suite, repository lint, root typecheck, client build, CLI help, and
+npm package dry run pass. MegaETH MOSS CLI v0.1.6 accepts the exported call
+shape through normalization and reaches wallet-profile loading; live MOSS or
+MetaMask submission still requires the user's external wallet authentication
+and approvals.
 
 ## Chain logo refresh
 

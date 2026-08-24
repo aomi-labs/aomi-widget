@@ -137,6 +137,46 @@ describe("aomi tx export", () => {
     });
   });
 
+  it("prints the call array in moss format", async () => {
+    const stdout = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+
+    await exportCommand(config, ["tx-2", "tx-1"], "moss");
+
+    expect(JSON.parse(stdout.mock.calls[0]?.[0] as string)).toEqual([
+      { to: SECOND_TO, data: "0x", value: "0x3e8" },
+      { to: FIRST_TO, data: "0xaabb", value: "0x0" },
+    ]);
+  });
+
+  it("prints a single MetaMask transaction handoff", async () => {
+    const stdout = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+
+    await exportCommand(config, ["tx-1"], "metamask");
+
+    expect(JSON.parse(stdout.mock.calls[0]?.[0] as string)).toEqual({
+      chainId: 4326,
+      payload: { to: FIRST_TO, data: "0xaabb", value: "0x0" },
+    });
+  });
+
+  it("rejects multiple calls and unknown format aliases", async () => {
+    const stdout = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+
+    await expect(
+      exportCommand(config, ["tx-1", "tx-2"], "metamask"),
+    ).rejects.toMatchObject({ code: 1 });
+    await expect(exportCommand(config, ["tx-1"], "mm")).rejects.toMatchObject({
+      code: 1,
+    });
+    expect(stdout).not.toHaveBeenCalled();
+  });
+
   it("requires selectors and an active session", async () => {
     await expect(exportCommand(config, [])).rejects.toMatchObject({ code: 1 });
 

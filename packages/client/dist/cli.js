@@ -8019,6 +8019,41 @@ var init_eip5792 = __esm({
   }
 });
 
+// src/cli/wallet-export.ts
+function parseWalletExportFormat(value) {
+  const format = (value == null ? void 0 : value.trim().toLowerCase()) || "eip5792";
+  if (WALLET_EXPORT_FORMATS.includes(format)) {
+    return format;
+  }
+  throw new Error(
+    `Unknown export format "${value}". Use "eip5792", "moss", or "metamask".`
+  );
+}
+function formatWalletExport(params, format) {
+  if (format === "eip5792") {
+    return params;
+  }
+  if (format === "moss") {
+    return params.calls;
+  }
+  if (params.calls.length !== 1) {
+    throw new Error(
+      "The metamask format supports exactly one call. Export one transaction at a time, or use the eip5792 or moss format for multiple calls."
+    );
+  }
+  return {
+    chainId: Number(BigInt(params.chainId)),
+    payload: params.calls[0]
+  };
+}
+var WALLET_EXPORT_FORMATS;
+var init_wallet_export = __esm({
+  "src/cli/wallet-export.ts"() {
+    "use strict";
+    WALLET_EXPORT_FORMATS = ["eip5792", "moss", "metamask"];
+  }
+});
+
 // src/cli/commands/export.ts
 var export_exports = {};
 __export(export_exports, {
@@ -8108,11 +8143,17 @@ function resolveChainIds(pending, sessionChainId) {
   }
   return chainIds;
 }
-async function exportCommand(config, txIds) {
+async function exportCommand(config, txIds, rawFormat) {
   if (txIds.length === 0) {
     fatal(
       "Usage: aomi tx export <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs."
     );
+  }
+  let format;
+  try {
+    format = parseWalletExportFormat(rawFormat);
+  } catch (error) {
+    fatal(errorMessage(error));
   }
   const cli = CliSession.load();
   if (!cli) {
@@ -8142,8 +8183,10 @@ async function exportCommand(config, txIds) {
       chainId: chainIds[0],
       calls
     });
-    process.stdout.write(`${JSON.stringify(payload, null, 2)}
-`);
+    process.stdout.write(
+      `${JSON.stringify(formatWalletExport(payload, format), null, 2)}
+`
+    );
   } catch (error) {
     fatal(errorMessage(error));
   }
@@ -8155,6 +8198,7 @@ var init_export = __esm({
     init_eip5792();
     init_errors();
     init_transactions();
+    init_wallet_export();
   }
 });
 
@@ -10806,9 +10850,13 @@ var txSimulateDef = defineCommand2({
 var txExportDef = defineCommand2({
   meta: {
     name: "export",
-    description: "Export pending EVM calls as an EIP-5792 wallet_sendCalls payload"
+    description: "Export pending EVM calls for an external wallet"
   },
   args: __spreadProps(__spreadValues({}, globalArgs), {
+    format: {
+      type: "string",
+      description: "Output format: eip5792 (default), moss, or metamask"
+    },
     txIds: {
       type: "positional",
       description: "Pending EVM transaction IDs to export",
@@ -10817,7 +10865,11 @@ var txExportDef = defineCommand2({
   }),
   async run({ args }) {
     const { exportCommand: exportCommand2 } = await Promise.resolve().then(() => (init_export(), export_exports));
-    await exportCommand2(buildCliConfig(args), getPositionals(args));
+    await exportCommand2(
+      buildCliConfig(args),
+      getPositionals(args),
+      typeof args.format === "string" ? args.format : void 0
+    );
   }
 });
 var txSignDef = defineCommand2({
@@ -11602,7 +11654,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.6.1",
+  version: "0.6.2",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

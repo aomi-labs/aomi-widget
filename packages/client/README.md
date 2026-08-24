@@ -139,7 +139,9 @@ npx @aomi-labs/client secret add ALCHEMY_API_KEY=...     # ingest a secret for t
 npx @aomi-labs/client session log                        # show full conversation history
 npx @aomi-labs/client tx list                            # list pending + signed txs
 npx @aomi-labs/client tx simulate tx-1                   # simulate pending calls
-npx @aomi-labs/client tx export tx-1 > execution.json    # export EIP-5792 calls
+npx @aomi-labs/client tx export tx-1 > execution.json    # canonical EIP-5792
+npx @aomi-labs/client tx export tx-1 --format moss       # MOSS call array
+npx @aomi-labs/client tx export tx-1 --format metamask   # MetaMask handoff
 npx @aomi-labs/client tx sign tx-1                       # sign a specific pending tx
 npx @aomi-labs/client session status                     # session info
 npx @aomi-labs/client session events                     # system events
@@ -308,30 +310,68 @@ Signed (1):
 ```
 
 `aomi tx export <id>...` refreshes the backend's authoritative pending state
-and writes an EIP-5792 `wallet_sendCalls` version `2.0.0` parameter object to
-stdout. It requires no private key, preserves the selected call order, and
-fails if the calls do not share one sender and chain. Redirect stdout to keep
-the wallet handoff artifact separate from diagnostics:
+and writes a wallet handoff artifact to stdout. It requires no private key,
+preserves the selected call order, and fails if the calls do not share one
+sender and chain. Redirect stdout to keep the artifact separate from
+diagnostics:
 
 ```bash
 aomi tx export evm:tx-1 evm:tx-2 > execution.json
 ```
 
-The exported object contains canonical hexadecimal `chainId` and `value`
-quantities, `atomicRequired: false`, and `to`/`data`/`value` call tuples. The
-command does not sign, broadcast, append the local signer's execution-time Aomi
-service-fee call, notify the backend, or remove pending requests. Simulate the
-same ordered selection before handing it to an external wallet.
+The default `eip5792` format is the canonical export. It contains an EIP-5792
+`wallet_sendCalls` version `2.0.0` parameter object with hexadecimal `chainId`
+and `value` quantities, `atomicRequired: false`, and `to`/`data`/`value` call
+tuples. `moss` and `metamask` are small adapters over that representation:
 
-MegaETH MOSS consumes the call array inside the standard parameter object:
+| Format     | Output                                               | Batch behavior            |
+| ---------- | ---------------------------------------------------- | ------------------------- |
+| `eip5792`  | Full `wallet_sendCalls` parameter object             | Preserves all calls       |
+| `moss`     | Ordered call array                                   | Preserves all calls       |
+| `metamask` | Numeric `chainId` plus one raw transaction `payload` | Requires exactly one call |
+
+The command does not sign, broadcast, append the local signer's execution-time
+Aomi service-fee call, notify the backend, or remove pending requests. Simulate
+the same ordered selection before handing it to an external wallet.
+
+MegaETH MOSS consumes the call array directly:
 
 ```bash
-jq '.calls' execution.json > moss-calls.json
+aomi tx export evm:tx-1 evm:tx-2 --format moss > moss-calls.json
 mega moss execute --calls moss-calls.json --network mainnet --json
 ```
 
 MOSS still requires its own wallet login and an approved delegated key whose
 call and spend permissions cover every exported call.
+
+MetaMask browser and mobile wallets consume the default EIP-5792 object through
+an EIP-1193 provider. Check `wallet_getCapabilities` for the selected account
+and chain before requesting execution:
+
+```ts
+const execution = JSON.parse(await readFile("execution.json", "utf8"));
+await provider.request({
+  method: "wallet_sendCalls",
+  params: [execution],
+});
+```
+
+MetaMask Agent Wallet currently exposes one raw EVM transaction at a time. The
+`metamask` format keeps its required decimal chain argument beside the
+hexadecimal transaction payload:
+
+```bash
+aomi tx export evm:tx-1 --format metamask > metamask.json
+mm wallet send-transaction \
+  --chain-id "$(jq -r '.chainId' metamask.json)" \
+  --payload "$(jq -c '.payload' metamask.json)" \
+  --wait
+```
+
+The `metamask` format rejects multiple calls instead of turning a batch into
+unrelated sequential transactions. Use the default `eip5792` format for native
+MetaMask batch execution when the connected account advertises that
+capability.
 
 **EIP-712 signing** is also supported. When the backend requests a typed data
 signature (e.g. for CoW Protocol orders or permit approvals), it shows up as a

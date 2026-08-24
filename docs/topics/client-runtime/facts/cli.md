@@ -26,7 +26,7 @@ The `aomi` terminal client is published from `@aomi-labs/client` and shares its 
 
 - The CLI supports chat, transaction, session, model, app, chain, wallet, config, and secret commands.
 - Transaction commands include `tx list`, `tx simulate <id>...`, `tx export <id>...`, and `tx sign <id>...`.
-- `tx export` refreshes authoritative pending state and emits only an EIP-5792 `wallet_sendCalls` version `2.0.0` parameter object to stdout. It accepts EVM transaction calls on one sender and chain; it never signs, broadcasts, injects the execution-time service-fee call, or reports completion to the backend.
+- `tx export` refreshes authoritative pending state and emits a wallet handoff artifact to stdout. The default `eip5792` format is the full EIP-5792 `wallet_sendCalls` version `2.0.0` parameter object; `moss` emits its ordered call array, and `metamask` emits a decimal chain ID plus exactly one raw transaction payload. It accepts EVM transaction calls on one sender and chain; it never signs, broadcasts, injects the execution-time service-fee call, or reports completion to the backend.
 - Interactive mode exposes slash-style helpers such as `/app`, `/model`, and `/key`.
 - The root help path is intentionally explicit about backend URL, API key, app, model, chain, and wallet options.
 

@@ -5,6 +5,11 @@ import { fatal } from "../errors";
 import type { PendingTx } from "../state";
 import { pendingTxToCallList } from "../transactions";
 import type { CliConfig } from "../types";
+import {
+  formatWalletExport,
+  parseWalletExportFormat,
+  type WalletExportFormat,
+} from "../wallet-export";
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -115,11 +120,19 @@ function resolveChainIds(
 export async function exportCommand(
   config: CliConfig,
   txIds: string[],
+  rawFormat?: string,
 ): Promise<void> {
   if (txIds.length === 0) {
     fatal(
       "Usage: aomi tx export <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs.",
     );
+  }
+
+  let format: WalletExportFormat;
+  try {
+    format = parseWalletExportFormat(rawFormat);
+  } catch (error) {
+    fatal(errorMessage(error));
   }
 
   const cli = CliSession.load();
@@ -152,7 +165,9 @@ export async function exportCommand(
       chainId: chainIds[0],
       calls,
     });
-    process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+    process.stdout.write(
+      `${JSON.stringify(formatWalletExport(payload, format), null, 2)}\n`,
+    );
   } catch (error) {
     fatal(errorMessage(error));
   }
