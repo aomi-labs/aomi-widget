@@ -1,5 +1,13 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Preserve Build platform through GitHub sign-in
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-24** — retain the
+validated same-origin Build page in the signed GitHub OAuth continuation so a
+partner repository import returns to its selected platform instead of falling
+back to `community`. The focused OAuth regressions, all 478 Build tests, Build
+type-check, and lint pass.
+
 ## Chain logo refresh
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-21** — add

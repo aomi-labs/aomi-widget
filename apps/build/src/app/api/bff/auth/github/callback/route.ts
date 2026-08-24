@@ -19,8 +19,13 @@ import { API_PATHS } from "@build/lib/api-paths";
 
 export const runtime = "nodejs";
 
-function deploymentsUrl(req: Request): URL {
-  const url = new URL("/operate/deployments", req.url);
+function browserUrl(req: Request, continuation?: GitHubOAuthContinuation): URL {
+  const url = new URL(
+    continuation?.kind === "browser" && continuation.returnTo
+      ? continuation.returnTo
+      : "/operate/deployments",
+    req.url,
+  );
   url.searchParams.set("launch", "github");
   return url;
 }
@@ -33,7 +38,7 @@ function oauthError(
   const cli = continuation?.kind === "cli";
   const redirect = cli
     ? new URL(continuation.redirectUri)
-    : deploymentsUrl(req);
+    : browserUrl(req, continuation);
   redirect.searchParams.set(cli ? "error" : "github_error", error);
   if (cli) redirect.searchParams.set("state", continuation.state);
   return NextResponse.redirect(redirect);
@@ -68,7 +73,10 @@ export async function GET(req: Request) {
           client.claimGitHubProject({
             code,
             projectId: continuation.projectId,
-            redirectUri: new URL(API_PATHS.bff.auth.github.callback, url.origin).toString(),
+            redirectUri: new URL(
+              API_PATHS.bff.auth.github.callback,
+              url.origin,
+            ).toString(),
           }),
         );
       if (claimed.githubUserId !== existingSession.githubUserId) {
@@ -80,11 +88,14 @@ export async function GET(req: Request) {
       clearGitHubOAuthRequest(response);
       return response;
     }
-    const { session, visibilityGrant } = await exchangeGitHubSession(code, url.origin);
+    const { session, visibilityGrant } = await exchangeGitHubSession(
+      code,
+      url.origin,
+    );
     const response =
       continuation.kind === "cli"
         ? await finishCliAuthorization(session, continuation)
-        : NextResponse.redirect(deploymentsUrl(req));
+        : NextResponse.redirect(browserUrl(req, continuation));
     clearGitHubOAuthRequest(response);
     await setGitHubSessionCookie(response, session);
     setGitHubVisibilityGrantCookie(response, visibilityGrant);
