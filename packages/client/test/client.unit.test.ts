@@ -11,7 +11,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(155);
+    expect(routeKeys).toHaveLength(160);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/account/statement [account]");
     // Public placement probe. Kept distinct from GET /health, which stays a
@@ -22,7 +22,12 @@ describe("AomiClient route manifest", () => {
       "POST /api/account/providers/:provider/agent-wallet [account]",
     );
     expect(routeKeys).toContain("PUT /api/account/apps [account]");
-    expect(routeKeys).toContain("POST /api/exec/run [account, thread]");
+    expect(routeKeys).toContain(
+      "POST /api/exec/run [account, thread, app_gate]",
+    );
+    expect(routeKeys).toContain(
+      "POST /api/_internal/agent/turns [agent_adapter, app_gate]",
+    );
     expect(routeKeys).toContain(
       "POST /api/threads/:thread_id/archive [account, thread]",
     );
@@ -784,6 +789,7 @@ describe("AomiClient transport selection", () => {
     const client = new AomiClient({
       baseUrl: "http://unit.test",
       fetch,
+      guest: false,
     });
 
     await expect(client.createThread("thread-1")).resolves.toEqual(
@@ -811,7 +817,11 @@ describe("AomiClient transport selection", () => {
     const fetch = vi.fn<typeof globalThis.fetch>(async () =>
       Response.json({ success: true }),
     );
-    const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+    const client = new AomiClient({
+      baseUrl: "http://unit.test",
+      fetch,
+      guest: false,
+    });
 
     await client.archiveThread("thread/1");
     await client.unarchiveThread("thread/1");

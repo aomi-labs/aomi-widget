@@ -1,4 +1,6 @@
 import type { UserState } from "./user-state";
+import type { AomiOAuthTokenProvider } from "./authorization";
+import type { GuestSessionProvider } from "./guest-auth";
 
 export { UserState } from "./user-state";
 export type {
@@ -38,6 +40,10 @@ export type AomiClientOptions = {
   apiKey?: string;
   /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
   getAccountBearer?: GetAccountBearer;
+  /** Resource-bound developer OAuth. Takes precedence over session/guest auth. */
+  oauth?: AomiOAuthTokenProvider;
+  /** Low-friction Better Auth anonymous session for `/v1` calls. Defaults on. */
+  guest?: boolean | GuestSessionProvider;
   /** Optional logger for debug output (default: silent) */
   logger?: Logger;
 };

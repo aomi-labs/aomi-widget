@@ -78,6 +78,8 @@ __export(index_exports, {
   buildFeeAAWalletCall: () => buildFeeAAWalletCall,
   buildSiwsMessage: () => buildSiwsMessage,
   createAccountBearerProvider: () => createAccountBearerProvider,
+  createGuestSessionProvider: () => createGuestSessionProvider,
+  createOAuthTokenProvider: () => createOAuthTokenProvider,
   createProviderCredentialAdapter: () => createProviderCredentialAdapter,
   createSiweWidgetAuthAdapter: () => createSiweWidgetAuthAdapter,
   createSiwsWidgetAuthAdapter: () => createSiwsWidgetAuthAdapter,
@@ -1046,6 +1048,49 @@ function executionHeaders(options) {
   }, options.paymentSignature ? { "payment-signature": options.paymentSignature } : {});
 }
 
+// src/guest-auth.ts
+function createGuestSessionProvider(input) {
+  var _a;
+  const fetchImpl = (_a = input.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
+  let credential = null;
+  let pending = null;
+  const provider = async (options) => {
+    if (options == null ? void 0 : options.forceRefresh) credential = null;
+    if (credential) return credential;
+    pending != null ? pending : pending = signInAnonymous(fetchImpl, input.baseUrl).finally(() => {
+      pending = null;
+    });
+    credential = await pending;
+    return credential;
+  };
+  return Object.assign(provider, {
+    clear() {
+      credential = null;
+    }
+  });
+}
+async function signInAnonymous(fetchImpl, baseUrl) {
+  var _a, _b;
+  const response = await fetchImpl(
+    `${baseUrl.replace(/\/+$/, "")}/api/auth/sign-in/anonymous`,
+    {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json"
+      },
+      body: "{}",
+      credentials: "include"
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Aomi guest sign-in failed with HTTP ${response.status}`);
+  }
+  const token = (_b = (_a = response.headers.get("set-auth-token")) != null ? _a : response.headers.get("x-auth-token")) != null ? _b : response.headers.get("auth-token");
+  if (!token) throw new Error("Aomi guest sign-in returned no bearer session");
+  return token;
+}
+
 // src/client.ts
 var SESSION_ID_HEADER = "X-Session-Id";
 var THREAD_ID_HEADER = "X-Thread-Id";
@@ -1153,6 +1198,97 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
     return fetchWithBearer(true);
   };
 }
+function wrapFetchWithPublicApiAuthorization(input) {
+  if (!input.oauth && !input.guest) return input.fetch;
+  return async (requestInput, init) => {
+    var _a, _b, _c, _d, _e, _f;
+    const request = requestInput instanceof Request ? requestInput : void 0;
+    const url = new URL(
+      String((_a = request == null ? void 0 : request.url) != null ? _a : requestInput),
+      absoluteBase(input.baseUrl)
+    );
+    const policy = publicApiPolicy(
+      url,
+      (_c = (_b = init == null ? void 0 : init.method) != null ? _b : request == null ? void 0 : request.method) != null ? _c : "GET",
+      (_d = init == null ? void 0 : init.headers) != null ? _d : request == null ? void 0 : request.headers
+    );
+    if (!policy) return input.fetch(requestInput, init);
+    const baseHeaders = new Headers((_e = init == null ? void 0 : init.headers) != null ? _e : request == null ? void 0 : request.headers);
+    const attempt = async (forceRefresh, dpopNonce2) => {
+      var _a2;
+      const headers = new Headers(baseHeaders);
+      if (input.oauth) {
+        const token = await input.oauth({
+          resource: policy.resource,
+          scopes: policy.scopes,
+          forceRefresh
+        });
+        if (!token)
+          throw new Error(
+            "No OAuth grant covers this Aomi resource and scope set"
+          );
+        const tokenType = (_a2 = token.tokenType) != null ? _a2 : "Bearer";
+        headers.set("authorization", `${tokenType} ${token.accessToken}`);
+        if (tokenType === "DPoP") {
+          if (!token.dpopProof) {
+            throw new Error("DPoP token provider returned no proof signer");
+          }
+          headers.set(
+            "dpop",
+            await token.dpopProof({
+              url: url.toString(),
+              method: policy.method,
+              accessToken: token.accessToken,
+              nonce: dpopNonce2
+            })
+          );
+        }
+      } else if (input.guest) {
+        headers.set(
+          "authorization",
+          `Bearer ${await input.guest({ forceRefresh })}`
+        );
+      }
+      return input.fetch(request ? request.clone() : requestInput, __spreadProps(__spreadValues({}, init), {
+        headers
+      }));
+    };
+    const response = await attempt(false);
+    if (response.status !== 401 && response.status !== 403) return response;
+    if (input.guest && response.status === 403) return response;
+    const dpopNonce = (_f = response.headers.get("dpop-nonce")) != null ? _f : void 0;
+    return attempt(!dpopNonce, dpopNonce);
+  };
+}
+function publicApiPolicy(url, method, headers) {
+  const origin = url.origin;
+  const payment = new Headers(headers).has("payment-signature") ? ["payments:submit"] : [];
+  if (url.pathname.startsWith("/v1/agent/")) {
+    const scopes = method === "GET" ? ["agent:read"] : /\/actions\/[^/]+\/result$/.test(url.pathname) ? ["agent:actions:resolve"] : ["agent:write"];
+    return {
+      resource: `${origin}/v1/agent`,
+      scopes: [...scopes, ...payment],
+      method: method.toUpperCase()
+    };
+  }
+  if (url.pathname.startsWith("/v1/pipeline/")) {
+    return {
+      resource: `${origin}/v1/pipeline`,
+      scopes: [
+        method === "GET" ? "pipeline:catalog" : "pipeline:execute",
+        ...payment
+      ],
+      method: method.toUpperCase()
+    };
+  }
+  return null;
+}
+function absoluteBase(baseUrl) {
+  if (/^https?:\/\//.test(baseUrl)) return baseUrl;
+  if (typeof location !== "undefined")
+    return new URL(baseUrl, location.origin).toString();
+  return "http://localhost";
+}
 function supportsTokenRefreshSubscription(provider) {
   return typeof (provider == null ? void 0 : provider.subscribe) === "function";
 }
@@ -1228,12 +1364,26 @@ var AomiClient = class {
     this.apiKey = options.apiKey;
     const fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
     const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
+    const guest = options.oauth || options.getAccountBearer || options.guest === false ? void 0 : typeof options.guest === "function" ? options.guest : createGuestSessionProvider({
+      baseUrl: this.baseUrl,
+      fetch: fetchImpl
+    });
     this.fetchImpl = wrapFetchWithAccountBearer(
-      fetchImpl,
+      wrapFetchWithPublicApiAuthorization({
+        fetch: fetchImpl,
+        baseUrl: this.baseUrl,
+        oauth: options.oauth,
+        guest
+      }),
       options.getAccountBearer
     );
     this.rawFetchImpl = wrapFetchWithAccountBearer(
-      rawFetchImpl,
+      wrapFetchWithPublicApiAuthorization({
+        fetch: rawFetchImpl,
+        baseUrl: this.baseUrl,
+        oauth: options.oauth,
+        guest
+      }),
       options.getAccountBearer
     );
     this.logger = options.logger;
@@ -1939,6 +2089,30 @@ ${body}` : ""}`
 };
 
 // src/authorization.ts
+function createOAuthTokenProvider(input) {
+  var _a, _b;
+  let current = (_a = input.initial) != null ? _a : null;
+  let pending = null;
+  const now = (_b = input.now) != null ? _b : Date.now;
+  const provider = async (request) => {
+    const matches = (current == null ? void 0 : current.resource) === request.resource && request.scopes.every((scope) => current == null ? void 0 : current.scopes.includes(scope));
+    if (current && matches && !request.forceRefresh && current.expiresAt > now() + 3e4) {
+      return current;
+    }
+    if (!current || !matches) return null;
+    pending != null ? pending : pending = input.refresh(current, request).finally(() => {
+      pending = null;
+    });
+    current = await pending;
+    return current;
+  };
+  return Object.assign(provider, {
+    clear() {
+      current = null;
+    },
+    current: () => current
+  });
+}
 function posterFromClient(client) {
   return (path, body) => client.request("POST", path, { body, raw: true });
 }
@@ -5270,6 +5444,8 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   buildFeeAAWalletCall,
   buildSiwsMessage,
   createAccountBearerProvider,
+  createGuestSessionProvider,
+  createOAuthTokenProvider,
   createProviderCredentialAdapter,
   createSiweWidgetAuthAdapter,
   createSiwsWidgetAuthAdapter,

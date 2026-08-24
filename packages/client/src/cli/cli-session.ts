@@ -17,6 +17,7 @@ import {
   syncPendingTxsFromUserState,
   writeState,
   type CliAuthSession,
+  type CliOAuthGrant,
   type CliSessionState,
   type PendingSolTx,
   type PendingTx,
@@ -29,6 +30,9 @@ import { parseSolanaKeypairSecret } from "./solana-signer";
 import { createCliAuthTokenProvider } from "./auth";
 import { DEFAULT_CLI_BASE_URL } from "./client-factory";
 import { createCliPaymentFetch, type CliPaymentListener } from "./payment";
+import type { AomiOAuthTokenProvider } from "../authorization";
+import { signInWithOAuthDevice } from "./oauth-device-auth";
+import { wrapFetchWithPublicApiAuthorization } from "../client";
 
 export class CliSession {
   private state: CliSessionState;
@@ -119,6 +123,7 @@ export class CliSession {
       aaMode: config.aaMode ?? seed?.aaMode,
       secretHandles: seed?.secretHandles,
       auth: seed?.auth,
+      oauthGrants: seed?.oauthGrants,
     };
     const cli = new CliSession(state);
     cli.ensureSvmClusterInvariant();
@@ -183,6 +188,9 @@ export class CliSession {
   }
   get auth(): CliAuthSession | undefined {
     return this.state.auth;
+  }
+  get oauthGrants(): Readonly<Record<string, CliOAuthGrant>> {
+    return this.state.oauthGrants ?? {};
   }
 
   // ---------------------------------------------------------------------------
@@ -373,6 +381,19 @@ export class CliSession {
     this.save();
   }
 
+  setOAuthGrant(grant: CliOAuthGrant): void {
+    this.state.oauthGrants = {
+      ...this.state.oauthGrants,
+      [grant.resource]: grant,
+    };
+    this.save();
+  }
+
+  clearOAuthGrants(): void {
+    delete this.state.oauthGrants;
+    this.save();
+  }
+
   clearAuthSession(): void {
     if (!this.state.auth) return;
     delete this.state.auth;
@@ -500,9 +521,7 @@ export class CliSession {
     const pending: PendingSolTx = {
       ...tx,
       id:
-        tx.solanaId === undefined
-          ? this.getNextSolTxId()
-          : `tx-${tx.solanaId}`,
+        tx.solanaId === undefined ? this.getNextSolTxId() : `tx-${tx.solanaId}`,
     };
     this.state.pendingSolTxs.push(pending);
     this.save();
@@ -622,13 +641,27 @@ export class CliSession {
     config?: Partial<CliConfig>,
     options?: { onPayment?: CliPaymentListener },
   ): ClientSession {
-    const paymentFetch = createCliPaymentFetch(config, options?.onPayment);
+    const oauth = this.createOAuthProvider(fetch);
+    const authorizedFetch = oauth
+      ? wrapFetchWithPublicApiAuthorization({
+          fetch,
+          baseUrl: this.state.baseUrl,
+          oauth,
+        })
+      : fetch;
+    const paymentFetch = createCliPaymentFetch(
+      config,
+      options?.onPayment,
+      authorizedFetch,
+    );
     const session = new ClientSession(
       {
         baseUrl: this.state.baseUrl,
         apiKey: this.state.apiKey,
         fetch: paymentFetch,
         getAccountBearer: createCliAuthTokenProvider(() => this.state),
+        oauth: paymentFetch ? undefined : oauth,
+        guest: false,
       },
       {
         sessionId: this.state.sessionId,
@@ -647,6 +680,47 @@ export class CliSession {
       }),
     );
     return session;
+  }
+
+  createOAuthProvider(
+    fetchImpl: typeof fetch,
+  ): AomiOAuthTokenProvider | undefined {
+    if (
+      !this.state.oauthGrants ||
+      Object.keys(this.state.oauthGrants).length === 0
+    ) {
+      return undefined;
+    }
+    const pendingByResource = new Map<string, Promise<CliOAuthGrant>>();
+    return async ({ resource, scopes, forceRefresh }) => {
+      let grant = this.state.oauthGrants?.[resource];
+      if (!grant || !scopes.every((scope) => grant?.scopes.includes(scope))) {
+        const expandedScopes = Array.from(
+          new Set([...(grant?.scopes ?? []), ...scopes, "offline_access"]),
+        );
+        const expandedGrant = await signInWithOAuthDevice({
+          baseUrl: this.state.baseUrl,
+          resource,
+          scopes: expandedScopes,
+          clientId: grant?.clientId,
+          fetch: fetchImpl,
+        });
+        this.setOAuthGrant(expandedGrant);
+        return expandedGrant;
+      }
+      if (!forceRefresh && grant.expiresAt > Date.now() + 30_000) return grant;
+      if (!grant.refreshToken) return null;
+      let pending = pendingByResource.get(resource);
+      if (!pending) {
+        pending = refreshCliGrant(fetchImpl, this.state.baseUrl, grant).finally(
+          () => pendingByResource.delete(resource),
+        );
+        pendingByResource.set(resource, pending);
+      }
+      grant = await pending;
+      this.setOAuthGrant(grant);
+      return grant;
+    };
   }
 
   /** Snapshot of the raw state (for backward compat or serialization). */
@@ -698,4 +772,47 @@ export class CliSession {
     });
     return `tx-${allIds.length > 0 ? Math.max(...allIds) + 1 : 1}`;
   }
+}
+
+async function refreshCliGrant(
+  fetchImpl: typeof fetch,
+  baseUrl: string,
+  grant: CliOAuthGrant,
+): Promise<CliOAuthGrant> {
+  const response = await fetchImpl(
+    `${baseUrl.replace(/\/+$/, "")}/api/auth/oauth2/token`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: grant.refreshToken ?? "",
+        client_id: grant.clientId,
+        resource: grant.resource,
+        scope: grant.scopes.join(" "),
+      }),
+    },
+  );
+  const body = (await response.json().catch(() => ({}))) as Record<
+    string,
+    unknown
+  >;
+  if (!response.ok || typeof body.access_token !== "string") {
+    throw new Error(
+      `OAuth refresh failed: ${String(body.error ?? response.status)}`,
+    );
+  }
+  return {
+    ...grant,
+    accessToken: body.access_token,
+    refreshToken:
+      typeof body.refresh_token === "string"
+        ? body.refresh_token
+        : grant.refreshToken,
+    expiresAt: Date.now() + Number(body.expires_in ?? 300) * 1000,
+    scopes: String(body.scope ?? grant.scopes.join(" "))
+      .split(/\s+/)
+      .filter(Boolean),
+    tokenType: body.token_type === "DPoP" ? "DPoP" : "Bearer",
+  };
 }

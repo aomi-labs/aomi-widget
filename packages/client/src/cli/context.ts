@@ -1,8 +1,8 @@
-import { AomiClient } from "../client";
+import { AomiClient, wrapFetchWithPublicApiAuthorization } from "../client";
 import type { AomiIngestSecretsResponse } from "../types";
 import type { ClientSession } from "../session";
 import type { CliConfig } from "./types";
-import type { CliSession } from "./cli-session";
+import { CliSession } from "./cli-session";
 import { createCliAuthTokenProvider } from "./auth";
 import {
   createCliGetAccountBearer,
@@ -15,12 +15,24 @@ export function createControlClient(
   config: CliConfig,
   options: { payment?: boolean; onPayment?: CliPaymentListener } = {},
 ): AomiClient {
+  const cli = CliSession.load();
+  const baseUrl = config.baseUrl ?? DEFAULT_CLI_BASE_URL;
+  const oauth = cli?.createOAuthProvider(fetch);
+  const authorizedFetch = oauth
+    ? wrapFetchWithPublicApiAuthorization({ fetch, baseUrl, oauth })
+    : fetch;
+  const paymentFetch = options.payment
+    ? createCliPaymentFetch(config, options.onPayment, authorizedFetch)
+    : undefined;
   return new AomiClient({
-    baseUrl: config.baseUrl ?? DEFAULT_CLI_BASE_URL,
+    baseUrl,
     apiKey: config.apiKey,
-    fetch: options.payment
-      ? createCliPaymentFetch(config, options.onPayment)
-      : undefined,
+    fetch: paymentFetch ?? fetch,
+    // Payment settlement retries happen inside the x402 wrapper. Put OAuth
+    // inside that wrapper so a newly-added Payment-Signature is authorized
+    // again with payments:submit instead of reusing the narrower first token.
+    oauth: paymentFetch ? undefined : oauth,
+    guest: false,
     getAccountBearer:
       createCliGetAccountBearer(config) ??
       createCliAuthTokenProvider(() => readState() ?? {}),

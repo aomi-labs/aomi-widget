@@ -1606,6 +1606,54 @@ var init_transport2 = __esm({
   }
 });
 
+// src/guest-auth.ts
+function createGuestSessionProvider(input2) {
+  var _a3;
+  const fetchImpl = (_a3 = input2.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
+  let credential = null;
+  let pending = null;
+  const provider = async (options) => {
+    if (options == null ? void 0 : options.forceRefresh) credential = null;
+    if (credential) return credential;
+    pending != null ? pending : pending = signInAnonymous(fetchImpl, input2.baseUrl).finally(() => {
+      pending = null;
+    });
+    credential = await pending;
+    return credential;
+  };
+  return Object.assign(provider, {
+    clear() {
+      credential = null;
+    }
+  });
+}
+async function signInAnonymous(fetchImpl, baseUrl) {
+  var _a3, _b;
+  const response = await fetchImpl(
+    `${baseUrl.replace(/\/+$/, "")}/api/auth/sign-in/anonymous`,
+    {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json"
+      },
+      body: "{}",
+      credentials: "include"
+    }
+  );
+  if (!response.ok) {
+    throw new Error(`Aomi guest sign-in failed with HTTP ${response.status}`);
+  }
+  const token = (_b = (_a3 = response.headers.get("set-auth-token")) != null ? _a3 : response.headers.get("x-auth-token")) != null ? _b : response.headers.get("auth-token");
+  if (!token) throw new Error("Aomi guest sign-in returned no bearer session");
+  return token;
+}
+var init_guest_auth = __esm({
+  "src/guest-auth.ts"() {
+    "use strict";
+  }
+});
+
 // src/client.ts
 function previewText(value, max = 80) {
   const singleLine = value.replace(/\s+/g, " ").trim();
@@ -1707,6 +1755,97 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
     return fetchWithBearer(true);
   };
 }
+function wrapFetchWithPublicApiAuthorization(input2) {
+  if (!input2.oauth && !input2.guest) return input2.fetch;
+  return async (requestInput, init) => {
+    var _a3, _b, _c, _d, _e, _f;
+    const request = requestInput instanceof Request ? requestInput : void 0;
+    const url = new URL(
+      String((_a3 = request == null ? void 0 : request.url) != null ? _a3 : requestInput),
+      absoluteBase(input2.baseUrl)
+    );
+    const policy = publicApiPolicy(
+      url,
+      (_c = (_b = init == null ? void 0 : init.method) != null ? _b : request == null ? void 0 : request.method) != null ? _c : "GET",
+      (_d = init == null ? void 0 : init.headers) != null ? _d : request == null ? void 0 : request.headers
+    );
+    if (!policy) return input2.fetch(requestInput, init);
+    const baseHeaders = new Headers((_e = init == null ? void 0 : init.headers) != null ? _e : request == null ? void 0 : request.headers);
+    const attempt = async (forceRefresh, dpopNonce2) => {
+      var _a4;
+      const headers = new Headers(baseHeaders);
+      if (input2.oauth) {
+        const token = await input2.oauth({
+          resource: policy.resource,
+          scopes: policy.scopes,
+          forceRefresh
+        });
+        if (!token)
+          throw new Error(
+            "No OAuth grant covers this Aomi resource and scope set"
+          );
+        const tokenType = (_a4 = token.tokenType) != null ? _a4 : "Bearer";
+        headers.set("authorization", `${tokenType} ${token.accessToken}`);
+        if (tokenType === "DPoP") {
+          if (!token.dpopProof) {
+            throw new Error("DPoP token provider returned no proof signer");
+          }
+          headers.set(
+            "dpop",
+            await token.dpopProof({
+              url: url.toString(),
+              method: policy.method,
+              accessToken: token.accessToken,
+              nonce: dpopNonce2
+            })
+          );
+        }
+      } else if (input2.guest) {
+        headers.set(
+          "authorization",
+          `Bearer ${await input2.guest({ forceRefresh })}`
+        );
+      }
+      return input2.fetch(request ? request.clone() : requestInput, __spreadProps(__spreadValues({}, init), {
+        headers
+      }));
+    };
+    const response = await attempt(false);
+    if (response.status !== 401 && response.status !== 403) return response;
+    if (input2.guest && response.status === 403) return response;
+    const dpopNonce = (_f = response.headers.get("dpop-nonce")) != null ? _f : void 0;
+    return attempt(!dpopNonce, dpopNonce);
+  };
+}
+function publicApiPolicy(url, method, headers) {
+  const origin = url.origin;
+  const payment = new Headers(headers).has("payment-signature") ? ["payments:submit"] : [];
+  if (url.pathname.startsWith("/v1/agent/")) {
+    const scopes = method === "GET" ? ["agent:read"] : /\/actions\/[^/]+\/result$/.test(url.pathname) ? ["agent:actions:resolve"] : ["agent:write"];
+    return {
+      resource: `${origin}/v1/agent`,
+      scopes: [...scopes, ...payment],
+      method: method.toUpperCase()
+    };
+  }
+  if (url.pathname.startsWith("/v1/pipeline/")) {
+    return {
+      resource: `${origin}/v1/pipeline`,
+      scopes: [
+        method === "GET" ? "pipeline:catalog" : "pipeline:execute",
+        ...payment
+      ],
+      method: method.toUpperCase()
+    };
+  }
+  return null;
+}
+function absoluteBase(baseUrl) {
+  if (/^https?:\/\//.test(baseUrl)) return baseUrl;
+  if (typeof location !== "undefined")
+    return new URL(baseUrl, location.origin).toString();
+  return "http://localhost";
+}
 function supportsTokenRefreshSubscription(provider) {
   return typeof (provider == null ? void 0 : provider.subscribe) === "function";
 }
@@ -1768,6 +1907,7 @@ var init_client = __esm({
     init_app_descriptor();
     init_transport();
     init_transport2();
+    init_guest_auth();
     SESSION_ID_HEADER = "X-Session-Id";
     THREAD_ID_HEADER = "X-Thread-Id";
     APP_KEY_HEADER = "Aomi-App-Key";
@@ -1792,12 +1932,26 @@ var init_client = __esm({
         this.apiKey = options.apiKey;
         const fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
         const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
+        const guest = options.oauth || options.getAccountBearer || options.guest === false ? void 0 : typeof options.guest === "function" ? options.guest : createGuestSessionProvider({
+          baseUrl: this.baseUrl,
+          fetch: fetchImpl
+        });
         this.fetchImpl = wrapFetchWithAccountBearer(
-          fetchImpl,
+          wrapFetchWithPublicApiAuthorization({
+            fetch: fetchImpl,
+            baseUrl: this.baseUrl,
+            oauth: options.oauth,
+            guest
+          }),
           options.getAccountBearer
         );
         this.rawFetchImpl = wrapFetchWithAccountBearer(
-          rawFetchImpl,
+          wrapFetchWithPublicApiAuthorization({
+            fetch: rawFetchImpl,
+            baseUrl: this.baseUrl,
+            oauth: options.oauth,
+            guest
+          }),
           options.getAccountBearer
         );
         this.logger = options.logger;
@@ -4944,7 +5098,8 @@ function toCliSessionState(stored) {
     signedTxs: stored.signedTxs,
     signedSolTxs: stored.signedSolTxs,
     secretHandles: stored.secretHandles,
-    auth: stored.auth
+    auth: stored.auth,
+    oauthGrants: stored.oauthGrants
   };
 }
 function normalizeSignedTx(tx) {
@@ -4972,6 +5127,7 @@ function readStoredSession(path) {
       baseUrl: parsed.baseUrl,
       app: parsed.app,
       model: parsed.model,
+      modelSynced: parsed.modelSynced,
       apiKey: parsed.apiKey,
       accountBearer: parsed.accountBearer,
       sessionCookie: parsed.sessionCookie,
@@ -4992,6 +5148,7 @@ function readStoredSession(path) {
       signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
       auth: normalizeAuthSession(parsed.auth),
+      oauthGrants: normalizeOAuthGrants(parsed.oauthGrants),
       localId: typeof parsed.localId === "number" && parsed.localId > 0 ? parsed.localId : fallbackLocalId,
       createdAt: typeof parsed.createdAt === "number" && parsed.createdAt > 0 ? parsed.createdAt : Date.now(),
       updatedAt: typeof parsed.updatedAt === "number" && parsed.updatedAt > 0 ? parsed.updatedAt : Date.now()
@@ -5015,6 +5172,20 @@ function normalizeAuthSession(value) {
     chainScope: auth.chainScope,
     betterAuthUserId: auth.betterAuthUserId
   };
+}
+function normalizeOAuthGrants(value) {
+  if (!value || typeof value !== "object") return void 0;
+  const grants = {};
+  for (const candidate of Object.values(
+    value
+  )) {
+    if (typeof candidate.clientId !== "string" || !candidate.clientId || typeof candidate.accessToken !== "string" || !candidate.accessToken || typeof candidate.expiresAt !== "number" || !Number.isFinite(candidate.expiresAt) || typeof candidate.resource !== "string" || !/\/v1\/(agent|pipeline)$/.test(candidate.resource) || !Array.isArray(candidate.scopes) || !candidate.scopes.every((scope) => typeof scope === "string") || candidate.tokenType !== void 0 && candidate.tokenType !== "Bearer" && candidate.tokenType !== "DPoP") {
+      continue;
+    }
+    const grant = candidate;
+    grants[grant.resource] = grant;
+  }
+  return Object.keys(grants).length > 0 ? grants : void 0;
 }
 function readActiveLocalId() {
   try {
@@ -5823,7 +5994,7 @@ function paymentResponseHeader2(response) {
 function hasPaymentSignature(request) {
   return request.headers.has("Payment-Signature") || request.headers.has("X-Payment");
 }
-function createTracedFetch(onPayment) {
+function createTracedFetch(fetchImpl, onPayment) {
   return async (input2, init) => {
     var _a3;
     const request = new Request(input2, init);
@@ -5831,7 +6002,7 @@ function createTracedFetch(onPayment) {
     if (isPaymentRetry) {
       onPayment == null ? void 0 : onPayment({ type: "submitting", url: request.url });
     }
-    const response = await globalThis.fetch(request);
+    const response = await fetchImpl(request);
     if (!onPayment) return response;
     if (isPaymentRetry) {
       const settled = response.ok || paymentResponseHeader2(response) !== null;
@@ -5858,7 +6029,7 @@ function createTracedFetch(onPayment) {
     return response;
   };
 }
-function createCliPaymentFetch(config, onPayment) {
+function createCliPaymentFetch(config, onPayment, fetchImpl = globalThis.fetch.bind(globalThis)) {
   if (!(config == null ? void 0 : config.paymentMethod)) {
     return void 0;
   }
@@ -5874,7 +6045,7 @@ function createCliPaymentFetch(config, onPayment) {
   const paymentClient = new x402Client();
   paymentClient.register("eip155:*", new ExactEvmScheme(account));
   return wrapFetchWithPaymentChallenges(
-    createTracedFetch(onPayment),
+    createTracedFetch(fetchImpl, onPayment),
     paymentClient
   );
 }
@@ -5886,7 +6057,138 @@ var init_payment2 = __esm({
   }
 });
 
+// src/cli/oauth-device-auth.ts
+async function signInWithOAuthDevice(input2) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  const fetchImpl = (_a3 = input2.fetch) != null ? _a3 : fetch;
+  const baseUrl = normalizeBaseUrl(input2.baseUrl);
+  const client = input2.clientId ? { client_id: input2.clientId } : await requestJson(
+    fetchImpl,
+    joinUrl(baseUrl, "/api/auth/oauth2/register"),
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        client_name: "Aomi CLI",
+        redirect_uris: ["http://127.0.0.1"],
+        token_endpoint_auth_method: "none",
+        grant_types: [DEVICE_GRANT, "refresh_token"],
+        response_types: ["code"],
+        resources: [input2.resource],
+        scope: input2.scopes.join(" ")
+      })
+    },
+    "OAuth client registration"
+  );
+  const code = await requestForm(
+    fetchImpl,
+    joinUrl(baseUrl, "/api/auth/device/code"),
+    {
+      client_id: client.client_id,
+      scope: input2.scopes.join(" "),
+      resource: input2.resource
+    }
+  );
+  const verification = (_b = code.verification_uri_complete) != null ? _b : code.verification_uri;
+  console.log(`Open ${verification} and enter code ${code.user_code}`);
+  await ((_c = input2.openBrowser) != null ? _c : openUrl)(verification);
+  const expiresAt = ((_d = input2.now) != null ? _d : Date.now)() + code.expires_in * 1e3;
+  let interval = Math.max((_e = code.interval) != null ? _e : 5, 1) * 1e3;
+  while (((_f = input2.now) != null ? _f : Date.now)() < expiresAt) {
+    await new Promise((resolve) => setTimeout(resolve, interval));
+    const response = await fetchImpl(
+      joinUrl(baseUrl, "/api/auth/oauth2/token"),
+      {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: DEVICE_GRANT,
+          device_code: code.device_code,
+          client_id: client.client_id,
+          resource: input2.resource
+        })
+      }
+    );
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (body.error === "slow_down") {
+        interval += 5e3;
+        continue;
+      }
+      if (body.error === "authorization_pending") continue;
+      throw new Error(
+        `OAuth device login failed: ${String((_g = body.error) != null ? _g : response.status)}`
+      );
+    }
+    return {
+      clientId: client.client_id,
+      accessToken: String(body.access_token),
+      refreshToken: typeof body.refresh_token === "string" ? body.refresh_token : void 0,
+      expiresAt: ((_h = input2.now) != null ? _h : Date.now)() + Number((_i = body.expires_in) != null ? _i : 300) * 1e3,
+      resource: input2.resource,
+      scopes: String((_j = body.scope) != null ? _j : input2.scopes.join(" ")).split(/\s+/).filter(Boolean),
+      tokenType: body.token_type === "DPoP" ? "DPoP" : "Bearer"
+    };
+  }
+  throw new Error("OAuth device login expired before approval");
+}
+async function requestForm(fetchImpl, url, body) {
+  return requestJson(
+    fetchImpl,
+    url,
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams(body)
+    },
+    "OAuth device authorization"
+  );
+}
+async function openUrl(url) {
+  const { spawn: spawn2 } = await import("child_process");
+  const [command, args] = process.platform === "darwin" ? ["open", [url]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : ["xdg-open", [url]];
+  spawn2(command, args, { detached: true, stdio: "ignore" }).unref();
+}
+var DEVICE_GRANT;
+var init_oauth_device_auth = __esm({
+  "src/cli/oauth-device-auth.ts"() {
+    "use strict";
+    init_auth();
+    DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
+  }
+});
+
 // src/cli/cli-session.ts
+async function refreshCliGrant(fetchImpl, baseUrl, grant) {
+  var _a3, _b, _c, _d;
+  const response = await fetchImpl(
+    `${baseUrl.replace(/\/+$/, "")}/api/auth/oauth2/token`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        refresh_token: (_a3 = grant.refreshToken) != null ? _a3 : "",
+        client_id: grant.clientId,
+        resource: grant.resource,
+        scope: grant.scopes.join(" ")
+      })
+    }
+  );
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || typeof body.access_token !== "string") {
+    throw new Error(
+      `OAuth refresh failed: ${String((_b = body.error) != null ? _b : response.status)}`
+    );
+  }
+  return __spreadProps(__spreadValues({}, grant), {
+    accessToken: body.access_token,
+    refreshToken: typeof body.refresh_token === "string" ? body.refresh_token : grant.refreshToken,
+    expiresAt: Date.now() + Number((_c = body.expires_in) != null ? _c : 300) * 1e3,
+    scopes: String((_d = body.scope) != null ? _d : grant.scopes.join(" ")).split(/\s+/).filter(Boolean),
+    tokenType: body.token_type === "DPoP" ? "DPoP" : "Bearer"
+  });
+}
 var CliSession;
 var init_cli_session = __esm({
   "src/cli/cli-session.ts"() {
@@ -5899,6 +6201,8 @@ var init_cli_session = __esm({
     init_auth();
     init_client_factory();
     init_payment2();
+    init_oauth_device_auth();
+    init_client();
     CliSession = class _CliSession {
       constructor(state) {
         this.state = state;
@@ -5973,7 +6277,8 @@ var init_cli_session = __esm({
           aaProvider: (_m = config.aaProvider) != null ? _m : seed == null ? void 0 : seed.aaProvider,
           aaMode: (_n = config.aaMode) != null ? _n : seed == null ? void 0 : seed.aaMode,
           secretHandles: seed == null ? void 0 : seed.secretHandles,
-          auth: seed == null ? void 0 : seed.auth
+          auth: seed == null ? void 0 : seed.auth,
+          oauthGrants: seed == null ? void 0 : seed.oauthGrants
         };
         const cli = new _CliSession(state);
         cli.ensureSvmClusterInvariant();
@@ -6041,6 +6346,10 @@ var init_cli_session = __esm({
       }
       get auth() {
         return this.state.auth;
+      }
+      get oauthGrants() {
+        var _a3;
+        return (_a3 = this.state.oauthGrants) != null ? _a3 : {};
       }
       // ---------------------------------------------------------------------------
       // Mutators (auto-persist)
@@ -6182,6 +6491,16 @@ var init_cli_session = __esm({
       }
       setAuthSession(auth) {
         this.state.auth = auth;
+        this.save();
+      }
+      setOAuthGrant(grant) {
+        this.state.oauthGrants = __spreadProps(__spreadValues({}, this.state.oauthGrants), {
+          [grant.resource]: grant
+        });
+        this.save();
+      }
+      clearOAuthGrants() {
+        delete this.state.oauthGrants;
         this.save();
       }
       clearAuthSession() {
@@ -6375,13 +6694,25 @@ Available: ${available}`);
       /** Build a ClientSession from the current state. */
       createClientSession(config, options) {
         var _a3;
-        const paymentFetch = createCliPaymentFetch(config, options == null ? void 0 : options.onPayment);
+        const oauth = this.createOAuthProvider(fetch);
+        const authorizedFetch = oauth ? wrapFetchWithPublicApiAuthorization({
+          fetch,
+          baseUrl: this.state.baseUrl,
+          oauth
+        }) : fetch;
+        const paymentFetch = createCliPaymentFetch(
+          config,
+          options == null ? void 0 : options.onPayment,
+          authorizedFetch
+        );
         const session = new ClientSession(
           {
             baseUrl: this.state.baseUrl,
             apiKey: this.state.apiKey,
             fetch: paymentFetch,
-            getAccountBearer: createCliAuthTokenProvider(() => this.state)
+            getAccountBearer: createCliAuthTokenProvider(() => this.state),
+            oauth: paymentFetch ? void 0 : oauth,
+            guest: false
           },
           {
             sessionId: this.state.sessionId,
@@ -6400,6 +6731,42 @@ Available: ${available}`);
           })
         );
         return session;
+      }
+      createOAuthProvider(fetchImpl) {
+        if (!this.state.oauthGrants || Object.keys(this.state.oauthGrants).length === 0) {
+          return void 0;
+        }
+        const pendingByResource = /* @__PURE__ */ new Map();
+        return async ({ resource, scopes, forceRefresh }) => {
+          var _a3, _b;
+          let grant = (_a3 = this.state.oauthGrants) == null ? void 0 : _a3[resource];
+          if (!grant || !scopes.every((scope) => grant == null ? void 0 : grant.scopes.includes(scope))) {
+            const expandedScopes = Array.from(
+              /* @__PURE__ */ new Set([...(_b = grant == null ? void 0 : grant.scopes) != null ? _b : [], ...scopes, "offline_access"])
+            );
+            const expandedGrant = await signInWithOAuthDevice({
+              baseUrl: this.state.baseUrl,
+              resource,
+              scopes: expandedScopes,
+              clientId: grant == null ? void 0 : grant.clientId,
+              fetch: fetchImpl
+            });
+            this.setOAuthGrant(expandedGrant);
+            return expandedGrant;
+          }
+          if (!forceRefresh && grant.expiresAt > Date.now() + 3e4) return grant;
+          if (!grant.refreshToken) return null;
+          let pending = pendingByResource.get(resource);
+          if (!pending) {
+            pending = refreshCliGrant(fetchImpl, this.state.baseUrl, grant).finally(
+              () => pendingByResource.delete(resource)
+            );
+            pendingByResource.set(resource, pending);
+          }
+          grant = await pending;
+          this.setOAuthGrant(grant);
+          return grant;
+        };
       }
       /** Snapshot of the raw state (for backward compat or serialization). */
       toState() {
@@ -6624,10 +6991,20 @@ var init_output = __esm({
 // src/cli/context.ts
 function createControlClient(config, options = {}) {
   var _a3, _b;
+  const cli = CliSession.load();
+  const baseUrl = (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
+  const oauth = cli == null ? void 0 : cli.createOAuthProvider(fetch);
+  const authorizedFetch = oauth ? wrapFetchWithPublicApiAuthorization({ fetch, baseUrl, oauth }) : fetch;
+  const paymentFetch = options.payment ? createCliPaymentFetch(config, options.onPayment, authorizedFetch) : void 0;
   return new AomiClient({
-    baseUrl: (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL,
+    baseUrl,
     apiKey: config.apiKey,
-    fetch: options.payment ? createCliPaymentFetch(config, options.onPayment) : void 0,
+    fetch: paymentFetch != null ? paymentFetch : fetch,
+    // Payment settlement retries happen inside the x402 wrapper. Put OAuth
+    // inside that wrapper so a newly-added Payment-Signature is authorized
+    // again with payments:submit instead of reusing the narrower first token.
+    oauth: paymentFetch ? void 0 : oauth,
+    guest: false,
     getAccountBearer: (_b = createCliGetAccountBearer(config)) != null ? _b : createCliAuthTokenProvider(() => {
       var _a4;
       return (_a4 = readState()) != null ? _a4 : {};
@@ -6658,6 +7035,7 @@ var init_context = __esm({
   "src/cli/context.ts"() {
     "use strict";
     init_client();
+    init_cli_session();
     init_auth();
     init_client_factory();
     init_payment2();
@@ -9944,7 +10322,7 @@ __export(account_exports, {
   whoamiCommand: () => whoamiCommand
 });
 async function accountLoginCommand(config, options = {}) {
-  var _a3;
+  var _a3, _b, _c;
   const cli = CliSession.loadOrCreate(config);
   let rewroteLegacyBackend = false;
   if (!config.baseUrl && cli.baseUrl === LEGACY_RAW_BACKEND_URL) {
@@ -9968,6 +10346,41 @@ async function accountLoginCommand(config, options = {}) {
   if (options.provider && options.provider !== "privy" && options.provider !== "para") {
     fatal('Unknown --provider value. Use "privy" or "para".');
   }
+  const oauthDefault = !options.legacy && !["0", "false", "no"].includes(
+    (_b = (_a3 = process.env.AOMI_CLI_OAUTH_DEFAULT_ENABLED) == null ? void 0 : _a3.trim().toLowerCase()) != null ? _b : ""
+  );
+  if (!options.provider && oauthDefault) {
+    const origin = new URL(cli.baseUrl).origin;
+    const grants = [
+      {
+        resource: `${origin}/v1/agent`,
+        scopes: ["agent:read", "agent:write", "offline_access"]
+      },
+      {
+        resource: `${origin}/v1/pipeline`,
+        scopes: ["pipeline:catalog", "offline_access"]
+      }
+    ];
+    for (const request of grants) {
+      const grant = await signInWithOAuthDevice({
+        baseUrl: cli.baseUrl,
+        resource: request.resource,
+        scopes: request.scopes
+      });
+      cli.setOAuthGrant(grant);
+    }
+    if (config.json) {
+      printJson({
+        status: "signed_in",
+        method: "oauth_device",
+        resources: grants.map((grant) => grant.resource)
+      });
+    } else {
+      console.log("Signed in with OAuth device authorization");
+      printDataFileLocation({ verbose: config.verbose });
+    }
+    return;
+  }
   const provider = options.provider;
   const result = await signInWithDeviceProvider({
     baseUrl: cli.baseUrl,
@@ -9977,7 +10390,7 @@ async function accountLoginCommand(config, options = {}) {
   if (config.json) {
     printJson({
       status: "signed_in",
-      provider: (_a3 = result.provider) != null ? _a3 : null,
+      provider: (_c = result.provider) != null ? _c : null,
       baseUrl: cli.baseUrl,
       migratedLegacyBackend: rewroteLegacyBackend,
       expiresAt: new Date(result.auth.expiresAt).toISOString()
@@ -10311,8 +10724,10 @@ function accountSwitchCommand(selector) {
   resumeSessionCommand(selector);
 }
 function hasAccountCredential(state) {
-  var _a3;
-  return Boolean(((_a3 = state.auth) == null ? void 0 : _a3.sessionToken) || state.accountBearer);
+  var _a3, _b;
+  return Boolean(
+    ((_a3 = state.auth) == null ? void 0 : _a3.sessionToken) || state.accountBearer || Object.keys((_b = state.oauthGrants) != null ? _b : {}).length
+  );
 }
 function formatWalletChainType(chainType) {
   const normalized = chainType.trim().toLowerCase();
@@ -10325,7 +10740,7 @@ function formatWalletChainType(chainType) {
   return chainType;
 }
 async function logoutCommand(config) {
-  var _a3;
+  var _a3, _b;
   const cli = CliSession.load();
   if (!cli) {
     if (config.json) {
@@ -10339,12 +10754,21 @@ async function logoutCommand(config) {
   cli.mergeConfig(config);
   const token = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken;
   try {
+    for (const grant of Object.values(cli.oauthGrants)) {
+      const token2 = (_b = grant.refreshToken) != null ? _b : grant.accessToken;
+      await fetch(`${cli.baseUrl}/api/auth/oauth2/revoke`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ token: token2, client_id: grant.clientId })
+      }).catch(() => void 0);
+    }
     await signOutCliSession({
       baseUrl: cli.baseUrl,
       sessionToken: token
     });
   } finally {
     cli.clearAuthSession();
+    cli.clearOAuthGrants();
     cli.clearSigningKeys();
   }
   if (config.json) {
@@ -10487,6 +10911,7 @@ var init_account = __esm({
     init_auth();
     init_device_auth();
     init_client_factory();
+    init_oauth_device_auth();
     init_account_graph();
     init_sessions();
     DEFAULT_CHAIN_ID2 = 1;
@@ -11907,6 +12332,10 @@ var accountLoginDef = defineCommand8({
     "no-browser": {
       type: "boolean",
       description: "Do not open provider auth; use native CLI SIWE"
+    },
+    legacy: {
+      type: "boolean",
+      description: "Use the temporary legacy browser session login"
     }
   }),
   async run({ args }) {
@@ -11915,7 +12344,8 @@ var accountLoginDef = defineCommand8({
       provider: typeof args.provider === "string" ? args.provider : void 0,
       wallet: args.wallet === true,
       solana: args.solana === true,
-      noBrowser: args["no-browser"] === true
+      noBrowser: args["no-browser"] === true,
+      legacy: args.legacy === true
     });
   }
 });
@@ -12520,7 +12950,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.6.3",
+  version: "0.6.4",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

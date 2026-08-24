@@ -10,6 +10,7 @@ describe("PipelineTransport", () => {
     const pipeline = new AomiClient({
       baseUrl: "https://portal.example/",
       fetch,
+      guest: false,
     }).pipeline;
 
     await pipeline.listApps({ limit: 5 });
@@ -57,6 +58,7 @@ describe("PipelineTransport", () => {
     const pipeline = new AomiClient({
       baseUrl: "https://portal.example",
       fetch,
+      guest: false,
     }).pipeline;
 
     await expect(
@@ -102,6 +104,7 @@ describe("PipelineTransport", () => {
     const pipeline = new AomiClient({
       baseUrl: "https://portal.example",
       fetch,
+      guest: false,
     }).pipeline;
 
     await pipeline.run(
@@ -134,6 +137,7 @@ describe("PipelineTransport", () => {
     const pipeline = new AomiClient({
       baseUrl: "https://portal.example",
       fetch: vi.fn(),
+      guest: false,
     }).pipeline;
 
     expect(() =>
@@ -156,6 +160,7 @@ describe("PipelineTransport", () => {
     const pipeline = new AomiClient({
       baseUrl: "https://portal.example",
       fetch,
+      guest: false,
     }).pipeline;
 
     await expect(pipeline.listApps()).rejects.toMatchObject({

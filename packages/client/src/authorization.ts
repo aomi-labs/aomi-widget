@@ -1,5 +1,77 @@
 import type { AomiClient } from "./client";
 
+export type AomiOAuthResource =
+  | `${string}/v1/agent`
+  | `${string}/v1/pipeline`
+  | `${string}/agent/mcp`
+  | `${string}/pipeline/mcp`;
+
+export type AomiOAuthTokenSet = {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: number;
+  resource: AomiOAuthResource;
+  scopes: readonly string[];
+  tokenType?: "Bearer" | "DPoP";
+  dpopProof?: (input: {
+    url: string;
+    method: string;
+    accessToken: string;
+    nonce?: string;
+  }) => Promise<string>;
+};
+
+export type AomiOAuthTokenRequest = {
+  resource: AomiOAuthResource;
+  scopes: readonly string[];
+  forceRefresh?: boolean;
+};
+
+export type AomiOAuthTokenProvider = (
+  request: AomiOAuthTokenRequest,
+) => Promise<AomiOAuthTokenSet | null>;
+
+export function createOAuthTokenProvider(input: {
+  initial?: AomiOAuthTokenSet | null;
+  refresh: (
+    current: AomiOAuthTokenSet,
+    request: AomiOAuthTokenRequest,
+  ) => Promise<AomiOAuthTokenSet>;
+  now?: () => number;
+}): AomiOAuthTokenProvider & {
+  clear(): void;
+  current(): AomiOAuthTokenSet | null;
+} {
+  let current = input.initial ?? null;
+  let pending: Promise<AomiOAuthTokenSet> | null = null;
+  const now = input.now ?? Date.now;
+  const provider = async (request: AomiOAuthTokenRequest) => {
+    const matches =
+      current?.resource === request.resource &&
+      request.scopes.every((scope) => current?.scopes.includes(scope));
+    if (
+      current &&
+      matches &&
+      !request.forceRefresh &&
+      current.expiresAt > now() + 30_000
+    ) {
+      return current;
+    }
+    if (!current || !matches) return null;
+    pending ??= input.refresh(current, request).finally(() => {
+      pending = null;
+    });
+    current = await pending;
+    return current;
+  };
+  return Object.assign(provider, {
+    clear() {
+      current = null;
+    },
+    current: () => current,
+  });
+}
+
 export type AuthorizationPoster = <T>(
   path: string,
   body: unknown,

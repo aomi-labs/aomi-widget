@@ -15,8 +15,11 @@ describe("AgentTransport", () => {
         hasMore: false,
       }),
     );
-    const agent = new AomiClient({ baseUrl: "https://portal.example/", fetch })
-      .agent;
+    const agent = new AomiClient({
+      baseUrl: "https://portal.example/",
+      fetch,
+      guest: false,
+    }).agent;
 
     await agent.start(
       { sessionId: "session-1", message: "hello", app: "default" },
@@ -48,6 +51,7 @@ describe("AgentTransport", () => {
           { status: 409 },
         ),
       ),
+      guest: false,
     });
     const error = await client.agent.check("session-1").catch((value) => value);
     expect(error).toBeInstanceOf(AgentApiError);
@@ -60,7 +64,11 @@ describe("AgentTransport", () => {
 
   it("exposes typed session management without a second client", async () => {
     const fetch = vi.fn().mockResolvedValue(Response.json({ sessions: [] }));
-    const client = new AomiClient({ baseUrl: "https://portal.example", fetch });
+    const client = new AomiClient({
+      baseUrl: "https://portal.example",
+      fetch,
+      guest: false,
+    });
     await expect(client.agent.sessions.list({ limit: 10 })).resolves.toEqual({
       sessions: [],
     });

@@ -1455,6 +1455,36 @@
         },
         "type": "object"
       }
+    },
+    "securitySchemes": {
+      "aomiOAuth": {
+        "description": "Better Auth OAuth 2.1 authorization-code/device grants. Access tokens are exact-resource bound; the Portal BFF verifies them and delegates a downscoped internal bearer.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "https://chat.aomi.dev/api/auth/oauth2/authorize",
+            "scopes": {
+              "agent:actions:resolve": "Resolve a staged canonical Agent action",
+              "agent:read": "Read owned Agent turns and sessions",
+              "agent:write": "Start, continue, interrupt, update, or delete Agent sessions",
+              "custody:delegate": "Permit separately approved delegated custody",
+              "mcp:agent": "Use the Agent MCP protected resource",
+              "mcp:pipeline": "Use the Pipeline MCP protected resource",
+              "payments:submit": "Attach a client-held payment signature",
+              "pipeline:catalog": "Browse public Pipeline apps, tools, skills, and context",
+              "pipeline:execute": "Attempt Pipeline execution subject to Gate F policy"
+            },
+            "tokenUrl": "https://chat.aomi.dev/api/auth/oauth2/token"
+          }
+        },
+        "type": "oauth2",
+        "x-aomi-resources": {
+          "agent": "https://chat.aomi.dev/v1/agent",
+          "agentMcp": "https://chat.aomi.dev/agent/mcp",
+          "pipeline": "https://chat.aomi.dev/v1/pipeline",
+          "pipelineMcp": "https://chat.aomi.dev/pipeline/mcp"
+        },
+        "x-device-authorization-url": "https://chat.aomi.dev/api/auth/device/code"
+      }
     }
   },
   "info": {
@@ -1541,10 +1571,21 @@
             },
             "description": "Turn accepted"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["agent:write"]
+          }
+        ]
       }
     },
     "/v1/agent/chat/{sessionId}": {
@@ -1582,10 +1623,21 @@
             },
             "description": "Agent delta"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["agent:read"]
+          }
+        ]
       }
     },
     "/v1/agent/chat/{sessionId}/actions/{actionId}/result": {
@@ -1637,10 +1689,21 @@
             },
             "description": "Verified action result"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["agent:actions:resolve"]
+          }
+        ]
       }
     },
     "/v1/agent/chat/{sessionId}/interrupt": {
@@ -1672,10 +1735,21 @@
             },
             "description": "Interrupted state"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["agent:write"]
+          }
+        ]
       }
     },
     "/v1/agent/mcp": {
@@ -1704,10 +1778,21 @@
           "202": {
             "description": "MCP notification accepted"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["mcp:agent"]
+          }
+        ]
       }
     },
     "/v1/agent/sessions": {
@@ -1743,10 +1828,21 @@
             },
             "description": "Bounded session page"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["agent:read"]
+          }
+        ]
       }
     },
     "/v1/agent/sessions/{sessionId}": {
@@ -1761,10 +1857,21 @@
           "204": {
             "description": "Deleted"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["agent:write"]
+          }
+        ]
       },
       "get": {
         "operationId": "getAgentSession",
@@ -1784,10 +1891,21 @@
             },
             "description": "Owned session"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["agent:read"]
+          }
+        ]
       },
       "patch": {
         "operationId": "updateAgentSession",
@@ -1817,10 +1935,21 @@
             },
             "description": "Updated session"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["agent:write"]
+          }
+        ]
       }
     },
     "/v1/pipeline/apps": {
@@ -1849,10 +1978,21 @@
             },
             "description": "Backend-authoritative public app catalog"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["pipeline:catalog"]
+          }
+        ]
       }
     },
     "/v1/pipeline/apps/{app}": {
@@ -1874,10 +2014,21 @@
             },
             "description": "App instructions and namespace catalog"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["pipeline:catalog"]
+          }
+        ]
       }
     },
     "/v1/pipeline/mcp": {
@@ -1906,13 +2057,24 @@
           "202": {
             "description": "MCP notification accepted"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
           "402": {
             "description": "Payment challenge with JSON-RPC tool result and Payment-Required header"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
           },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["mcp:pipeline"]
+          }
+        ]
       }
     },
     "/v1/pipeline/runs": {
@@ -1952,10 +2114,21 @@
             },
             "description": "Backend run result and compact trace"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["pipeline:execute"]
+          }
+        ]
       }
     },
     "/v1/pipeline/search/apps": {
@@ -1992,10 +2165,21 @@
             },
             "description": "Ranked app results"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["pipeline:catalog"]
+          }
+        ]
       }
     },
     "/v1/pipeline/search/tools": {
@@ -2040,10 +2224,21 @@
             },
             "description": "Ranked tool and skill results"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["pipeline:catalog"]
+          }
+        ]
       }
     },
     "/v1/pipeline/skills": {
@@ -2072,10 +2267,21 @@
             },
             "description": "Public skill catalog"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["pipeline:catalog"]
+          }
+        ]
       }
     },
     "/v1/pipeline/skills/{skillId}": {
@@ -2097,10 +2303,21 @@
             },
             "description": "Skill instruction pack"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["pipeline:catalog"]
+          }
+        ]
       }
     },
     "/v1/pipeline/tool-calls": {
@@ -2140,10 +2357,21 @@
             },
             "description": "Backend tool-call result"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["pipeline:execute"]
+          }
+        ]
       }
     },
     "/v1/pipeline/tools": {
@@ -2188,10 +2416,21 @@
             },
             "description": "App-scoped tool catalog"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["pipeline:catalog"]
+          }
+        ]
       }
     },
     "/v1/pipeline/tools/{toolId}": {
@@ -2221,10 +2460,21 @@
             },
             "description": "Tool schema and owning-skill instructions"
           },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
           "default": {
             "$ref": "#/components/responses/Error"
           }
-        }
+        },
+        "security": [
+          {
+            "aomiOAuth": ["pipeline:catalog"]
+          }
+        ]
       }
     }
   },

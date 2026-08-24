@@ -37,6 +37,14 @@ import { createSseSubscriber, type SseSubscriber } from "./sse";
 import { normalizeAppDescriptor } from "./app-descriptor";
 import { AgentTransport } from "./agent/transport";
 import { PipelineTransport } from "./pipeline/transport";
+import type {
+  AomiOAuthTokenProvider,
+  AomiOAuthResource,
+} from "./authorization";
+import {
+  createGuestSessionProvider,
+  type GuestSessionProvider,
+} from "./guest-auth";
 
 // =============================================================================
 // Internal helpers
@@ -231,6 +239,111 @@ export function wrapFetchWithAccountBearer(
   };
 }
 
+export function wrapFetchWithPublicApiAuthorization(input: {
+  fetch: typeof fetch;
+  baseUrl: string;
+  oauth?: AomiOAuthTokenProvider;
+  guest?: GuestSessionProvider;
+}): typeof fetch {
+  if (!input.oauth && !input.guest) return input.fetch;
+  return async (requestInput, init) => {
+    const request = requestInput instanceof Request ? requestInput : undefined;
+    const url = new URL(
+      String(request?.url ?? requestInput),
+      absoluteBase(input.baseUrl),
+    );
+    const policy = publicApiPolicy(
+      url,
+      init?.method ?? request?.method ?? "GET",
+      init?.headers ?? request?.headers,
+    );
+    if (!policy) return input.fetch(requestInput, init);
+    const baseHeaders = new Headers(init?.headers ?? request?.headers);
+    const attempt = async (forceRefresh: boolean, dpopNonce?: string) => {
+      const headers = new Headers(baseHeaders);
+      if (input.oauth) {
+        const token = await input.oauth({
+          resource: policy.resource,
+          scopes: policy.scopes,
+          forceRefresh,
+        });
+        if (!token)
+          throw new Error(
+            "No OAuth grant covers this Aomi resource and scope set",
+          );
+        const tokenType = token.tokenType ?? "Bearer";
+        headers.set("authorization", `${tokenType} ${token.accessToken}`);
+        if (tokenType === "DPoP") {
+          if (!token.dpopProof) {
+            throw new Error("DPoP token provider returned no proof signer");
+          }
+          headers.set(
+            "dpop",
+            await token.dpopProof({
+              url: url.toString(),
+              method: policy.method,
+              accessToken: token.accessToken,
+              nonce: dpopNonce,
+            }),
+          );
+        }
+      } else if (input.guest) {
+        headers.set(
+          "authorization",
+          `Bearer ${await input.guest({ forceRefresh })}`,
+        );
+      }
+      return input.fetch(request ? request.clone() : requestInput, {
+        ...init,
+        headers,
+      });
+    };
+    const response = await attempt(false);
+    if (response.status !== 401 && response.status !== 403) return response;
+    if (input.guest && response.status === 403) return response;
+    const dpopNonce = response.headers.get("dpop-nonce") ?? undefined;
+    return attempt(!dpopNonce, dpopNonce);
+  };
+}
+
+function publicApiPolicy(url: URL, method: string, headers?: HeadersInit) {
+  const origin = url.origin;
+  const payment = new Headers(headers).has("payment-signature")
+    ? ["payments:submit"]
+    : [];
+  if (url.pathname.startsWith("/v1/agent/")) {
+    const scopes =
+      method === "GET"
+        ? ["agent:read"]
+        : /\/actions\/[^/]+\/result$/.test(url.pathname)
+          ? ["agent:actions:resolve"]
+          : ["agent:write"];
+    return {
+      resource: `${origin}/v1/agent` as AomiOAuthResource,
+      scopes: [...scopes, ...payment],
+      method: method.toUpperCase(),
+    };
+  }
+  if (url.pathname.startsWith("/v1/pipeline/")) {
+    return {
+      resource: `${origin}/v1/pipeline` as AomiOAuthResource,
+      scopes: [
+        method === "GET" ? "pipeline:catalog" : "pipeline:execute",
+        ...payment,
+      ],
+      method: method.toUpperCase(),
+    };
+  }
+  return null;
+}
+
+function absoluteBase(baseUrl: string): string {
+  if (/^https?:\/\//.test(baseUrl)) return baseUrl;
+  if (typeof location !== "undefined")
+    return new URL(baseUrl, location.origin).toString();
+  return "http://localhost";
+}
+
 function supportsTokenRefreshSubscription(
   provider: GetAccountBearer | undefined,
 ): provider is GetAccountBearer &
@@ -342,12 +455,31 @@ export class AomiClient {
       typeof globalThis.fetch === "function"
         ? globalThis.fetch.bind(globalThis)
         : fetchImpl;
+    const guest =
+      options.oauth || options.getAccountBearer || options.guest === false
+        ? undefined
+        : typeof options.guest === "function"
+          ? options.guest
+          : createGuestSessionProvider({
+              baseUrl: this.baseUrl,
+              fetch: fetchImpl,
+            });
     this.fetchImpl = wrapFetchWithAccountBearer(
-      fetchImpl,
+      wrapFetchWithPublicApiAuthorization({
+        fetch: fetchImpl,
+        baseUrl: this.baseUrl,
+        oauth: options.oauth,
+        guest,
+      }),
       options.getAccountBearer,
     );
     this.rawFetchImpl = wrapFetchWithAccountBearer(
-      rawFetchImpl,
+      wrapFetchWithPublicApiAuthorization({
+        fetch: rawFetchImpl,
+        baseUrl: this.baseUrl,
+        oauth: options.oauth,
+        guest,
+      }),
       options.getAccountBearer,
     );
     this.logger = options.logger;

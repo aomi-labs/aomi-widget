@@ -46,6 +46,7 @@ export {
   ensureSvmWalletBoundVia,
   isUnboundWalletError,
   posterFromClient,
+  createOAuthTokenProvider,
 } from "./authorization";
 export type {
   AomiAuthorizationChallenge,
@@ -53,7 +54,13 @@ export type {
   AomiAuthorizationState,
   AomiEnsureBoundResult,
   AuthorizationPoster,
+  AomiOAuthResource,
+  AomiOAuthTokenProvider,
+  AomiOAuthTokenRequest,
+  AomiOAuthTokenSet,
 } from "./authorization";
+export { createGuestSessionProvider } from "./guest-auth";
+export type { GuestSessionProvider } from "./guest-auth";
 export {
   AccountCredentialUnavailableError,
   createAccountBearerProvider,

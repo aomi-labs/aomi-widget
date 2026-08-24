@@ -2,6 +2,25 @@
 
 TypeScript client for the Aomi on-chain agent backend. Works in Node.js and browsers.
 
+## Public authorization
+
+Agent REST uses the exact OAuth resource `https://<portal>/v1/agent`; Pipeline
+REST uses `https://<portal>/v1/pipeline`. Supply an `oauth` token provider to
+use resource-bound developer grants. If no explicit credential is configured,
+the SDK creates and reuses one Better Auth anonymous/Bearer session for the
+guest-safe REST surface. Set `guestAuth: false` to disable that bootstrap.
+
+The public MCP resources are the unversioned `https://<portal>/agent/mcp` and
+`https://<portal>/pipeline/mcp`. The removed `/api/mcp` and `/api/mcp/direct`
+paths are not aliases. MCP always uses Better Auth OAuth with PKCE and an exact
+resource audience; anonymous MCP users still complete the normal login,
+consent, and token flow.
+
+OAuth providers receive the operation's least-privilege scopes and may return
+Bearer or DPoP credentials. The client serializes refresh through one mutex,
+retries one invalid-token/insufficient-scope response, and performs one DPoP
+nonce retry. It never exposes either internal Aomi service bearer.
+
 ## Install
 
 ```bash
@@ -159,6 +178,13 @@ unsub(); // stop listening
 The package includes an `aomi` CLI for scripting. When installed globally or
 in a project, the executable name is `aomi`. For one-off usage, run commands
 via `npx @aomi-labs/client ...`.
+
+`aomi account login` now uses Better Auth device authorization for both Agent
+and Pipeline resources, stores resource-bound rotating grants, and opens the
+shared portal login/consent page. `aomi account logout` revokes the saved
+refresh/access grants before clearing local state. Pass `--legacy` only during
+the bounded compatibility window; `AOMI_CLI_OAUTH_DEFAULT_ENABLED=false`
+provides the independently reversible default switch.
 
 Claude Code / Codex skills that drive this CLI live in the separate
 [`aomi-labs/skills`](https://github.com/aomi-labs/skills) repository — that

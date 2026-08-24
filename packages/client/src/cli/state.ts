@@ -20,6 +20,7 @@ import {
   walletSnapshotFromUserState,
 } from "./user-state";
 import type { CliAAProvider, CliEmbeddedProvider } from "./types";
+import type { AomiOAuthResource } from "../authorization";
 
 export type PendingTx = {
   id: string;
@@ -123,6 +124,16 @@ export type CliAuthSession = {
   betterAuthUserId?: string;
 };
 
+export type CliOAuthGrant = {
+  clientId: string;
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt: number;
+  resource: AomiOAuthResource;
+  scopes: readonly string[];
+  tokenType?: "Bearer" | "DPoP";
+};
+
 export type CliSessionState = {
   sessionId: string;
   clientId?: string;
@@ -162,6 +173,7 @@ export type CliSessionState = {
   signedSolTxs?: SignedSolTx[];
   secretHandles?: Record<string, string>;
   auth?: CliAuthSession;
+  oauthGrants?: Record<string, CliOAuthGrant>;
 };
 
 function getBackendPendingId(
@@ -177,15 +189,16 @@ export function hasSameBackendPendingId(
   const existingBackendId = getBackendPendingId(existing);
   const nextBackendId = getBackendPendingId(next);
 
-  return Boolean(
-    existing.agentRequestId &&
+  return (
+    Boolean(
+      existing.agentRequestId &&
       next.agentRequestId &&
       existing.agentRequestId === next.agentRequestId,
-  ) || (
-    existing.kind === next.kind &&
-    existingBackendId !== undefined &&
-    nextBackendId !== undefined &&
-    existingBackendId === nextBackendId
+    ) ||
+    (existing.kind === next.kind &&
+      existingBackendId !== undefined &&
+      nextBackendId !== undefined &&
+      existingBackendId === nextBackendId)
   );
 }
 
@@ -279,6 +292,7 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     signedSolTxs: stored.signedSolTxs,
     secretHandles: stored.secretHandles,
     auth: stored.auth,
+    oauthGrants: stored.oauthGrants,
   };
 }
 
@@ -315,6 +329,7 @@ function readStoredSession(path: string): StoredSessionState | null {
       baseUrl: parsed.baseUrl,
       app: parsed.app,
       model: parsed.model,
+      modelSynced: parsed.modelSynced,
       apiKey: parsed.apiKey,
       accountBearer: parsed.accountBearer,
       sessionCookie: parsed.sessionCookie,
@@ -335,6 +350,7 @@ function readStoredSession(path: string): StoredSessionState | null {
       signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
       auth: normalizeAuthSession(parsed.auth),
+      oauthGrants: normalizeOAuthGrants(parsed.oauthGrants),
       localId:
         typeof parsed.localId === "number" && parsed.localId > 0
           ? parsed.localId
@@ -373,6 +389,37 @@ function normalizeAuthSession(value: unknown): CliAuthSession | undefined {
     chainScope: auth.chainScope,
     betterAuthUserId: auth.betterAuthUserId,
   };
+}
+
+function normalizeOAuthGrants(
+  value: unknown,
+): Record<string, CliOAuthGrant> | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const grants: Record<string, CliOAuthGrant> = {};
+  for (const candidate of Object.values(
+    value as Record<string, Partial<CliOAuthGrant>>,
+  )) {
+    if (
+      typeof candidate.clientId !== "string" ||
+      !candidate.clientId ||
+      typeof candidate.accessToken !== "string" ||
+      !candidate.accessToken ||
+      typeof candidate.expiresAt !== "number" ||
+      !Number.isFinite(candidate.expiresAt) ||
+      typeof candidate.resource !== "string" ||
+      !/\/v1\/(agent|pipeline)$/.test(candidate.resource) ||
+      !Array.isArray(candidate.scopes) ||
+      !candidate.scopes.every((scope) => typeof scope === "string") ||
+      (candidate.tokenType !== undefined &&
+        candidate.tokenType !== "Bearer" &&
+        candidate.tokenType !== "DPoP")
+    ) {
+      continue;
+    }
+    const grant = candidate as CliOAuthGrant;
+    grants[grant.resource] = grant;
+  }
+  return Object.keys(grants).length > 0 ? grants : undefined;
 }
 
 function readActiveLocalId(): number | null {
@@ -726,9 +773,7 @@ export function hasSameSolanaPendingId(
   if (existing.agentRequestId && next.agentRequestId) {
     return existing.agentRequestId === next.agentRequestId;
   }
-  return (
-    existing.solanaId !== undefined && existing.solanaId === next.solanaId
-  );
+  return existing.solanaId !== undefined && existing.solanaId === next.solanaId;
 }
 
 export function addPendingSolTx(
