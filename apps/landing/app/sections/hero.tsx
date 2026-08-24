@@ -1,12 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState, type CSSProperties } from "react";
-import { AomiFrame } from "@aomi-labs/widget-lib";
 import { AomiLogo } from "../components/aomi-logo";
-import { LandingWalletKitProvider } from "../components/landing-wallet-kit-provider";
-import styles from "./hero.module.css";
 
-const DEMO_BACKEND_URL = "/";
+const LegacyHumanDemo = dynamic(
+  () => import("./legacy-human-demo").then((mod) => mod.LegacyHumanDemo),
+  { ssr: false },
+);
 
 export function Hero() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -268,24 +269,7 @@ export function Hero() {
               id="terminal-container"
               className="mb-14 h-[680px] w-full max-w-[900px] origin-bottom-left transition-all duration-300"
             >
-              <LandingWalletKitProvider>
-                <AomiFrame.Root
-                  height="100%"
-                  width="100%"
-                  className={`${styles.demoFrame} aui-suggestions-marquee`}
-                  defaultSidebarOpen={false}
-                  walletPosition="footer"
-                  walletFamilies={["evm", "solana"]}
-                  backendUrl={DEMO_BACKEND_URL}
-                >
-                  <AomiFrame.Header />
-                  <AomiFrame.Composer
-                    withControl
-                    welcomeTitle="What should happen on-chain?"
-                    controlBarProps={{ hideApiKey: true, hideNetwork: false }}
-                  />
-                </AomiFrame.Root>
-              </LandingWalletKitProvider>
+              <LegacyHumanDemo />
             </div>
           ) : (
             <div className="mb-14 flex w-full justify-center">
