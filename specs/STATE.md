@@ -2,6 +2,33 @@
 
 ## Last Updated
 
+2026-08-24 — CI PROGRESS BAR ON THE DEPLOYMENTS TAB (branch
+  `feat/deploy-ci-progress-bar`). Importing/redeploying an app from a linked
+  repository showed one static line ("Building… (building)") for the whole
+  2–4 minute CI build: no bar, no elapsed clock, no link to the run. The
+  onboarding deploy step already drew a bar from `deploymentProgress`; the
+  project deployments tab never used it.
+  - New `deploy-flow-progress.ts` maps CI state onto a whole-pipeline percent
+    (deploy 4% → CI 12–78% → activate 96% → live 100%), monotonic across a
+    transient `no_ci`/`failed` poll, and carries `ci.url` forward.
+  - `DeployFlowState` variants now carry an optional `progress`; the hook also
+    exposes `deployStartedAt`. `redeploySource` sets progress at every stage,
+    including both activation-failure branches and the catch.
+  - The CI url is captured at the poll callback, not in `onProgress`:
+    `waitForDeploymentReady` throws on a terminal `failed`/`no_ci` status
+    before reporting progress, so a build that fails on its first poll would
+    otherwise reach the catch with `ciUrl: null` and lose the run link exactly
+    when it matters. Pinned by a hook test.
+  - New `ui/deploy-progress-bar.tsx` renders the message, percent, mm:ss
+    elapsed, a "CI run" link, and an accessible `role="progressbar"`; error
+    turns the bar red and drops the percent. Replaces the old text-only line.
+  - Verification: 120 deployments tests + 12 hook tests pass, `pnpm type-check`
+    clean, `pnpm lint` clean (3 pre-existing warnings). NOT visually verified in
+    a browser — the bar only renders during a live deploy against a real
+    backend, which is not reproducible locally.
+  Untouched: the diverged `apps/portal` copy of the deployments tab, and the
+  onboarding deploy step's own bar.
+
 2026-08-22 — WALLET/USER-STATE CONTRACT DESLOP (branch
   `claude/multi-wallet-cli-366238`, working tree only, not committed). The FE
   now speaks the backend canon: wire key `svm` is canonical (`solana` stays an
