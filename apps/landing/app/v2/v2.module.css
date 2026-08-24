@@ -283,81 +283,187 @@
   }
 }
 
-/* Fixed pill nav: outside hero overflow so it can float. */
-.navDock {
-  position: fixed;
-  top: 20px;
-  left: 0;
-  right: 0;
+.navBar {
+  position: sticky;
+  top: 0;
   z-index: 80;
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-  padding-inline: 1rem;
+  border-bottom: 1px solid var(--v2-border);
+  background: color-mix(in srgb, var(--v2-card) 92%, transparent);
+  backdrop-filter: blur(16px) saturate(1.1);
+  -webkit-backdrop-filter: blur(16px) saturate(1.1);
 }
 
-.navStack {
-  pointer-events: auto;
-  position: relative;
-  width: 100%;
-  max-width: 640px;
-}
-
-.navPill {
+.navInner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  gap: 1.25rem;
   width: 100%;
-  padding: 4px 5px 4px 16px;
-  border-radius: 9999px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(10, 10, 10, 0.55);
-  backdrop-filter: blur(18px) saturate(1.15);
-  -webkit-backdrop-filter: blur(18px) saturate(1.15);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
-  transition:
-    background 200ms ease,
-    border-color 200ms ease,
-    box-shadow 200ms ease;
+  max-width: 1180px;
+  margin-inline: auto;
+  min-height: 64px;
+  padding: 0.65rem 1.25rem;
 }
 
-.navPillScrolled {
-  background: rgba(10, 10, 10, 0.84);
-  border-color: rgba(255, 255, 255, 0.3);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+@media (min-width: 768px) {
+  .navInner {
+    padding-inline: 2rem;
+  }
 }
 
-.navLinks {
+.navBrand {
+  flex-shrink: 0;
+  color: var(--v2-heading);
+}
+
+.dark .navMark {
+  filter: invert(1);
+}
+
+.navMenus {
   display: none;
+  flex: 1;
   align-items: center;
-  gap: 1.5rem;
+  gap: 0.15rem;
 }
 
-.navLink {
+.navMenuWrap {
+  position: relative;
+}
+
+.navTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
   font-family: var(--v2-font-sans);
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 500;
   letter-spacing: -0.012em;
-  color: rgba(255, 255, 255, 0.78);
-  transition: color 150ms ease;
+  color: var(--v2-fg);
+  background: transparent;
+  transition:
+    color 150ms ease,
+    background 150ms ease;
 }
 
-.navLink:hover {
+.navTrigger:hover,
+.navTriggerOpen {
+  color: var(--v2-heading);
+  background: var(--v2-bg-muted);
+}
+
+.navChevron {
+  width: 13px;
+  height: 13px;
+  transition: transform 160ms ease;
+}
+
+.navTriggerOpen .navChevron {
+  transform: rotate(180deg);
+}
+
+.navDropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 90;
+  display: flex;
+  min-width: 320px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  border: 1px solid var(--v2-border);
+  border-radius: 14px;
+  background: var(--v2-card);
+  box-shadow: 0 18px 40px rgba(9, 9, 11, 0.12);
+}
+
+.navDropdownRow,
+.navSheetItem {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  align-items: start;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 10px 10px 10px 8px;
+  color: var(--v2-heading);
+  text-decoration: none;
+}
+
+.navDropdownRow:hover,
+.navSheetItem:hover {
+  background: var(--v2-bg-muted);
+}
+
+.navIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--v2-accent);
   color: #fff;
 }
 
+.navItemTitle,
+.navItemJob {
+  display: block;
+}
+
+.navItemTitle {
+  font-family: var(--v2-font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+.navItemJob {
+  margin-top: 2px;
+  font-size: 12.5px;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  color: var(--v2-fg-subtle);
+}
+
+.navRight {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.navGhost,
 .navCta {
   flex-shrink: 0;
   border-radius: 9999px;
-  background: var(--v2-accent);
-  color: #fff;
   font-family: var(--v2-font-sans);
   font-size: 13px;
   font-weight: 500;
   letter-spacing: -0.012em;
   padding: 0.45rem 0.95rem;
-  transition: background 150ms ease;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.navGhost {
+  display: none;
+  border: 1px solid var(--v2-border);
+  color: var(--v2-heading);
+  background: transparent;
+}
+
+.navGhost:hover {
+  background: var(--v2-bg-muted);
+}
+
+.navCta {
+  background: var(--v2-accent);
+  color: #fff;
 }
 
 .navCta:hover {
@@ -371,47 +477,67 @@
   align-items: center;
   justify-content: center;
   border-radius: 9999px;
-  color: #fff;
+  color: var(--v2-heading);
 }
 
-.navMenu {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  right: 0;
+.navSheet {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  max-height: min(80vh, 640px);
+  overflow: auto;
+  padding: 0.5rem 1.1rem 1.25rem;
+  border-top: 1px solid var(--v2-border);
+  background: var(--v2-card);
+}
+
+.navSheetGroup {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(10, 10, 10, 0.92);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
 }
 
-.navMenu a {
-  border-radius: 10px;
-  padding: 10px 12px;
+.navSheetLabel,
+.navSheetLink {
   font-family: var(--v2-font-sans);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--v2-fg-subtle);
+}
+
+.navSheetLink {
+  display: block;
+  padding: 10px 8px;
+  font-size: 14px;
   letter-spacing: -0.012em;
-  color: rgba(255, 255, 255, 0.86);
+  text-transform: none;
+  color: var(--v2-heading);
 }
 
-.navMenu a:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
+.navSheetCtas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 4px 8px 8px;
 }
 
-@media (min-width: 768px) {
-  .navLinks {
+.navSheetCtas .navGhost {
+  display: inline-flex;
+}
+
+@media (min-width: 960px) {
+  .navMenus {
     display: flex;
   }
 
+  .navGhost {
+    display: inline-flex;
+  }
+
   .navMenuBtn,
-  .navMenu {
+  .navSheet {
     display: none;
   }
 }

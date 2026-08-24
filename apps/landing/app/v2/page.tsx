@@ -3,7 +3,6 @@ import { FaqSection } from "./sections/faq";
 import { FooterSection } from "./sections/footer";
 import { V2Hero } from "./sections/hero";
 import { InstallSection } from "./sections/install";
-import { V2Nav } from "./sections/nav";
 import { CaseStudySection } from "./sections/case-study";
 import { PatternSection } from "./sections/pattern";
 import { PipelineSection } from "./sections/pipeline";
@@ -15,7 +14,7 @@ import { WhySection } from "./sections/why";
 export const metadata: Metadata = {
   title: "Aomi: Execution infrastructure (preview)",
   description:
-    "You bring the API. We bring the harness. Build, simulate, sign, broadcast. Keys stay with users.",
+    "A hosted solution for blockchain automation. Clients bring APIs, we bring the harness that execute across protocols and blockchains. Build, simulate, sign, broadcast. Wallets stays with users.",
   robots: {
     index: false,
     follow: false,
@@ -29,7 +28,6 @@ export const metadata: Metadata = {
 export default function LandingV2Page() {
   return (
     <>
-      <V2Nav />
       <main>
         <V2Hero />
         <WhySection />

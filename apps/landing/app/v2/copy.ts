@@ -7,29 +7,17 @@ export const LINKS = {
   agentsTransact: "https://aomi.dev/agents/transact.md",
   apps: "/#apps-section",
   openApp: "https://chat.aomi.dev",
-  bookCall: "/contact",
+  console: "https://build.aomi.dev",
+  bookCall: "/v2/contact",
   skills: "https://github.com/aomi-labs/skills",
   github: "https://github.com/aomi-labs",
 } as const;
 
-export const nav = {
-  brand: "aomi",
-  links: [
-    { label: "Docs", href: LINKS.docs },
-    { label: "Agents", href: LINKS.agents },
-    { label: "Apps", href: LINKS.apps },
-  ],
-  cta: { label: "Open app", href: LINKS.openApp },
-} as const;
-
 export const hero = {
   eyebrow: "EXECUTION INFRASTRUCTURE",
-  headlineLine1: "Between an agent's decision",
-  headlineLine2: "and its settlement.",
+  headline: "Execution harness for onchain Finance",
   support:
-    "You bring the API. We bring the harness. Build, simulate, sign, broadcast. Keys stay with users.",
-  primaryCta: { label: "Read the docs", href: LINKS.docs },
-  secondaryCta: { label: "Book a call", href: LINKS.bookCall },
+    "A hosted solution for blockchain automation. Clients bring APIs, we bring the harness that execute across protocols and blockchains. Build, simulate, sign, broadcast. Wallets stays with users.",
 } as const;
 
 export const why = {

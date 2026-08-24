@@ -1,3 +1,276 @@
+# Landing V2 Build-backed Product Proof
+
+# Landing V3 Editorial Unification
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** — port the complete V2 Human
+Interface and Agent Toolings compositions into their V3 product routes, then
+unify product, solution, and company page tokens around the approved REST APIs
+and Plugin SDK visual system. Route-specific value should come from information
+architecture and interactive artifacts—not unrelated pastel page palettes or a
+repeated generic card template. Sector demos and ownership boundaries remain
+distinct; company pages use editorial ledgers, contiguous process bands, and
+responsibility statements instead of disconnected card collections.
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** —
+enrich the Plugin SDK and Trading pages with the actual Aomi Build lifecycle
+and deterministic fixtures instead of screenshots or invented admin chrome.
+The Plugin SDK hero now consumes Build's real journey and seed-session contract
+to move through Describe, Plan, Generate, Compile & test, and Ship; generated
+project files remain selectable, and the fixture can play or be inspected one
+stage at a time. The former CLI-only deployment mock is replaced by a
+repository-backed project lifecycle and an interactive operate-after-ship
+surface driven by the real transactional and read-only Build fixtures, covering
+SDK compatibility, release loading, tool health, activity, transaction funnel,
+and lifecycle evidence. Trading adds a narrower execution-adapter observability
+surface derived from the same transactional fixture: adapter calls, proposed
+Actions, signer submissions, confirmations, attributable exceptions, runtime,
+and releases. It does not imply that Aomi owns the platform's data, models,
+strategy, venue selection, routing, or risk decisions. All interactions remain
+local and call no Build, repository, model, signer, or transaction endpoint.
+
+# Landing V3 Sector-Specific Solution Pages
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** —
+replace the shared V3 Fintech, Trading, NFT, and Wallets composition with four
+sector-specific narratives while keeping the V3 navigation, typography,
+spacing, and token system. Fintech now centers an interactive governed mandate,
+operating model, durable reconciliation lifecycle, and institution/Aomi
+responsibility split. Trading ports the stronger V2 product boundary into V3
+with a live integration topology, ownership seam, reusable interactive Pipeline
+API lab, Plan outputs, and asymmetric integration-fit statement. NFT now uses
+an editorial collection-concierge concept with selectable artwork, an exact
+cost receipt, collector motivations, and an item-level trust dossier. Wallets
+now presents an interactive Ask/Review/Sign journey inside the host wallet,
+followed by trust controls, one review receipt, and an explicit wallet-retained
+authority statement. The generic execution-architecture and repeated product
+surface sections are absent from all four solution pages; product routes retain
+ownership of those concepts. Interactive examples are deterministic frontend
+fixtures and do not claim live capital movement, marketplace inventory, or
+production settlement. Desktop and 390px mobile layouts, interactive tab and
+selection states, targeted ESLint, and the production Next build are verified.
+
+# Landing V2 Trading Solution Deep Dive
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** —
+replace the shared Trading solution template with a dedicated product narrative
+for platforms that already own their AI trading harness. The page now keeps
+market data, models, exchange connectors, venue selection, routing, risk, and
+customer UX explicitly on the platform side. Aomi is positioned below that
+decision as the preview Pipeline API execution boundary: selected
+`ActionSpec[]` in; construction, full-batch simulation, typed guards, a sealed
+signable, and a verified outcome out. A moving integration topology, ownership
+map, interactive one-shot/state-echo/harness-tools lab, animated execution
+rails, and asymmetric fit statement replace the repeated solution-card layout.
+All examples are deterministic frontend fixtures and do not call a live agent,
+trading venue, signer, or backend.
+
+# Landing V3 Atmospheric WebGL
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** —
+replace the blank white canvas beneath the `/v3` hero with one reusable,
+non-interactive WebGL atmosphere inspired by the existing landing page's
+particle blob. The shader keeps balanced graphite and warm-ash particle masses
+at both page edges, with a center fade that leaves the editorial content column
+clear. The forms and a sparse moving dust field ease toward mouse movement
+without capturing pointer input. It uses a single transparent canvas, subtle
+scroll parallax, a 25 fps cap, reduced-motion and background-tab handling, and
+capped pixel density. The effect is part of the reproducible V3 reference
+extractor so regenerating the optimized static page preserves it. The canvas
+is dynamically clipped below the hero validation grid while scrolling, and
+the hero plus grid retain opaque foreground backgrounds, preventing particles
+from bleeding through any of the top proof rows. The original Unicorn Studio
+project payload and compiled shaders were inspected directly: its “Mask magic”
+scene combines a monochrome image, circular mask, opposing mouse-tracked BCC
+noise displacement, and randomized multi-sample diffuse pass. V3 now runs that
+exact original Unicorn project and runtime in two background-positioned scene
+instances; only placement, grayscale treatment, and opacity differ from the
+legacy solution effect. The hero and validation-grid masking remains local to
+V3. The effect is no longer fixed to the viewport: four 30 fps scene instances
+are scattered down the page background and scroll with the content. Each scene
+is positioned from the live bounds of the exact screenshot target section:
+Value propositions, Problem, Feature Matrix, and One install. Their alternating
+left/right placement and
+small-to-large scale rhythm follows the approved vertical composition sketch,
+while feathered outer edges prevent rectangular render boundaries from
+appearing. A light-blue canvas filter colorizes the original WebGL luminance
+using a tonal map derived from the brand blue so the pale screen stays neutral
+while the sandy diffuse/noise mass becomes muted light blue.
+The shared atmosphere treatment now uses a darker blue-gray tonal range,
+stronger scene opacity and grain, and a lighter white veil so every scattered
+scene remains visibly present without changing its placement or interaction.
+
+# Landing V2 Plugin SDK Product Page
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** —
+replace the generic `/v2/products/console` skeleton with a distinct Plugin SDK
+product page grounded in the Aomi App and Aomi Build documentation. The page
+uses a developer-workbench hero rather than the repeated product-page layout:
+Behavior, Capabilities, and Delivery switch between deterministic Rust project
+fixtures, while a local deployment control demonstrates SDK check, preflight,
+release, activation, and runtime-loaded truth without calling a backend. The
+rest of the page explains the plugin's three layers, the API-to-App
+architecture, the Aomi Build release lifecycle, developer versus Aomi runtime
+ownership, tool-design guardrails, and distribution through Widget, REST APIs,
+Agentic Toolings, and Aomi Portal. Aomi hosting and wallet signing authority
+remain explicitly separate.
+
+# Landing V2 Solution Pages
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** — replace
+the generic Fintech, DeFi, Trading, NFT, and Wallets solution skeletons with
+research-informed pages. Each page now speaks to the sector's distinct buyer
+needs, presents a deterministic sector-specific execution fixture, explains
+the relevant trust and control requirements, maps the flow through Aomi's
+guarded execution boundary, and routes buyers to the appropriate Widget, Agent
+API, Pipeline API, Plugin SDK, or Agentic Toolings surface. The Solutions menu
+copy now describes outcomes and authority boundaries instead of generic AI bot
+categories.
+
+# Landing V3 Route Family
+
+Current session goal: **SUBPAGES TRANSLATED AND LOCALLY VERIFIED 2026-08-23**
+— keep `/v3` visually and behaviorally identical to the supplied
+`Aomi-Landing-v3.html` while removing its self-unpacking bundle. A reproducible
+extractor now emits readable markup, a separate interaction state machine,
+semantic resource mappings, and cacheable images, fonts, and runtime files.
+The HTML payload is 94% smaller, and `/v3` serves it directly without an iframe
+or duplicate Next shell. The production `/` homepage and `/v2` remain
+untouched; V1 cutover remains a separate approval.
+
+The V3 product and solution route family now carries the substantive V2
+content through the approved V3 visual system instead of inheriting the V2
+page composition. Product pages use the floating glass shell, editorial serif
+display hierarchy, compact mono labels, proof strip, capability grid, and
+explicit execution sequence. Fintech, DeFi, Trading, NFT, and Wallets reuse
+the full V2 solution content model—including sector-specific scenarios,
+metrics, policy checks, buyer needs, flows, and integration paths—but render
+it through a dedicated responsive V3 composition. The scenario card is
+interactive at desktop and mobile widths, and all cross-links remain inside
+the V3 route family. The extracted `/v3` homepage navigation now uses real,
+keyboard-accessible product, solution, resource, and developer menus; Pricing,
+Console, App, and the Aomi mark resolve to their intended destinations. The
+navigation enhancement is generated from structured route data so re-running
+the reference extractor preserves the behavior. The extracted homepage and
+React V3 subpages now share one floating-island visual contract: identical
+liquid-glass shell and menu materials, dimensions, typography, spacing, and
+interaction treatment. Expanded desktop menus omit redundant section headings
+and use Geist for every item title. Top-level navigation hover and open states
+remain typographic, without adding a second pill-shaped background.
+The product taxonomy now presents the Widget surface as Human Interface and
+Agentic Toolings as Agent Toolings while retaining the established route slugs
+for backward-compatible links. Dropdown item labels match the regular Geist
+weight used by their parent navigation labels.
+
+The V3 DeFi route now has a sector-specific composition: it keeps the current
+Earn/Swap value proposition, adds a World Markets product-integration preview
+with the actual campaign walkthrough, and makes the product flow, onchain
+authority split, validation claims, and receipt-evidence boundary explicit.
+The World walkthrough renders as a large, unframed native HTML/CSS/SVG motion
+sequence on the white page. It ports all six source campaign beats, starts and
+pauses with viewport visibility, loops continuously without raster scaling,
+and places the Product Flow and Authority explanation underneath the motion.
+The generic execution-architecture and reusable implementation-tool sections
+are intentionally omitted from DeFi so those concepts remain owned by the
+product route family instead of being repeated across solution pages.
+Desktop navigation menus use one vertical column rather than a side-by-side
+card grid, with a narrower glass panel and compact rows shared by the homepage
+and every V3 subpage.
+Dropdown glass panels use a pronounced 30px radius on every corner so the
+single-column menu reads as one fully rounded floating surface.
+Dropdown rows remain background-free on hover, matching the typography-only
+hover treatment of the top-level navigation.
+Dropdown descriptions use a readable 13px text size while remaining
+subordinate to their 16px item titles across every desktop navigation menu.
+Opening a desktop menu now uses a shared liquid-unfurl motion: the rounded
+glass panel expands from the island with a clipped vertical reveal while its
+rows settle in on a short stagger. Reduced-motion users receive the final state
+without animation.
+V3 content matrices are rectilinear: capability, lifecycle, related-product,
+solution, pricing, principle, research, news, contact, and comparison grids use
+square outer and card corners. Pills, floating navigation, and embedded product
+demo windows retain their intentional rounding.
+The V3 Plugin SDK route reuses the complete V2 Plugin SDK page composition and
+interactive workbench rather than the generic V3 product template. Its section
+order, responsive grids, content, and controls remain shared with V2; a scoped
+V3 token layer changes only typography, color, borders, surfaces, and accents.
+The route and metadata identify the product as Plugin SDK, while Console remains
+the name of the external developer control surface.
+The V3 REST APIs route likewise reuses the complete V2 REST APIs composition and
+interactive Agent API versus Pipeline API workbench. A scoped V3 token layer
+changes its typography, blue and green accents, borders, and surfaces while
+preserving section order, grid geometry, responsive behavior, and the shared
+Action lifecycle. V3 internal calls to action remain inside the V3 route family.
+All React-rendered V3 routes share the REST APIs content rail: a 1220px maximum
+width with protected 64px desktop, 32px tablet, and 20px mobile gutters. Hero
+copy, section grids, dark full-width bands, imported V2 product compositions,
+and the footer derive their horizontal inset from that rail; intentionally
+narrow reading columns and full-bleed backgrounds retain their own internal
+proportions.
+The extracted V3 homepage FAQ now answers six production integration questions
+covering wallet and custody infrastructure, policy enforcement, wallet and
+agent-platform boundaries, transaction integrity, account abstraction, and
+existing-stack integration. Its structured FAQ source is injected by the
+reference extractor so regeneration preserves the approved copy.
+
+# Landing V2 REST APIs Product Page
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-22** —
+replace the generic `/v2/products/api` skeleton with a dedicated REST APIs
+product page. The page distinguishes the v1 Agent API from the preview
+Pipeline API, demonstrates both through an interactive deterministic fixture,
+and explains their shared Action contract, guarded execution lifecycle,
+TypeScript client surface, and custody and retry guarantees. Pipeline remains
+explicitly labeled Preview anywhere it is presented as a selectable product
+surface.
+
+# Landing V2 Product Labels
+
+Current session goal: **IMPLEMENTED 2026-08-21** — rename the Products menu and
+`/v2/products/api` title from “Agents API & Pipeline API” to “REST APIs” while
+keeping the existing route and explanatory copy intact. Rename “Developer
+Console” to “Plugin SDK” while retaining its route and supporting copy.
+
+# Landing V2 Agentic Toolings Page
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-21**
+— replace the generic `/v2/products/cli-mcp` skeleton with a routing page and
+interactive setup lab for Agent Skills, hosted MCP, and the Client CLI. The
+page must distinguish their installation, session, and signing boundaries;
+show one task across all three paths; explain their shared execution harness;
+and link each surface to its own documentation. The Products menu card now
+uses branching iconography and describes the three surfaces without calling
+them one bundle.
+
+# Landing V2 Widget Product Page
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-21**
+— rename the Portal product entry to Widget and replace its skeleton with a
+dedicated integration page. The page uses the actual Aomi Portal surface as the
+product demo, then demonstrates full-surface, sidecar, and inline integrations
+through a shipped Sommelier case and clearly labeled trading and
+prediction-market concepts. Technical installation and signing boundaries come
+after the product examples. Each product example uses the shipped `AomiFrame`
+shell with a deterministic local fixture transcript; there is no live chat or
+composer in these examples. Product-native controls drive the fixture: venue
+selection changes the Sommelier mandate decision, market selection changes the
+trading route, and YES/NO selection changes the prediction-market position
+preview. Each transcript is hydrated through the deterministic fixture API and
+rendered by the production `AomiFrame.Composer`, including the canonical Aomi
+mark, assistant message layout, `WorkingTrace`, interpreted tool rows, answer,
+and action bar. Only the live composer is hidden. All three examples keep the
+host dashboard visible and position the Widget as a floating execution surface
+above it. The prediction-market
+composition preserves the approved overlapping card; Sommelier and trading use
+the same floating hierarchy instead of wrapping the Widget inside the host UI.
+The old `/v2/products/portal` URL remains a redirect.
+
+# Landing V2 Nav Skeleton
+
+Current session goal: **IN PROGRESS 2026-08-17** — replace the `/v2` pill nav
+with a Para-style product catalog (Products, Solutions, Resource, Developers,
+Pricing | Console, App) and skeleton pages for the locked IA. Home body copy
+stays until the next pass.
+
 # Auth BFF BetterAuth Cleanup Goal
 
 ## Backend-Owned Sponsored ERC-4337
@@ -1195,4 +1468,3 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   clears it; an ordinary non-persisted pageshow does not). The spec was
   mutation-tested: neutering the handler fails the restore case and passes the
   control case. Verified with the full launch suite, 32 files / 191 tests.
-

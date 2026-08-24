@@ -39,34 +39,18 @@ export function V2Hero() {
         <div className={styles.heroUpperScrim} aria-hidden />
         <div className={styles.heroWhiteFade} aria-hidden />
 
-        <div className="relative z-10 mx-auto flex w-full max-w-[1100px] flex-col items-center px-5 pt-24 pb-32 md:px-8 md:pt-28 md:pb-40">
+        <div className="relative z-10 mx-auto flex w-full max-w-[1100px] flex-col items-center px-5 pt-16 pb-32 md:px-8 md:pt-20 md:pb-40">
           <p className={`${styles.eyebrow} ${styles.eyebrowInvert}`}>
             {hero.eyebrow}
           </p>
 
           <div className="mx-auto flex max-w-[760px] flex-col items-center gap-5 pt-6 text-center md:pt-8">
-            <h1 className={`${styles.display} ${styles.onPhoto} flex max-w-[760px] flex-col gap-1`}>
-              <span>{hero.headlineLine1}</span>
-              <span>{hero.headlineLine2}</span>
+            <h1 className={`${styles.display} ${styles.onPhoto} max-w-[760px]`}>
+              {hero.headline}
             </h1>
-            <p className={`${styles.lede} ${styles.ledeOnPhoto} max-w-[520px]`}>
+            <p className={`${styles.lede} ${styles.ledeOnPhoto} max-w-[640px]`}>
               {hero.support}
             </p>
-          </div>
-
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-3 pt-6 pb-2 md:pt-8">
-            <a
-              href={hero.primaryCta.href}
-              className={`${styles.ui} rounded-full bg-[#6D28D9] px-5 py-2.5 text-sm text-white transition hover:bg-[#5B21B6]`}
-            >
-              {hero.primaryCta.label}
-            </a>
-            <a
-              href={hero.secondaryCta.href}
-              className={`${styles.ui} rounded-full border border-white/35 px-5 py-2.5 text-sm text-white transition hover:bg-white/10`}
-            >
-              {hero.secondaryCta.label}
-            </a>
           </div>
 
           <div

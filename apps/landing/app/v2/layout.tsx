@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono, Newsreader } from "next/font/google";
+import { V2Nav } from "./sections/nav";
 import { V2ThemeProvider } from "./theme-provider";
 
 const geistSans = Geist({
@@ -30,6 +31,7 @@ export default function V2Layout({ children }: { children: ReactNode }) {
       <V2ThemeProvider
         className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable}`}
       >
+        <V2Nav />
         {children}
       </V2ThemeProvider>
     </>
