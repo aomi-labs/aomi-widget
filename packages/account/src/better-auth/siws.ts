@@ -216,6 +216,7 @@ export function aomiSiwsPlugin(options: AomiSiwsOptions) {
               await ctx.context.internalAdapter.createAccount({
                 userId: betterAuthUserId,
                 providerId: SIWS_PROVIDER_ID,
+                issuer: SIWS_PROVIDER_ID,
                 accountId,
                 createdAt: new Date(now()),
                 updatedAt: new Date(now()),
@@ -252,14 +253,18 @@ export function aomiSiwsPlugin(options: AomiSiwsOptions) {
             : null;
 
           if (!user) {
-            user = await ctx.context.internalAdapter.createUser({
-              name: walletAddress,
-              email: siwsSyntheticEmail(walletAddress),
-              image: "",
-            });
+            user = await ctx.context.internalAdapter.createUser(
+              {
+                name: walletAddress,
+                email: siwsSyntheticEmail(walletAddress),
+                image: "",
+              },
+              { method: "siws" },
+            );
             await ctx.context.internalAdapter.createAccount({
               userId: user.id,
               providerId: SIWS_PROVIDER_ID,
+              issuer: SIWS_PROVIDER_ID,
               accountId,
               createdAt: new Date(now()),
               updatedAt: new Date(now()),

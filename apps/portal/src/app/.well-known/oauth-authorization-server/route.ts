@@ -1,9 +1,15 @@
 import { auth } from "@aomi-labs/account/better-auth";
-import { oAuthDiscoveryMetadata } from "better-auth/plugins";
+import { oauthProviderAuthServerMetadata } from "@better-auth/oauth-provider";
+import { oauthFeatures } from "@portal/server/oauth/features";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// OAuth 2.0 authorization-server discovery for MCP clients: points at the
-// better-auth MCP plugin's authorize/token/register endpoints.
-export const GET = oAuthDiscoveryMetadata(auth);
+const metadata = oauthProviderAuthServerMetadata(
+  auth as unknown as Parameters<typeof oauthProviderAuthServerMetadata>[0],
+);
+
+export function GET(request: Request) {
+  if (!oauthFeatures.issuance()) return new Response(null, { status: 404 });
+  return metadata(request);
+}

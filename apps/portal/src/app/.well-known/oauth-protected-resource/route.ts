@@ -1,9 +1,15 @@
 import { auth } from "@aomi-labs/account/better-auth";
-import { oAuthProtectedResourceMetadata } from "better-auth/plugins";
+import { oauthProviderResourceClient } from "@better-auth/oauth-provider/resource-client";
+import { oauthFeatures } from "@portal/server/oauth/features";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Protected-resource metadata the /api/mcp WWW-Authenticate challenge points
-// MCP clients at, per the MCP authorization spec.
-export const GET = oAuthProtectedResourceMetadata(auth);
+export async function GET() {
+  if (!oauthFeatures.issuance()) return new Response(null, { status: 404 });
+  return Response.json(
+    await oauthProviderResourceClient(auth)
+      .getActions()
+      .getProtectedResourceMetadata(),
+  );
+}
