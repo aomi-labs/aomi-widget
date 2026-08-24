@@ -7,16 +7,19 @@ const loadSecrets = vi.fn();
 const loadRequiredSecrets = vi.fn();
 const operateFetch = vi.fn();
 
+const emptyLifecycle = {
+  kind: "empty",
+  repo: "a/b",
+  statusLabel: "No deployment",
+  statusTone: "muted",
+  message: "No deployment recorded yet.",
+  appNames: [],
+  releaseTags: [],
+};
+let lifecycle: Record<string, unknown> = { ...emptyLifecycle };
+
 vi.mock("@aomi-labs/deploy/lifecycle", () => ({
-  deploymentLifecycleFromProject: () => ({
-    kind: "empty",
-    repo: "a/b",
-    statusLabel: "No deployment",
-    statusTone: "muted",
-    message: "No deployment recorded yet.",
-    appNames: [],
-    releaseTags: [],
-  }),
+  deploymentLifecycleFromProject: () => lifecycle,
 }));
 
 vi.mock("@build/features/operate/client", () => ({
@@ -67,6 +70,7 @@ describe("HomeTab", () => {
     operateFetch.mockResolvedValue({ daily: [] });
     (detail.source as { apps: unknown[] }).apps = [];
     (detail as { requiredSecrets: unknown }).requiredSecrets = null;
+    lifecycle = { ...emptyLifecycle };
   });
 
   it("shows status cards and a deploy next action when not live", async () => {
@@ -94,6 +98,67 @@ describe("HomeTab", () => {
       "/operate/usage?project=1",
     );
     expect(screen.queryByText("Monetization")).not.toBeInTheDocument();
+  });
+
+  it("offers to activate a built release rather than build it again", async () => {
+    lifecycle = {
+      ...emptyLifecycle,
+      kind: "build_ready",
+      statusLabel: "Build ready",
+      appNames: ["somm-agent"],
+      releaseTags: ["somm-agent-r1"],
+    };
+
+    renderTab(
+      <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
+    );
+
+    expect(
+      await screen.findByRole("link", { name: /activate build/i }),
+    ).toHaveAttribute("href", "/projects/1?tab=deployments");
+    expect(screen.getByText(/no rebuild needed/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /redeploy from linked repository/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("sends a blocked built release to Environment, not to another build", async () => {
+    lifecycle = {
+      ...emptyLifecycle,
+      kind: "build_ready",
+      statusLabel: "Build ready",
+      appNames: ["somm-agent"],
+      releaseTags: ["somm-agent-r1"],
+    };
+    (detail.source as { apps: unknown[] }).apps = [
+      { id: 17, name: "somm-agent" },
+    ];
+    (detail as { requiredSecrets: unknown }).requiredSecrets = {
+      "somm-agent": {
+        applicationId: 17,
+        slots: [{ name: "OPENAI_API_KEY" }],
+        missing: ["OPENAI_API_KEY"],
+      },
+    };
+
+    renderTab(
+      <HomeTab detail={detail} tabHref={(tab) => `/projects/1?tab=${tab}`} />,
+    );
+
+    // The next action and the environment status card both read "Open
+    // Environment" here; the copy is what identifies the next action.
+    const next = await screen.findByText(
+      /The build is ready and will be reused/,
+    );
+    expect(next).toBeInTheDocument();
+    for (const link of screen.getAllByRole("link", {
+      name: /open environment/i,
+    })) {
+      expect(link).toHaveAttribute("href", "/projects/1?tab=environment");
+    }
+    expect(
+      screen.queryByRole("link", { name: /redeploy from linked repository/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("warns with the app and key names when a required key is unset", async () => {

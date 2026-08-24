@@ -482,6 +482,105 @@ describe("DeploymentsTab", () => {
     expect(openEnvironment).toHaveBeenCalledOnce();
   });
 
+  it("offers to activate a built release without a second build", async () => {
+    const activateBuiltRelease = vi.fn(async () => {});
+    const built = {
+      ...makeDetail(),
+      // Built, and nothing live — what a required-secrets rejection leaves.
+      source: {
+        id: 1,
+        repositoryLink: "a/b",
+        apps: [{ name: "my-bot", isActive: false, appReleaseTag: null }],
+      },
+      builtRelease: { releaseTags: ["t-new"], apps: ["my-bot"] },
+      activateBuiltRelease,
+    } as unknown as typeof detail;
+
+    renderTab(<DeploymentsTab detail={built} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /activate build/i }));
+    await waitFor(() => expect(activateBuiltRelease).toHaveBeenCalledOnce());
+    expect(built.redeploySource).not.toHaveBeenCalled();
+  });
+
+  it("resumes the promotion the secrets gate rejected, reusing the build", async () => {
+    // The client-side gate passes and the authoritative write-time check is
+    // what rejects — the case that used to send a builder back to a rebuild.
+    const gated = vi.fn(async () => {
+      throw Object.assign(new Error("missing required secrets"), {
+        status: 409,
+        body: { missing: { "my-bot": ["PROVIDER_API_KEY"] } },
+      });
+    });
+    const noteMissingRequiredSecrets = vi.fn();
+    const setEnvVars = vi.fn(async () => ({ ok: true, keys: [] }));
+    const ensureRequiredSecrets = vi.fn(async () => {});
+    const base = {
+      ...makeDetail(),
+      promote: gated,
+      noteMissingRequiredSecrets,
+      setEnvVars,
+      ensureRequiredSecrets,
+    } as unknown as typeof detail;
+
+    const { rerender } = renderTab(<DeploymentsTab detail={base} />);
+    fireEvent.click(screen.getByRole("button", { name: /promote/i }));
+    const dialog = screen.getByRole("dialog", { name: /promote deployment/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /promote/i }));
+
+    await waitFor(() =>
+      expect(noteMissingRequiredSecrets).toHaveBeenCalledWith({
+        "my-bot": ["PROVIDER_API_KEY"],
+      }),
+    );
+    expect(
+      screen.getByText(/Set them below and this promotion resumes/),
+    ).toBeInTheDocument();
+
+    // The hook now reports the key the gate named. Re-render with it so the
+    // panel appears, exactly as `noteMissingRequiredSecrets` causes.
+    const succeeding = vi.fn(async () => ({
+      ok: true,
+      promote: {
+        deploymentId: "dep_1_ra_oldcommit1",
+        releaseTags: ["t-old"],
+        status: "promoted",
+      },
+    }));
+    const withGap = {
+      ...base,
+      promote: succeeding,
+      hasMissingSecrets: (app: string) => app === "my-bot",
+      requiredSecrets: {
+        "my-bot": {
+          applicationId: 17,
+          slots: [{ name: "PROVIDER_API_KEY", required: true }],
+          missing: ["PROVIDER_API_KEY"],
+        },
+      },
+    } as unknown as typeof detail;
+    rerender(
+      <ToastProvider>
+        <DeploymentsTab detail={withGap} />
+      </ToastProvider>,
+    );
+
+    fireEvent.change(screen.getByLabelText("my-bot PROVIDER_API_KEY"), {
+      target: { value: "sk-live" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save required secrets" }),
+    );
+
+    await waitFor(() => expect(succeeding).toHaveBeenCalledOnce());
+    expect(setEnvVars).toHaveBeenCalledWith(17, {
+      PROVIDER_API_KEY: "sk-live",
+    });
+    // Saving the key resumes the promotion and never reaches for the source
+    // repo — the release CI already built is what goes live.
+    expect(base.redeploySource).not.toHaveBeenCalled();
+  });
+
   it("retries a failed required-secret check without refreshing the page", async () => {
     const refreshRequiredSecrets = vi.fn(async () => ({}));
     const failedDetail = {

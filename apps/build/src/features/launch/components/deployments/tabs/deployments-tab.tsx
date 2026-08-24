@@ -46,6 +46,10 @@ export function DeploymentsTab({
   const [pending, setPending] = useState<Pending>(null);
   const [view, setView] = useState<View>("deployments");
   const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
+  // A promote the secrets gate rejected. Its release is already built and the
+  // gate's only complaint was a vault value, so once that value is saved the
+  // same promote can simply run — the user asked for it once already.
+  const [blockedPromoteId, setBlockedPromoteId] = useState<string | null>(null);
   const { loadHistory, loadRecords, loadRequiredSecrets } = detail;
 
   useEffect(() => {
@@ -208,17 +212,6 @@ export function DeploymentsTab({
       })),
   );
 
-  const saveRequiredSecrets = async (
-    valuesByApplication: Map<number, Record<string, string>>,
-  ) => {
-    await Promise.all(
-      Array.from(valuesByApplication, ([applicationId, values]) =>
-        detail.setEnvVars?.(applicationId, values),
-      ),
-    );
-    await detail.ensureRequiredSecrets?.(missingRequiredApps);
-  };
-
   if (!source) {
     return detail.loading ? (
       <LoadingPanel label="Loading project…" />
@@ -242,6 +235,7 @@ export function DeploymentsTab({
     });
     try {
       const result = await detail.promote(deploymentId);
+      setBlockedPromoteId(null);
       setOp({
         kind: "promote",
         deploymentId,
@@ -259,13 +253,16 @@ export function DeploymentsTab({
     } catch (err) {
       const missing = (err as { body?: { missing?: Record<string, string[]> } })
         .body?.missing;
-      if (missing) detail.noteMissingRequiredSecrets(missing);
+      if (missing) {
+        detail.noteMissingRequiredSecrets(missing);
+        setBlockedPromoteId(deploymentId);
+      }
       setOp({
         kind: "promote",
         deploymentId,
         status: "error",
         message: missing
-          ? "Required secrets are missing. Set them below before promoting."
+          ? "Required secrets are missing. Set them below and this promotion resumes — the build is reused."
           : err instanceof Error
             ? err.message
             : "Promote failed",
@@ -303,6 +300,35 @@ export function DeploymentsTab({
       toast({ title: "Failed. Retry", tone: "error" });
     }
   };
+
+  const saveRequiredSecrets = async (
+    valuesByApplication: Map<number, Record<string, string>>,
+  ) => {
+    await Promise.all(
+      Array.from(valuesByApplication, ([applicationId, values]) =>
+        detail.setEnvVars?.(applicationId, values),
+      ),
+    );
+    await detail.ensureRequiredSecrets?.(missingRequiredApps);
+    // The gate is clear, so finish what it interrupted. Only a promote the
+    // user already requested resumes on its own: activating is cheap but it
+    // makes an app live, which must never be a side effect of saving a key.
+    if (blockedPromoteId) {
+      const resume = blockedPromoteId;
+      setBlockedPromoteId(null);
+      await runPromote(resume);
+    }
+  };
+
+  const activateBuild = async () => {
+    setOp(null);
+    await detail.activateBuiltRelease();
+  };
+
+  // Offered only when a built release is actually waiting: `builtRelease` is
+  // derived from the project's own latest deployment, so it survives the
+  // reload that a gate rejection used to strand.
+  const canActivateBuild = Boolean(detail.builtRelease) && !status?.isLive;
 
   const historyCountLabel =
     deployments.length === 1
@@ -374,6 +400,18 @@ export function DeploymentsTab({
             >
               <PowerOff className="size-3.5" aria-hidden />
               Deactivate
+            </button>
+          )}
+          {canActivateBuild && (
+            <button
+              type="button"
+              disabled={deploying || secretsGateBlocked}
+              onClick={() => void activateBuild()}
+              className="border-border bg-surface-1 text-foreground hover:bg-accent-hover inline-flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-50"
+              title="Activate the release CI already built — no second build"
+            >
+              <Rocket className="size-3.5" aria-hidden />
+              {deploying ? "Activating…" : "Activate build"}
             </button>
           )}
           <div className="flex flex-col items-end gap-0.5">

@@ -367,6 +367,13 @@ describe("useProjectDetail", () => {
         message: expect.stringContaining("Set them in Environment"),
       }),
     );
+    // CI already published this release, and the secret the gate wants lives
+    // in the vault rather than in the artifact — so the build stays correct.
+    // Asking for another deploy would rebuild it for nothing.
+    expect(result.current.deployFlow.message).toContain(
+      "activate — the build is already done",
+    );
+    expect(result.current.deployFlow.message).not.toContain("deploy again");
     expect(result.current.requiredSecrets?.["my-bot"]).toMatchObject({
       applicationId: 17,
       missing: ["PROVIDER_API_KEY"],
@@ -397,5 +404,114 @@ describe("useProjectDetail", () => {
         "aomi-build:project:7:candidate-required-secrets",
       ),
     ).toBeNull();
+  });
+
+  it("activates a release CI already built instead of deploying again", async () => {
+    // A project whose latest deployment built and never went live — the state
+    // a required-secrets 409 leaves behind. It is read from the project itself,
+    // so it outlives the tab that hit the gate.
+    vi.mocked(deploymentProjects).mockResolvedValue({
+      projects: [
+        {
+          id: 7,
+          installationId: 5,
+          repositoryLink: "a/b",
+          platformName: "community",
+          apps: [{ id: 17, name: "my-bot", isActive: false }],
+          latestDeployment: {
+            deploymentId: "dep_1",
+            state: "ready",
+            ciStatus: "passed",
+            releaseTags: ["my-bot-r1"],
+            apps: [{ name: "my-bot", applicationId: 17, isActive: false }],
+            createdAt: 1,
+          },
+        },
+      ],
+    } as never);
+    vi.mocked(deploymentRequiredSecrets).mockResolvedValue({ byApp: {} });
+    vi.mocked(launchActivate).mockResolvedValue({
+      ok: true,
+      activation: {
+        apps: [{ name: "my-bot", applicationId: 17, loaded: true }],
+      },
+    } as never);
+
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() =>
+      expect(result.current.builtRelease).toEqual({
+        releaseTags: ["my-bot-r1"],
+        apps: ["my-bot"],
+      }),
+    );
+
+    await act(async () => {
+      await result.current.activateBuiltRelease();
+    });
+
+    expect(launchActivate).toHaveBeenCalledWith({
+      projectId: 7,
+      releaseTags: ["my-bot-r1"],
+      apps: ["my-bot"],
+    });
+    // The whole point: the existing artifact goes live with no second build.
+    expect(launchDeploy).not.toHaveBeenCalled();
+    expect(launchPreflight).not.toHaveBeenCalled();
+    expect(launchStatus).not.toHaveBeenCalled();
+    expect(result.current.deployFlow).toMatchObject({
+      phase: "done",
+      message: "New version is live.",
+    });
+  });
+
+  it("re-gates an activation of a built release and keeps its key names", async () => {
+    vi.mocked(deploymentProjects).mockResolvedValue({
+      projects: [
+        {
+          id: 7,
+          installationId: 5,
+          repositoryLink: "a/b",
+          platformName: "community",
+          apps: [{ id: 17, name: "my-bot", isActive: false }],
+          latestDeployment: {
+            deploymentId: "dep_1",
+            state: "ready",
+            ciStatus: "passed",
+            releaseTags: ["my-bot-r1"],
+            apps: [{ name: "my-bot", applicationId: 17, isActive: false }],
+            createdAt: 1,
+          },
+        },
+      ],
+    } as never);
+    vi.mocked(deploymentRequiredSecrets).mockResolvedValue({ byApp: {} });
+    vi.mocked(launchActivate).mockRejectedValue(
+      Object.assign(new Error("missing required secrets"), {
+        status: 409,
+        body: { missing: { "my-bot": ["PROVIDER_API_KEY"] } },
+      }),
+    );
+
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.builtRelease).not.toBeNull());
+
+    await act(async () => {
+      await result.current.activateBuiltRelease();
+    });
+
+    // Still a gate, and still no rebuild in the instruction.
+    expect(result.current.deployFlow).toMatchObject({
+      phase: "error",
+      message: expect.stringContaining("then activate"),
+    });
+    expect(result.current.requiredSecrets?.["my-bot"]).toMatchObject({
+      applicationId: 17,
+      missing: ["PROVIDER_API_KEY"],
+    });
+    expect(launchDeploy).not.toHaveBeenCalled();
   });
 });
