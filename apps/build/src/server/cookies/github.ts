@@ -48,7 +48,7 @@ export interface GitHubCliLoginRequest {
 }
 
 export type GitHubOAuthContinuation =
-  | { kind: "browser" }
+  | { kind: "browser"; returnTo?: string }
   | { kind: "claim"; projectId: number }
   | ({ kind: "cli" } & GitHubCliLoginRequest);
 
@@ -128,10 +128,22 @@ function sessionFromPayload(payload: {
   };
 }
 
-function cliContinuation(value: unknown): GitHubOAuthContinuation | null {
+function oauthContinuation(value: unknown): GitHubOAuthContinuation | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;
-  if (candidate.kind === "browser") return { kind: "browser" };
+  if (candidate.kind === "browser") {
+    if (candidate.returnTo === undefined) return { kind: "browser" };
+    if (
+      typeof candidate.returnTo !== "string" ||
+      candidate.returnTo.length > 2048 ||
+      !candidate.returnTo.startsWith("/") ||
+      candidate.returnTo.startsWith("//") ||
+      candidate.returnTo.includes("\\")
+    ) {
+      return null;
+    }
+    return { kind: "browser", returnTo: candidate.returnTo };
+  }
   if (
     candidate.kind === "claim" &&
     typeof candidate.projectId === "number" &&
@@ -182,7 +194,9 @@ export function setGitHubVisibilityGrantCookie(
 }
 
 export async function getGitHubVisibilityGrant(): Promise<string | null> {
-  return (await cookies()).get(GITHUB_VISIBILITY_GRANT_COOKIE)?.value?.trim() || null;
+  return (
+    (await cookies()).get(GITHUB_VISIBILITY_GRANT_COOKIE)?.value?.trim() || null
+  );
 }
 
 export async function issueGitHubCliSession(
@@ -233,7 +247,7 @@ export async function readGitHubOAuthRequest(
   token: string | undefined,
 ): Promise<GitHubOAuthRequest | null> {
   const payload = await verify(token, OAUTH_REQUEST_AUDIENCE);
-  const continuation = cliContinuation(payload?.continuation);
+  const continuation = oauthContinuation(payload?.continuation);
   if (
     !payload ||
     payload.kind !== "github_oauth_request" ||

@@ -6,6 +6,10 @@ import { GET } from "./route";
 
 const mocks = vi.hoisted(() => ({
   oauthState: undefined as string | undefined,
+  continuation: { kind: "browser" } as {
+    kind: "browser";
+    returnTo?: string;
+  },
   exchangeGitHubCode: vi.fn(),
   setGitHubSessionCookie: vi.fn(),
   observeFailure: vi.fn(),
@@ -35,7 +39,7 @@ vi.mock("@build/server/cookies/github", () => ({
     mocks.oauthState
       ? {
           oauthState: mocks.oauthState,
-          continuation: { kind: "browser" },
+          continuation: mocks.continuation,
         }
       : null,
   ),
@@ -45,6 +49,7 @@ vi.mock("@build/server/cookies/github", () => ({
 describe("GitHub callback route", () => {
   beforeEach(() => {
     mocks.oauthState = undefined;
+    mocks.continuation = { kind: "browser" };
     mocks.exchangeGitHubCode.mockReset();
     mocks.setGitHubSessionCookie.mockReset();
     mocks.observeFailure.mockReset();
@@ -71,8 +76,36 @@ describe("GitHub callback route", () => {
     expect(mocks.observeFailure).not.toHaveBeenCalled();
   });
 
+  it("keeps the selected platform when GitHub returns an OAuth error", async () => {
+    mocks.oauthState = "state-123";
+    mocks.continuation = {
+      kind: "browser",
+      returnTo:
+        "/operate/deployments/new?platform=world-market-apps&mode=import",
+    };
+
+    const res = await GET(
+      new Request(
+        "http://localhost:3000/api/bff/auth/github/callback?code=x&state=wrong",
+      ),
+    );
+    const location = new URL(res.headers.get("location") ?? "");
+    expect(location.pathname).toBe("/operate/deployments/new");
+    expect(location.searchParams.get("platform")).toBe("world-market-apps");
+    expect(location.searchParams.get("mode")).toBe("import");
+    expect(location.searchParams.get("launch")).toBe("github");
+    expect(location.searchParams.get("github_error")).toBe(
+      "invalid_oauth_state",
+    );
+  });
+
   it("exchanges GitHub code with the one-shot app and matching redirect URI", async () => {
     mocks.oauthState = "state-123";
+    mocks.continuation = {
+      kind: "browser",
+      returnTo:
+        "/operate/deployments/new?platform=world-market-apps&mode=import",
+    };
     mocks.exchangeGitHubCode.mockResolvedValue({
       githubUserId: "4738254",
       githubLogin: "han",
@@ -87,7 +120,9 @@ describe("GitHub callback route", () => {
 
     expect(res.status).toBe(307);
     const location = new URL(res.headers.get("location") ?? "");
-    expect(location.pathname).toBe("/operate/deployments");
+    expect(location.pathname).toBe("/operate/deployments/new");
+    expect(location.searchParams.get("platform")).toBe("world-market-apps");
+    expect(location.searchParams.get("mode")).toBe("import");
     expect(location.searchParams.get("launch")).toBe("github");
     expect(mocks.exchangeGitHubCode).toHaveBeenCalledWith({
       code: "code-123",

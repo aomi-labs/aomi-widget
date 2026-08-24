@@ -70,6 +70,33 @@ describe("GitHub CLI sessions", () => {
     await expect(readGitHubOAuthRequest(token)).resolves.toEqual(request);
   });
 
+  it("round-trips only local browser return locations", async () => {
+    const local = await issueGitHubOAuthRequest({
+      oauthState: "oauth-state",
+      continuation: {
+        kind: "browser",
+        returnTo:
+          "/operate/deployments/new?platform=world-market-apps&mode=import",
+      },
+    });
+    await expect(readGitHubOAuthRequest(local)).resolves.toMatchObject({
+      continuation: {
+        kind: "browser",
+        returnTo:
+          "/operate/deployments/new?platform=world-market-apps&mode=import",
+      },
+    });
+
+    const external = await issueGitHubOAuthRequest({
+      oauthState: "oauth-state",
+      continuation: {
+        kind: "browser",
+        returnTo: "//evil.example/steal",
+      },
+    });
+    await expect(readGitHubOAuthRequest(external)).resolves.toBeNull();
+  });
+
   it("makes repeated PKCE exchanges idempotent", async () => {
     const code = await issueGitHubCliExchange(session, "c".repeat(43));
     const first = await readGitHubCliExchange(code);
