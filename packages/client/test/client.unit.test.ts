@@ -459,7 +459,7 @@ describe("AomiClient app catalog", () => {
     vi.restoreAllMocks();
   });
 
-  it("passes platform filters and normalizes artifact readiness", async () => {
+  it("passes application and platform filters and normalizes artifact availability", async () => {
     const response = {
       ok: true,
       status: 200,
@@ -469,7 +469,8 @@ describe("AomiClient app catalog", () => {
           name: "somm-agent",
           application_id: 42,
           platform: "somm.finance",
-          artifact_ready: true,
+          artifact_ready: false,
+          artifact_status: "fetch_backoff",
         },
       ]),
     } as unknown as Response;
@@ -481,21 +482,59 @@ describe("AomiClient app catalog", () => {
       const client = new AomiClient({ baseUrl: "http://unit.test" });
 
       const apps = await client.getApps("session-1", {
+        applicationId: 42,
         platforms: ["somm.finance", "community"],
       });
 
       expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
-        "http://unit.test/api/thread/apps?platform=somm.finance&platform=community",
+        "http://unit.test/api/thread/apps?platform=somm.finance&platform=community&application_id=42",
       );
       expect(apps).toEqual([
         {
           name: "somm-agent",
           applicationId: 42,
           platform: "somm.finance",
-          artifactReady: true,
+          artifactReady: false,
+          artifactStatus: "fetch_backoff",
           secrets: [],
         },
       ]);
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("routes models and system events by application id", async () => {
+    const responses = [
+      {
+        ok: true,
+        status: 200,
+        json: vi.fn(async () => ["gpt-5"]),
+      },
+      {
+        ok: true,
+        status: 200,
+        json: vi.fn(async () => []),
+      },
+    ] as unknown as Response[];
+    const nativeFetch = vi.fn(async () => responses.shift() as Response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await client.getModels("session-1", { applicationId: 2936606 });
+      await client.getSystemEvents("session-1", 25, {
+        applicationId: 2936606,
+      });
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/thread/models?application_id=2936606",
+      );
+      expect(String(nativeFetch.mock.calls[1]?.[0])).toBe(
+        "http://unit.test/api/thread/events?count=25&application_id=2936606",
+      );
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }

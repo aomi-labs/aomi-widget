@@ -1302,7 +1302,7 @@ var init_sse = __esm({
 
 // src/app-descriptor.ts
 function normalizeAppDescriptor(item) {
-  var _a3, _b;
+  var _a3, _b, _c;
   if (typeof item === "string") {
     const name2 = item.trim();
     return name2 ? { name: name2 } : null;
@@ -1340,6 +1340,10 @@ function normalizeAppDescriptor(item) {
   } else if (typeof raw.artifact_ready === "boolean") {
     descriptor.artifactReady = raw.artifact_ready;
   }
+  const artifactStatus = (_c = raw.artifactStatus) != null ? _c : raw.artifact_status;
+  if (typeof artifactStatus === "string" && ARTIFACT_STATUSES.has(artifactStatus)) {
+    descriptor.artifactStatus = artifactStatus;
+  }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
   for (const key of [
     "id",
@@ -1347,15 +1351,22 @@ function normalizeAppDescriptor(item) {
     "app_release_tag",
     "is_active",
     "is_public",
-    "artifact_ready"
+    "artifact_ready",
+    "artifact_status"
   ]) {
     delete descriptor[key];
   }
   return descriptor;
 }
+var ARTIFACT_STATUSES;
 var init_app_descriptor = __esm({
   "src/app-descriptor.ts"() {
     "use strict";
+    ARTIFACT_STATUSES = /* @__PURE__ */ new Set([
+      "ready",
+      "pending",
+      "fetch_backoff"
+    ]);
   }
 });
 
@@ -11378,7 +11389,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.6.0",
+  version: "0.6.1",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

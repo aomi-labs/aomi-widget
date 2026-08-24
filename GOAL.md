@@ -1,5 +1,13 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Application-scoped discovery regressions
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-24** — keep
+hosted-app discovery, model discovery, and system-event requests pinned to the
+configured `application_id`, and normalize the backend's explicit artifact
+availability status for partner UIs. The client is patch-bumped to
+`@aomi-labs/client@0.6.1`; publishing is intentionally outside this PR.
+
 ## Chain logo refresh
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-21** — add

@@ -43,6 +43,7 @@ export type {
 
 export type {
   AomiAppDescriptor,
+  AomiArtifactStatus,
   AomiPlatformFilter,
   ApplicationId,
   AomiRequestOptions,
