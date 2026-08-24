@@ -136,10 +136,12 @@ export function pendingTxsFromBackendUserState(
     }
 
     const data = normalizePendingTxData(tx);
+    const from = normalizeMaybeAddress(tx.from);
     nextPendingTxs.push({
       id,
       kind: "transaction",
       txId: pendingId,
+      from,
       to,
       value: parseOptionalString(tx.value),
       data,
@@ -149,6 +151,7 @@ export function pendingTxsFromBackendUserState(
       payload: {
         pending_tx_id: pendingId,
         txId: pendingId,
+        from,
         to,
         value: parseOptionalString(tx.value),
         data,
