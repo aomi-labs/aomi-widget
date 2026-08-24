@@ -14,6 +14,11 @@
   - `DeployFlowState` variants now carry an optional `progress`; the hook also
     exposes `deployStartedAt`. `redeploySource` sets progress at every stage,
     including both activation-failure branches and the catch.
+  - The CI url is captured at the poll callback, not in `onProgress`:
+    `waitForDeploymentReady` throws on a terminal `failed`/`no_ci` status
+    before reporting progress, so a build that fails on its first poll would
+    otherwise reach the catch with `ciUrl: null` and lose the run link exactly
+    when it matters. Pinned by a hook test.
   - New `ui/deploy-progress-bar.tsx` renders the message, percent, mm:ss
     elapsed, a "CI run" link, and an accessible `role="progressbar"`; error
     turns the bar red and drops the percent. Replaces the old text-only line.

@@ -667,7 +667,14 @@ export function useProjectDetail(projectId: number) {
       let releaseTags = deployed.releaseTags;
       const apps = deployed.apps;
       const ready = await waitForDeploymentReady(
-        () => launchStatus(deploymentId, projectPlatform),
+        // Read the CI url here, not in `onProgress`: the watcher throws on a
+        // `failed`/`no_ci` status *before* reporting progress, and that poll is
+        // exactly the one whose run link the failure banner needs.
+        async () => {
+          const status = await launchStatus(deploymentId, projectPlatform);
+          ciUrl = status.ci?.url ?? ciUrl;
+          return status;
+        },
         {
           signal: controller.signal,
           intervalMs: DEPLOY_POLL_MS,
@@ -680,7 +687,6 @@ export function useProjectDetail(projectId: number) {
               : releaseTags;
             const { model, progress } = ciProgress(status, lastCompleted);
             lastCompleted = model.completed;
-            ciUrl = progress.ciUrl ?? ciUrl;
             if (status.state !== "ready") {
               setDeployFlow({
                 phase: "building",
