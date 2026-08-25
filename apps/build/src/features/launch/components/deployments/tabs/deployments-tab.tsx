@@ -13,6 +13,7 @@ import { DeploymentDetail } from "../ui/deployment-detail";
 import { RequiredSecretsPanel } from "@build/features/launch/components/required-secrets-panel";
 import { UpgradeConfirmDialog, UpgradeRail } from "../ui/upgrade-rail";
 import { LoadingPanel, EmptyPanel } from "../ui/state-panels";
+import { DeployProgressBar } from "../ui/deploy-progress-bar";
 import {
   buildActivityList,
   buildDeploymentList,
@@ -413,17 +414,10 @@ export function DeploymentsTab({
         onDismiss={upgrade.dismiss}
       />
 
-      {detail.deployFlow.phase !== "idle" && (
-        <div
-          className={`border-border border-b px-4 py-2 text-xs ${
-            detail.deployFlow.phase === "error"
-              ? "text-destructive"
-              : "text-dim"
-          }`}
-        >
-          {detail.deployFlow.message}
-        </div>
-      )}
+      <DeployProgressBar
+        deployFlow={detail.deployFlow}
+        startedAt={detail.deployStartedAt ?? null}
+      />
 
       {deactivated && (
         <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-2 border-b px-4 py-2 text-xs">

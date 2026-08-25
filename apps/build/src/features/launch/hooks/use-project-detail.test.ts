@@ -329,6 +329,45 @@ describe("useProjectDetail", () => {
     );
   });
 
+  it("keeps the CI run link when the first poll already reports failure", async () => {
+    vi.mocked(launchPreflight).mockResolvedValue({
+      projectId: 7,
+      sourceRef: "abc1234",
+      apps: ["my-bot"],
+    } as never);
+    vi.mocked(deploymentRequiredSecrets).mockResolvedValue({ byApp: {} });
+    vi.mocked(launchDeploy).mockResolvedValue({
+      deployment: { id: "dep_1" },
+      releaseTags: ["my-bot-r1"],
+      apps: ["my-bot"],
+    } as never);
+    // `waitForDeploymentReady` throws on a terminal status *before* it reports
+    // progress, so the url has to be captured at the poll, not in onProgress.
+    vi.mocked(launchStatus).mockResolvedValue({
+      state: "failed",
+      releaseTags: [],
+      message: "Deploy CI failed.",
+      ci: { url: "https://github.com/a/b/actions/runs/1" },
+    } as never);
+
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.source?.id).toBe(7));
+
+    await act(async () => {
+      await result.current.redeploySource();
+    });
+
+    await waitFor(() =>
+      expect(result.current.deployFlow).toMatchObject({
+        phase: "error",
+        message: "Deploy CI failed.",
+        progress: { ciUrl: "https://github.com/a/b/actions/runs/1" },
+      }),
+    );
+  });
+
   it("keeps a candidate release's 409 requirements visible and editable", async () => {
     vi.mocked(launchPreflight).mockResolvedValue({
       projectId: 7,

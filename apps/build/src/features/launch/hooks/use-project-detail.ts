@@ -43,6 +43,11 @@ import type {
 import { isRetryableLaunchError } from "@aomi-labs/deploy/launch";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
 import {
+  ciProgress,
+  stageProgress,
+  type DeployFlowProgress,
+} from "@build/features/launch/components/deployments/deploy-flow-progress";
+import {
   buildQueryKeys,
   buildQueryStaleTime,
   githubAccountKey,
@@ -51,11 +56,11 @@ import {
 /** Progress of an in-flight linked-source redeploy (deploy → CI → activate). */
 export type DeployFlowState =
   | { phase: "idle" }
-  | { phase: "deploying"; message: string }
-  | { phase: "building"; message: string }
-  | { phase: "activating"; message: string }
-  | { phase: "done"; message: string }
-  | { phase: "error"; message: string };
+  | { phase: "deploying"; message: string; progress?: DeployFlowProgress }
+  | { phase: "building"; message: string; progress?: DeployFlowProgress }
+  | { phase: "activating"; message: string; progress?: DeployFlowProgress }
+  | { phase: "done"; message: string; progress?: DeployFlowProgress }
+  | { phase: "error"; message: string; progress?: DeployFlowProgress };
 
 const DEPLOY_POLL_MS = 4000;
 const DEPLOYMENT_READY_TIMEOUT_MS = 8 * 60 * 1000;
@@ -251,6 +256,8 @@ export function useProjectDetail(projectId: number) {
   const [deployFlow, setDeployFlow] = useState<DeployFlowState>({
     phase: "idle",
   });
+  /** Epoch ms the current deploy started, for the progress bar's clock. */
+  const [deployStartedAt, setDeployStartedAt] = useState<number | null>(null);
   const historyReq = useRef(false);
   const secretsReq = useRef<Set<number>>(new Set());
   const recordsReq = useRef(false);
@@ -304,6 +311,7 @@ export function useProjectDetail(projectId: number) {
     gateMissingSecretsRef.current = {};
     setRequiredSecretsError(null);
     setDeployFlow({ phase: "idle" });
+    setDeployStartedAt(null);
     deployAbortRef.current?.abort();
     deployAbortRef.current = null;
   }, [projectId]);
@@ -613,10 +621,17 @@ export function useProjectDetail(projectId: number) {
       deployAbortRef.current = null;
       return;
     }
+    const startedAt = Date.now();
+    setDeployStartedAt(startedAt);
+    // CI progress is monotonic within one deploy: a transient `no_ci`/`failed`
+    // poll reports the last completed step rather than snapping the bar back.
+    let lastCompleted = 0;
+    let ciUrl: string | null = null;
     try {
       setDeployFlow({
         phase: "deploying",
         message: "Resolving latest commit…",
+        progress: stageProgress("deploying", "Resolving commit"),
       });
       const pre = await launchPreflight({
         repo,
@@ -637,7 +652,11 @@ export function useProjectDetail(projectId: number) {
       if (!pre.sourceRef) {
         throw new Error("Preflight did not return an immutable source commit.");
       }
-      setDeployFlow({ phase: "deploying", message: "Deploying new version…" });
+      setDeployFlow({
+        phase: "deploying",
+        message: "Deploying new version…",
+        progress: stageProgress("deploying", "Dispatching build"),
+      });
       const deployed = await launchDeploy({
         projectId: targetProjectId,
         sourceRef: pre.sourceRef,
@@ -648,7 +667,14 @@ export function useProjectDetail(projectId: number) {
       let releaseTags = deployed.releaseTags;
       const apps = deployed.apps;
       const ready = await waitForDeploymentReady(
-        () => launchStatus(deploymentId, projectPlatform),
+        // Read the CI url here, not in `onProgress`: the watcher throws on a
+        // `failed`/`no_ci` status *before* reporting progress, and that poll is
+        // exactly the one whose run link the failure banner needs.
+        async () => {
+          const status = await launchStatus(deploymentId, projectPlatform);
+          ciUrl = status.ci?.url ?? ciUrl;
+          return status;
+        },
         {
           signal: controller.signal,
           intervalMs: DEPLOY_POLL_MS,
@@ -659,10 +685,13 @@ export function useProjectDetail(projectId: number) {
             releaseTags = status.releaseTags?.length
               ? status.releaseTags
               : releaseTags;
+            const { model, progress } = ciProgress(status, lastCompleted);
+            lastCompleted = model.completed;
             if (status.state !== "ready") {
               setDeployFlow({
                 phase: "building",
                 message: `Building… (${status.state})`,
+                progress: { ...progress, ciUrl },
               });
             }
           },
@@ -671,7 +700,11 @@ export function useProjectDetail(projectId: number) {
       releaseTags = ready.releaseTags?.length ? ready.releaseTags : releaseTags;
       if (!isCurrent()) return;
 
-      setDeployFlow({ phase: "activating", message: "Activating release…" });
+      setDeployFlow({
+        phase: "activating",
+        message: "Activating release…",
+        progress: stageProgress("activating", "Activating release", ciUrl),
+      });
       // Activate the SAME project the deploy targeted — `targetProjectId`
       // is preflight-resolved and can differ from the page's `projectId`.
       const activated = await launchActivate({
@@ -689,6 +722,7 @@ export function useProjectDetail(projectId: number) {
         setDeployFlow({
           phase: "error",
           message: failed?.error ?? "Activation was not accepted.",
+          progress: stageProgress("activating", "Activation failed", ciUrl),
         });
         return;
       }
@@ -696,6 +730,7 @@ export function useProjectDetail(projectId: number) {
         setDeployFlow({
           phase: "error",
           message: "Activation returned no application statuses.",
+          progress: stageProgress("activating", "Activation failed", ciUrl),
         });
         return;
       }
@@ -704,6 +739,7 @@ export function useProjectDetail(projectId: number) {
         setDeployFlow({
           phase: "activating",
           message: "Loading app runtime…",
+          progress: stageProgress("activating", "Loading app runtime", ciUrl),
         });
         try {
           await waitForAppsToLoad(
@@ -722,6 +758,11 @@ export function useProjectDetail(projectId: number) {
                   setDeployFlow({
                     phase: "activating",
                     message: `Loading app runtime… (${ready}/${total})`,
+                    progress: stageProgress(
+                      "activating",
+                      `Loading app runtime (${ready}/${total})`,
+                      ciUrl,
+                    ),
                   });
                 }
               },
@@ -733,7 +774,11 @@ export function useProjectDetail(projectId: number) {
         }
         if (!isCurrent()) return;
       }
-      setDeployFlow({ phase: "done", message: "New version is live." });
+      setDeployFlow({
+        phase: "done",
+        message: "New version is live.",
+        progress: stageProgress("done", "Live", ciUrl),
+      });
       await reload();
       if (!isCurrent()) return;
       refreshRecords();
@@ -748,6 +793,7 @@ export function useProjectDetail(projectId: number) {
           : err instanceof Error
             ? err.message
             : "Deploy failed",
+        progress: { percent: 100, label: "Deploy failed", ciUrl },
       });
     } finally {
       if (deployAbortRef.current === controller) deployAbortRef.current = null;
@@ -791,6 +837,7 @@ export function useProjectDetail(projectId: number) {
     requiredSecretsError,
     requiredSecretsRetryable,
     deployFlow,
+    deployStartedAt,
     loadHistory,
     loadSecrets,
     loadRequiredSecrets,

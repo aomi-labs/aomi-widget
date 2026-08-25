@@ -26,6 +26,7 @@ export type PendingTx = {
   kind: "transaction" | "eip712_sign";
   txId?: number;
   eip712Id?: number;
+  from?: string;
   to?: string;
   value?: string;
   data?: string;
