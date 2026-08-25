@@ -118,14 +118,6 @@ export type AomiRuntimeApi = {
   // -------------------------------------------------------------------------
   /** Subscribe to inbound events by type. Returns unsubscribe function. */
   subscribe: (type: string, callback: EventSubscriber) => () => void;
-  /** Send a system command to the backend */
-  sendSystemCommand: (event: {
-    type: string;
-    sessionId: string;
-    payload: unknown;
-  }) => Promise<void>;
-  /** Record ephemeral UI context for the next model turn on the active thread. */
-  recordUiInteraction: (payload: unknown) => Promise<void>;
   /** Current SSE connection status */
   sseStatus: SSEStatus;
 };
@@ -166,7 +158,7 @@ export const AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
  *   const { showNotification } = aomi;
  *
  *   // Event API
- *   const { subscribe, sendSystemCommand, recordUiInteraction } = aomi;
+ *   const { subscribe } = aomi;
  * }
  * ```
  */

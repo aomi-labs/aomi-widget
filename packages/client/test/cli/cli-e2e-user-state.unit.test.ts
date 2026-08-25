@@ -36,11 +36,9 @@ function fakeClient(): AomiClient {
 
 function makeSession(initialUserState?: ReturnType<typeof buildCliUserState>) {
   return new ClientSession(fakeClient(), {
-    transport: "legacy",
     sessionId: "test-session",
     clientId: "test-client",
     app: "default",
-    publicKey: EOA,
     userState: initialUserState,
     clientType: CLIENT_TYPE_TS_CLI,
   });

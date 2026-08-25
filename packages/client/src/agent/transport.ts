@@ -103,6 +103,17 @@ export class AgentSessionsTransport {
     });
   }
 
+  async all(): Promise<AgentSessionRecord[]> {
+    const sessions: AgentSessionRecord[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await this.list({ cursor, limit: 100 });
+      sessions.push(...page.sessions);
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    return sessions;
+  }
+
   get(sessionId: string): Promise<AgentSessionRecord> {
     return this.json(
       "GET",

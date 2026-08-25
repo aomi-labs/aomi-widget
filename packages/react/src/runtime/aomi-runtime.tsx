@@ -157,10 +157,7 @@ function AomiRuntimeInner({
       appPlatforms={appPlatforms}
       applicationId={applicationId}
     >
-      <EventContextProvider
-        aomiClient={aomiClient}
-        sessionId={threadContext.currentThreadId}
-      >
+      <EventContextProvider>
         <AomiRuntimeCore
           aomiClient={aomiClient}
           applicationId={applicationId}

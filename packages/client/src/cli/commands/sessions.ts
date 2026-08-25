@@ -47,7 +47,7 @@ async function fetchRemoteSessionStats(
       topic: delta.title ?? "Untitled Session",
       messageCount: messages.length,
       tokenCountEstimate: estimateTokenCount(messages),
-      toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length,
+      toolCalls: delta.messages.filter((message) => message.toolResult).length,
       pendingTxs: record.state.pendingTxs ?? [],
     };
   } catch {

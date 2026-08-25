@@ -1,5 +1,25 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Canonical Agent/Pipeline ownership cleanup
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-25** — make
+Rust api-server the only public Agent/Pipeline protocol owner. Portal now limits
+Pipeline MCP to exact-resource OAuth/DPoP authentication, principal narrowing,
+and a thin proxy; its parallel registry, projection, payment, and execution
+implementation is gone. The shared client, CLI, and React runtime use only the
+generated Agent v1 transport and session API, with old chat/state/interrupt,
+thread CRUD, SSE, rollback selectors, DTOs, and callbacks removed. Client and
+React are patch-bumped to `0.6.5`, required distributable output is rebuilt,
+and the generated contract is pinned to the cumulative backend stack head.
+Client, React, Portal, Landing, and Telegram typechecks; package builds; 340
+retained client/React/Portal tests (with 15 existing integration skips); lint;
+and the Agent API drift check pass. The final integrated gate additionally ran
+all 1,330 retained workspace tests (16 intentional skips), production builds
+for Portal, Landing, and Telegram, rendered Portal/BFF smoke, both authenticated
+MCP protocols, and the built CLI lifecycle. That CLI run found and fixed a
+session persistence bug: creating a second session now retains the first record
+instead of overwriting it, so resume and delete work across both sessions.
+
 ## Codex worktree local environment parity
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** — copy

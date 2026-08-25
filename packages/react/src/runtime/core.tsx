@@ -133,11 +133,7 @@ export function AomiRuntimeCore({
     getApp: getCurrentThreadApp,
     getModel: () => getCurrentThreadControl().model,
     getApplicationId: () => getCurrentThreadApplicationId() ?? applicationId,
-    getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
-    prepareThreadForSend: async (threadId) => {
-      await prepareBackendThread(threadId);
-    },
     onSendSuccess: (threadId) => {
       const wasRemote = remoteThreadIdsRef.current.has(threadId);
       remoteThreadIdsRef.current.add(threadId);
@@ -181,59 +177,18 @@ export function AomiRuntimeCore({
   const remoteThreadIdsRef = useRef(new Set<string>());
   const warmedThreadIdsRef = useRef(new Set<string>());
   const warmPromisesRef = useRef(new Map<string, Promise<void>>());
-  const preparePromisesRef = useRef(new Map<string, Promise<void>>());
   const [isThreadLoading, setIsThreadLoading] = useState(false);
 
-  const warmThread = useCallback(
-    async (threadId: string) => {
-      if (
-        !remoteThreadIdsRef.current.has(threadId) ||
-        warmedThreadIdsRef.current.has(threadId)
-      ) {
-        return;
-      }
+  const warmThread = useCallback(async (threadId: string) => {
+    if (
+      !remoteThreadIdsRef.current.has(threadId) ||
+      warmedThreadIdsRef.current.has(threadId)
+    ) {
+      return;
+    }
 
-      await runSingleFlight(warmPromisesRef.current, threadId, async () => {
-        await aomiClientRef.current.createThread(threadId);
-        warmedThreadIdsRef.current.add(threadId);
-      });
-    },
-    [aomiClientRef],
-  );
-
-  // ---------------------------------------------------------------------------
-  // Ensure backend thread exists (lazy creation on first message send)
-  // ---------------------------------------------------------------------------
-  const ensureBackendThread = useCallback(
-    async (threadId: string) => {
-      if (remoteThreadIdsRef.current.has(threadId)) return;
-
-      await runSingleFlight(warmPromisesRef.current, threadId, async () => {
-        // This is a local prewarm seam. The first canonical Agent start creates
-        // the remote session and carries model/app in that same request.
-        const control =
-          threadContextRef.current.getThreadMetadata(threadId)?.control;
-        await aomiClientRef.current.createThread(threadId, {
-          rig: control?.model ?? undefined,
-          app: control?.app ?? undefined,
-          applicationId: control?.applicationId ?? undefined,
-          clientId: getControlState().clientId ?? undefined,
-        });
-        remoteThreadIdsRef.current.add(threadId);
-        warmedThreadIdsRef.current.add(threadId);
-      });
-    },
-    [aomiClientRef, getControlState],
-  );
-
-  const prepareBackendThread = useCallback(
-    async (threadId: string) => {
-      await runSingleFlight(preparePromisesRef.current, threadId, async () => {
-        await ensureBackendThread(threadId);
-      });
-    },
-    [ensureBackendThread],
-  );
+    warmedThreadIdsRef.current.add(threadId);
+  }, []);
 
   const getRuntimeSession = useCallback(
     (threadId: string) =>
@@ -271,55 +226,6 @@ export function AomiRuntimeCore({
     accountSessionAvailable,
     threadPersistence,
   });
-  const activeThreadControl = threadContext.getThreadMetadata(
-    threadContext.currentThreadId,
-  )?.control;
-
-  // Materialize the active empty draft as soon as account/thread hydration has
-  // settled. Send awaits this same promise, so a fast submit never duplicates
-  // create/model work. A failed speculative warm remains retryable on send.
-  useEffect(() => {
-    if (isThreadListLoading) return;
-    const threadId = threadContext.currentThreadId;
-    if (
-      remoteThreadIdsRef.current.has(threadId) &&
-      !activeThreadControl?.controlDirty
-    ) {
-      return;
-    }
-    if (
-      accountSessionAvailable &&
-      threadListError &&
-      restoredThreadId === threadId
-    ) {
-      // Never recreate an unverified persisted id after account-list failure;
-      // that could cross an authenticated identity boundary.
-      return;
-    }
-
-    let cancelled = false;
-    void prepareBackendThread(threadId).catch((error) => {
-      if (!cancelled) {
-        console.debug("Thread prewarm deferred until send:", error);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    accountSessionAvailable,
-    activeThreadControl?.app,
-    activeThreadControl?.applicationId,
-    activeThreadControl?.controlDirty,
-    activeThreadControl?.model,
-    isThreadListLoading,
-    prepareBackendThread,
-    restoredThreadId,
-    threadContext.currentThreadId,
-    threadListError,
-  ]);
-
   // ---------------------------------------------------------------------------
   // Initial state fetch on thread change (skip for local-only threads)
   // ---------------------------------------------------------------------------
@@ -536,7 +442,6 @@ export function AomiRuntimeCore({
   useEffect(() => {
     return () => {
       warmPromisesRef.current.clear();
-      preparePromisesRef.current.clear();
       closeAllSessions();
     };
   }, [closeAllSessions]);
@@ -665,13 +570,6 @@ export function AomiRuntimeCore({
 
       // Event API
       subscribe: eventContext.subscribe,
-      sendSystemCommand: eventContext.sendOutboundSystem,
-      recordUiInteraction: (payload) =>
-        eventContext.sendOutboundSystem({
-          type: "ui_interaction",
-          sessionId: threadContext.currentThreadId,
-          payload,
-        }),
       sseStatus: eventContext.sseStatus,
     }),
     [

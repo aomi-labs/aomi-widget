@@ -85,7 +85,7 @@ export class CliSession {
   static create(
     config: CliConfig,
     seed?: CliSessionState,
-    sessionId = crypto.randomUUID(),
+    sessionId: string = crypto.randomUUID(),
   ): CliSession {
     // Derive Solana public key from private key when provided.
     let svmPublicKey: string | undefined;
@@ -669,8 +669,6 @@ export class CliSession {
         app: this.state.app,
         model: config?.model ?? this.state.model,
         applicationId: config?.applicationId,
-        apiKey: this.state.apiKey,
-        paymentMethod: config?.paymentMethod,
       },
     );
     session.resolveUserState(

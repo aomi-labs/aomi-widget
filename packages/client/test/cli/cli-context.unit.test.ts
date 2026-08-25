@@ -7,7 +7,7 @@ describe("CLI control client", () => {
     vi.unstubAllGlobals();
   });
 
-  it("gives an explicit account bearer precedence over persisted auth", async () => {
+  it("never sends an account bearer to the public Pipeline resource", async () => {
     const request = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ returned: 0, apps: [] }), {
         status: 200,
@@ -23,6 +23,6 @@ describe("CLI control client", () => {
     }).pipeline.listApps();
 
     const headers = new Headers(request.mock.calls[0]?.[1]?.headers);
-    expect(headers.get("authorization")).toBe("Bearer explicit-bearer");
+    expect(headers.get("authorization")).toBeNull();
   });
 });

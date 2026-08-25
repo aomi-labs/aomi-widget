@@ -1,4 +1,4 @@
-import type { UserState } from "./user-state";
+import type { AgentActivity } from "./agent/types";
 import type { AomiOAuthTokenProvider } from "./authorization";
 import type { GuestSessionProvider } from "./guest-auth";
 
@@ -132,44 +132,6 @@ export interface AomiMessage {
   tool_arguments?: unknown;
 }
 
-// =============================================================================
-// API Response Types
-// =============================================================================
-
-/**
- * GET /api/thread/state
- * Fetches current session state including messages and processing status
- */
-export interface AomiStateResponse {
-  messages?: AomiMessage[] | null;
-  system_events?: AomiSystemEvent[] | null;
-  title?: string | null;
-  is_processing?: boolean;
-  user_state?: UserState | null;
-}
-
-/**
- * POST /api/thread/chat
- * Sends a chat message and returns updated session state
- */
-export interface AomiChatResponse {
-  messages?: AomiMessage[] | null;
-  system_events?: AomiSystemEvent[] | null;
-  title?: string | null;
-  is_processing?: boolean;
-  user_state?: UserState | null;
-  /** @deprecated Retained for compatibility with backends that return turn correlation metadata. */
-  turn_id?: string | null;
-}
-
-/**
- * POST /api/system
- * Sends a system message and returns the response message
- */
-export interface AomiSystemResponse {
-  res?: AomiMessage | null;
-}
-
 /**
  * POST /api/exec/simulate
  * Batch-simulate pending transactions atomically (snapshot → sequential send → revert).
@@ -203,39 +165,7 @@ export interface AomiSimulateResponse {
   };
 }
 
-/**
- * POST /api/thread/interrupt
- * Interrupts current processing and returns updated session state
- */
-export type AomiInterruptResponse = AomiChatResponse;
-
-/**
- * GET /api/threads
- * Returns array of AomiThread
- */
-export interface AomiThread {
-  thread_id?: string;
-  session_id: string;
-  title: string | null;
-  is_archived?: boolean;
-  last_active_at?: number;
-}
-
 export type AomiAccountResponse = AomiAccountProfile;
-
-/**
- * POST /api/threads
- * Creates a new thread/session
- */
-export interface AomiCreateThreadResponse {
-  thread_id?: string;
-  session_id: string;
-  title?: string | null;
-  /** Bound rig slug — present only when the create carried `rig` (fast path). */
-  rig?: string;
-  /** Bound baml client — present only on the create fast path. */
-  baml?: string;
-}
 
 /**
  * GET /api/account
@@ -350,30 +280,6 @@ export interface AomiDeleteByokKeyResponse {
 }
 
 // =============================================================================
-// SSE Event Types (/api/thread/updates)
-// =============================================================================
-
-/**
- * Base SSE event. Newer backends may include `thread_id`; `session_id` stays
- * optional for SDK compatibility with existing consumers.
- */
-export type AomiSSEEvent = {
-  type:
-    | "title_changed"
-    | "tool_update"
-    | "tool_complete"
-    | "system_notice"
-    | "task_started"
-    | "task_activity"
-    | "task_completed"
-    | string;
-  session_id?: string;
-  thread_id?: string;
-  new_title?: string;
-  [key: string]: unknown;
-};
-
-// =============================================================================
 // Orchestrator delegation events (emitted on the mother thread's event bus)
 // =============================================================================
 
@@ -465,7 +371,7 @@ const asString = (value: unknown): string | undefined =>
  * backend event degrades to "no row" instead of a half-built one.
  */
 export function parseAomiTaskEvent(
-  event: AomiSSEEvent | AomiTaskEvent,
+  event: AgentActivity | AomiTaskEvent,
 ): AomiTaskEvent | null {
   const raw = event as Record<string, unknown>;
   const type = asString(raw.type);
@@ -610,56 +516,4 @@ export interface AomiAppDescriptor {
   isPublic?: boolean | null;
   artifactReady?: boolean | null;
   secrets?: AomiSecretSlot[];
-}
-
-export type AomiSSEEventType =
-  | "title_changed"
-  | "tool_update"
-  | "tool_complete"
-  | "system_notice"
-  | AomiTaskEventType;
-
-// =============================================================================
-// System Events (/api/thread/events)
-// =============================================================================
-
-/**
- * Backend SystemEvent enum serializes as tagged JSON:
- * - InlineCall: {"InlineCall": {"type": "wallet_tx_request", "payload": {...}}}
- * - SystemNotice: {"SystemNotice": "message"}
- * - SystemError: {"SystemError": "message"}
- * - AsyncCallback: {"AsyncCallback": {...}} (not sent over HTTP)
- */
-export type AomiSystemEvent =
-  | { InlineCall: { type: string; payload?: unknown; [key: string]: unknown } }
-  | { SystemNotice: string }
-  | { SystemError: string }
-  | { AsyncCallback: Record<string, unknown> };
-
-// =============================================================================
-// Type Guards
-// =============================================================================
-
-export function isInlineCall(
-  event: AomiSystemEvent,
-): event is { InlineCall: { type: string; payload?: unknown } } {
-  return "InlineCall" in event;
-}
-
-export function isSystemNotice(
-  event: AomiSystemEvent,
-): event is { SystemNotice: string } {
-  return "SystemNotice" in event;
-}
-
-export function isSystemError(
-  event: AomiSystemEvent,
-): event is { SystemError: string } {
-  return "SystemError" in event;
-}
-
-export function isAsyncCallback(
-  event: AomiSystemEvent,
-): event is { AsyncCallback: Record<string, unknown> } {
-  return "AsyncCallback" in event;
 }

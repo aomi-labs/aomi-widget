@@ -152,7 +152,9 @@ export function buildThreadListAdapter({
       });
 
       try {
-        await aomiClientRef.current.renameThread(threadId, newTitle);
+        await aomiClientRef.current.agent.sessions.update(threadId, {
+          title: newTitle,
+        });
       } catch (error) {
         console.error("Failed to rename thread:", error);
         threadContext.updateThreadMetadata(threadId, {
@@ -165,7 +167,9 @@ export function buildThreadListAdapter({
       threadContext.updateThreadMetadata(threadId, { status: "archived" });
 
       try {
-        await aomiClientRef.current.archiveThread(threadId);
+        await aomiClientRef.current.agent.sessions.update(threadId, {
+          archived: true,
+        });
       } catch (error) {
         console.error("Failed to archive thread:", error);
         threadContext.updateThreadMetadata(threadId, { status: "regular" });
@@ -176,7 +180,9 @@ export function buildThreadListAdapter({
       threadContext.updateThreadMetadata(threadId, { status: "regular" });
 
       try {
-        await aomiClientRef.current.unarchiveThread(threadId);
+        await aomiClientRef.current.agent.sessions.update(threadId, {
+          archived: false,
+        });
       } catch (error) {
         console.error("Failed to unarchive thread:", error);
         threadContext.updateThreadMetadata(threadId, { status: "archived" });
@@ -185,7 +191,7 @@ export function buildThreadListAdapter({
 
     onDelete: async (threadId: string) => {
       try {
-        await aomiClientRef.current.deleteThread(threadId);
+        await aomiClientRef.current.agent.sessions.delete(threadId);
 
         threadContext.setThreadMetadata((prev) => {
           const next = new Map(prev);

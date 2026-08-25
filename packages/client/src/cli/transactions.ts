@@ -33,8 +33,7 @@ export function walletRequestToPendingTx(
     const signable = request.payload.payloads[0];
     if (
       !signable ||
-      (signable.kind !== "evm_personal" &&
-        signable.kind !== "evm_typed_data")
+      (signable.kind !== "evm_personal" && signable.kind !== "evm_typed_data")
     ) {
       return null;
     }
@@ -46,8 +45,7 @@ export function walletRequestToPendingTx(
       ...(signable.kind === "evm_personal"
         ? { non_typed_data: signable.message }
         : {
-            typed_data:
-              signable.typedData as WalletEip712Payload["typed_data"],
+            typed_data: signable.typedData as WalletEip712Payload["typed_data"],
           }),
     };
     return {
@@ -101,26 +99,7 @@ export function walletRequestToPendingSolTx(
     }
     return null;
   }
-  if (request.kind === "solana_sign_message") {
-    const payload = request.payload as WalletSolanaSignMessagePayload;
-    if (
-      payload.pendingSolanaId === undefined ||
-      payload.message === undefined
-    ) {
-      return null;
-    }
-    return {
-      solanaId: payload.pendingSolanaId,
-      requestKind: request.kind,
-      message: payload.message,
-      cluster: payload.cluster,
-      description: payload.description,
-      timestamp: request.timestamp,
-      payload: request.payload as unknown as Record<string, unknown>,
-    };
-  }
   if (
-    request.kind !== "solana_sign" &&
     request.kind !== "solana_send" &&
     request.kind !== "solana_sign_and_send"
   ) {

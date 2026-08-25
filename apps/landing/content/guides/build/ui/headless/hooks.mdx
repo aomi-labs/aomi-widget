@@ -54,7 +54,6 @@ function MyComponent() {
 
   // Event API
   aomi.subscribe("event_type", callback);  // returns unsubscribe fn
-  await aomi.sendSystemCommand({ type, sessionId, payload });
   aomi.sseStatus;              // "connected" | "connecting" | "disconnected"
 }
 ```
@@ -100,7 +99,6 @@ type AomiRuntimeApi = {
 
   // Events
   subscribe: (type: string, cb: EventSubscriber) => () => void;
-  sendSystemCommand: (event: Omit<OutboundEvent, "timestamp">) => Promise<void>;
   sseStatus: SSEStatus;
 };
 ```
@@ -118,10 +116,10 @@ function WalletStatus() {
   const { user, setUser, getUserState, onUserStateChange } = useUser();
 
   // Read state
-  user.address;      // "0xABC..." | undefined
-  user.chainId;      // 1 | undefined
-  user.isConnected;  // boolean
-  user.ensName;      // "vitalik.eth" | undefined
+  user.address; // "0xABC..." | undefined
+  user.chainId; // 1 | undefined
+  user.isConnected; // boolean
+  user.ensName; // "vitalik.eth" | undefined
 
   // Update state (partial merge)
   setUser({ address: "0x...", chainId: 1, isConnected: true });
@@ -162,8 +160,8 @@ function ThreadManager() {
     setCurrentThreadId,
     threadViewKey,
     bumpThreadViewKey,
-    allThreads,             // Map<string, ThreadMessageLike[]>
-    allThreadsMetadata,     // Map<string, ThreadMetadata>
+    allThreads, // Map<string, ThreadMessageLike[]>
+    allThreadsMetadata, // Map<string, ThreadMetadata>
     getThreadMessages,
     setThreadMessages,
     getThreadMetadata,
@@ -205,29 +203,29 @@ import { useControl } from "@aomi-labs/react";
 
 function ControlPanel() {
   const {
-    state,                    // ControlState
-    setApiKey,                // (apiKey: string | null) => void
-    getAvailableModels,       // () => Promise<string[]>
-    getAuthorizedApps,        // () => Promise<string[]>
-    onModelSelect,            // (model: string) => Promise<void>
-    onAppSelect,              // (app: string) => void
-    getCurrentThreadControl,  // () => ThreadControlState
-    isProcessing,             // boolean
-    getControlState,          // () => ControlState (synchronous)
-    onControlStateChange,     // (cb) => unsubscribe
+    state, // ControlState
+    setApiKey, // (apiKey: string | null) => void
+    getAvailableModels, // () => Promise<string[]>
+    getAuthorizedApps, // () => Promise<string[]>
+    onModelSelect, // (model: string) => Promise<void>
+    onAppSelect, // (app: string) => void
+    getCurrentThreadControl, // () => ThreadControlState
+    isProcessing, // boolean
+    getControlState, // () => ControlState (synchronous)
+    onControlStateChange, // (cb) => unsubscribe
   } = useControl();
 
   // Global state
-  state.apiKey;                // string | null
-  state.availableModels;       // string[]
-  state.authorizedApps;        // string[]
-  state.defaultModel;          // string | null
-  state.defaultApp;            // string | null
+  state.apiKey; // string | null
+  state.availableModels; // string[]
+  state.authorizedApps; // string[]
+  state.defaultModel; // string | null
+  state.defaultApp; // string | null
 
   // Per-thread state
   const tc = getCurrentThreadControl();
-  tc.model;      // string | null
-  tc.app;        // string | null
+  tc.model; // string | null
+  tc.app; // string | null
 }
 ```
 
@@ -254,18 +252,18 @@ import { useNotification } from "@aomi-labs/react";
 
 function NotificationExample() {
   const {
-    notifications,        // Notification[]
-    showNotification,     // (params) => id
-    dismissNotification,  // (id) => void
-    clearAll,             // () => void
+    notifications, // Notification[]
+    showNotification, // (params) => id
+    dismissNotification, // (id) => void
+    clearAll, // () => void
   } = useNotification();
 
   // Show a notification
   const id = showNotification({
-    type: "success",        // "notice" | "success" | "error" | "wallet"
+    type: "success", // "notice" | "success" | "error" | "wallet"
     title: "Transaction sent",
-    message: "0x123...abc",  // optional
-    duration: 5000,          // optional, milliseconds
+    message: "0x123...abc", // optional
+    duration: 5000, // optional, milliseconds
   });
 
   // Dismiss
@@ -290,18 +288,13 @@ type Notification = {
 
 ## useEventContext
 
-SSE (Server-Sent Events) subscription and outbound event dispatch.
+Agent activity subscription.
 
 ```tsx
 import { useEventContext } from "@aomi-labs/react";
 
 function EventListener() {
-  const {
-    subscribe,              // (type, callback) => unsubscribe
-    sendOutboundSystem,     // (event) => Promise<void>
-    dispatchInboundSystem,  // (sessionId, events) => void
-    sseStatus,              // "connected" | "connecting" | "disconnected"
-  } = useEventContext();
+  const { subscribe, sseStatus } = useEventContext();
 
   // Subscribe to inbound events by type
   useEffect(() => {
@@ -310,13 +303,6 @@ function EventListener() {
     });
     return unsubscribe;
   }, [subscribe]);
-
-  // Send an outbound event to the backend
-  await sendOutboundSystem({
-    type: "wallet:tx_complete",
-    sessionId: "thread-123",
-    payload: { txHash: "0x...", status: "success" },
-  });
 }
 ```
 
@@ -331,10 +317,10 @@ import { useWalletHandler } from "@aomi-labs/react";
 
 function WalletHandler() {
   const {
-    pendingRequests,   // WalletRequest[]
-    startProcessing,   // (id) => void
-    resolveRequest,    // (id, result) => void
-    rejectRequest,     // (id, error?) => void
+    pendingRequests, // WalletRequest[]
+    startProcessing, // (id) => void
+    resolveRequest, // (id, result) => void
+    rejectRequest, // (id, error?) => void
   } = useWalletHandler({
     sessionId: currentThreadId,
     onRequestComplete: () => {

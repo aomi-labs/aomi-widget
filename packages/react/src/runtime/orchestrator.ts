@@ -25,7 +25,6 @@ type OrchestratorOptions = {
   getApp: () => string;
   getModel?: () => string | null | undefined;
   getApplicationId?: () => number | string | null | undefined;
-  getApiKey?: () => string | null;
   getClientId?: () => string | undefined;
   prepareThreadForSend?: (threadId: string) => Promise<void> | void;
   onSendSuccess?: (threadId: string) => void;
@@ -465,7 +464,6 @@ export function useRuntimeOrchestrator(
       const nextApp = nextOptions.getApp();
       const nextModel = nextOptions.getModel?.() ?? undefined;
       const nextApplicationId = nextOptions.getApplicationId?.();
-      const nextApiKey = nextOptions.getApiKey?.() ?? undefined;
       const nextClientId = nextOptions.getClientId?.();
       const nextUserState = nextOptions.getUserState?.();
       const existing = manager.get(threadId);
@@ -474,13 +472,9 @@ export function useRuntimeOrchestrator(
           app: nextApp,
           model: nextModel,
           applicationId: nextApplicationId,
-          apiKey: nextApiKey,
           clientId: nextClientId,
           userState: nextUserState,
         });
-        existing.setSSEActive(
-          threadContextRef.current.currentThreadId === threadId,
-        );
         return existing;
       }
 
@@ -488,15 +482,10 @@ export function useRuntimeOrchestrator(
         app: nextApp,
         model: nextModel,
         applicationId: nextApplicationId,
-        apiKey: nextApiKey,
         clientId: nextClientId,
         clientType: CLIENT_TYPE_WEB_UI,
-        syncPendingTxRequestsFromUserState: false,
         userState: nextUserState,
       });
-      session.setSSEActive(
-        threadContextRef.current.currentThreadId === threadId,
-      );
 
       // Wire ClientSession events → React state
       const cleanups: Array<() => void> = [];
@@ -549,7 +538,7 @@ export function useRuntimeOrchestrator(
         }),
       );
 
-      // Forward SSE/system events to the event relay
+      // Forward Agent activity to the event relay.
       const forwardEvent = (type: string) =>
         session.on(
           type as keyof import("@aomi-labs/client").SessionEventMap,
@@ -562,7 +551,6 @@ export function useRuntimeOrchestrator(
           },
         );
 
-      cleanups.push(forwardEvent("tool_update"));
       cleanups.push(forwardEvent("tool_complete"));
 
       // Orchestrator delegation events → per-thread taskRuns sidecar.
@@ -858,13 +846,6 @@ export function useRuntimeOrchestrator(
       updateTurnPhase(threadContextRef.current, threadId, "idle");
     }
   }, []);
-
-  // Keep SSE active only for the current thread.
-  useEffect(() => {
-    sessionManagerRef.current?.forEach((session, threadId) => {
-      session.setSSEActive(threadId === threadContext.currentThreadId);
-    });
-  }, [threadContext.currentThreadId]);
 
   // Cleanup on unmount
   useEffect(() => {

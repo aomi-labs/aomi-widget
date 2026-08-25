@@ -277,8 +277,6 @@ function ParaSolanaRuntimeDriverInner() {
         );
       },
       subscribe: () => () => undefined,
-      sendSystemCommand: async () => undefined,
-      recordUiInteraction: async () => undefined,
       sseStatus: "connected",
     }),
     [

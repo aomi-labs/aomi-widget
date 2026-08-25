@@ -1,5 +1,5 @@
 import { AomiPlatformFilter, AomiClientOptions, AomiClient, SessionOptions, Session, UserState, AomiTaskEvent, WalletRequest, WalletRequestResult, AomiSimulateResponse, ChainInfo, AomiAppDescriptor, ApplicationId } from '@aomi-labs/client';
-export { AOMI_TASK_EVENT_TYPES, AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiPlatformFilter, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiTaskActivityEvent, AomiTaskActivityKind, AomiTaskCompletedEvent, AomiTaskEvent, AomiTaskEventType, AomiTaskStartedEvent, AomiTaskStatus, AomiThread, ChainInfo, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSignablePayload, WalletSigningPayload, WalletSolanaLegResult, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, isAomiTaskEventType, normalizeAppDescriptor, normalizeSimulatedFee, parseAomiTaskEvent, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
+export { AOMI_TASK_EVENT_TYPES, AomiAppDescriptor, AomiClient, AomiClientOptions, AomiMessage, AomiPlatformFilter, AomiSecretSlot, AomiTaskActivityEvent, AomiTaskActivityKind, AomiTaskCompletedEvent, AomiTaskEvent, AomiTaskEventType, AomiTaskStartedEvent, AomiTaskStatus, ChainInfo, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSignablePayload, WalletSigningPayload, WalletSolanaLegResult, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, isAomiTaskEventType, normalizeAppDescriptor, normalizeSimulatedFee, parseAomiTaskEvent, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import * as react from 'react';
 import { ReactNode, SetStateAction } from 'react';
@@ -188,29 +188,20 @@ type EventContext = {
     subscribe: (type: string, callback: EventSubscriber) => () => void;
     /** Dispatch an event to all matching subscribers (used by orchestrator) */
     dispatch: (event: InboundEvent) => void;
-    /** Explicit rollback API for legacy free-form system commands. */
-    sendOutboundSystem: (event: {
-        type: string;
-        sessionId: string;
-        payload: unknown;
-    }) => Promise<void>;
     /** Current SSE connection status */
     sseStatus: SSEStatus;
 };
 declare function useEventContext(): EventContext;
 type EventContextProviderProps = {
     children: ReactNode;
-    aomiClient: AomiClient;
-    sessionId: string;
 };
 /**
  * Simplified EventContext — a pure pub/sub relay.
  *
- * SSE subscription and system event unwrapping are now handled by ClientSession
- * in the orchestrator. This provider just maintains the subscriber registry
- * and an explicit rollback seam for legacy direct system messages.
+ * Agent activity projection is handled by ClientSession. This provider only
+ * relays those canonical inbound events to React subscribers.
  */
-declare function EventContextProvider({ children, aomiClient, sessionId, }: EventContextProviderProps): react_jsx_runtime.JSX.Element;
+declare function EventContextProvider({ children }: EventContextProviderProps): react_jsx_runtime.JSX.Element;
 
 type NotificationType = "notice" | "success" | "error" | "wallet";
 type Notification$1 = {
@@ -357,14 +348,6 @@ type AomiRuntimeApi = {
     }) => Promise<AomiSimulateResponse["result"]>;
     /** Subscribe to inbound events by type. Returns unsubscribe function. */
     subscribe: (type: string, callback: EventSubscriber) => () => void;
-    /** Send a system command to the backend */
-    sendSystemCommand: (event: {
-        type: string;
-        sessionId: string;
-        payload: unknown;
-    }) => Promise<void>;
-    /** Record ephemeral UI context for the next model turn on the active thread. */
-    recordUiInteraction: (payload: unknown) => Promise<void>;
     /** Current SSE connection status */
     sseStatus: SSEStatus;
 };
@@ -393,7 +376,7 @@ declare const AomiRuntimeApiProvider: react.Provider<AomiRuntimeApi | null>;
  *   const { showNotification } = aomi;
  *
  *   // Event API
- *   const { subscribe, sendSystemCommand, recordUiInteraction } = aomi;
+ *   const { subscribe } = aomi;
  * }
  * ```
  */

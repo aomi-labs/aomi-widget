@@ -27,10 +27,6 @@ import {
 import { DIM, RESET, printDataFileLocation, printJson } from "../output";
 import type { PendingSolTx, PendingTx, SignedTx } from "../state";
 import {
-  fetchLegacyAgentState,
-  sendLegacyAgentSystemMessage,
-} from "../legacy-agent-rollback";
-import {
   formatPendingSolTxLine,
   formatSignedSolTxLine,
   formatSignedTxLine,
@@ -230,6 +226,11 @@ async function signSolanaPending(params: {
   pendingTx: PendingSolTx;
 }): Promise<void> {
   const { cli, session, config, pendingTx } = params;
+  if (!pendingTx.agentRequestId) {
+    fatal(
+      "This wallet request predates Agent v1 and cannot be submitted. Start a new Agent turn to recreate it.",
+    );
+  }
   const secret =
     cli.resolvedSvmPrivateKey(config.solanaPrivateKey) ??
     process.env.SOLANA_PRIVATE_KEY;
@@ -278,31 +279,10 @@ async function signSolanaPending(params: {
     console.log(
       `✅ Signed message! signature: ${outcome.signatureBase64.slice(0, 24)}...`,
     );
-    if (pendingTx.agentRequestId) {
-      await session.resolve(pendingTx.agentRequestId, {
-        kind: "signing",
-        signatures: [outcome.signatureBase64],
-      });
-    } else {
-      await sendLegacyAgentSystemMessage(
-        session.client,
-        cli.sessionId,
-        JSON.stringify({
-          type: "wallet::solana_sign_complete",
-          payload: {
-            status: "signed",
-            signature: outcome.signatureBase64,
-            signed_message_base64: pendingTx.message,
-            signature_type: "ed25519",
-            description: pendingTx.description,
-            pending_svm_sig_id: pendingTx.solanaId,
-          },
-        }),
-        cli.app,
-      );
-      const syncedState = await session.syncUserState();
-      cli.syncPendingFromUserState(syncedState.user_state);
-    }
+    await session.resolve(pendingTx.agentRequestId, {
+      kind: "signing",
+      signatures: [outcome.signatureBase64],
+    });
     cli.addSignedSolTx({
       id: pendingTx.id,
       agentRequestId: pendingTx.agentRequestId,
@@ -313,7 +293,7 @@ async function signSolanaPending(params: {
       description: pendingTx.description,
       timestamp: Date.now(),
     });
-    if (pendingTx.agentRequestId) cli.removePendingSolTx(pendingTx.id);
+    cli.removePendingSolTx(pendingTx.id);
     console.log("Backend notified.");
     return;
   }
@@ -442,55 +422,16 @@ async function signSolanaPending(params: {
       );
     }
     console.log(`✅ Confirmed! signature: ${signature}`);
-    if (pendingTx.agentRequestId) {
-      await session.resolve(pendingTx.agentRequestId, {
-        kind: requestKind,
-        signature,
-        signedTx: outcome.signedTxBase64,
-      });
-    } else {
-      await sendLegacyAgentSystemMessage(
-        session.client,
-        cli.sessionId,
-        JSON.stringify({
-          type: "wallet:tx_complete",
-          payload: {
-            status: "confirmed",
-            identifier: { kind: "signature", value: signature },
-            pending_svm_tx_ids: pendingTx.solanaIds?.length
-              ? pendingTx.solanaIds
-              : [pendingTx.solanaId],
-          },
-        }),
-        cli.app,
-      );
-    }
-  } else if (pendingTx.agentRequestId) {
+    await session.resolve(pendingTx.agentRequestId, {
+      kind: requestKind,
+      signature,
+      signedTx: outcome.signedTxBase64,
+    });
+  } else {
     await session.resolve(pendingTx.agentRequestId, {
       kind: "signing",
       signatures: [outcome.signedTxBase64],
     });
-  } else {
-    await sendLegacyAgentSystemMessage(
-      session.client,
-      cli.sessionId,
-      JSON.stringify({
-        type: "wallet::solana_sign_complete",
-        payload: {
-          status: "signed",
-          signed_tx: outcome.signedTxBase64,
-          description: pendingTx.description,
-          pending_solana_id: pendingTx.solanaId,
-        },
-      }),
-      cli.app,
-    );
-  }
-
-  // Re-sync to drop the now-discarded pending entry on the host side.
-  if (!pendingTx.agentRequestId) {
-    const syncedState = await session.syncUserState();
-    cli.syncPendingFromUserState(syncedState.user_state);
   }
 
   cli.addSignedSolTx({
@@ -504,7 +445,7 @@ async function signSolanaPending(params: {
     description: pendingTx.description,
     timestamp: Date.now(),
   });
-  if (pendingTx.agentRequestId) cli.removePendingSolTx(pendingTx.id);
+  cli.removePendingSolTx(pendingTx.id);
 
   console.log("Backend notified.");
 }
@@ -555,82 +496,40 @@ function serviceFeePayload(
   };
 }
 
-function transactionCompletionPayload(
-  record: SignedTx,
-): Record<string, unknown> {
-  if (!record.txHash || record.pendingTxId === undefined) {
-    throw new Error("confirmed_transaction_missing_callback_metadata");
-  }
-  const fee = serviceFeePayload(record);
-  return {
-    txHash: record.txHash,
-    status: "success",
-    pending_tx_ids: [record.pendingTxId],
-    aa_requested_mode: "none",
-    aa_resolved_mode: "none",
-    execution_kind: record.executionKind ?? "eoa",
-    batched: record.batched ?? false,
-    call_count: record.txHashes?.length ?? 1,
-    ...(record.serviceFeeTxHash
-      ? { service_fee_tx_hash: record.serviceFeeTxHash }
-      : {}),
-    ...(fee ? { service_fee: fee } : {}),
-    sponsored: record.sponsored,
-  };
-}
-
 async function recoverConfirmedTransactions(params: {
   cli: CliSession;
   session: ReturnType<CliSession["createClientSession"]>;
   records: SignedTx[];
 }): Promise<void> {
   const { cli, session, records } = params;
+  if (records.some((record) => !record.agentRequestId)) {
+    fatal(
+      "A confirmed wallet record predates Agent v1 and cannot be replayed. Start a new Agent turn instead.",
+    );
+  }
   let replayed = 0;
   for (const record of records) {
-    if (record.agentRequestId && record.txHash) {
-      await session.fetchCurrentState();
-      const pending = session
-        .getPendingRequests()
-        .find((request) => request.id === record.agentRequestId);
-      if (pending) {
-        const hashes = record.txHashes?.length
-          ? record.txHashes
-          : [record.txHash];
-        await session.resolve(record.agentRequestId, {
-          kind: "transaction",
-          txHash: record.txHash,
-          txHashes: hashes,
-          completedTxIds: hashes.map((_, index) => index + 1),
-        });
-        replayed += 1;
-      }
-      cli.markSignedAgentActionNotified(record.agentRequestId);
-      continue;
+    if (!record.agentRequestId || !record.txHash) continue;
+    await session.fetchCurrentState();
+    const pending = session
+      .getPendingRequests()
+      .find((request) => request.id === record.agentRequestId);
+    if (pending) {
+      const hashes = record.txHashes?.length
+        ? record.txHashes
+        : [record.txHash];
+      await session.resolve(record.agentRequestId, {
+        kind: "transaction",
+        txHash: record.txHash,
+        txHashes: hashes,
+        completedTxIds: hashes.map((_, index) => index + 1),
+      });
+      replayed += 1;
     }
-    if (record.pendingTxId === undefined || !record.txHash) continue;
-    const pending = cli.pendingTxs.some(
-      (tx) => tx.kind === "transaction" && tx.txId === record.pendingTxId,
-    );
-    if (!pending) {
-      cli.markSignedTxBackendNotified(record.pendingTxId);
-      continue;
-    }
-    await sendLegacyAgentSystemMessage(
-      session.client,
-      cli.sessionId,
-      JSON.stringify({
-        type: "wallet:tx_complete",
-        payload: transactionCompletionPayload(record),
-      }),
-      cli.app,
-    );
-    cli.markSignedTxBackendNotified(record.pendingTxId);
-    replayed += 1;
+    cli.markSignedAgentActionNotified(record.agentRequestId);
   }
 
   if (replayed > 0) {
-    const syncedState = await session.syncUserState();
-    cli.syncPendingFromUserState(syncedState.user_state);
     console.log(
       `Backend notification recovered for ${replayed} confirmed transaction${replayed === 1 ? "" : "s"}; no transaction was rebroadcast.`,
     );
@@ -679,23 +578,18 @@ export async function signCommand(
   const session = cli.createClientSession(config);
 
   try {
-    const targetsAgentAction = uniqueIds.some(
-      (id) =>
-        Boolean(cli.findPendingTx(id)?.agentRequestId) ||
-        Boolean(cli.findPendingSolTx(id)?.agentRequestId) ||
-        Boolean(cli.findSignedTransaction(id)?.agentRequestId),
-    );
-    if (targetsAgentAction) {
-      await session.fetchCurrentState();
-    } else {
-      // Explicit rollback/migration adapter for pending records created before
-      // the Agent transport cutover.
-      const initialState = await fetchLegacyAgentState(
-        session.client,
-        cli.sessionId,
-        cli.clientId,
+    await session.fetchCurrentState();
+    const preAgentIds = uniqueIds.filter((id) => {
+      const record =
+        cli.findPendingTx(id) ??
+        cli.findPendingSolTx(id) ??
+        cli.findSignedTransaction(id);
+      return record && !record.agentRequestId;
+    });
+    if (preAgentIds.length > 0) {
+      fatal(
+        `Wallet request${preAgentIds.length === 1 ? "" : "s"} ${preAgentIds.join(", ")} predate Agent v1 and cannot be submitted. Start a new Agent turn to recreate them.`,
       );
-      cli.syncPendingFromUserState(initialState.user_state);
     }
 
     // EVM and SVM have independent backend id spaces, so the default dual-chain
@@ -783,15 +677,14 @@ export async function signCommand(
       ),
     );
     if (
-      agentRequestIds.length > 1 ||
-      (agentRequestIds.length === 1 &&
-        pendingTxs.some((tx) => !tx.agentRequestId))
+      agentRequestIds.length !== 1 ||
+      pendingTxs.some((tx) => !tx.agentRequestId)
     ) {
       fatal(
-        "Agent and legacy wallet requests cannot be mixed in one sign call.",
+        "Every wallet request in a sign call must belong to one Agent v1 action.",
       );
     }
-    const agentRequestId = agentRequestIds[0];
+    const agentRequestId = agentRequestIds[0]!;
     if (!privateKey) {
       fatal(
         [
@@ -834,10 +727,6 @@ export async function signCommand(
 
     let signedRecords: SignedTx[] = [];
     let agentResult: WalletRequestResult | undefined;
-    let backendNotifications: Array<{
-      type: string;
-      payload: Record<string, unknown>;
-    }> = [];
     let partialFailureReason: string | undefined;
 
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
@@ -1024,31 +913,10 @@ export async function signCommand(
           callCount: baseCallList.length,
         };
       }
-      backendNotifications = agentRequestId
-        ? []
-        : signedRecords.map((record) => ({
-            type: "wallet:tx_complete",
-            payload: transactionCompletionPayload(record),
-          }));
-
       const remainingTxIds = pendingTxs
         .slice(confirmedPendingTxs.length)
         .flatMap((tx) => (tx.txId === undefined ? [] : [tx.txId]));
-      if (!agentRequestId && remainingTxIds.length > 0) {
-        backendNotifications.push({
-          type: "wallet:tx_complete",
-          payload: {
-            txHash: "",
-            status: "failed",
-            error:
-              partialFailureReason ??
-              "Batch aborted after a mid-sequence failure",
-            pending_tx_ids: remainingTxIds,
-            batched: remainingTxIds.length > 1,
-            call_count: remainingTxIds.length,
-          },
-        });
-      }
+      void remainingTxIds;
     } else {
       if (pendingTxs.length > 1) {
         fatal(
@@ -1065,63 +933,6 @@ export async function signCommand(
       const signaturePayload = pendingTx.payload as WalletEip712Payload;
       let signArgs = toViemSignTypedDataArgs(signaturePayload);
       const messageArgs = toViemSignMessageArgs(signaturePayload);
-
-      // Fallback: if the local pendingTx payload is missing typed_data
-      // (happens when the local state sync ran before the backend stored
-      // the sig, or before bug fixes for camelCase wire format), fetch the
-      // current state from the backend and reconstruct.
-      if (
-        !signArgs &&
-        pendingTx.kind === "eip712_sign" &&
-        pendingTx.eip712Id !== undefined
-      ) {
-        try {
-          const session = cli.createClientSession(config);
-          const apiState = await fetchLegacyAgentState(
-            session.client,
-            cli.sessionId,
-            cli.clientId,
-          );
-          session.close();
-          const evmSigs =
-            (
-              apiState.user_state as {
-                pending?: {
-                  evmSigs?: Record<string, unknown>;
-                  evm_sigs?: Record<string, unknown>;
-                };
-              }
-            )?.pending?.evmSigs ??
-            (
-              apiState.user_state as {
-                pending?: { evm_sigs?: Record<string, unknown> };
-              }
-            )?.pending?.evm_sigs ??
-            {};
-          const sig = (
-            evmSigs as Record<
-              string,
-              {
-                typedData?: unknown;
-                typed_data?: unknown;
-                description?: string;
-              }
-            >
-          )[String(pendingTx.eip712Id)];
-          const typed = sig?.typedData ?? sig?.typed_data;
-          if (typed) {
-            signArgs = toViemSignTypedDataArgs({
-              ...(pendingTx.payload as WalletEip712Payload),
-              typed_data: typed as WalletEip712Payload["typed_data"],
-              description: sig.description ?? pendingTx.description,
-            });
-          }
-        } catch (err) {
-          console.warn(
-            `[aomi tx sign] failed to fetch typed_data from backend: ${err}`,
-          );
-        }
-      }
 
       if (signArgs && messageArgs) {
         fatal(
@@ -1162,19 +973,6 @@ export async function signCommand(
       if (agentRequestId) {
         agentResult = { kind: "signing", signatures: [signature] };
       }
-      backendNotifications = [
-        {
-          type: "wallet_eip712_response",
-          payload: {
-            status: "success",
-            signature,
-            description: pendingTx.description,
-            ...(pendingTx.eip712Id !== undefined
-              ? { pending_eip712_id: pendingTx.eip712Id }
-              : {}),
-          },
-        },
-      ];
     }
 
     // Persist confirmed chain outcomes before the callback. If the process or
@@ -1186,36 +984,9 @@ export async function signCommand(
       cli.addSignedTx(signedRecord);
     }
 
-    if (agentRequestId && agentResult) {
+    if (agentResult) {
       await session.resolve(agentRequestId, agentResult);
       cli.markSignedAgentActionNotified(agentRequestId);
-    }
-
-    for (const backendNotification of agentRequestId
-      ? []
-      : backendNotifications) {
-      await sendLegacyAgentSystemMessage(
-        session.client,
-        cli.sessionId,
-        JSON.stringify(backendNotification),
-        cli.app,
-      );
-      const pendingTxIds = backendNotification.payload.pending_tx_ids;
-      if (
-        backendNotification.payload.status === "success" &&
-        Array.isArray(pendingTxIds)
-      ) {
-        for (const pendingTxId of pendingTxIds) {
-          if (typeof pendingTxId === "number") {
-            cli.markSignedTxBackendNotified(pendingTxId);
-          }
-        }
-      }
-    }
-
-    if (!agentRequestId) {
-      const syncedState = await session.syncUserState();
-      cli.syncPendingFromUserState(syncedState.user_state);
     }
     console.log("Backend notified.");
     const failedFee = signedRecords.find(

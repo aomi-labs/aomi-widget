@@ -2,652 +2,6 @@ import { x402Client, x402HTTPClient } from '@x402/core/client';
 import * as viem from 'viem';
 import { Hex, Chain } from 'viem';
 
-declare function address(userState?: UserState | null): string | undefined;
-declare function svmAddress(userState?: UserState | null): string | undefined;
-declare function chainId(userState?: UserState | null): number | undefined;
-declare function ensName(userState?: UserState | null): string | undefined;
-declare function isConnected(userState?: UserState | null): boolean | undefined;
-declare function walletProvider(userState?: UserState | null): UserStateWalletProvider | null | undefined;
-declare function walletProviderSubject(userState?: UserState | null): string | null | undefined;
-declare function authMethod(userState?: UserState | null): UserStateAuthMethod | null | undefined;
-declare function authValue(userState?: UserState | null): string | null | undefined;
-declare function authVerifiedAt(userState?: UserState | null): number | null | undefined;
-declare function withExt(userState: UserState, key: string, value: unknown): UserState;
-
-declare function normalizeUserState(userState?: UserState | null): UserState | undefined;
-declare function reconcileUserState(previousUserState?: UserState | null, incomingUserState?: UserState | null): UserState | undefined;
-/**
- * Project a stored `UserState` down to the subset the client owns and may send
- * to the backend. `pending` is backend-authority in-flight state and is dropped
- * so the client never echoes it back. Apply at the transport send boundary.
- */
-declare function toOwnedUserState(userState?: UserState | null): OwnedUserState | undefined;
-
-/**
- * Client-side user state synced with the backend.
- * Typically wallet connection info, but can be any key-value data.
- *
- * Account-abstraction and sponsorship are backend authority: they are resolved
- * by the `execution-profile` endpoint and per-execution operation payloads, and
- * are deliberately NOT part of this wire shape. The client never sends or stores
- * them here.
- */
-type UserStateAAMode = "none" | "4337" | "7702";
-type UserStateWalletProvider = "para" | "privy" | "baseAccount";
-type UserStateAuthMethod = "google" | "apple" | "facebook" | "x" | "discord" | "github" | "farcaster" | "telegram" | "email" | "phone" | "wagmi";
-/** Session-level connection facts shared across chain families. */
-interface UserStateConnection extends Record<string, unknown> {
-    is_connected?: boolean | null;
-    provider?: UserStateWalletProvider | null;
-    provider_label?: string | null;
-    wallet_provider_subject?: string | null;
-    auth_method?: UserStateAuthMethod | null;
-    auth_value?: string | null;
-    auth_verified_at?: number | string | null;
-}
-/** EVM-family wallet block (`evm`). */
-interface UserStateEvm extends Record<string, unknown> {
-    address?: string | null;
-    chain_id?: number | string | null;
-    ens_name?: string | null;
-}
-/** Solana-family wallet block (`svm`). */
-interface UserStateSvm extends Record<string, unknown> {
-    address?: string | null;
-    cluster?: string | null;
-    wallet_name?: string | null;
-    transport?: string | null;
-    /** Wallet-Standard capability identifiers, e.g. `"can_sign_message"`. */
-    capabilities?: string[] | null;
-}
-/**
- * Backend-pushed in-flight wallet requests, chain-bucketed. Shape is owned by
- * the backend; parsed by helpers like `pendingTxsFromBackendUserState`. The
- * client forwards them transparently via reconciliation.
- */
-interface UserStatePending extends Record<string, unknown> {
-    evm_txs?: Record<string, unknown> | null;
-    evm_sigs?: Record<string, unknown> | null;
-    svm_ixs?: Record<string, unknown> | null;
-    svm_sigs?: Record<string, unknown> | null;
-}
-/**
- * The subset of `UserState` the client OWNS and may send to the backend.
- * `pending` is backend-authority in-flight state; the client receives it but
- * never echoes it back. Use {@link toOwnedUserState} to project a stored
- * `UserState` down to this shape at the send boundary.
- */
-type OwnedUserState = Omit<UserState, "pending">;
-/**
- * Known client surfaces that may want backend-specific UX strategies.
- * Additional string values are allowed for forward compatibility.
- */
-type AomiClientType = "ts_cli" | "web_ui" | (string & {});
-declare const CLIENT_TYPE_TS_CLI: AomiClientType;
-declare const CLIENT_TYPE_WEB_UI: AomiClientType;
-/**
- * Client-side user state, canonicalized to the backend's nested snake_case
- * wire shape. EVM and Solana identities are independent blocks (`evm` / `svm`)
- * so a single session can carry both families at once. `normalize` accepts the
- * backend's nested camelCase responses and legacy flat host input, and emits
- * this canonical shape.
- */
-interface UserState extends Record<string, unknown> {
-    connection?: UserStateConnection | null;
-    evm?: UserStateEvm | null;
-    svm?: UserStateSvm | null;
-    pending?: UserStatePending | null;
-    ext?: Record<string, unknown> | null;
-    preferences?: Record<string, unknown> | null;
-}
-declare namespace UserState {
-    const normalize: typeof normalizeUserState;
-    const reconcile: typeof reconcileUserState;
-    const toOwned: typeof toOwnedUserState;
-    const address: typeof address;
-    const evmAddress: typeof address;
-    const svmAddress: typeof svmAddress;
-    const chainId: typeof chainId;
-    const ensName: typeof ensName;
-    const isConnected: typeof isConnected;
-    const walletProvider: typeof walletProvider;
-    const walletProviderSubject: typeof walletProviderSubject;
-    const authMethod: typeof authMethod;
-    const authValue: typeof authValue;
-    const authVerifiedAt: typeof authVerifiedAt;
-    const withExt: typeof withExt;
-}
-
-type AomiOAuthResource = `${string}/v1/agent` | `${string}/v1/pipeline` | `${string}/agent/mcp` | `${string}/pipeline/mcp`;
-type AomiOAuthTokenSet = {
-    accessToken: string;
-    refreshToken?: string;
-    expiresAt: number;
-    resource: AomiOAuthResource;
-    scopes: readonly string[];
-    tokenType?: "Bearer" | "DPoP";
-    dpopProof?: (input: {
-        url: string;
-        method: string;
-        accessToken: string;
-        nonce?: string;
-    }) => Promise<string>;
-};
-type AomiOAuthTokenRequest = {
-    resource: AomiOAuthResource;
-    scopes: readonly string[];
-    forceRefresh?: boolean;
-};
-type AomiOAuthTokenProvider = (request: AomiOAuthTokenRequest) => Promise<AomiOAuthTokenSet | null>;
-declare function createOAuthTokenProvider(input: {
-    initial?: AomiOAuthTokenSet | null;
-    refresh: (current: AomiOAuthTokenSet, request: AomiOAuthTokenRequest) => Promise<AomiOAuthTokenSet>;
-    now?: () => number;
-}): AomiOAuthTokenProvider & {
-    clear(): void;
-    current(): AomiOAuthTokenSet | null;
-};
-type AuthorizationPoster = <T>(path: string, body: unknown) => Promise<T>;
-type AomiAuthorizationPermit = {
-    account: string;
-    chain_type: string;
-    wallet: string;
-    mode: string;
-    version: number;
-    expiry: number;
-};
-type AomiAuthorizationChallenge = {
-    permit: AomiAuthorizationPermit;
-    typed_data?: unknown;
-    message_base64?: string;
-};
-type AomiAuthorizationState = {
-    address: string;
-    chain_type: string;
-    signing_mode: string;
-    authorization_version: number;
-};
-type AomiEnsureBoundResult = {
-    status: "bound";
-    state: AomiAuthorizationState;
-} | {
-    status: "already_bound";
-};
-declare function posterFromClient(client: AomiClient): AuthorizationPoster;
-declare function authorizationChallenge(post: AuthorizationPoster, request: {
-    chain_type: string;
-    wallet: string;
-    mode: string;
-}): Promise<AomiAuthorizationChallenge>;
-declare function authorizationCommit(post: AuthorizationPoster, request: {
-    permit: AomiAuthorizationPermit;
-    signature: string;
-    signer?: string;
-}): Promise<AomiAuthorizationState>;
-declare function ensureSvmWalletBoundVia(post: AuthorizationPoster, wallet: string, signMessage: (message: Uint8Array) => Promise<Uint8Array>): Promise<AomiEnsureBoundResult>;
-declare function ensureSvmWalletBound(client: AomiClient, wallet: string, signMessage: (message: Uint8Array) => Promise<Uint8Array>): Promise<AomiEnsureBoundResult>;
-declare function isUnboundWalletError(error: unknown): boolean;
-
-type GuestSessionProvider = ((options?: {
-    forceRefresh?: boolean;
-}) => Promise<string>) & {
-    clear(): void;
-};
-declare function createGuestSessionProvider(input: {
-    baseUrl: string;
-    fetch?: typeof fetch;
-}): GuestSessionProvider;
-
-/**
- * Optional logger for debug output. Pass `console` or any compatible object.
- */
-type Logger = {
-    debug: (...args: unknown[]) => void;
-};
-type AomiClientOptions = {
-    /** Base URL of the Aomi backend (e.g. "https://api.aomi.dev" or "/" for same-origin proxying) */
-    baseUrl: string;
-    /** Optional fetch implementation for payment-aware browser transports and tests. */
-    fetch?: typeof fetch;
-    /** Default API key for non-default apps */
-    apiKey?: string;
-    /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
-    getAccountBearer?: GetAccountBearer;
-    /** Resource-bound developer OAuth. Takes precedence over session/guest auth. */
-    oauth?: AomiOAuthTokenProvider;
-    /** Low-friction Better Auth anonymous session for `/v1` calls. Defaults on. */
-    guest?: boolean | GuestSessionProvider;
-    /** Optional logger for debug output (default: silent) */
-    logger?: Logger;
-};
-type GetAccountBearer = ((options?: {
-    /** Force a refresh after an API 401. */
-    forceRefresh?: boolean;
-}) => Promise<string | null | undefined>) & {
-    /**
-     * When true, a throwing bearer source is fatal: the wrapped fetch rethrows
-     * instead of proceeding unauthenticated. Providers that mint a required
-     * (widget) session set this; additive account bearers leave it unset.
-     */
-    required?: boolean;
-    /**
-     * Notifies consumers when the bearer rotates or is revoked. AomiClient uses
-     * this to reconnect live SSE streams with the new credential.
-     *
-     * The property is optional because API-key and cookie-backed integrations do
-     * not own a refreshable account bearer. WidgetSessionProvider always exposes
-     * it. Wrappers around a widget provider must preserve this subscription or
-     * provide their own stable forwarding subscription.
-     */
-    subscribe?: (listener: () => void) => () => void;
-};
-type AomiRequestQueryValue = string | number | boolean | readonly (string | number | boolean)[] | null | undefined;
-type AomiPlatformFilter = string | readonly string[] | null | undefined;
-/** Stable id of a hosted app; null/empty means "not app-scoped". */
-type ApplicationId = number | string | null;
-type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-interface AomiRequestOptions {
-    /** Thread id for thread-scoped routes. Kept as sessionId for SDK compatibility. */
-    sessionId?: string;
-    /** App key for app-key checked routes; defaults to the client's apiKey. */
-    apiKey?: string;
-    /** Query params appended to the request URL. */
-    query?: Record<string, AomiRequestQueryValue>;
-    /** JSON request payload. */
-    body?: unknown;
-    /** Extra request headers. */
-    headers?: HeadersInit;
-    /** Use the native fetch path instead of a custom payment-aware fetch wrapper. */
-    raw?: boolean;
-}
-interface AomiMessage {
-    /** Stable public Agent message identity when available. */
-    id?: string;
-    /**
-     * `notice` is a durable runtime record — today, a turn the provider refused.
-     * Unlike `system`, which the projection drops, a notice is shown to the user
-     * and survives a reload.
-     */
-    sender?: "user" | "agent" | "system" | "notice" | string;
-    /**
-     * Backend-allocated identity for this message, stable across polls and
-     * reloads. Absent on legacy rows the runtime hydrated without one.
-     *
-     * The only sound id for a rendered notice: every failure notice carries the
-     * same copy, so anything derived from content collides across distinct
-     * failures in one thread.
-     */
-    message_key?: string;
-    content?: string;
-    timestamp?: string;
-    is_streaming?: boolean;
-    tool_result?: [string, string] | null;
-    /** Name of the tool this message reports on, when the backend supplies it. */
-    tool_name?: string;
-    /** Arguments the model passed to `tool_name`, as serialized by the backend. */
-    tool_arguments?: unknown;
-}
-/**
- * GET /api/thread/state
- * Fetches current session state including messages and processing status
- */
-interface AomiStateResponse {
-    messages?: AomiMessage[] | null;
-    system_events?: AomiSystemEvent[] | null;
-    title?: string | null;
-    is_processing?: boolean;
-    user_state?: UserState | null;
-}
-/**
- * POST /api/thread/chat
- * Sends a chat message and returns updated session state
- */
-interface AomiChatResponse {
-    messages?: AomiMessage[] | null;
-    system_events?: AomiSystemEvent[] | null;
-    title?: string | null;
-    is_processing?: boolean;
-    user_state?: UserState | null;
-    /** @deprecated Retained for compatibility with backends that return turn correlation metadata. */
-    turn_id?: string | null;
-}
-/**
- * POST /api/system
- * Sends a system message and returns the response message
- */
-interface AomiSystemResponse {
-    res?: AomiMessage | null;
-}
-/**
- * POST /api/exec/simulate
- * Batch-simulate pending transactions atomically (snapshot → sequential send → revert).
- */
-interface AomiSimulateFee {
-    /** Treasury address to receive the fee. */
-    recipient: string;
-    /** Fee amount in wei (decimal string). */
-    amount_wei: string;
-    /** Token type — always "native" for now. */
-    token: "native";
-}
-interface AomiSimulateResponse {
-    result: {
-        batch_success: boolean;
-        stateful: boolean;
-        from: string;
-        network: string;
-        total_gas?: number;
-        fee?: AomiSimulateFee;
-        steps: Array<{
-            step: number;
-            label: string;
-            success: boolean;
-            result?: string | null;
-            revert_reason?: string | null;
-            gas_used?: number;
-            tx: {
-                to: string;
-                value_wei: string;
-                value_eth: string;
-                data: string;
-            };
-        }>;
-    };
-}
-/**
- * POST /api/thread/interrupt
- * Interrupts current processing and returns updated session state
- */
-type AomiInterruptResponse = AomiChatResponse;
-/**
- * GET /api/threads
- * Returns array of AomiThread
- */
-interface AomiThread {
-    thread_id?: string;
-    session_id: string;
-    title: string | null;
-    is_archived?: boolean;
-    last_active_at?: number;
-}
-type AomiAccountResponse = AomiAccountProfile;
-/**
- * POST /api/threads
- * Creates a new thread/session
- */
-interface AomiCreateThreadResponse {
-    thread_id?: string;
-    session_id: string;
-    title?: string | null;
-    /** Bound rig slug — present only when the create carried `rig` (fast path). */
-    rig?: string;
-    /** Bound baml client — present only on the create fast path. */
-    baml?: string;
-}
-/**
- * GET /api/account
- * The account bound to the authenticated request (resolved from the account
- * bearer). Returned only when the session is bound to a real user; an
- * anonymous session yields HTTP 400.
- */
-interface AomiUser {
-    user_id: string;
-    username?: string | null;
-    apps?: string[];
-    tier?: string;
-    verified_email?: string | null;
-    status?: string;
-    last_seen_at?: number | null;
-    created_at?: number;
-    updated_at?: number;
-}
-interface AomiAuthIdentity {
-    id: number;
-    application?: string | null;
-    wallet_provider: string;
-    auth_method: string;
-    auth_verified_at?: number | null;
-    is_primary: boolean;
-    created_at: number;
-}
-interface AomiIdentityWallet {
-    wallet_id?: string | null;
-    address: string;
-    chain_type: string;
-    wallet_provider: string;
-}
-interface AomiUsageStats {
-    period_utc_month?: string;
-    input_tokens: number;
-    output_tokens: number;
-    credit_used: number;
-    credit_paid: number;
-}
-interface AomiAccountProfile {
-    user: AomiUser;
-    auth_identities?: AomiAuthIdentity[];
-    identity_wallets?: AomiIdentityWallet[];
-    usage?: AomiUsageStats;
-}
-interface AomiCreateApprovalRequest {
-    auth_identity_id: number;
-    grant_kind: string;
-    secret_handle: string;
-    external_subject?: string | null;
-    display_label?: string | null;
-    scopes?: string[];
-    expires_at?: number | null;
-    metadata?: unknown;
-}
-interface AomiAccessApproval {
-    id: number;
-    user_id: string;
-    auth_identity_id: number;
-    external_subject?: string | null;
-    display_label?: string | null;
-    grant_kind: string;
-    scopes: string[];
-    secret_handle: string;
-    expires_at?: number | null;
-    granted_at: number;
-    revoked_at?: number | null;
-    metadata: unknown;
-    created_at: number;
-    updated_at: number;
-}
-interface AomiBeginAccountAuthResponse {
-    state_token: string;
-    auth_url: string;
-    expires_at: number;
-}
-type AomiWalletFamily = "evm" | "svm";
-type AomiAuthWalletFamily = "evm" | "solana";
-/** Provider login intent. Linking ownership never implies delegated signing. */
-type AomiAuthPurpose = "link_wallet" | "delegate_signing";
-/**
- * GET/POST/DELETE /api/account/payment/byok
- * Lists or saves BYOK keys (one per LLM provider) for the account.
- */
-interface AomiByokKeyEntry {
-    provider: string;
-    key_prefix: string;
-    label?: string | null;
-    is_active: boolean;
-}
-/**
- * Base SSE event. Newer backends may include `thread_id`; `session_id` stays
- * optional for SDK compatibility with existing consumers.
- */
-type AomiSSEEvent = {
-    type: "title_changed" | "tool_update" | "tool_complete" | "system_notice" | "task_started" | "task_activity" | "task_completed" | string;
-    session_id?: string;
-    thread_id?: string;
-    new_title?: string;
-    [key: string]: unknown;
-};
-/** Terminal status reported by `task_completed`. */
-type AomiTaskStatus = "completed" | "failed" | "stalled" | "cancelled" | string;
-/** Child step flavor reported by `task_activity`. */
-type AomiTaskActivityKind = "tool_call" | "note";
-/** Emitted when the mother dispatches a `task` call, before awaiting the child. */
-type AomiTaskStartedEvent = {
-    type: "task_started";
-    /** id of the mother's `task` tool call. */
-    call_id: string;
-    /** Stable child handle, e.g. `task-agent:9f2c…`. */
-    agent_id: string;
-    label: string;
-    app?: string | null;
-    resumed?: boolean;
-    session_id?: string;
-    thread_id?: string;
-};
-/** Emitted as the mother observes the child transcript grow. */
-type AomiTaskActivityEvent = {
-    type: "task_activity";
-    call_id: string;
-    agent_id: string;
-    kind: AomiTaskActivityKind;
-    /** Present for `kind: "tool_call"`. */
-    tool_name?: string;
-    /** Present for `kind: "tool_call"`; redacted/truncated by the backend. */
-    args?: unknown;
-    /** Present for `kind: "tool_call"`; redacted/truncated by the backend. */
-    result_preview?: string;
-    /** Present for `kind: "note"`. */
-    text?: string;
-    /** Monotonic per agent — used for ordering and replay dedupe. */
-    child_seq: number;
-    session_id?: string;
-    thread_id?: string;
-};
-/** Emitted just before the mother's `task` call returns. */
-type AomiTaskCompletedEvent = {
-    type: "task_completed";
-    call_id: string;
-    agent_id: string;
-    status: AomiTaskStatus;
-    message?: string;
-    staged_count?: number;
-    /** Number of child steps the backend counted (may exceed observed activity). */
-    steps?: number;
-    duration_ms?: number;
-    session_id?: string;
-    thread_id?: string;
-};
-type AomiTaskEvent = AomiTaskStartedEvent | AomiTaskActivityEvent | AomiTaskCompletedEvent;
-type AomiTaskEventType = AomiTaskEvent["type"];
-declare const AOMI_TASK_EVENT_TYPES: readonly ["task_started", "task_activity", "task_completed"];
-declare function isAomiTaskEventType(type: string): type is AomiTaskEventType;
-/**
- * Narrow a raw SSE payload to a typed task event.
- *
- * Returns `null` when the payload is not a task event or is missing the fields
- * the UI joins on (`agent_id`, plus `child_seq` for activity), so a malformed
- * backend event degrades to "no row" instead of a half-built one.
- */
-declare function parseAomiTaskEvent(event: AomiSSEEvent | AomiTaskEvent): AomiTaskEvent | null;
-/**
- * POST /api/secrets
- * Ingests secrets for a client, returns opaque handles
- */
-interface AomiIngestSecretsResponse {
-    handles: Record<string, string>;
-}
-/**
- * DELETE /api/secrets
- * Clears all secrets for a client
- */
-interface AomiClearSecretsResponse {
-    cleared: boolean;
-}
-/**
- * DELETE /api/secrets/:name
- * Removes a single secret for a client
- */
-interface AomiDeleteSecretResponse {
-    deleted: boolean;
-}
-/**
- * GET /api/secrets
- * Per-app slot names currently filled for the session's client. The
- * backend never returns raw values; only the names.
- */
-interface AomiListSecretsResponse {
-    /** Client-scoped handle names (`BYOK:*`, `PAYMENT:*`). */
-    names?: string[];
-    /**
-     * Retired. Per-user app-scoped secrets no longer exist — an application's
-     * Environment belongs to its Builder. A backend that predates that change
-     * still answers with this shape, and the one that follows it sends an empty
-     * object for a release so pre-deploy browser tabs do not throw, so keep
-     * reading it until every deployed backend is past the cutover.
-     */
-    by_app?: Record<string, string[]>;
-}
-/**
- * One per-app secret slot declared by a plugin manifest. Surfaced via
- * `AomiAppDescriptor.secrets` so the frontend can render input rows and
- * gate app load on `required` slots being filled.
- */
-interface AomiSecretSlot {
-    name: string;
-    description: string;
-    required: boolean;
-}
-/**
- * GET /api/thread/apps
- * One entry per app the user can use. `secrets` is empty for apps that
- * declare no slots.
- */
-interface AomiAppDescriptor {
-    name: string;
-    applicationId?: number | string | null;
-    platform?: string | null;
-    label?: string | null;
-    appReleaseTag?: string | null;
-    isActive?: boolean | null;
-    isPublic?: boolean | null;
-    artifactReady?: boolean | null;
-    secrets?: AomiSecretSlot[];
-}
-type AomiSSEEventType = "title_changed" | "tool_update" | "tool_complete" | "system_notice" | AomiTaskEventType;
-/**
- * Backend SystemEvent enum serializes as tagged JSON:
- * - InlineCall: {"InlineCall": {"type": "wallet_tx_request", "payload": {...}}}
- * - SystemNotice: {"SystemNotice": "message"}
- * - SystemError: {"SystemError": "message"}
- * - AsyncCallback: {"AsyncCallback": {...}} (not sent over HTTP)
- */
-type AomiSystemEvent = {
-    InlineCall: {
-        type: string;
-        payload?: unknown;
-        [key: string]: unknown;
-    };
-} | {
-    SystemNotice: string;
-} | {
-    SystemError: string;
-} | {
-    AsyncCallback: Record<string, unknown>;
-};
-declare function isInlineCall(event: AomiSystemEvent): event is {
-    InlineCall: {
-        type: string;
-        payload?: unknown;
-    };
-};
-declare function isSystemNotice(event: AomiSystemEvent): event is {
-    SystemNotice: string;
-};
-declare function isSystemError(event: AomiSystemEvent): event is {
-    SystemError: string;
-};
-declare function isAsyncCallback(event: AomiSystemEvent): event is {
-    AsyncCallback: Record<string, unknown>;
-};
-
 interface components {
     schemas: {
         ActionResult: {
@@ -1011,6 +365,7 @@ interface components {
         StartTurnRequest: {
             app?: string | null;
             applicationId?: number | null;
+            clientId?: string | null;
             message: string;
             model?: string | null;
             sessionId?: string | null;
@@ -1089,6 +444,545 @@ type AgentActionResult = Schemas$1["ActionResult"];
 type AgentSessionRecord = Schemas$1["AgentSession"];
 type AgentSessionPage = Schemas$1["SessionPage"];
 
+type AomiOAuthResource = `${string}/v1/agent` | `${string}/v1/pipeline` | `${string}/agent/mcp` | `${string}/pipeline/mcp`;
+type AomiOAuthTokenSet = {
+    accessToken: string;
+    refreshToken?: string;
+    expiresAt: number;
+    resource: AomiOAuthResource;
+    scopes: readonly string[];
+    tokenType?: "Bearer" | "DPoP";
+    dpopProof?: (input: {
+        url: string;
+        method: string;
+        accessToken: string;
+        nonce?: string;
+    }) => Promise<string>;
+};
+type AomiOAuthTokenRequest = {
+    resource: AomiOAuthResource;
+    scopes: readonly string[];
+    forceRefresh?: boolean;
+};
+type AomiOAuthTokenProvider = (request: AomiOAuthTokenRequest) => Promise<AomiOAuthTokenSet | null>;
+declare function createOAuthTokenProvider(input: {
+    initial?: AomiOAuthTokenSet | null;
+    refresh: (current: AomiOAuthTokenSet, request: AomiOAuthTokenRequest) => Promise<AomiOAuthTokenSet>;
+    now?: () => number;
+}): AomiOAuthTokenProvider & {
+    clear(): void;
+    current(): AomiOAuthTokenSet | null;
+};
+type AuthorizationPoster = <T>(path: string, body: unknown) => Promise<T>;
+type AomiAuthorizationPermit = {
+    account: string;
+    chain_type: string;
+    wallet: string;
+    mode: string;
+    version: number;
+    expiry: number;
+};
+type AomiAuthorizationChallenge = {
+    permit: AomiAuthorizationPermit;
+    typed_data?: unknown;
+    message_base64?: string;
+};
+type AomiAuthorizationState = {
+    address: string;
+    chain_type: string;
+    signing_mode: string;
+    authorization_version: number;
+};
+type AomiEnsureBoundResult = {
+    status: "bound";
+    state: AomiAuthorizationState;
+} | {
+    status: "already_bound";
+};
+declare function posterFromClient(client: AomiClient): AuthorizationPoster;
+declare function authorizationChallenge(post: AuthorizationPoster, request: {
+    chain_type: string;
+    wallet: string;
+    mode: string;
+}): Promise<AomiAuthorizationChallenge>;
+declare function authorizationCommit(post: AuthorizationPoster, request: {
+    permit: AomiAuthorizationPermit;
+    signature: string;
+    signer?: string;
+}): Promise<AomiAuthorizationState>;
+declare function ensureSvmWalletBoundVia(post: AuthorizationPoster, wallet: string, signMessage: (message: Uint8Array) => Promise<Uint8Array>): Promise<AomiEnsureBoundResult>;
+declare function ensureSvmWalletBound(client: AomiClient, wallet: string, signMessage: (message: Uint8Array) => Promise<Uint8Array>): Promise<AomiEnsureBoundResult>;
+declare function isUnboundWalletError(error: unknown): boolean;
+
+type GuestSessionProvider = ((options?: {
+    forceRefresh?: boolean;
+}) => Promise<string>) & {
+    clear(): void;
+};
+declare function createGuestSessionProvider(input: {
+    baseUrl: string;
+    fetch?: typeof fetch;
+}): GuestSessionProvider;
+
+declare function address(userState?: UserState | null): string | undefined;
+declare function svmAddress(userState?: UserState | null): string | undefined;
+declare function chainId(userState?: UserState | null): number | undefined;
+declare function ensName(userState?: UserState | null): string | undefined;
+declare function isConnected(userState?: UserState | null): boolean | undefined;
+declare function walletProvider(userState?: UserState | null): UserStateWalletProvider | null | undefined;
+declare function walletProviderSubject(userState?: UserState | null): string | null | undefined;
+declare function authMethod(userState?: UserState | null): UserStateAuthMethod | null | undefined;
+declare function authValue(userState?: UserState | null): string | null | undefined;
+declare function authVerifiedAt(userState?: UserState | null): number | null | undefined;
+declare function withExt(userState: UserState, key: string, value: unknown): UserState;
+
+declare function normalizeUserState(userState?: UserState | null): UserState | undefined;
+declare function reconcileUserState(previousUserState?: UserState | null, incomingUserState?: UserState | null): UserState | undefined;
+/**
+ * Project a stored `UserState` down to the subset the client owns and may send
+ * to the backend. `pending` is backend-authority in-flight state and is dropped
+ * so the client never echoes it back. Apply at the transport send boundary.
+ */
+declare function toOwnedUserState(userState?: UserState | null): OwnedUserState | undefined;
+
+/**
+ * Client-side user state synced with the backend.
+ * Typically wallet connection info, but can be any key-value data.
+ *
+ * Account-abstraction and sponsorship are backend authority: they are resolved
+ * by the `execution-profile` endpoint and per-execution operation payloads, and
+ * are deliberately NOT part of this wire shape. The client never sends or stores
+ * them here.
+ */
+type UserStateAAMode = "none" | "4337" | "7702";
+type UserStateWalletProvider = "para" | "privy" | "baseAccount";
+type UserStateAuthMethod = "google" | "apple" | "facebook" | "x" | "discord" | "github" | "farcaster" | "telegram" | "email" | "phone" | "wagmi";
+/** Session-level connection facts shared across chain families. */
+interface UserStateConnection extends Record<string, unknown> {
+    is_connected?: boolean | null;
+    provider?: UserStateWalletProvider | null;
+    provider_label?: string | null;
+    wallet_provider_subject?: string | null;
+    auth_method?: UserStateAuthMethod | null;
+    auth_value?: string | null;
+    auth_verified_at?: number | string | null;
+}
+/** EVM-family wallet block (`evm`). */
+interface UserStateEvm extends Record<string, unknown> {
+    address?: string | null;
+    chain_id?: number | string | null;
+    ens_name?: string | null;
+}
+/** Solana-family wallet block (`svm`). */
+interface UserStateSvm extends Record<string, unknown> {
+    address?: string | null;
+    cluster?: string | null;
+    wallet_name?: string | null;
+    transport?: string | null;
+    /** Wallet-Standard capability identifiers, e.g. `"can_sign_message"`. */
+    capabilities?: string[] | null;
+}
+/**
+ * Backend-pushed in-flight wallet requests, chain-bucketed. Shape is owned by
+ * the backend; parsed by helpers like `pendingTxsFromBackendUserState`. The
+ * client forwards them transparently via reconciliation.
+ */
+interface UserStatePending extends Record<string, unknown> {
+    evm_txs?: Record<string, unknown> | null;
+    evm_sigs?: Record<string, unknown> | null;
+    svm_ixs?: Record<string, unknown> | null;
+    svm_sigs?: Record<string, unknown> | null;
+}
+/**
+ * The subset of `UserState` the client OWNS and may send to the backend.
+ * `pending` is backend-authority in-flight state; the client receives it but
+ * never echoes it back. Use {@link toOwnedUserState} to project a stored
+ * `UserState` down to this shape at the send boundary.
+ */
+type OwnedUserState = Omit<UserState, "pending">;
+/**
+ * Known client surfaces that may want backend-specific UX strategies.
+ * Additional string values are allowed for forward compatibility.
+ */
+type AomiClientType = "ts_cli" | "web_ui" | (string & {});
+declare const CLIENT_TYPE_TS_CLI: AomiClientType;
+declare const CLIENT_TYPE_WEB_UI: AomiClientType;
+/**
+ * Client-side user state, canonicalized to the backend's nested snake_case
+ * wire shape. EVM and Solana identities are independent blocks (`evm` / `svm`)
+ * so a single session can carry both families at once. `normalize` accepts the
+ * backend's nested camelCase responses and legacy flat host input, and emits
+ * this canonical shape.
+ */
+interface UserState extends Record<string, unknown> {
+    connection?: UserStateConnection | null;
+    evm?: UserStateEvm | null;
+    svm?: UserStateSvm | null;
+    pending?: UserStatePending | null;
+    ext?: Record<string, unknown> | null;
+    preferences?: Record<string, unknown> | null;
+}
+declare namespace UserState {
+    const normalize: typeof normalizeUserState;
+    const reconcile: typeof reconcileUserState;
+    const toOwned: typeof toOwnedUserState;
+    const address: typeof address;
+    const evmAddress: typeof address;
+    const svmAddress: typeof svmAddress;
+    const chainId: typeof chainId;
+    const ensName: typeof ensName;
+    const isConnected: typeof isConnected;
+    const walletProvider: typeof walletProvider;
+    const walletProviderSubject: typeof walletProviderSubject;
+    const authMethod: typeof authMethod;
+    const authValue: typeof authValue;
+    const authVerifiedAt: typeof authVerifiedAt;
+    const withExt: typeof withExt;
+}
+
+/**
+ * Optional logger for debug output. Pass `console` or any compatible object.
+ */
+type Logger = {
+    debug: (...args: unknown[]) => void;
+};
+type AomiClientOptions = {
+    /** Base URL of the Aomi backend (e.g. "https://api.aomi.dev" or "/" for same-origin proxying) */
+    baseUrl: string;
+    /** Optional fetch implementation for payment-aware browser transports and tests. */
+    fetch?: typeof fetch;
+    /** Default API key for non-default apps */
+    apiKey?: string;
+    /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
+    getAccountBearer?: GetAccountBearer;
+    /** Resource-bound developer OAuth. Takes precedence over session/guest auth. */
+    oauth?: AomiOAuthTokenProvider;
+    /** Low-friction Better Auth anonymous session for `/v1` calls. Defaults on. */
+    guest?: boolean | GuestSessionProvider;
+    /** Optional logger for debug output (default: silent) */
+    logger?: Logger;
+};
+type GetAccountBearer = ((options?: {
+    /** Force a refresh after an API 401. */
+    forceRefresh?: boolean;
+}) => Promise<string | null | undefined>) & {
+    /**
+     * When true, a throwing bearer source is fatal: the wrapped fetch rethrows
+     * instead of proceeding unauthenticated. Providers that mint a required
+     * (widget) session set this; additive account bearers leave it unset.
+     */
+    required?: boolean;
+    /**
+     * Notifies consumers when the bearer rotates or is revoked. AomiClient uses
+     * this to reconnect live SSE streams with the new credential.
+     *
+     * The property is optional because API-key and cookie-backed integrations do
+     * not own a refreshable account bearer. WidgetSessionProvider always exposes
+     * it. Wrappers around a widget provider must preserve this subscription or
+     * provide their own stable forwarding subscription.
+     */
+    subscribe?: (listener: () => void) => () => void;
+};
+type AomiRequestQueryValue = string | number | boolean | readonly (string | number | boolean)[] | null | undefined;
+type AomiPlatformFilter = string | readonly string[] | null | undefined;
+/** Stable id of a hosted app; null/empty means "not app-scoped". */
+type ApplicationId = number | string | null;
+type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+interface AomiRequestOptions {
+    /** Thread id for thread-scoped routes. Kept as sessionId for SDK compatibility. */
+    sessionId?: string;
+    /** App key for app-key checked routes; defaults to the client's apiKey. */
+    apiKey?: string;
+    /** Query params appended to the request URL. */
+    query?: Record<string, AomiRequestQueryValue>;
+    /** JSON request payload. */
+    body?: unknown;
+    /** Extra request headers. */
+    headers?: HeadersInit;
+    /** Use the native fetch path instead of a custom payment-aware fetch wrapper. */
+    raw?: boolean;
+}
+interface AomiMessage {
+    /** Stable public Agent message identity when available. */
+    id?: string;
+    /**
+     * `notice` is a durable runtime record — today, a turn the provider refused.
+     * Unlike `system`, which the projection drops, a notice is shown to the user
+     * and survives a reload.
+     */
+    sender?: "user" | "agent" | "system" | "notice" | string;
+    /**
+     * Backend-allocated identity for this message, stable across polls and
+     * reloads. Absent on legacy rows the runtime hydrated without one.
+     *
+     * The only sound id for a rendered notice: every failure notice carries the
+     * same copy, so anything derived from content collides across distinct
+     * failures in one thread.
+     */
+    message_key?: string;
+    content?: string;
+    timestamp?: string;
+    is_streaming?: boolean;
+    tool_result?: [string, string] | null;
+    /** Name of the tool this message reports on, when the backend supplies it. */
+    tool_name?: string;
+    /** Arguments the model passed to `tool_name`, as serialized by the backend. */
+    tool_arguments?: unknown;
+}
+/**
+ * POST /api/exec/simulate
+ * Batch-simulate pending transactions atomically (snapshot → sequential send → revert).
+ */
+interface AomiSimulateFee {
+    /** Treasury address to receive the fee. */
+    recipient: string;
+    /** Fee amount in wei (decimal string). */
+    amount_wei: string;
+    /** Token type — always "native" for now. */
+    token: "native";
+}
+interface AomiSimulateResponse {
+    result: {
+        batch_success: boolean;
+        stateful: boolean;
+        from: string;
+        network: string;
+        total_gas?: number;
+        fee?: AomiSimulateFee;
+        steps: Array<{
+            step: number;
+            label: string;
+            success: boolean;
+            result?: string | null;
+            revert_reason?: string | null;
+            gas_used?: number;
+            tx: {
+                to: string;
+                value_wei: string;
+                value_eth: string;
+                data: string;
+            };
+        }>;
+    };
+}
+type AomiAccountResponse = AomiAccountProfile;
+/**
+ * GET /api/account
+ * The account bound to the authenticated request (resolved from the account
+ * bearer). Returned only when the session is bound to a real user; an
+ * anonymous session yields HTTP 400.
+ */
+interface AomiUser {
+    user_id: string;
+    username?: string | null;
+    apps?: string[];
+    tier?: string;
+    verified_email?: string | null;
+    status?: string;
+    last_seen_at?: number | null;
+    created_at?: number;
+    updated_at?: number;
+}
+interface AomiAuthIdentity {
+    id: number;
+    application?: string | null;
+    wallet_provider: string;
+    auth_method: string;
+    auth_verified_at?: number | null;
+    is_primary: boolean;
+    created_at: number;
+}
+interface AomiIdentityWallet {
+    wallet_id?: string | null;
+    address: string;
+    chain_type: string;
+    wallet_provider: string;
+}
+interface AomiUsageStats {
+    period_utc_month?: string;
+    input_tokens: number;
+    output_tokens: number;
+    credit_used: number;
+    credit_paid: number;
+}
+interface AomiAccountProfile {
+    user: AomiUser;
+    auth_identities?: AomiAuthIdentity[];
+    identity_wallets?: AomiIdentityWallet[];
+    usage?: AomiUsageStats;
+}
+interface AomiCreateApprovalRequest {
+    auth_identity_id: number;
+    grant_kind: string;
+    secret_handle: string;
+    external_subject?: string | null;
+    display_label?: string | null;
+    scopes?: string[];
+    expires_at?: number | null;
+    metadata?: unknown;
+}
+interface AomiAccessApproval {
+    id: number;
+    user_id: string;
+    auth_identity_id: number;
+    external_subject?: string | null;
+    display_label?: string | null;
+    grant_kind: string;
+    scopes: string[];
+    secret_handle: string;
+    expires_at?: number | null;
+    granted_at: number;
+    revoked_at?: number | null;
+    metadata: unknown;
+    created_at: number;
+    updated_at: number;
+}
+interface AomiBeginAccountAuthResponse {
+    state_token: string;
+    auth_url: string;
+    expires_at: number;
+}
+type AomiWalletFamily = "evm" | "svm";
+type AomiAuthWalletFamily = "evm" | "solana";
+/** Provider login intent. Linking ownership never implies delegated signing. */
+type AomiAuthPurpose = "link_wallet" | "delegate_signing";
+/**
+ * GET/POST/DELETE /api/account/payment/byok
+ * Lists or saves BYOK keys (one per LLM provider) for the account.
+ */
+interface AomiByokKeyEntry {
+    provider: string;
+    key_prefix: string;
+    label?: string | null;
+    is_active: boolean;
+}
+/** Terminal status reported by `task_completed`. */
+type AomiTaskStatus = "completed" | "failed" | "stalled" | "cancelled" | string;
+/** Child step flavor reported by `task_activity`. */
+type AomiTaskActivityKind = "tool_call" | "note";
+/** Emitted when the mother dispatches a `task` call, before awaiting the child. */
+type AomiTaskStartedEvent = {
+    type: "task_started";
+    /** id of the mother's `task` tool call. */
+    call_id: string;
+    /** Stable child handle, e.g. `task-agent:9f2c…`. */
+    agent_id: string;
+    label: string;
+    app?: string | null;
+    resumed?: boolean;
+    session_id?: string;
+    thread_id?: string;
+};
+/** Emitted as the mother observes the child transcript grow. */
+type AomiTaskActivityEvent = {
+    type: "task_activity";
+    call_id: string;
+    agent_id: string;
+    kind: AomiTaskActivityKind;
+    /** Present for `kind: "tool_call"`. */
+    tool_name?: string;
+    /** Present for `kind: "tool_call"`; redacted/truncated by the backend. */
+    args?: unknown;
+    /** Present for `kind: "tool_call"`; redacted/truncated by the backend. */
+    result_preview?: string;
+    /** Present for `kind: "note"`. */
+    text?: string;
+    /** Monotonic per agent — used for ordering and replay dedupe. */
+    child_seq: number;
+    session_id?: string;
+    thread_id?: string;
+};
+/** Emitted just before the mother's `task` call returns. */
+type AomiTaskCompletedEvent = {
+    type: "task_completed";
+    call_id: string;
+    agent_id: string;
+    status: AomiTaskStatus;
+    message?: string;
+    staged_count?: number;
+    /** Number of child steps the backend counted (may exceed observed activity). */
+    steps?: number;
+    duration_ms?: number;
+    session_id?: string;
+    thread_id?: string;
+};
+type AomiTaskEvent = AomiTaskStartedEvent | AomiTaskActivityEvent | AomiTaskCompletedEvent;
+type AomiTaskEventType = AomiTaskEvent["type"];
+declare const AOMI_TASK_EVENT_TYPES: readonly ["task_started", "task_activity", "task_completed"];
+declare function isAomiTaskEventType(type: string): type is AomiTaskEventType;
+/**
+ * Narrow a raw SSE payload to a typed task event.
+ *
+ * Returns `null` when the payload is not a task event or is missing the fields
+ * the UI joins on (`agent_id`, plus `child_seq` for activity), so a malformed
+ * backend event degrades to "no row" instead of a half-built one.
+ */
+declare function parseAomiTaskEvent(event: AgentActivity | AomiTaskEvent): AomiTaskEvent | null;
+/**
+ * POST /api/secrets
+ * Ingests secrets for a client, returns opaque handles
+ */
+interface AomiIngestSecretsResponse {
+    handles: Record<string, string>;
+}
+/**
+ * DELETE /api/secrets
+ * Clears all secrets for a client
+ */
+interface AomiClearSecretsResponse {
+    cleared: boolean;
+}
+/**
+ * DELETE /api/secrets/:name
+ * Removes a single secret for a client
+ */
+interface AomiDeleteSecretResponse {
+    deleted: boolean;
+}
+/**
+ * GET /api/secrets
+ * Per-app slot names currently filled for the session's client. The
+ * backend never returns raw values; only the names.
+ */
+interface AomiListSecretsResponse {
+    /** Client-scoped handle names (`BYOK:*`, `PAYMENT:*`). */
+    names?: string[];
+    /**
+     * Retired. Per-user app-scoped secrets no longer exist — an application's
+     * Environment belongs to its Builder. A backend that predates that change
+     * still answers with this shape, and the one that follows it sends an empty
+     * object for a release so pre-deploy browser tabs do not throw, so keep
+     * reading it until every deployed backend is past the cutover.
+     */
+    by_app?: Record<string, string[]>;
+}
+/**
+ * One per-app secret slot declared by a plugin manifest. Surfaced via
+ * `AomiAppDescriptor.secrets` so the frontend can render input rows and
+ * gate app load on `required` slots being filled.
+ */
+interface AomiSecretSlot {
+    name: string;
+    description: string;
+    required: boolean;
+}
+/**
+ * GET /api/thread/apps
+ * One entry per app the user can use. `secrets` is empty for apps that
+ * declare no slots.
+ */
+interface AomiAppDescriptor {
+    name: string;
+    applicationId?: number | string | null;
+    platform?: string | null;
+    label?: string | null;
+    appReleaseTag?: string | null;
+    isActive?: boolean | null;
+    isPublic?: boolean | null;
+    artifactReady?: boolean | null;
+    secrets?: AomiSecretSlot[];
+}
+
 type RequestResponse$1 = (method: AomiHttpMethod, path: string, options?: AomiRequestOptions) => Promise<Response>;
 declare class AgentApiError extends Error {
     readonly status: number;
@@ -1122,6 +1016,7 @@ declare class AgentSessionsTransport {
         cursor?: string;
         limit?: number;
     }): Promise<AgentSessionPage>;
+    all(): Promise<AgentSessionRecord[]>;
     get(sessionId: string): Promise<AgentSessionRecord>;
     update(sessionId: string, patch: {
         title?: string;
@@ -1233,21 +1128,7 @@ declare class AomiClient {
     private readonly fetchImpl;
     private readonly rawFetchImpl;
     private readonly logger?;
-    private readonly accountBearer?;
-    private readonly sseSubscriber;
     constructor(options: AomiClientOptions);
-    /**
-     * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
-     *
-     * Historically evaluated ONCE in the constructor, which silently dropped
-     * reconnect for a stable bearer whose `subscribe` appears after construction.
-     * Re-attempted lazily on every SSE subscription so that shape is picked up on
-     * the next stream instead of never. Replacing the bearer function itself still
-     * requires a stable host/widget bridge; AomiClient intentionally retains the
-     * source supplied at construction.
-     */
-    private tokenRefreshWired;
-    private wireTokenRefreshReconnect;
     /**
      * Low-level request escape hatch for the full backend route manifest.
      * Prefer the typed helpers below for common chat/session/account flows.
@@ -1255,42 +1136,6 @@ declare class AomiClient {
     request<T = unknown>(method: AomiHttpMethod, path: string, options?: AomiRequestOptions): Promise<T>;
     /** Raw authenticated response transport shared by JSON, SSE, and MCP clients. */
     requestResponse(method: AomiHttpMethod, path: string, options?: AomiRequestOptions): Promise<Response>;
-    /**
-     * Fetch current session state (messages, processing status, title).
-     */
-    fetchState(sessionId: string, userState?: OwnedUserState, clientId?: string, options?: {
-        app?: string;
-        applicationId?: ApplicationId;
-    }): Promise<AomiStateResponse>;
-    /**
-     * Send a chat message and return updated session state.
-     */
-    sendMessage(sessionId: string, message: string, options?: {
-        app?: string;
-        applicationId?: ApplicationId;
-        apiKey?: string;
-        userState?: OwnedUserState;
-        clientId?: string;
-        paymentMethod?: string | null;
-        /** @deprecated Accepted as a no-op for compatibility with client 0.4.3. */
-        turnId?: string;
-    }): Promise<AomiChatResponse>;
-    /**
-     * Send a system-level message (e.g. wallet state changes, context switches).
-     * Pass `app` to preserve the session's active app context (prevents the
-     * backend from resetting to the default app when no app is specified).
-     */
-    sendSystemMessage(sessionId: string, message: string, options?: {
-        app?: string;
-        applicationId?: ApplicationId;
-    }): Promise<AomiSystemResponse>;
-    /**
-     * Interrupt the AI's current response.
-     */
-    interrupt(sessionId: string, options?: {
-        app?: string;
-        applicationId?: ApplicationId;
-    }): Promise<AomiInterruptResponse>;
     /**
      * Ingest client-scoped secrets. Returns opaque `$SECRET:<name>` handles.
      *
@@ -1312,64 +1157,6 @@ declare class AomiClient {
      * pre-cutover `by_app` shape as well as the flat `names` list.
      */
     listSecrets(sessionId: string, clientId?: string): Promise<AomiListSecretsResponse>;
-    /**
-     * Subscribe to real-time SSE updates for a session.
-     * Automatically reconnects with exponential backoff on disconnects.
-     * Returns an unsubscribe function.
-     */
-    subscribeSSE(sessionId: string, onUpdate: (event: AomiSSEEvent) => void, onError?: (error: unknown) => void, options?: {
-        applicationId?: ApplicationId;
-    }): () => void;
-    /**
-     * @deprecated Account bootstrap is handled by session create/chat requests and
-     * the account-token exchange. `/api/account` is now an authenticated
-     * profile endpoint, so this legacy helper intentionally does nothing.
-     */
-    ensureAccount(_sessionId: string, _publicKey: string): Promise<void>;
-    /**
-     * List all threads for the authenticated account.
-     */
-    listThreads(sessionId: string): Promise<AomiThread[]>;
-    /**
-     * Get a single thread by ID.
-     */
-    getThread(sessionId: string): Promise<AomiThread>;
-    /**
-     * Create a new thread. The client generates the session ID.
-     *
-     * Passing `rig` (and optionally `app`/`applicationId`/`platform`/`clientId`)
-     * binds the model selection in the same request — the fast path that saves
-     * the follow-up `setModel` round-trip on a fresh chat.
-     */
-    createThread(threadId: string, options?: {
-        rig?: string;
-        app?: string;
-        applicationId?: number | string;
-        platform?: string;
-        clientId?: string;
-    }): Promise<AomiCreateThreadResponse>;
-    /**
-     * Delete a thread by ID.
-     */
-    deleteThread(sessionId: string): Promise<void>;
-    /**
-     * Rename a thread.
-     */
-    renameThread(sessionId: string, newTitle: string): Promise<void>;
-    /**
-     * Archive a thread.
-     */
-    archiveThread(sessionId: string): Promise<void>;
-    /**
-     * Unarchive a thread.
-     */
-    unarchiveThread(sessionId: string): Promise<void>;
-    /**
-     * Get system events for a session.
-     */
-    getSystemEvents(sessionId: string, count?: number, options?: {
-        applicationId?: ApplicationId;
-    }): Promise<AomiSystemEvent[]>;
     /**
      * Get available apps as full descriptors (name + declared secret slots).
      * The settings page consumes the slot info to render per-app inputs and
@@ -1668,12 +1455,6 @@ declare class TypedEventEmitter<EventMap extends Record<string, unknown> = Recor
     off<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): void;
     removeAllListeners(): void;
 }
-
-type UnwrappedEvent = {
-    type: string;
-    payload: unknown;
-};
-declare function unwrapSystemEvent(event: AomiSystemEvent): UnwrappedEvent | null;
 
 type AAMode = "4337" | "7702";
 type AASponsorship = "disabled" | "optional" | "required";
@@ -2066,8 +1847,6 @@ type SendResult = {
     title?: string;
 };
 type SessionOptions = {
-    /** Agent is the permanent transport; legacy is an explicit rollback adapter. */
-    transport?: "agent" | "legacy";
     /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
     sessionId?: string;
     /** App for chat messages. Default: "default" */
@@ -2076,22 +1855,12 @@ type SessionOptions = {
     model?: string | null;
     /** Optional concrete application row to route chat/model calls to. */
     applicationId?: number | string | null;
-    /** API key override. */
-    apiKey?: string;
     /** User state to send with requests (wallet connection info, etc). */
     userState?: UserState;
     /** Optional client type hint forwarded to the backend via userState.ext.client_type. */
     clientType?: AomiClientType;
     /** Stable client ID used for secret-vault association. */
     clientId?: string;
-    /** Optional backend payment method override for chat turns. */
-    paymentMethod?: string | null;
-    /**
-     * When true (default), synthesize pending transaction wallet requests from
-     * `user_state.pending_txs` during state sync. Web UI should disable this and
-     * rely on explicit `wallet_tx_request` events from `send_transaction_to_wallet`.
-     */
-    syncPendingTxRequestsFromUserState?: boolean;
     /** Polling interval in ms. Default: 500 */
     pollIntervalMs?: number;
     /** Logger for debug output. Pass `console` for verbose logging. */
@@ -2103,7 +1872,6 @@ type SessionRuntimeOptions = {
     app: string;
     model?: string | null;
     applicationId?: number | string | null;
-    apiKey?: string;
     clientId?: string;
     userState?: UserState;
 };
@@ -2119,8 +1887,7 @@ type SessionEventMap = {
         message: string;
     };
     async_callback: Record<string, unknown>;
-    tool_update: AomiSSEEvent;
-    tool_complete: AomiSSEEvent;
+    tool_complete: AgentActivity;
     task_started: AomiTaskStartedEvent;
     task_activity: AomiTaskActivityEvent;
     task_completed: AomiTaskCompletedEvent;
@@ -2150,14 +1917,10 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private app;
     private model?;
     private applicationId?;
-    private apiKey?;
     private userState?;
     private clientId;
-    private paymentMethod?;
-    private syncPendingTxRequestsFromUserState;
     private pollIntervalMs;
     private logger?;
-    private readonly transport;
     private agentCursor?;
     private agentStatus?;
     private agentActions;
@@ -2166,15 +1929,9 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private pollingActive;
     private pollInFlight;
     private pollFailureCount;
-    private unsubscribeSSE;
-    private isSSEActive;
     private _isProcessing;
     private _backendWasProcessing;
     private walletController;
-    private recoveringSigningRequestIds;
-    private signingRecoveryInFlight;
-    private signingRecoveryTimer;
-    private lastSigningRecoveryAt;
     private _messages;
     private _title?;
     private closed;
@@ -2193,7 +1950,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
      * Send a message without waiting for completion.
      * Polling starts in the background; listen to events for updates.
      */
-    sendAsync(message: string): Promise<AomiChatResponse>;
+    sendAsync(message: string): Promise<AgentDelta>;
     /**
      * Resolve a pending wallet request. The `result.kind` discriminator must
      * match the originating request's kind — sending a `transaction` result for a `signing`
@@ -2233,10 +1990,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     getIsProcessing(): boolean;
     /** Last status observed from the canonical Agent transport. */
     getAgentStatus(): AgentStatus | undefined;
-    getIsSSEActive(): boolean;
-    setSSEActive(active: boolean): void;
     syncRuntimeOptions(options: SessionRuntimeOptions): void;
-    private startSSE;
     resolveUserState(userState: UserState, opts?: {
         skipEmit?: boolean;
     }): void;
@@ -2244,12 +1998,7 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     addExtValue(key: string, value: unknown): void;
     removeExtValue(key: string): void;
     resolveWallet(address: string, chainId?: number): void;
-    /**
-     * The subset of the stored state the client may send to the backend. Drops
-     * backend-authority `pending` (in-flight requests the client only receives).
-     */
-    private outboundUserState;
-    syncUserState(): Promise<AomiStateResponse>;
+    syncUserState(): Promise<AgentDelta>;
     /** Whether the session is currently polling for state updates. */
     getIsPolling(): boolean;
     /**
@@ -2268,26 +2017,9 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private currentPollInterval;
     private schedulePoll;
     private handleVisibilityChange;
-    private applyState;
-    /**
-     * Coalesce recovery behind one request and a bounded cadence. State polling
-     * may run twice per second; durable handoff recovery does not need to.
-     */
-    private scheduleSigningRequestRecovery;
-    /**
-     * A signing event is transient, but its backend-owned operation is durable.
-     * Recover an attended handoff from the operation view when a tab reload or
-     * reconnect happens after the original event was delivered.
-     */
-    private recoverSigningRequests;
-    private fetchSigningRequests;
-    private handleSSEEvent;
-    private sendSystemEvent;
-    private completeSigningRequest;
     /** Shared completion path for send()/sendAsync() after the chat POST. */
     private submitChat;
     private agentActive;
-    private agentState;
     private agentWallets;
     private applyAgentDelta;
     private agentMessage;
@@ -2300,7 +2032,6 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private resumeAfterWalletResponse;
     private resolvePending;
     private assertOpen;
-    private assertUserStateAligned;
 }
 
 type ChainInfo = {
@@ -2639,4 +2370,4 @@ declare function appendFeeCallToPayload(payload: WalletTxPayload, fee: AomiSimul
     strictAa?: boolean;
 }): WalletTxPayload;
 
-export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AgentAction, type AgentActionResult, type AgentActivity, AgentApiError, type AgentDelta, type AgentMessage, type AgentSessionPage, type AgentSessionRecord, type AgentStartRequest, type AgentStatus, AgentTransport, type AgentWalletContext, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiChatResponse, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiCreateThreadResponse, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiInterruptResponse, type AomiListSecretsResponse, type AomiMessage, type AomiOAuthResource, type AomiOAuthTokenProvider, type AomiOAuthTokenRequest, type AomiOAuthTokenSet, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSSEEvent, type AomiSSEEventType, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiStateResponse, type AomiSystemEvent, type AomiSystemResponse, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiThread, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type ApplicationId, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type EvmExternalTransactionAction, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type GuestSessionProvider, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type OwnedUserState, type PartialWalletExecution, PartialWalletExecutionError, type PipelineAction, PipelineApiError, type PipelineAppResponse, type PipelineAppsResponse, type PipelineCatalogResponse, type PipelineExecutionOptions, type PipelineExecutionResponse, type PipelineListOptions, type PipelineResource, type PipelineRunRequest, type PipelineSearchOptions, type PipelineSearchResponse, type PipelineSkillsResponse, type PipelineToolCallRequest, type PipelineToolListOptions, type PipelineToolResponse, type PipelineToolSearchOptions, type PipelineToolsResponse, PipelineTransport, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SigningRequestAction, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, type SvmExternalTransactionAction, TypedEventEmitter, type UnwrappedEvent, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSignablePayload, type WalletSigningPayload, type WalletSolanaLegResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, WidgetChallengeBindingError, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createGuestSessionProvider, createOAuthTokenProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isAsyncCallback, isInlineCall, isSystemError, isSystemNotice, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, partialWalletExecution, posterFromClient, robinhood, safeEnv, secretNamesFrom, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, unwrapSystemEvent, wrapFetchWithPaymentChallenges };
+export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AgentAction, type AgentActionResult, type AgentActivity, AgentApiError, type AgentDelta, type AgentMessage, type AgentSessionPage, type AgentSessionRecord, type AgentStartRequest, type AgentStatus, AgentTransport, type AgentWalletContext, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiListSecretsResponse, type AomiMessage, type AomiOAuthResource, type AomiOAuthTokenProvider, type AomiOAuthTokenRequest, type AomiOAuthTokenSet, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type ApplicationId, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type EvmExternalTransactionAction, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type GuestSessionProvider, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type OwnedUserState, type PartialWalletExecution, PartialWalletExecutionError, type PipelineAction, PipelineApiError, type PipelineAppResponse, type PipelineAppsResponse, type PipelineCatalogResponse, type PipelineExecutionOptions, type PipelineExecutionResponse, type PipelineListOptions, type PipelineResource, type PipelineRunRequest, type PipelineSearchOptions, type PipelineSearchResponse, type PipelineSkillsResponse, type PipelineToolCallRequest, type PipelineToolListOptions, type PipelineToolResponse, type PipelineToolSearchOptions, type PipelineToolsResponse, PipelineTransport, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SigningRequestAction, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, type SvmExternalTransactionAction, TypedEventEmitter, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSignablePayload, type WalletSigningPayload, type WalletSolanaLegResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, WidgetChallengeBindingError, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createGuestSessionProvider, createOAuthTokenProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, partialWalletExecution, posterFromClient, robinhood, safeEnv, secretNamesFrom, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, wrapFetchWithPaymentChallenges };

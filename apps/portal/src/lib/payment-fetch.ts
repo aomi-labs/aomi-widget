@@ -8,8 +8,7 @@ import { getAddress, isAddress } from "viem";
 function isChatPost(request: Request): boolean {
   const pathname = new URL(request.url).pathname;
   return (
-    request.method.toUpperCase() === "POST" &&
-    (pathname === "/v1/agent/chat" || pathname === "/api/thread/chat")
+    request.method.toUpperCase() === "POST" && pathname === "/v1/agent/chat"
   );
 }
 

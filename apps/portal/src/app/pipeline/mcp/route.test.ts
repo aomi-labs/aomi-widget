@@ -6,9 +6,9 @@ const mocks = vi.hoisted(() => ({
     | ((request: Request, claims: Record<string, unknown>) => Promise<Response>)
     | undefined,
   options: undefined as Record<string, unknown> | undefined,
-  handle: vi.fn(),
   narrow: vi.fn(),
   principal: vi.fn(),
+  proxy: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/account/better-auth", () => ({ auth: {} }));
@@ -43,16 +43,18 @@ vi.mock("@portal/server/oauth/principal", () => ({
 vi.mock("@portal/server/oauth/mcp-scopes", () => ({
   narrowMcpPrincipal: mocks.narrow,
 }));
-vi.mock("@portal/server/pipeline-mcp-route", () => ({
-  handlePipelineMcp: mocks.handle,
+vi.mock("@portal/server/agent-api-proxy", () => ({
+  proxyAgentApi: mocks.proxy,
 }));
 
 import { POST } from "./route";
 
 const principal = {
-  userId: "aomi-user-1",
+  canonicalUserId: "aomi-user-1",
+  resource: "https://chat.aomi.dev/pipeline/mcp",
+  authSource: "oauth",
   principalClass: "user",
-  scopes: ["mcp:pipeline"],
+  scopes: ["mcp:pipeline", "pipeline:catalog"],
 };
 
 describe("canonical Pipeline MCP route", () => {
@@ -60,7 +62,7 @@ describe("canonical Pipeline MCP route", () => {
     mocks.enabled.mockReturnValue(true);
     mocks.principal.mockResolvedValue(principal);
     mocks.narrow.mockResolvedValue(principal);
-    mocks.handle.mockResolvedValue(Response.json({ ok: true }));
+    mocks.proxy.mockResolvedValue(Response.json({ ok: true }));
   });
 
   it("configures exact-resource OAuth for every MCP protocol method", async () => {
@@ -81,7 +83,7 @@ describe("canonical Pipeline MCP route", () => {
     }
   });
 
-  it("narrows an authenticated request before the Gate F handler", async () => {
+  it("preserves the narrowed principal and delegates only to the Rust presenter", async () => {
     const request = new Request("https://chat.aomi.dev/pipeline/mcp", {
       method: "POST",
       headers: { authorization: "Bearer exact-resource-token" },
@@ -94,7 +96,13 @@ describe("canonical Pipeline MCP route", () => {
       "https://chat.aomi.dev/pipeline/mcp",
     );
     expect(mocks.narrow).toHaveBeenCalledWith(request, principal, "pipeline");
-    expect(mocks.handle).toHaveBeenCalledWith(request, principal);
+    const [proxied, delegated] = mocks.proxy.mock.calls[0] as [
+      Request,
+      typeof principal,
+    ];
+    expect(new URL(proxied.url).pathname).toBe("/v1/pipeline/mcp");
+    expect(await proxied.text()).toContain("tools/list");
+    expect(delegated).toBe(principal);
   });
 
   it("is independently reversible", async () => {

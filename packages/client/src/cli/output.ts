@@ -1,10 +1,10 @@
 import type {
   AomiMessage,
-  AomiSSEEvent,
   AomiTaskActivityEvent,
   AomiTaskCompletedEvent,
   AomiTaskStartedEvent,
 } from "../types";
+import type { AgentActivity } from "../agent/types";
 import type { CliPaymentEvent } from "./payment";
 import { STATE_ROOT_DIR, getActiveStateFilePath } from "./state";
 
@@ -30,13 +30,7 @@ export function printJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
-export function printToolUpdate(event: AomiSSEEvent): void {
-  const name = getToolNameFromEvent(event);
-  const status = (event.status as string | undefined) ?? "running";
-  console.log(`${DIM}🔧 [tool] ${name}: ${status}${RESET}`);
-}
-
-export function printToolComplete(event: AomiSSEEvent): void {
+export function printToolComplete(event: AgentActivity): void {
   const name = getToolNameFromEvent(event);
   const result = getToolResultFromEvent(event);
   const line = formatToolResultLine(name, result);
@@ -123,7 +117,7 @@ export function printPaymentEvent(event: CliPaymentEvent): void {
   }
 }
 
-export function getToolNameFromEvent(event: AomiSSEEvent): string {
+export function getToolNameFromEvent(event: AgentActivity): string {
   return (
     (event.tool_name as string | undefined) ??
     (event.name as string | undefined) ??
@@ -132,7 +126,7 @@ export function getToolNameFromEvent(event: AomiSSEEvent): string {
 }
 
 export function getToolResultFromEvent(
-  event: AomiSSEEvent,
+  event: AgentActivity,
 ): string | undefined {
   return (
     (event.result as string | undefined) ?? (event.output as string | undefined)

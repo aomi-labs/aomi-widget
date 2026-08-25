@@ -238,11 +238,6 @@ function MyComponent() {
   const unsubscribe = api.subscribe("wallet_tx_request", (event) => {
     console.log(event);
   });
-  await api.sendSystemCommand({
-    type: "custom:action",
-    sessionId: threadId,
-    payload: { data: "value" },
-  });
 }
 ```
 

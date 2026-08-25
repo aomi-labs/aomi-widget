@@ -30,640 +30,6 @@ var __objRest = (source, exclude) => {
   return target;
 };
 
-// src/user-state/normalize.ts
-function asObject(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return void 0;
-  }
-  return value;
-}
-function asEvmObject(value) {
-  return Array.isArray(value) ? asObject(value[0]) : asObject(value);
-}
-function pick(record, ...keys) {
-  if (!record) {
-    return void 0;
-  }
-  for (const key of keys) {
-    if (Object.prototype.hasOwnProperty.call(record, key) && record[key] !== void 0) {
-      return record[key];
-    }
-  }
-  return void 0;
-}
-function assignDefined(target, key, value) {
-  if (value !== void 0) {
-    target[key] = value;
-  }
-}
-function renameKey(obj, from, to) {
-  if (from === to) return;
-  if (Object.prototype.hasOwnProperty.call(obj, from)) {
-    if (!(to in obj) || obj[to] === void 0) {
-      obj[to] = obj[from];
-    }
-    delete obj[from];
-  }
-}
-function liftFlat(obj, flat, to, fromKeys) {
-  if (to in obj && obj[to] !== void 0) return;
-  const value = pick(flat, ...fromKeys);
-  if (value !== void 0) {
-    obj[to] = value;
-  }
-}
-var OPAQUE_PENDING_KEYS = /* @__PURE__ */ new Set(["typed_data", "typedData", "domain"]);
-function camelToSnake(key) {
-  return key.replace(/([A-Z])/g, "_$1").toLowerCase();
-}
-function snakeizePendingValue(value) {
-  if (Array.isArray(value)) {
-    return value.map(snakeizePendingValue);
-  }
-  const obj = asObject(value);
-  if (!obj) return value;
-  const out = {};
-  for (const [key, val] of Object.entries(obj)) {
-    const snake = camelToSnake(key);
-    out[snake] = OPAQUE_PENDING_KEYS.has(key) || OPAQUE_PENDING_KEYS.has(snake) ? val : snakeizePendingValue(val);
-  }
-  return out;
-}
-function snakeizeBucket(bucket) {
-  const obj = asObject(bucket);
-  if (!obj) return void 0;
-  const out = {};
-  for (const [id, value] of Object.entries(obj)) {
-    out[id] = snakeizePendingValue(value);
-  }
-  return out;
-}
-function buildConnection(src, flat) {
-  const c = __spreadValues({}, src != null ? src : {});
-  renameKey(c, "isConnected", "is_connected");
-  renameKey(c, "providerLabel", "provider_label");
-  renameKey(c, "walletProviderSubject", "wallet_provider_subject");
-  renameKey(c, "authMethod", "auth_method");
-  renameKey(c, "authValue", "auth_value");
-  renameKey(c, "authVerifiedAt", "auth_verified_at");
-  liftFlat(c, flat, "is_connected", ["is_connected", "isConnected"]);
-  liftFlat(c, flat, "provider", ["wallet_provider", "walletProvider"]);
-  liftFlat(c, flat, "wallet_provider_subject", [
-    "wallet_provider_subject",
-    "walletProviderSubject"
-  ]);
-  liftFlat(c, flat, "auth_method", ["auth_method", "authMethod"]);
-  liftFlat(c, flat, "auth_value", ["auth_value", "authValue"]);
-  liftFlat(c, flat, "auth_verified_at", ["auth_verified_at", "authVerifiedAt"]);
-  dropNullKeys(c, "is_connected");
-  return Object.keys(c).length ? c : void 0;
-}
-function buildEvm(src, flat) {
-  const e = __spreadValues({}, src != null ? src : {});
-  renameKey(e, "chainId", "chain_id");
-  renameKey(e, "ensName", "ens_name");
-  delete e.aa;
-  delete e.sponsorship;
-  liftFlat(e, flat, "address", ["address"]);
-  liftFlat(e, flat, "chain_id", ["chain_id", "chainId"]);
-  if (e.chain_id != null) {
-    const cid = parseChainId(e.chain_id);
-    if (cid !== void 0) e.chain_id = cid;
-    else delete e.chain_id;
-  }
-  liftFlat(e, flat, "ens_name", ["ens_name", "ensName"]);
-  return Object.keys(e).length ? e : void 0;
-}
-function buildSvm(src, flat) {
-  const s = __spreadValues({}, src != null ? src : {});
-  renameKey(s, "walletName", "wallet_name");
-  liftFlat(s, flat, "address", ["svm_address", "svmAddress"]);
-  dropNullKeys(s, "capabilities");
-  return Object.keys(s).length ? s : void 0;
-}
-function buildPending(src, flat) {
-  var _a, _b, _c;
-  const p = {};
-  assignDefined(
-    p,
-    "evm_txs",
-    snakeizeBucket(
-      (_a = pick(src, "evm_txs", "evmTxs")) != null ? _a : pick(flat, "pending_txs", "pendingTxs")
-    )
-  );
-  assignDefined(
-    p,
-    "evm_sigs",
-    snakeizeBucket(
-      (_b = pick(src, "evm_sigs", "evmSigs")) != null ? _b : pick(flat, "pending_eip712s", "pendingEip712s")
-    )
-  );
-  assignDefined(
-    p,
-    "svm_ixs",
-    snakeizeBucket(
-      (_c = pick(src, "svm_ixs", "svmIxs", "solana_txs", "solanaTxs")) != null ? _c : pick(flat, "pending_solana_txs", "pendingSolanaTxs")
-    )
-  );
-  assignDefined(
-    p,
-    "svm_sigs",
-    snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs"))
-  );
-  return Object.keys(p).length ? p : void 0;
-}
-function dropNullKeys(obj, ...keys) {
-  for (const key of keys) {
-    if (obj[key] === null || obj[key] === void 0) {
-      delete obj[key];
-    }
-  }
-}
-function deepMergePreserve(previous, incoming) {
-  const out = __spreadValues({}, previous);
-  for (const [key, value] of Object.entries(incoming)) {
-    const prevObj = asObject(out[key]);
-    const incObj = asObject(value);
-    if (prevObj && incObj) {
-      out[key] = deepMergePreserve(prevObj, incObj);
-    } else if (value !== void 0) {
-      out[key] = value;
-    }
-  }
-  return out;
-}
-function parseChainId(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-  if (typeof value !== "string") {
-    return void 0;
-  }
-  const trimmed = value.trim();
-  if (!trimmed) return void 0;
-  const parsed = trimmed.startsWith("0x") ? Number.parseInt(trimmed.slice(2), 16) : Number.parseInt(trimmed, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
-}
-function address(state) {
-  var _a;
-  const value = (_a = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a.address;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function svmAddress(state) {
-  var _a;
-  const value = (_a = asObject(state == null ? void 0 : state.svm)) == null ? void 0 : _a.address;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function chainId(state) {
-  var _a;
-  return parseChainId((_a = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a.chain_id);
-}
-function isConnected(state) {
-  var _a;
-  const value = (_a = asObject(state == null ? void 0 : state.connection)) == null ? void 0 : _a.is_connected;
-  return typeof value === "boolean" ? value : void 0;
-}
-function sameAddress(a, b) {
-  const na = typeof a === "string" ? a.toLowerCase() : void 0;
-  const nb = typeof b === "string" ? b.toLowerCase() : void 0;
-  return na !== void 0 && na === nb;
-}
-function normalizeUserState(userState) {
-  const src = asObject(userState);
-  if (!src) {
-    return void 0;
-  }
-  const out = {};
-  const connection = buildConnection(asObject(pick(src, "connection")), src);
-  if (connection) out.connection = connection;
-  const evm = buildEvm(asEvmObject(pick(src, "evm")), src);
-  if (evm) out.evm = evm;
-  const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
-  if (svm) out.svm = svm;
-  const pending = buildPending(asObject(pick(src, "pending")), src);
-  if (pending) out.pending = pending;
-  const ext = pick(src, "ext");
-  if (ext !== void 0) out.ext = ext;
-  const preferences = pick(src, "preferences");
-  if (preferences !== void 0)
-    out.preferences = preferences;
-  return out;
-}
-function stripDanglingConnection(state) {
-  if (isConnected(state) !== true || chainId(state) !== void 0 || svmAddress(state) !== void 0) {
-    return state;
-  }
-  const conn = asObject(state.connection);
-  if (!conn) return state;
-  const trimmed = __spreadValues({}, conn);
-  delete trimmed.is_connected;
-  if (Object.keys(trimmed).length) {
-    state.connection = trimmed;
-  } else {
-    delete state.connection;
-  }
-  return state;
-}
-function reconcileUserState(previousUserState, incomingUserState) {
-  const inc = normalizeUserState(incomingUserState);
-  if (!inc) return void 0;
-  const prev = normalizeUserState(previousUserState);
-  if (!prev) return stripDanglingConnection(inc);
-  const out = __spreadValues({}, inc);
-  const connectedNotBroken = isConnected(inc) !== false;
-  const prevConn = asObject(prev.connection);
-  const incConn = asObject(inc.connection);
-  if (connectedNotBroken && prevConn) {
-    out.connection = incConn ? deepMergePreserve(prevConn, incConn) : prevConn;
-  }
-  const prevEvm = asObject(prev.evm);
-  const incEvm = asObject(inc.evm);
-  const sameEvm = !!address(prev) && (!address(inc) || sameAddress(address(prev), address(inc)));
-  if (connectedNotBroken && prevEvm && (sameEvm || !incEvm)) {
-    out.evm = incEvm ? deepMergePreserve(prevEvm, incEvm) : prevEvm;
-  }
-  const prevSvm = asObject(prev.svm);
-  const incSvm = asObject(inc.svm);
-  const sameSvm = !!svmAddress(prev) && (!svmAddress(inc) || svmAddress(prev) === svmAddress(inc));
-  if (connectedNotBroken && prevSvm && (sameSvm || !incSvm)) {
-    out.svm = incSvm ? deepMergePreserve(prevSvm, incSvm) : prevSvm;
-  }
-  if (!asObject(inc.pending) && asObject(prev.pending)) {
-    out.pending = prev.pending;
-  }
-  if (inc.ext === void 0 && prev.ext !== void 0) {
-    out.ext = prev.ext;
-  }
-  const outExt = asObject(out.ext);
-  if (outExt && Object.keys(outExt).length === 0) {
-    delete out.ext;
-  }
-  if (inc.preferences === void 0 && prev.preferences !== void 0) {
-    out.preferences = prev.preferences;
-  }
-  return stripDanglingConnection(out);
-}
-function toOwnedUserState(userState) {
-  const normalized = normalizeUserState(userState);
-  if (!normalized) return void 0;
-  const _a = normalized, { pending: _pending } = _a, owned = __objRest(_a, ["pending"]);
-  return owned;
-}
-
-// src/user-state/accessors.ts
-function asObject2(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return void 0;
-  }
-  return value;
-}
-function evmBlock(userState) {
-  var _a;
-  return asObject2((_a = normalizeUserState(userState)) == null ? void 0 : _a.evm);
-}
-function svmBlock(userState) {
-  var _a;
-  return asObject2((_a = normalizeUserState(userState)) == null ? void 0 : _a.svm);
-}
-function connBlock(userState) {
-  var _a;
-  return asObject2((_a = normalizeUserState(userState)) == null ? void 0 : _a.connection);
-}
-function parseChainId2(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-  if (typeof value !== "string") return void 0;
-  const trimmed = value.trim();
-  if (!trimmed) return void 0;
-  const parsed = trimmed.startsWith("0x") ? Number.parseInt(trimmed.slice(2), 16) : Number.parseInt(trimmed, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
-}
-function optionalString(value) {
-  if (value === null) return null;
-  return typeof value === "string" && value.trim().length > 0 ? value : void 0;
-}
-function timestamp(value) {
-  if (value === null) return null;
-  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
-  if (typeof value !== "string") return void 0;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : void 0;
-}
-var AUTH_METHODS = /* @__PURE__ */ new Set([
-  "google",
-  "apple",
-  "facebook",
-  "x",
-  "discord",
-  "github",
-  "farcaster",
-  "telegram",
-  "email",
-  "phone",
-  "wagmi"
-]);
-function address2(userState) {
-  var _a;
-  const value = (_a = evmBlock(userState)) == null ? void 0 : _a.address;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-var evmAddress = address2;
-function svmAddress2(userState) {
-  var _a;
-  const value = (_a = svmBlock(userState)) == null ? void 0 : _a.address;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function chainId2(userState) {
-  var _a;
-  return parseChainId2((_a = evmBlock(userState)) == null ? void 0 : _a.chain_id);
-}
-function ensName(userState) {
-  var _a;
-  const value = (_a = evmBlock(userState)) == null ? void 0 : _a.ens_name;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function isConnected2(userState) {
-  var _a;
-  const value = (_a = connBlock(userState)) == null ? void 0 : _a.is_connected;
-  return typeof value === "boolean" ? value : void 0;
-}
-function walletProvider(userState) {
-  var _a;
-  const value = (_a = connBlock(userState)) == null ? void 0 : _a.provider;
-  if (value === null) return null;
-  return value === "para" || value === "privy" || value === "baseAccount" ? value : void 0;
-}
-function walletProviderSubject(userState) {
-  var _a;
-  return optionalString((_a = connBlock(userState)) == null ? void 0 : _a.wallet_provider_subject);
-}
-function authMethod(userState) {
-  var _a;
-  const value = (_a = connBlock(userState)) == null ? void 0 : _a.auth_method;
-  if (value === null) return null;
-  return typeof value === "string" && AUTH_METHODS.has(value) ? value : void 0;
-}
-function authValue(userState) {
-  var _a;
-  return optionalString((_a = connBlock(userState)) == null ? void 0 : _a.auth_value);
-}
-function authVerifiedAt(userState) {
-  var _a;
-  return timestamp((_a = connBlock(userState)) == null ? void 0 : _a.auth_verified_at);
-}
-function withExt(userState, key, value) {
-  var _a, _b;
-  const normalizedUserState = (_a = normalizeUserState(userState)) != null ? _a : {};
-  const currentExt = (_b = asObject2(normalizedUserState.ext)) != null ? _b : {};
-  return __spreadProps(__spreadValues({}, normalizedUserState), {
-    ext: __spreadProps(__spreadValues({}, currentExt), {
-      [key]: value
-    })
-  });
-}
-
-// src/user-state/index.ts
-var CLIENT_TYPE_TS_CLI = "ts_cli";
-var CLIENT_TYPE_WEB_UI = "web_ui";
-var UserState;
-((UserState2) => {
-  UserState2.normalize = normalizeUserState;
-  UserState2.reconcile = reconcileUserState;
-  UserState2.toOwned = toOwnedUserState;
-  UserState2.address = address2;
-  UserState2.evmAddress = evmAddress;
-  UserState2.svmAddress = svmAddress2;
-  UserState2.chainId = chainId2;
-  UserState2.ensName = ensName;
-  UserState2.isConnected = isConnected2;
-  UserState2.walletProvider = walletProvider;
-  UserState2.walletProviderSubject = walletProviderSubject;
-  UserState2.authMethod = authMethod;
-  UserState2.authValue = authValue;
-  UserState2.authVerifiedAt = authVerifiedAt;
-  UserState2.withExt = withExt;
-})(UserState || (UserState = {}));
-
-// src/sse.ts
-var MAX_SEEN_EVENT_IDS = 256;
-function extractSseMessage(rawEvent) {
-  const lines = rawEvent.split("\n");
-  const dataLines = rawEvent.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trimStart());
-  if (!dataLines.length) return null;
-  const idLine = lines.find((line) => line.startsWith("id:"));
-  return {
-    data: dataLines.join("\n"),
-    id: idLine ? idLine.slice(3).trimStart() : null
-  };
-}
-async function readSseStream(stream, signal, onMessage) {
-  const reader = stream.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  try {
-    while (!signal.aborted) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      buffer = buffer.replace(/\r/g, "");
-      let separatorIndex = buffer.indexOf("\n\n");
-      while (separatorIndex >= 0) {
-        const rawEvent = buffer.slice(0, separatorIndex);
-        buffer = buffer.slice(separatorIndex + 2);
-        const message = extractSseMessage(rawEvent);
-        if (message) {
-          onMessage(message);
-        }
-        separatorIndex = buffer.indexOf("\n\n");
-      }
-    }
-  } finally {
-    reader.releaseLock();
-  }
-}
-function createSseSubscriber({
-  backendUrl,
-  getHeaders,
-  fetchImpl = fetch,
-  logger
-}) {
-  const subscriptions = /* @__PURE__ */ new Map();
-  const subscribe = (sessionId, onUpdate, onError, options) => {
-    var _a;
-    const existing = subscriptions.get(sessionId);
-    const listener = { onUpdate, onError };
-    if (existing) {
-      existing.listeners.add(listener);
-      logger == null ? void 0 : logger.debug("[aomi][sse] listener added", {
-        sessionId,
-        listeners: existing.listeners.size
-      });
-      return () => {
-        existing.listeners.delete(listener);
-        logger == null ? void 0 : logger.debug("[aomi][sse] listener removed", {
-          sessionId,
-          listeners: existing.listeners.size
-        });
-        if (existing.listeners.size === 0) {
-          existing.stop("unsubscribe");
-          if (subscriptions.get(sessionId) === existing) {
-            subscriptions.delete(sessionId);
-          }
-        }
-      };
-    }
-    const subscription = {
-      applicationId: ((_a = options == null ? void 0 : options.applicationId) == null ? void 0 : _a.toString().trim()) || void 0,
-      abortController: null,
-      lastEventId: null,
-      seenEventIds: /* @__PURE__ */ new Set(),
-      retries: 0,
-      retryTimer: null,
-      stopped: false,
-      listeners: /* @__PURE__ */ new Set([listener]),
-      stop: (reason) => {
-        var _a2;
-        subscription.stopped = true;
-        if (subscription.retryTimer) {
-          clearTimeout(subscription.retryTimer);
-          subscription.retryTimer = null;
-        }
-        (_a2 = subscription.abortController) == null ? void 0 : _a2.abort();
-        subscription.abortController = null;
-        logger == null ? void 0 : logger.debug("[aomi][sse] stop", {
-          sessionId,
-          reason,
-          retries: subscription.retries
-        });
-      }
-    };
-    const scheduleRetry = () => {
-      if (subscription.stopped) return;
-      subscription.retries += 1;
-      const delayMs = Math.min(500 * 2 ** (subscription.retries - 1), 1e4);
-      logger == null ? void 0 : logger.debug("[aomi][sse] retry scheduled", {
-        sessionId,
-        delayMs,
-        retries: subscription.retries
-      });
-      subscription.retryTimer = setTimeout(() => {
-        void open();
-      }, delayMs);
-    };
-    const open = async () => {
-      var _a2;
-      if (subscription.stopped) return;
-      if (subscription.retryTimer) {
-        clearTimeout(subscription.retryTimer);
-        subscription.retryTimer = null;
-      }
-      const controller = new AbortController();
-      subscription.abortController = controller;
-      const openedAt = Date.now();
-      try {
-        const headers = new Headers(getHeaders(sessionId));
-        if (subscription.lastEventId) {
-          headers.set("Last-Event-ID", subscription.lastEventId);
-        }
-        const normalizedBase = backendUrl === "/" ? "" : backendUrl.replace(/\/+$/, "");
-        const params = new URLSearchParams();
-        if (subscription.applicationId) {
-          params.set("application_id", subscription.applicationId);
-        }
-        const query = params.toString();
-        const updatesUrl = `${normalizedBase}/api/thread/updates${query ? `?${query}` : ""}`;
-        const response = await fetchImpl(updatesUrl, {
-          headers,
-          signal: controller.signal
-        });
-        if (!response.ok) {
-          throw new Error(
-            `SSE HTTP ${response.status}: ${response.statusText}`
-          );
-        }
-        if (!response.body) {
-          throw new Error("SSE response missing body");
-        }
-        subscription.retries = 0;
-        await readSseStream(
-          response.body,
-          controller.signal,
-          ({ data, id }) => {
-            var _a3, _b;
-            if (id && subscription.seenEventIds.has(id)) {
-              return;
-            }
-            if (id) {
-              subscription.lastEventId = id;
-              subscription.seenEventIds.add(id);
-              if (subscription.seenEventIds.size > MAX_SEEN_EVENT_IDS) {
-                const oldestId = subscription.seenEventIds.values().next().value;
-                if (oldestId) subscription.seenEventIds.delete(oldestId);
-              }
-            }
-            let parsed;
-            try {
-              parsed = JSON.parse(data);
-            } catch (error) {
-              for (const item of subscription.listeners) {
-                (_a3 = item.onError) == null ? void 0 : _a3.call(item, error);
-              }
-              return;
-            }
-            for (const item of subscription.listeners) {
-              try {
-                item.onUpdate(parsed);
-              } catch (error) {
-                (_b = item.onError) == null ? void 0 : _b.call(item, error);
-              }
-            }
-          }
-        );
-        logger == null ? void 0 : logger.debug("[aomi][sse] stream ended", {
-          sessionId,
-          aborted: controller.signal.aborted,
-          stopped: subscription.stopped,
-          durationMs: Date.now() - openedAt
-        });
-      } catch (error) {
-        if (!controller.signal.aborted && !subscription.stopped) {
-          for (const item of subscription.listeners) {
-            (_a2 = item.onError) == null ? void 0 : _a2.call(item, error);
-          }
-        }
-      }
-      if (!subscription.stopped) {
-        scheduleRetry();
-      }
-    };
-    subscriptions.set(sessionId, subscription);
-    void open();
-    return () => {
-      subscription.listeners.delete(listener);
-      logger == null ? void 0 : logger.debug("[aomi][sse] listener removed", {
-        sessionId,
-        listeners: subscription.listeners.size
-      });
-      if (subscription.listeners.size === 0) {
-        subscription.stop("unsubscribe");
-        if (subscriptions.get(sessionId) === subscription) {
-          subscriptions.delete(sessionId);
-        }
-      }
-    };
-  };
-  const reconnect = (reason) => {
-    var _a;
-    for (const subscription of subscriptions.values()) {
-      if (!subscription.stopped) {
-        (_a = subscription.abortController) == null ? void 0 : _a.abort(reason);
-      }
-    }
-  };
-  return { subscribe, reconnect };
-}
-
 // src/app-descriptor.ts
 function normalizeAppDescriptor(item) {
   var _a, _b;
@@ -787,6 +153,17 @@ var AgentSessionsTransport = class {
     return this.json("GET", "/v1/agent/sessions", {
       query: { cursor: options.cursor, limit: options.limit }
     });
+  }
+  async all() {
+    var _a;
+    const sessions = [];
+    let cursor;
+    do {
+      const page = await this.list({ cursor, limit: 100 });
+      sessions.push(...page.sessions);
+      cursor = (_a = page.nextCursor) != null ? _a : void 0;
+    } while (cursor);
+    return sessions;
   }
   get(sessionId) {
     return this.json(
@@ -1003,11 +380,6 @@ async function signInAnonymous(fetchImpl, baseUrl) {
 var SESSION_ID_HEADER = "X-Session-Id";
 var THREAD_ID_HEADER = "X-Thread-Id";
 var APP_KEY_HEADER = "Aomi-App-Key";
-function previewText(value, max = 80) {
-  const singleLine = value.replace(/\s+/g, " ").trim();
-  if (singleLine.length <= max) return singleLine;
-  return `${singleLine.slice(0, max - 1)}\u2026`;
-}
 function joinApiPath(baseUrl, path) {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
@@ -1056,35 +428,22 @@ function normalizePlatformFilter(platforms) {
 function encodeJsonBody(body) {
   return body === void 0 ? void 0 : JSON.stringify(body);
 }
-function normalizeThreadWire(wire) {
-  var _b;
-  const _a = wire, { thread_id, session_id, last_active_at } = _a, rest = __objRest(_a, ["thread_id", "session_id", "last_active_at"]);
-  const normalizedLastActiveAt = typeof last_active_at === "number" ? last_active_at : typeof last_active_at === "string" ? Number(last_active_at) : void 0;
-  return __spreadProps(__spreadValues({}, rest), {
-    session_id: (_b = session_id != null ? session_id : thread_id) != null ? _b : "",
-    last_active_at: normalizedLastActiveAt === void 0 || Number.isNaN(normalizedLastActiveAt) ? void 0 : normalizedLastActiveAt
-  });
-}
-var CREATE_THREAD_RETRY_STATUSES = /* @__PURE__ */ new Set([502, 503, 504]);
-var CREATE_THREAD_RETRY_DELAYS_MS = [400, 1e3, 2e3];
-var delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
   headers.set(THREAD_ID_HEADER, sessionId);
   return headers;
 }
-async function fetchStateResponse(fetchImpl, url, sessionId) {
-  return fetchImpl(url, {
-    headers: withSessionHeader(sessionId)
-  });
-}
 function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
   if (!getAccountBearer) return fetchImpl;
   return async (input, init) => {
-    var _a;
+    var _a, _b;
     const request = input instanceof Request ? input : void 0;
-    const baseHeaders = new Headers((_a = init == null ? void 0 : init.headers) != null ? _a : request == null ? void 0 : request.headers);
+    const path = new URL(String((_a = request == null ? void 0 : request.url) != null ? _a : input), "http://localhost").pathname;
+    if (path.startsWith("/v1/agent/") || path.startsWith("/v1/pipeline/")) {
+      return fetchImpl(request ? request.clone() : input, init);
+    }
+    const baseHeaders = new Headers((_b = init == null ? void 0 : init.headers) != null ? _b : request == null ? void 0 : request.headers);
     const fetchWithBearer = async (forceRefresh) => {
       const headers = new Headers(baseHeaders);
       let bearer;
@@ -1197,58 +556,6 @@ function absoluteBase(baseUrl) {
     return new URL(baseUrl, location.origin).toString();
   return "http://localhost";
 }
-function supportsTokenRefreshSubscription(provider) {
-  return typeof (provider == null ? void 0 : provider.subscribe) === "function";
-}
-async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, logger) {
-  const query = {};
-  for (const [key, value] of Object.entries(payload)) {
-    if (value === void 0 || value === null) continue;
-    query[key] = typeof value === "string" ? value : String(value);
-  }
-  const url = buildApiUrl(baseUrl, path, query);
-  const headers = new Headers(withSessionHeader(sessionId));
-  if (apiKey) {
-    headers.set(APP_KEY_HEADER, apiKey);
-  }
-  logger == null ? void 0 : logger.debug("[aomi][client] POST start", {
-    path,
-    sessionId,
-    hasApiKey: Boolean(apiKey),
-    queryKeys: Object.keys(query)
-  });
-  let pendingWarning;
-  if (typeof setTimeout === "function") {
-    pendingWarning = setTimeout(() => {
-      logger == null ? void 0 : logger.debug("[aomi][client] POST still pending", {
-        path,
-        sessionId,
-        queryKeys: Object.keys(query)
-      });
-    }, 5e3);
-  }
-  let response;
-  try {
-    response = await fetchImpl(url, {
-      method: "POST",
-      headers
-    });
-  } finally {
-    if (pendingWarning) {
-      clearTimeout(pendingWarning);
-    }
-  }
-  logger == null ? void 0 : logger.debug("[aomi][client] POST response", {
-    path,
-    sessionId,
-    status: response.status,
-    ok: response.ok
-  });
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-  return await response.json();
-}
 function secretNamesFrom(response) {
   var _a;
   if (response.names) return response.names;
@@ -1256,18 +563,7 @@ function secretNamesFrom(response) {
 }
 var AomiClient = class {
   constructor(options) {
-    /**
-     * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
-     *
-     * Historically evaluated ONCE in the constructor, which silently dropped
-     * reconnect for a stable bearer whose `subscribe` appears after construction.
-     * Re-attempted lazily on every SSE subscription so that shape is picked up on
-     * the next stream instead of never. Replacing the bearer function itself still
-     * requires a stable host/widget bridge; AomiClient intentionally retains the
-     * source supplied at construction.
-     */
-    this.tokenRefreshWired = false;
-    var _a, _b;
+    var _a;
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
     const fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
@@ -1295,39 +591,15 @@ var AomiClient = class {
       options.getAccountBearer
     );
     this.logger = options.logger;
-    this.accountBearer = options.getAccountBearer;
     this.agent = new AgentTransport(
       (method, path, requestOptions) => this.requestResponse(method, path, requestOptions)
     );
     this.pipeline = new PipelineTransport(
       (method, path, requestOptions) => this.requestResponse(method, path, requestOptions)
     );
-    this.sseSubscriber = createSseSubscriber({
-      backendUrl: this.baseUrl,
-      getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
-      // Keep SSE on the browser-native fetch path. Payment/auth wrappers used
-      // by some web runtimes can delay or buffer streaming responses.
-      fetchImpl: this.rawFetchImpl,
-      logger: this.logger
-    });
-    this.wireTokenRefreshReconnect();
-    if (((_b = options.getAccountBearer) == null ? void 0 : _b.required) === true && !supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      console.warn(
-        "[aomi-client] getAccountBearer.required is set but subscribe() is missing: SSE will not reconnect after token refresh. Pass the WidgetSessionProvider through unwrapped, or preserve its subscribe/dispose/revoke methods."
-      );
-    }
-  }
-  wireTokenRefreshReconnect() {
-    if (this.tokenRefreshWired) return;
-    const bearer = this.accountBearer;
-    if (!supportsTokenRefreshSubscription(bearer)) return;
-    this.tokenRefreshWired = true;
-    bearer.subscribe(() => {
-      this.sseSubscriber.reconnect("account-token-refreshed");
-    });
   }
   // ===========================================================================
-  // Chat & State
+  // Transport
   // ===========================================================================
   /**
    * Low-level request escape hatch for the full backend route manifest.
@@ -1372,167 +644,6 @@ ${body}` : ""}`
       }
     );
     return response;
-  }
-  /**
-   * Fetch current session state (messages, processing status, title).
-   */
-  async fetchState(sessionId, userState, clientId, options) {
-    var _a, _b, _c;
-    const normalizedUserState = UserState.normalize(userState);
-    const stateContext = {
-      app: options == null ? void 0 : options.app,
-      application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
-    };
-    const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", __spreadProps(__spreadValues({}, stateContext), {
-      user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
-      client_id: clientId
-    }));
-    const bareUrl = buildApiUrl(
-      this.baseUrl,
-      "/api/thread/state",
-      stateContext
-    );
-    const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
-    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] GET /api/thread/state start", {
-      sessionId,
-      app: options == null ? void 0 : options.app,
-      applicationId: options == null ? void 0 : options.applicationId,
-      clientId,
-      hasUserState: Boolean(normalizedUserState)
-    });
-    let response = await fetchStateResponse(
-      this.rawFetchImpl,
-      urlWithSyncParams,
-      sessionId
-    );
-    if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-      (_b = this.logger) == null ? void 0 : _b.debug(
-        "[aomi][client] GET /api/thread/state retrying without sync params",
-        {
-          sessionId,
-          initialStatus: response.status,
-          hadClientId: Boolean(clientId),
-          hadUserState: Boolean(normalizedUserState)
-        }
-      );
-      response = await fetchStateResponse(
-        this.rawFetchImpl,
-        bareUrl,
-        sessionId
-      );
-    }
-    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/thread/state response", {
-      sessionId,
-      status: response.status,
-      ok: response.ok
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
-  }
-  /**
-   * Send a chat message and return updated session state.
-   */
-  async sendMessage(sessionId, message, options) {
-    var _a, _b, _c, _d, _e, _f;
-    const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
-    const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
-    const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
-    const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
-      app,
-      application_id: applicationIdParam(options == null ? void 0 : options.applicationId),
-      message,
-      user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
-      client_id: options == null ? void 0 : options.clientId,
-      payment_method: (_c = options == null ? void 0 : options.paymentMethod) != null ? _c : void 0
-    });
-    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/thread/chat prepared", {
-      sessionId,
-      app,
-      applicationId: options == null ? void 0 : options.applicationId,
-      clientId: options == null ? void 0 : options.clientId,
-      paymentMethod: options == null ? void 0 : options.paymentMethod,
-      hasUserState: Boolean(normalizedUserState),
-      messagePreview: previewText(message)
-    });
-    const headers = new Headers(withSessionHeader(sessionId));
-    if (apiKey) {
-      headers.set(APP_KEY_HEADER, apiKey);
-    }
-    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
-      path: "/api/thread/chat",
-      sessionId,
-      hasApiKey: Boolean(apiKey),
-      url
-    });
-    const response = await this.fetchImpl(url, {
-      method: "POST",
-      headers
-    });
-    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
-      path: "/api/thread/chat",
-      sessionId,
-      status: response.status,
-      ok: response.ok
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
-  }
-  /**
-   * Send a system-level message (e.g. wallet state changes, context switches).
-   * Pass `app` to preserve the session's active app context (prevents the
-   * backend from resetting to the default app when no app is specified).
-   */
-  async sendSystemMessage(sessionId, message, options) {
-    var _a;
-    const payload = { message };
-    if (options == null ? void 0 : options.app) {
-      payload.app = options.app;
-    }
-    if (options == null ? void 0 : options.applicationId) {
-      payload.application_id = options.applicationId;
-    }
-    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] POST /api/system prepared", {
-      sessionId,
-      app: options == null ? void 0 : options.app,
-      applicationId: options == null ? void 0 : options.applicationId,
-      messagePreview: previewText(message)
-    });
-    return postState(
-      this.baseUrl,
-      "/api/system",
-      payload,
-      sessionId,
-      this.fetchImpl,
-      void 0,
-      this.logger
-    );
-  }
-  /**
-   * Interrupt the AI's current response.
-   */
-  async interrupt(sessionId, options) {
-    var _a;
-    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] POST /api/thread/interrupt prepared", {
-      sessionId,
-      app: options == null ? void 0 : options.app,
-      applicationId: options == null ? void 0 : options.applicationId
-    });
-    return postState(
-      this.baseUrl,
-      "/api/thread/interrupt",
-      {
-        app: options == null ? void 0 : options.app,
-        application_id: options == null ? void 0 : options.applicationId
-      },
-      sessionId,
-      this.fetchImpl,
-      void 0,
-      this.logger
-    );
   }
   // ===========================================================================
   // Secrets
@@ -1609,140 +720,6 @@ ${body}` : ""}`
     });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-    return await response.json();
-  }
-  // ===========================================================================
-  // SSE (Real-time Updates)
-  // ===========================================================================
-  /**
-   * Subscribe to real-time SSE updates for a session.
-   * Automatically reconnects with exponential backoff on disconnects.
-   * Returns an unsubscribe function.
-   */
-  subscribeSSE(sessionId, onUpdate, onError, options) {
-    this.wireTokenRefreshReconnect();
-    return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
-  }
-  // ===========================================================================
-  // Thread / Session Management
-  // ===========================================================================
-  /**
-   * @deprecated Account bootstrap is handled by session create/chat requests and
-   * the account-token exchange. `/api/account` is now an authenticated
-   * profile endpoint, so this legacy helper intentionally does nothing.
-   */
-  async ensureAccount(_sessionId, _publicKey) {
-    return void 0;
-  }
-  /**
-   * List all threads for the authenticated account.
-   */
-  async listThreads(sessionId) {
-    var _a;
-    void sessionId;
-    const sessions = [];
-    let cursor;
-    do {
-      const page = await this.agent.sessions.list({ cursor, limit: 100 });
-      sessions.push(...page.sessions);
-      cursor = (_a = page.nextCursor) != null ? _a : void 0;
-    } while (cursor);
-    return sessions.map((session) => {
-      var _a2;
-      return {
-        session_id: session.id,
-        title: (_a2 = session.title) != null ? _a2 : null,
-        is_archived: session.archived,
-        last_active_at: session.updatedAt
-      };
-    });
-  }
-  /**
-   * Get a single thread by ID.
-   */
-  async getThread(sessionId) {
-    var _a;
-    const session = await this.agent.sessions.get(sessionId);
-    return {
-      session_id: session.id,
-      title: (_a = session.title) != null ? _a : null,
-      is_archived: session.archived,
-      last_active_at: session.updatedAt
-    };
-  }
-  /**
-   * Create a new thread. The client generates the session ID.
-   *
-   * Passing `rig` (and optionally `app`/`applicationId`/`platform`/`clientId`)
-   * binds the model selection in the same request — the fast path that saves
-   * the follow-up `setModel` round-trip on a fresh chat.
-   */
-  async createThread(threadId, options) {
-    const url = buildApiUrl(this.baseUrl, "/api/threads", {
-      rig: options == null ? void 0 : options.rig,
-      app: options == null ? void 0 : options.app,
-      application_id: (options == null ? void 0 : options.applicationId) === void 0 ? void 0 : String(options.applicationId),
-      platform: options == null ? void 0 : options.platform,
-      client_id: options == null ? void 0 : options.clientId
-    });
-    let response = await this.fetchImpl(url, {
-      method: "POST",
-      headers: withSessionHeader(threadId)
-    });
-    for (let attempt = 0; attempt < CREATE_THREAD_RETRY_DELAYS_MS.length && CREATE_THREAD_RETRY_STATUSES.has(response.status); attempt += 1) {
-      await delay(CREATE_THREAD_RETRY_DELAYS_MS[attempt]);
-      response = await this.fetchImpl(url, {
-        method: "POST",
-        headers: withSessionHeader(threadId)
-      });
-    }
-    if (!response.ok) {
-      throw new Error(`Failed to create thread: HTTP ${response.status}`);
-    }
-    return normalizeThreadWire(await response.json());
-  }
-  /**
-   * Delete a thread by ID.
-   */
-  async deleteThread(sessionId) {
-    await this.agent.sessions.delete(sessionId);
-  }
-  /**
-   * Rename a thread.
-   */
-  async renameThread(sessionId, newTitle) {
-    await this.agent.sessions.update(sessionId, { title: newTitle });
-  }
-  /**
-   * Archive a thread.
-   */
-  async archiveThread(sessionId) {
-    await this.agent.sessions.update(sessionId, { archived: true });
-  }
-  /**
-   * Unarchive a thread.
-   */
-  async unarchiveThread(sessionId) {
-    await this.agent.sessions.update(sessionId, { archived: false });
-  }
-  // ===========================================================================
-  // System Events
-  // ===========================================================================
-  /**
-   * Get system events for a session.
-   */
-  async getSystemEvents(sessionId, count, options) {
-    const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
-      count: count !== void 0 ? String(count) : void 0,
-      application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
-    });
-    const response = await this.fetchImpl(url, {
-      headers: withSessionHeader(sessionId)
-    });
-    if (!response.ok) {
-      if (response.status === 404) return [];
-      throw new Error(`Failed to get system events: HTTP ${response.status}`);
     }
     return await response.json();
   }
@@ -2707,6 +1684,421 @@ function safeEnv(read) {
   }
 }
 
+// src/user-state/normalize.ts
+function asObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return void 0;
+  }
+  return value;
+}
+function asEvmObject(value) {
+  return Array.isArray(value) ? asObject(value[0]) : asObject(value);
+}
+function pick(record, ...keys) {
+  if (!record) {
+    return void 0;
+  }
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(record, key) && record[key] !== void 0) {
+      return record[key];
+    }
+  }
+  return void 0;
+}
+function assignDefined(target, key, value) {
+  if (value !== void 0) {
+    target[key] = value;
+  }
+}
+function renameKey(obj, from, to) {
+  if (from === to) return;
+  if (Object.prototype.hasOwnProperty.call(obj, from)) {
+    if (!(to in obj) || obj[to] === void 0) {
+      obj[to] = obj[from];
+    }
+    delete obj[from];
+  }
+}
+function liftFlat(obj, flat, to, fromKeys) {
+  if (to in obj && obj[to] !== void 0) return;
+  const value = pick(flat, ...fromKeys);
+  if (value !== void 0) {
+    obj[to] = value;
+  }
+}
+var OPAQUE_PENDING_KEYS = /* @__PURE__ */ new Set(["typed_data", "typedData", "domain"]);
+function camelToSnake(key) {
+  return key.replace(/([A-Z])/g, "_$1").toLowerCase();
+}
+function snakeizePendingValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(snakeizePendingValue);
+  }
+  const obj = asObject(value);
+  if (!obj) return value;
+  const out = {};
+  for (const [key, val] of Object.entries(obj)) {
+    const snake = camelToSnake(key);
+    out[snake] = OPAQUE_PENDING_KEYS.has(key) || OPAQUE_PENDING_KEYS.has(snake) ? val : snakeizePendingValue(val);
+  }
+  return out;
+}
+function snakeizeBucket(bucket) {
+  const obj = asObject(bucket);
+  if (!obj) return void 0;
+  const out = {};
+  for (const [id, value] of Object.entries(obj)) {
+    out[id] = snakeizePendingValue(value);
+  }
+  return out;
+}
+function buildConnection(src, flat) {
+  const c = __spreadValues({}, src != null ? src : {});
+  renameKey(c, "isConnected", "is_connected");
+  renameKey(c, "providerLabel", "provider_label");
+  renameKey(c, "walletProviderSubject", "wallet_provider_subject");
+  renameKey(c, "authMethod", "auth_method");
+  renameKey(c, "authValue", "auth_value");
+  renameKey(c, "authVerifiedAt", "auth_verified_at");
+  liftFlat(c, flat, "is_connected", ["is_connected", "isConnected"]);
+  liftFlat(c, flat, "provider", ["wallet_provider", "walletProvider"]);
+  liftFlat(c, flat, "wallet_provider_subject", [
+    "wallet_provider_subject",
+    "walletProviderSubject"
+  ]);
+  liftFlat(c, flat, "auth_method", ["auth_method", "authMethod"]);
+  liftFlat(c, flat, "auth_value", ["auth_value", "authValue"]);
+  liftFlat(c, flat, "auth_verified_at", ["auth_verified_at", "authVerifiedAt"]);
+  dropNullKeys(c, "is_connected");
+  return Object.keys(c).length ? c : void 0;
+}
+function buildEvm(src, flat) {
+  const e = __spreadValues({}, src != null ? src : {});
+  renameKey(e, "chainId", "chain_id");
+  renameKey(e, "ensName", "ens_name");
+  delete e.aa;
+  delete e.sponsorship;
+  liftFlat(e, flat, "address", ["address"]);
+  liftFlat(e, flat, "chain_id", ["chain_id", "chainId"]);
+  if (e.chain_id != null) {
+    const cid = parseChainId(e.chain_id);
+    if (cid !== void 0) e.chain_id = cid;
+    else delete e.chain_id;
+  }
+  liftFlat(e, flat, "ens_name", ["ens_name", "ensName"]);
+  return Object.keys(e).length ? e : void 0;
+}
+function buildSvm(src, flat) {
+  const s = __spreadValues({}, src != null ? src : {});
+  renameKey(s, "walletName", "wallet_name");
+  liftFlat(s, flat, "address", ["svm_address", "svmAddress"]);
+  dropNullKeys(s, "capabilities");
+  return Object.keys(s).length ? s : void 0;
+}
+function buildPending(src, flat) {
+  var _a, _b, _c;
+  const p = {};
+  assignDefined(
+    p,
+    "evm_txs",
+    snakeizeBucket(
+      (_a = pick(src, "evm_txs", "evmTxs")) != null ? _a : pick(flat, "pending_txs", "pendingTxs")
+    )
+  );
+  assignDefined(
+    p,
+    "evm_sigs",
+    snakeizeBucket(
+      (_b = pick(src, "evm_sigs", "evmSigs")) != null ? _b : pick(flat, "pending_eip712s", "pendingEip712s")
+    )
+  );
+  assignDefined(
+    p,
+    "svm_ixs",
+    snakeizeBucket(
+      (_c = pick(src, "svm_ixs", "svmIxs", "solana_txs", "solanaTxs")) != null ? _c : pick(flat, "pending_solana_txs", "pendingSolanaTxs")
+    )
+  );
+  assignDefined(
+    p,
+    "svm_sigs",
+    snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs"))
+  );
+  return Object.keys(p).length ? p : void 0;
+}
+function dropNullKeys(obj, ...keys) {
+  for (const key of keys) {
+    if (obj[key] === null || obj[key] === void 0) {
+      delete obj[key];
+    }
+  }
+}
+function deepMergePreserve(previous, incoming) {
+  const out = __spreadValues({}, previous);
+  for (const [key, value] of Object.entries(incoming)) {
+    const prevObj = asObject(out[key]);
+    const incObj = asObject(value);
+    if (prevObj && incObj) {
+      out[key] = deepMergePreserve(prevObj, incObj);
+    } else if (value !== void 0) {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+function parseChainId(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== "string") {
+    return void 0;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  const parsed = trimmed.startsWith("0x") ? Number.parseInt(trimmed.slice(2), 16) : Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
+function address(state) {
+  var _a;
+  const value = (_a = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a.address;
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function svmAddress(state) {
+  var _a;
+  const value = (_a = asObject(state == null ? void 0 : state.svm)) == null ? void 0 : _a.address;
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function chainId(state) {
+  var _a;
+  return parseChainId((_a = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a.chain_id);
+}
+function isConnected(state) {
+  var _a;
+  const value = (_a = asObject(state == null ? void 0 : state.connection)) == null ? void 0 : _a.is_connected;
+  return typeof value === "boolean" ? value : void 0;
+}
+function sameAddress(a, b) {
+  const na = typeof a === "string" ? a.toLowerCase() : void 0;
+  const nb = typeof b === "string" ? b.toLowerCase() : void 0;
+  return na !== void 0 && na === nb;
+}
+function normalizeUserState(userState) {
+  const src = asObject(userState);
+  if (!src) {
+    return void 0;
+  }
+  const out = {};
+  const connection = buildConnection(asObject(pick(src, "connection")), src);
+  if (connection) out.connection = connection;
+  const evm = buildEvm(asEvmObject(pick(src, "evm")), src);
+  if (evm) out.evm = evm;
+  const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
+  if (svm) out.svm = svm;
+  const pending = buildPending(asObject(pick(src, "pending")), src);
+  if (pending) out.pending = pending;
+  const ext = pick(src, "ext");
+  if (ext !== void 0) out.ext = ext;
+  const preferences = pick(src, "preferences");
+  if (preferences !== void 0)
+    out.preferences = preferences;
+  return out;
+}
+function stripDanglingConnection(state) {
+  if (isConnected(state) !== true || chainId(state) !== void 0 || svmAddress(state) !== void 0) {
+    return state;
+  }
+  const conn = asObject(state.connection);
+  if (!conn) return state;
+  const trimmed = __spreadValues({}, conn);
+  delete trimmed.is_connected;
+  if (Object.keys(trimmed).length) {
+    state.connection = trimmed;
+  } else {
+    delete state.connection;
+  }
+  return state;
+}
+function reconcileUserState(previousUserState, incomingUserState) {
+  const inc = normalizeUserState(incomingUserState);
+  if (!inc) return void 0;
+  const prev = normalizeUserState(previousUserState);
+  if (!prev) return stripDanglingConnection(inc);
+  const out = __spreadValues({}, inc);
+  const connectedNotBroken = isConnected(inc) !== false;
+  const prevConn = asObject(prev.connection);
+  const incConn = asObject(inc.connection);
+  if (connectedNotBroken && prevConn) {
+    out.connection = incConn ? deepMergePreserve(prevConn, incConn) : prevConn;
+  }
+  const prevEvm = asObject(prev.evm);
+  const incEvm = asObject(inc.evm);
+  const sameEvm = !!address(prev) && (!address(inc) || sameAddress(address(prev), address(inc)));
+  if (connectedNotBroken && prevEvm && (sameEvm || !incEvm)) {
+    out.evm = incEvm ? deepMergePreserve(prevEvm, incEvm) : prevEvm;
+  }
+  const prevSvm = asObject(prev.svm);
+  const incSvm = asObject(inc.svm);
+  const sameSvm = !!svmAddress(prev) && (!svmAddress(inc) || svmAddress(prev) === svmAddress(inc));
+  if (connectedNotBroken && prevSvm && (sameSvm || !incSvm)) {
+    out.svm = incSvm ? deepMergePreserve(prevSvm, incSvm) : prevSvm;
+  }
+  if (!asObject(inc.pending) && asObject(prev.pending)) {
+    out.pending = prev.pending;
+  }
+  if (inc.ext === void 0 && prev.ext !== void 0) {
+    out.ext = prev.ext;
+  }
+  const outExt = asObject(out.ext);
+  if (outExt && Object.keys(outExt).length === 0) {
+    delete out.ext;
+  }
+  if (inc.preferences === void 0 && prev.preferences !== void 0) {
+    out.preferences = prev.preferences;
+  }
+  return stripDanglingConnection(out);
+}
+function toOwnedUserState(userState) {
+  const normalized = normalizeUserState(userState);
+  if (!normalized) return void 0;
+  const _a = normalized, { pending: _pending } = _a, owned = __objRest(_a, ["pending"]);
+  return owned;
+}
+
+// src/user-state/accessors.ts
+function asObject2(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return void 0;
+  }
+  return value;
+}
+function evmBlock(userState) {
+  var _a;
+  return asObject2((_a = normalizeUserState(userState)) == null ? void 0 : _a.evm);
+}
+function svmBlock(userState) {
+  var _a;
+  return asObject2((_a = normalizeUserState(userState)) == null ? void 0 : _a.svm);
+}
+function connBlock(userState) {
+  var _a;
+  return asObject2((_a = normalizeUserState(userState)) == null ? void 0 : _a.connection);
+}
+function parseChainId2(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  const parsed = trimmed.startsWith("0x") ? Number.parseInt(trimmed.slice(2), 16) : Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
+function optionalString(value) {
+  if (value === null) return null;
+  return typeof value === "string" && value.trim().length > 0 ? value : void 0;
+}
+function timestamp(value) {
+  if (value === null) return null;
+  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
+  if (typeof value !== "string") return void 0;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) ? parsed : void 0;
+}
+var AUTH_METHODS = /* @__PURE__ */ new Set([
+  "google",
+  "apple",
+  "facebook",
+  "x",
+  "discord",
+  "github",
+  "farcaster",
+  "telegram",
+  "email",
+  "phone",
+  "wagmi"
+]);
+function address2(userState) {
+  var _a;
+  const value = (_a = evmBlock(userState)) == null ? void 0 : _a.address;
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+var evmAddress = address2;
+function svmAddress2(userState) {
+  var _a;
+  const value = (_a = svmBlock(userState)) == null ? void 0 : _a.address;
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function chainId2(userState) {
+  var _a;
+  return parseChainId2((_a = evmBlock(userState)) == null ? void 0 : _a.chain_id);
+}
+function ensName(userState) {
+  var _a;
+  const value = (_a = evmBlock(userState)) == null ? void 0 : _a.ens_name;
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function isConnected2(userState) {
+  var _a;
+  const value = (_a = connBlock(userState)) == null ? void 0 : _a.is_connected;
+  return typeof value === "boolean" ? value : void 0;
+}
+function walletProvider(userState) {
+  var _a;
+  const value = (_a = connBlock(userState)) == null ? void 0 : _a.provider;
+  if (value === null) return null;
+  return value === "para" || value === "privy" || value === "baseAccount" ? value : void 0;
+}
+function walletProviderSubject(userState) {
+  var _a;
+  return optionalString((_a = connBlock(userState)) == null ? void 0 : _a.wallet_provider_subject);
+}
+function authMethod(userState) {
+  var _a;
+  const value = (_a = connBlock(userState)) == null ? void 0 : _a.auth_method;
+  if (value === null) return null;
+  return typeof value === "string" && AUTH_METHODS.has(value) ? value : void 0;
+}
+function authValue(userState) {
+  var _a;
+  return optionalString((_a = connBlock(userState)) == null ? void 0 : _a.auth_value);
+}
+function authVerifiedAt(userState) {
+  var _a;
+  return timestamp((_a = connBlock(userState)) == null ? void 0 : _a.auth_verified_at);
+}
+function withExt(userState, key, value) {
+  var _a, _b;
+  const normalizedUserState = (_a = normalizeUserState(userState)) != null ? _a : {};
+  const currentExt = (_b = asObject2(normalizedUserState.ext)) != null ? _b : {};
+  return __spreadProps(__spreadValues({}, normalizedUserState), {
+    ext: __spreadProps(__spreadValues({}, currentExt), {
+      [key]: value
+    })
+  });
+}
+
+// src/user-state/index.ts
+var CLIENT_TYPE_TS_CLI = "ts_cli";
+var CLIENT_TYPE_WEB_UI = "web_ui";
+var UserState;
+((UserState2) => {
+  UserState2.normalize = normalizeUserState;
+  UserState2.reconcile = reconcileUserState;
+  UserState2.toOwned = toOwnedUserState;
+  UserState2.address = address2;
+  UserState2.evmAddress = evmAddress;
+  UserState2.svmAddress = svmAddress2;
+  UserState2.chainId = chainId2;
+  UserState2.ensName = ensName;
+  UserState2.isConnected = isConnected2;
+  UserState2.walletProvider = walletProvider;
+  UserState2.walletProviderSubject = walletProviderSubject;
+  UserState2.authMethod = authMethod;
+  UserState2.authValue = authValue;
+  UserState2.authVerifiedAt = authVerifiedAt;
+  UserState2.withExt = withExt;
+})(UserState || (UserState = {}));
+
 // src/types.ts
 var AOMI_TASK_EVENT_TYPES = [
   "task_started",
@@ -2753,18 +2145,6 @@ function parseAomiTaskEvent(event) {
     agent_id: agentId,
     status: (_d = asString(raw.status)) != null ? _d : "completed"
   }, asString(raw.message) ? { message: raw.message } : null), typeof raw.staged_count === "number" ? { staged_count: raw.staged_count } : null), typeof raw.steps === "number" ? { steps: raw.steps } : null), typeof raw.duration_ms === "number" ? { duration_ms: raw.duration_ms } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
-}
-function isInlineCall(event) {
-  return "InlineCall" in event;
-}
-function isSystemNotice(event) {
-  return "SystemNotice" in event;
-}
-function isSystemError(event) {
-  return "SystemError" in event;
-}
-function isAsyncCallback(event) {
-  return "AsyncCallback" in event;
 }
 
 // src/event.ts
@@ -2823,39 +2203,8 @@ var TypedEventEmitter = class {
     this.listeners.clear();
   }
 };
-function unwrapSystemEvent(event) {
-  var _a;
-  if (isInlineCall(event)) {
-    return {
-      type: event.InlineCall.type,
-      payload: (_a = event.InlineCall.payload) != null ? _a : event.InlineCall
-    };
-  }
-  if (isSystemNotice(event)) {
-    return {
-      type: "system_notice",
-      payload: { message: event.SystemNotice }
-    };
-  }
-  if (isSystemError(event)) {
-    return {
-      type: "system_error",
-      payload: { message: event.SystemError }
-    };
-  }
-  if (isAsyncCallback(event)) {
-    return {
-      type: "async_callback",
-      payload: event.AsyncCallback
-    };
-  }
-  return null;
-}
 
 // src/session/json.ts
-function isNil(value) {
-  return value === null || value === void 0;
-}
 function stableUserStateString(state) {
   return JSON.stringify(sortJson(state != null ? state : {}));
 }
@@ -2871,28 +2220,738 @@ function sortJson(value) {
   }
   return value;
 }
-function isSubsetMatch(expected, actual) {
-  if (isNil(expected) && isNil(actual)) {
-    return true;
-  }
-  if (Array.isArray(expected)) {
-    if (!Array.isArray(actual) || expected.length !== actual.length) {
-      return false;
-    }
-    return expected.every(
-      (entry, index) => isSubsetMatch(entry, actual[index])
-    );
-  }
-  if (expected && typeof expected === "object") {
-    if (!actual || typeof actual !== "object" || Array.isArray(actual)) {
-      return false;
-    }
-    return Object.entries(expected).every(
-      ([key, value]) => isSubsetMatch(value, actual[key])
-    );
-  }
-  return expected === actual;
+
+// src/session/state.ts
+function isRecord(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
+function addExtValue(userState, key, value) {
+  const current = userState != null ? userState : {};
+  const currentExt = isRecord(current["ext"]) ? current["ext"] : {};
+  return __spreadProps(__spreadValues({}, current), {
+    ext: __spreadProps(__spreadValues({}, currentExt), {
+      [key]: value
+    })
+  });
+}
+function removeExtValue(userState, key) {
+  if (!userState) return void 0;
+  const currentExt = userState["ext"];
+  if (!isRecord(currentExt)) return void 0;
+  const nextExt = __spreadValues({}, currentExt);
+  delete nextExt[key];
+  return __spreadProps(__spreadValues({}, userState), { ext: nextExt });
+}
+function resolveWalletState(userState, address3, chainId3) {
+  const prevEvm = isRecord(userState == null ? void 0 : userState.evm) ? userState == null ? void 0 : userState.evm : {};
+  const prevConn = isRecord(userState == null ? void 0 : userState.connection) ? userState == null ? void 0 : userState.connection : {};
+  return __spreadProps(__spreadValues({}, userState != null ? userState : {}), {
+    evm: __spreadProps(__spreadValues({}, prevEvm), {
+      address: address3,
+      chain_id: chainId3 != null ? chainId3 : 1
+    }),
+    connection: __spreadProps(__spreadValues({}, prevConn), {
+      is_connected: true
+    })
+  });
+}
+
+// src/session/wallet.ts
+var SessionWalletController = class {
+  constructor(deps) {
+    this.deps = deps;
+    this.requests = [];
+    this.nextId = 1;
+    this.resolvedRequestIds = /* @__PURE__ */ new Set();
+    this.resolvingRequestIds = /* @__PURE__ */ new Set();
+  }
+  get length() {
+    return this.requests.length;
+  }
+  list() {
+    return [...this.requests];
+  }
+  find(id) {
+    return this.requests.find((request) => request.id === id);
+  }
+  enqueue(kind, payload) {
+    const id = this.requestId(kind, payload);
+    const existing = this.find(id);
+    const request = this.request(kind, payload, id, existing == null ? void 0 : existing.timestamp);
+    if (this.resolvedRequestIds.has(id) && !existing) return request;
+    this.requests = existing ? this.requests.map((current) => current.id === id ? request : current) : [...this.requests, request];
+    this.changed();
+    return request;
+  }
+  async resolve(requestId, result) {
+    const request = this.pending(requestId);
+    if (result.kind !== request.kind) {
+      throw new Error(
+        `WalletRequestResult.kind mismatch for "${requestId}": request is "${request.kind}" but result is "${result.kind}".`
+      );
+    }
+    if (this.resolvingRequestIds.has(requestId)) return;
+    this.resolvingRequestIds.add(requestId);
+    try {
+      await this.deps.resolveAction(request, result);
+      this.finish(request);
+    } finally {
+      this.resolvingRequestIds.delete(requestId);
+    }
+  }
+  async reject(requestId, reason) {
+    const request = this.pending(requestId);
+    if (this.resolvingRequestIds.has(requestId)) return;
+    this.resolvingRequestIds.add(requestId);
+    try {
+      await this.deps.rejectAction(request, reason);
+      this.finish(request);
+    } finally {
+      this.resolvingRequestIds.delete(requestId);
+    }
+  }
+  dismiss(requestId) {
+    const request = this.find(requestId);
+    if (request) this.finish(request);
+  }
+  pending(requestId) {
+    const request = this.find(requestId);
+    if (!request) {
+      throw new Error(`No pending wallet request with id "${requestId}"`);
+    }
+    return request;
+  }
+  finish(request) {
+    this.requests = this.requests.filter(
+      (current) => current.id !== request.id
+    );
+    this.resolvedRequestIds.add(request.id);
+    this.changed();
+  }
+  requestId(kind, payload) {
+    if (kind === "transaction") {
+      const requestId = payload.requestId;
+      if (requestId) return `txreq-${requestId}`;
+    } else if (kind === "signing") {
+      return payload.requestId;
+    } else {
+      const requestId = payload.requestId;
+      if (requestId) return requestId;
+    }
+    return `wreq-${this.nextId++}`;
+  }
+  request(kind, payload, id, timestamp2 = Date.now()) {
+    return { id, kind, payload, timestamp: timestamp2 };
+  }
+  changed() {
+    this.deps.onChange(this.list());
+  }
+};
+
+// src/aa/policy.ts
+function aaModeFromExecutionKind(executionKind) {
+  if (!executionKind) return void 0;
+  if (executionKind.endsWith("_4337")) return "4337";
+  if (executionKind.endsWith("_7702")) return "7702";
+  if (executionKind === "eoa") return "none";
+  return void 0;
+}
+
+// src/session/index.ts
+var ClientSession = class extends TypedEventEmitter {
+  constructor(clientOrOptions, sessionOptions) {
+    var _a, _b, _c, _d;
+    super();
+    this.agentActions = /* @__PURE__ */ new Map();
+    this.pollTimer = null;
+    this.pollingActive = false;
+    this.pollInFlight = false;
+    this.pollFailureCount = 0;
+    this._isProcessing = false;
+    this._backendWasProcessing = false;
+    this._messages = [];
+    this.closed = false;
+    this.pendingResolve = null;
+    this.handleVisibilityChange = () => {
+      if (typeof document !== "undefined" && !document.hidden && !this.pollInFlight) {
+        this.schedulePoll(0);
+      }
+    };
+    this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
+    this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
+    this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
+    this.model = sessionOptions == null ? void 0 : sessionOptions.model;
+    this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
+    const initialUserState = UserState.reconcile(
+      void 0,
+      sessionOptions == null ? void 0 : sessionOptions.userState
+    );
+    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(
+      initialUserState != null ? initialUserState : {},
+      "client_type",
+      sessionOptions.clientType
+    ) : initialUserState;
+    this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
+    this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
+    this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
+    this.walletController = new SessionWalletController({
+      onChange: (requests) => this.emit("wallet_requests_changed", requests),
+      resolveAction: (request, result) => this.resolveAgentAction(request, result),
+      rejectAction: (request, reason) => this.rejectAgentAction(request, reason)
+    });
+  }
+  // ===========================================================================
+  // Public API — Chat
+  // ===========================================================================
+  /**
+   * Send a message and wait for the AI to finish processing.
+   *
+   * The returned promise resolves when `is_processing` becomes `false` AND
+   * there are no pending wallet requests. If a wallet request arrives
+   * mid-processing, polling continues but the promise pauses until the
+   * request is resolved or rejected via `resolve()` / `reject()`.
+   */
+  async send(message) {
+    this.assertOpen();
+    const response = await this.submitChat(message);
+    if (!this.agentActive(response) && this.walletController.length === 0) {
+      return { messages: this._messages, title: this._title };
+    }
+    this._isProcessing = true;
+    this.emit("processing_start", void 0);
+    return new Promise((resolve) => {
+      this.pendingResolve = resolve;
+      this.startPolling();
+    });
+  }
+  /**
+   * Send a message without waiting for completion.
+   * Polling starts in the background; listen to events for updates.
+   */
+  async sendAsync(message) {
+    this.assertOpen();
+    const response = await this.submitChat(message);
+    if (this.agentActive(response)) {
+      this._isProcessing = true;
+      this.emit("processing_start", void 0);
+      this.startPolling();
+    }
+    return response;
+  }
+  // ===========================================================================
+  // Public API — Wallet Request Resolution
+  // ===========================================================================
+  /**
+   * Resolve a pending wallet request. The `result.kind` discriminator must
+   * match the originating request's kind — sending a `transaction` result for a `signing`
+   * request would post the wrong wire event with empty fields, so we
+   * fail fast at runtime instead.
+   */
+  async resolve(requestId, result) {
+    await this.walletController.resolve(requestId, result);
+    this.resumeAfterWalletResponse();
+  }
+  /**
+   * Reject a pending wallet request.
+   * Sends an error to the backend and resumes polling.
+   */
+  async reject(requestId, reason) {
+    await this.walletController.reject(requestId, reason);
+    this.resumeAfterWalletResponse();
+  }
+  /**
+   * Drop a pending wallet request locally without completing it. Hosts should
+   * normally use `resolve` or `reject`; this is reserved for externally
+   * acknowledged lifecycle cleanup.
+   */
+  dismiss(requestId) {
+    this.walletController.dismiss(requestId);
+    this.resumeAfterWalletResponse();
+  }
+  // ===========================================================================
+  // Public API — Control
+  // ===========================================================================
+  /**
+   * Cancel the AI's current response.
+   */
+  async interrupt() {
+    this.stopPolling();
+    this.applyAgentDelta(await this.client.agent.interrupt(this.sessionId));
+    this._isProcessing = false;
+    this.emit("processing_end", void 0);
+    this.resolvePending();
+  }
+  /**
+   * Close the session. Stops polling, unsubscribes SSE, removes all listeners.
+   * The session cannot be used after closing.
+   */
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.stopPolling();
+    this.resolvePending();
+    this.removeAllListeners();
+  }
+  // ===========================================================================
+  // Public API — Accessors
+  // ===========================================================================
+  /** Current messages in the session. */
+  getMessages() {
+    return this._messages;
+  }
+  /** Current session title. */
+  getTitle() {
+    return this._title;
+  }
+  /** Latest authoritative backend user_state snapshot seen by this session. */
+  getUserState() {
+    return this.userState ? __spreadValues({}, this.userState) : void 0;
+  }
+  /** Pending wallet requests waiting for resolve/reject. */
+  getPendingRequests() {
+    return this.walletController.list();
+  }
+  /** Whether the AI is currently processing. */
+  getIsProcessing() {
+    return this._isProcessing;
+  }
+  /** Last status observed from the canonical Agent transport. */
+  getAgentStatus() {
+    return this.agentStatus;
+  }
+  syncRuntimeOptions(options) {
+    var _a;
+    this.app = options.app;
+    this.model = options.model;
+    this.applicationId = options.applicationId;
+    this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
+    if (options.userState) {
+      this.resolveUserState(options.userState);
+    }
+  }
+  resolveUserState(userState, opts) {
+    const previousSerialized = stableUserStateString(this.userState);
+    this.userState = UserState.reconcile(this.userState, userState);
+    const nextSerialized = stableUserStateString(this.userState);
+    if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previousSerialized !== nextSerialized) {
+      this.emit("user_state_updated", this.userState);
+    }
+  }
+  setClientType(clientType) {
+    var _a;
+    this.resolveUserState(
+      UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType)
+    );
+  }
+  addExtValue(key, value) {
+    this.resolveUserState(addExtValue(this.userState, key, value));
+  }
+  removeExtValue(key) {
+    const next = removeExtValue(this.userState, key);
+    if (next) {
+      this.resolveUserState(next);
+    }
+  }
+  resolveWallet(address3, chainId3) {
+    this.resolveUserState(resolveWalletState(this.userState, address3, chainId3));
+  }
+  async syncUserState() {
+    this.assertOpen();
+    const delta = await this.client.agent.check(this.sessionId, {
+      cursor: this.agentCursor
+    });
+    this.applyAgentDelta(delta);
+    return delta;
+  }
+  // ===========================================================================
+  // Public API — Polling Control
+  // ===========================================================================
+  /** Whether the session is currently polling for state updates. */
+  getIsPolling() {
+    return this.pollingActive;
+  }
+  /**
+   * Fetch the current state from the backend (one-shot).
+   * Automatically starts polling if the backend is processing.
+   */
+  async fetchCurrentState() {
+    this.assertOpen();
+    const delta = await this.client.agent.check(this.sessionId, {
+      cursor: this.agentCursor
+    });
+    this.applyAgentDelta(delta);
+    const active = this.agentActive(delta);
+    if (active && !this.pollingActive) {
+      this._isProcessing = true;
+      this.emit("processing_start", void 0);
+      this.startPolling();
+    } else if (!active) {
+      this._isProcessing = false;
+    }
+  }
+  /**
+   * Start polling for state updates. Idempotent — no-op if already polling.
+   * Useful for resuming polling after resolving a wallet request.
+   */
+  startPolling() {
+    var _a;
+    if (this.pollingActive || this.closed) return;
+    this.pollingActive = true;
+    this._backendWasProcessing = true;
+    (_a = this.logger) == null ? void 0 : _a.debug("[session] polling started", this.sessionId);
+    if (typeof document !== "undefined") {
+      document.addEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange
+      );
+    }
+    this.schedulePoll(this.currentPollInterval());
+  }
+  /** Stop polling for state updates. Idempotent — no-op if not polling. */
+  stopPolling() {
+    var _a;
+    this.pollingActive = false;
+    if (this.pollTimer) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
+    if (typeof document !== "undefined") {
+      document.removeEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange
+      );
+    }
+    (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
+  }
+  async pollTick() {
+    var _a;
+    if (!this.pollingActive || this.pollInFlight) return;
+    this.pollTimer = null;
+    this.pollInFlight = true;
+    try {
+      const delta = await this.client.agent.check(this.sessionId, {
+        cursor: this.agentCursor,
+        waitMs: 25e3
+      });
+      if (!this.pollingActive) return;
+      this.pollFailureCount = 0;
+      this.applyAgentDelta(delta);
+      const active = this.agentActive(delta);
+      if (this._backendWasProcessing && !active) {
+        this.emit("backend_idle", void 0);
+      }
+      this._backendWasProcessing = active;
+      if (!active && this.walletController.length === 0) {
+        this.stopPolling();
+        this._isProcessing = false;
+        this.emit("processing_end", void 0);
+        this.resolvePending();
+      }
+    } catch (error) {
+      this.pollFailureCount += 1;
+      (_a = this.logger) == null ? void 0 : _a.debug("[session] poll error", error);
+      this.emit("error", { error });
+    } finally {
+      this.pollInFlight = false;
+      if (this.pollingActive) {
+        this.schedulePoll(
+          Math.min(
+            this.currentPollInterval() * 2 ** this.pollFailureCount,
+            5e3
+          )
+        );
+      }
+    }
+  }
+  currentPollInterval() {
+    return typeof document !== "undefined" && document.hidden ? 2e3 : this.pollIntervalMs;
+  }
+  schedulePoll(delayMs) {
+    if (!this.pollingActive || this.closed) return;
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = setTimeout(() => {
+      void this.pollTick();
+    }, delayMs);
+  }
+  /** Shared completion path for send()/sendAsync() after the chat POST. */
+  async submitChat(message) {
+    var _a;
+    const applicationId = Number(this.applicationId);
+    const operation = ((_a = this.agentStartOperation) == null ? void 0 : _a.message) === message ? this.agentStartOperation : {
+      message,
+      idempotencyKey: `idem_${crypto.randomUUID().replaceAll("-", "")}`
+    };
+    this.agentStartOperation = operation;
+    let delta;
+    try {
+      delta = await this.client.agent.start(
+        __spreadProps(__spreadValues(__spreadValues({
+          sessionId: this.sessionId,
+          clientId: this.clientId,
+          message
+        }, Number.isSafeInteger(applicationId) && applicationId > 0 ? { applicationId } : { app: this.app }), this.model ? { model: this.model } : {}), {
+          wallets: this.agentWallets()
+        }),
+        { idempotencyKey: operation.idempotencyKey }
+      );
+    } catch (error) {
+      if (error instanceof AgentApiError && !error.retryable) {
+        this.agentStartOperation = void 0;
+      }
+      throw error;
+    }
+    this.agentStartOperation = void 0;
+    this.applyAgentDelta(delta);
+    return delta;
+  }
+  agentActive(delta) {
+    return delta.status === "processing" || delta.status === "awaiting_user";
+  }
+  agentWallets() {
+    var _a, _b, _c;
+    const normalized = UserState.normalize(this.userState);
+    const chainId3 = Number((_a = normalized == null ? void 0 : normalized.evm) == null ? void 0 : _a.chain_id);
+    return __spreadValues(__spreadValues({}, ((_b = normalized == null ? void 0 : normalized.evm) == null ? void 0 : _b.address) ? {
+      evm: __spreadValues({
+        address: normalized.evm.address
+      }, Number.isSafeInteger(chainId3) && chainId3 > 0 ? { chainId: chainId3 } : {})
+    } : {}), ((_c = normalized == null ? void 0 : normalized.svm) == null ? void 0 : _c.address) ? {
+      svm: __spreadValues({
+        address: normalized.svm.address
+      }, normalized.svm.cluster ? { cluster: normalized.svm.cluster } : {})
+    } : {});
+  }
+  applyAgentDelta(delta) {
+    if (delta.sessionId !== this.sessionId) {
+      throw new TypeError("Agent response session does not match the request");
+    }
+    this.agentCursor = delta.cursor;
+    this.agentStatus = delta.status;
+    let messagesChanged = false;
+    for (const incoming of delta.messages) {
+      const message = this.agentMessage(incoming);
+      const index = message.id ? this._messages.findIndex((current) => current.id === message.id) : -1;
+      if (index >= 0) this._messages[index] = message;
+      else this._messages.push(message);
+      messagesChanged = true;
+    }
+    if (messagesChanged) this.emit("messages", [...this._messages]);
+    if (delta.title && delta.title !== this._title) {
+      this._title = delta.title;
+      this.emit("title_changed", { title: delta.title });
+    }
+    this.applyAgentActivity(delta.activity);
+    this.syncAgentActions(delta.actions);
+  }
+  agentMessage(message) {
+    var _a;
+    return __spreadValues(__spreadValues({
+      id: message.id,
+      sender: message.role,
+      content: message.content,
+      timestamp: message.createdAt,
+      is_streaming: message.streaming,
+      tool_result: (_a = message.toolResult) != null ? _a : null
+    }, message.toolName ? { tool_name: message.toolName } : {}), message.toolArguments !== void 0 ? { tool_arguments: message.toolArguments } : {});
+  }
+  applyAgentActivity(activity) {
+    for (const event of activity) {
+      const type = typeof event.type === "string" ? event.type : void 0;
+      if (type === "tool_complete" || type === "task_started" || type === "task_activity" || type === "task_completed") {
+        this.emit(type, event);
+      }
+    }
+  }
+  syncAgentActions(actions) {
+    const visible = /* @__PURE__ */ new Set();
+    for (const action of actions) {
+      this.agentActions.set(action.id, action);
+      if (action.status !== "pending") continue;
+      visible.add(action.id);
+      this.enqueueAgentAction(action);
+    }
+    for (const request of this.walletController.list()) {
+      const actionId = this.actionIdForRequest(request.id);
+      if (this.agentActions.has(actionId) && !visible.has(actionId)) {
+        this.walletController.dismiss(request.id);
+      }
+    }
+  }
+  enqueueAgentAction(action) {
+    var _a, _b, _c, _d, _e;
+    if (action.type === "external_transaction" && action.chainFamily === "evm") {
+      const typed2 = action;
+      this.walletController.enqueue("transaction", {
+        requestId: typed2.id,
+        chainId: typed2.chainId,
+        aaPreference: "none",
+        calls: typed2.transactions.map((transaction, index) => {
+          var _a2;
+          return {
+            txId: index + 1,
+            to: transaction.to,
+            value: transaction.value,
+            data: transaction.data,
+            chainId: typed2.chainId,
+            from: transaction.from,
+            gas: (_a2 = transaction.gas) != null ? _a2 : void 0,
+            description: transaction.description
+          };
+        }),
+        txIds: typed2.transactions.map((_, index) => index + 1)
+      });
+      return;
+    }
+    if (action.type === "external_transaction") {
+      const typed2 = action;
+      const transaction = typed2.transactions[0];
+      if (transaction) {
+        this.walletController.enqueue("solana_sign_and_send", {
+          requestId: typed2.id,
+          unsignedTx: transaction.unsignedTransactionBase64,
+          description: typed2.description,
+          cluster: typed2.cluster,
+          transactions: typed2.transactions.map((item) => ({
+            id: item.id,
+            unsignedTx: item.unsignedTransactionBase64,
+            description: item.description
+          }))
+        });
+      }
+      return;
+    }
+    const typed = action;
+    this.walletController.enqueue("signing", {
+      requestId: typed.id,
+      chainFamily: typed.chainFamily,
+      executionKind: typed.executionKind === "account_abstraction" || typed.executionKind === "hosted" ? "erc4337" : typed.executionKind,
+      signer: typed.signer,
+      chainId: (_a = typed.chainId) != null ? _a : void 0,
+      cluster: (_b = typed.cluster) != null ? _b : void 0,
+      description: typed.description,
+      payloads: typed.payloads.map((payload) => {
+        if (payload.kind === "evm_personal") {
+          return { kind: payload.kind, message: payload.message };
+        }
+        if (payload.kind === "evm_typed_data") {
+          return { kind: payload.kind, typedData: payload.typedData };
+        }
+        if (payload.kind === "svm_message") {
+          return { kind: payload.kind, messageBase64: payload.messageBase64 };
+        }
+        return {
+          kind: payload.kind,
+          transactionBase64: payload.transactionBase64
+        };
+      }),
+      broadcaster: typed.broadcaster,
+      operationId: (_c = typed.operationId) != null ? _c : void 0,
+      executor: typed.executor,
+      expiresAt: (_d = typed.expiresAt) != null ? _d : void 0,
+      callsDigest: typed.callsDigest,
+      calls: typed.calls,
+      fees: typed.fees,
+      sponsorship: (_e = typed.sponsorship) != null ? _e : void 0
+    });
+  }
+  async resolveAgentAction(request, result) {
+    var _a, _b, _c;
+    const action = this.agentActions.get(this.actionIdForRequest(request.id));
+    if (!action)
+      throw new Error(`No Agent action for wallet request "${request.id}"`);
+    let actionResult;
+    if (action.type === "signing_request" && result.kind === "signing") {
+      actionResult = {
+        status: "signed",
+        revision: action.revision,
+        outputs: action.payloads.map((payload, index) => __spreadValues({
+          id: payload.id
+        }, payload.kind === "svm_transaction" ? { signedTransactionBase64: result.signatures[index] } : { signature: result.signatures[index] }))
+      };
+    } else if (action.type === "external_transaction" && action.chainFamily === "evm" && result.kind === "transaction") {
+      const completed = new Set(
+        (_a = result.completedTxIds) != null ? _a : action.transactions.map((_, index) => index + 1)
+      );
+      const failed = new Set((_b = result.failedTxIds) != null ? _b : []);
+      actionResult = {
+        status: "submitted",
+        revision: action.revision,
+        legs: action.transactions.map((transaction, index) => {
+          var _a2, _b2, _c2;
+          return __spreadValues(__spreadValues({
+            id: transaction.id,
+            status: completed.has(index + 1) ? "submitted" : failed.has(index + 1) ? "failed" : "skipped"
+          }, completed.has(index + 1) ? { transactionId: (_b2 = (_a2 = result.txHashes) == null ? void 0 : _a2[index]) != null ? _b2 : result.txHash } : {}), failed.has(index + 1) ? { reason: (_c2 = result.failureReason) != null ? _c2 : "Transaction failed" } : {});
+        })
+      };
+    } else if (action.type === "external_transaction" && action.chainFamily === "svm" && (result.kind === "solana_send" || result.kind === "solana_sign_and_send")) {
+      const byId = new Map(
+        ((_c = result.legs) != null ? _c : []).map((leg) => [leg.id, leg])
+      );
+      if (action.transactions.length > 1 && byId.size === 0) {
+        throw new Error(
+          `SVM Agent batch "${action.id}" requires per-leg wallet results`
+        );
+      }
+      actionResult = {
+        status: "submitted",
+        revision: action.revision,
+        legs: action.transactions.map((transaction, index) => {
+          var _a2, _b2;
+          const leg = (_a2 = byId.get(transaction.id)) != null ? _a2 : index === 0 && action.transactions.length === 1 ? {
+            id: transaction.id,
+            status: "submitted",
+            signature: result.signature,
+            signedTx: result.signedTx
+          } : void 0;
+          return __spreadValues(__spreadValues(__spreadValues({
+            id: transaction.id,
+            status: (_b2 = leg == null ? void 0 : leg.status) != null ? _b2 : "skipped"
+          }, (leg == null ? void 0 : leg.signature) ? { transactionId: leg.signature } : {}), (leg == null ? void 0 : leg.signedTx) ? { signedTransactionBase64: leg.signedTx } : {}), (leg == null ? void 0 : leg.reason) ? { reason: leg.reason } : {});
+        })
+      };
+    } else {
+      throw new Error(`Agent action/result kind mismatch for "${request.id}"`);
+    }
+    await this.client.agent.resolveAction(
+      this.sessionId,
+      action.id,
+      actionResult
+    );
+  }
+  async rejectAgentAction(request, reason) {
+    const action = this.agentActions.get(this.actionIdForRequest(request.id));
+    if (!action)
+      throw new Error(`No Agent action for wallet request "${request.id}"`);
+    await this.client.agent.resolveAction(this.sessionId, action.id, {
+      status: "rejected",
+      revision: action.revision,
+      reason: reason != null ? reason : "Request rejected"
+    });
+  }
+  actionIdForRequest(requestId) {
+    return requestId.startsWith("txreq-") ? requestId.slice(6) : requestId;
+  }
+  resumeAfterWalletResponse() {
+    if (!this._isProcessing) {
+      this._isProcessing = true;
+      this.emit("processing_start", void 0);
+    }
+    this.startPolling();
+  }
+  resolvePending() {
+    if (this.pendingResolve) {
+      const resolve = this.pendingResolve;
+      this.pendingResolve = null;
+      resolve({ messages: this._messages, title: this._title });
+    }
+  }
+  assertOpen() {
+    if (this.closed) {
+      throw new Error("Session is closed");
+    }
+  }
+};
 
 // src/wallet-utils.ts
 import { getAddress as getAddress2 } from "viem";
@@ -3253,1519 +3312,6 @@ function toViemSignMessageArgs(payload) {
     message: isHexBytes(nonTypedData) ? { raw: nonTypedData } : nonTypedData
   };
 }
-
-// src/session/events.ts
-function aomiMessagesEqual(a, b) {
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    const x = a[i];
-    const y = b[i];
-    if (x.sender !== y.sender || x.content !== y.content || x.timestamp !== y.timestamp || x.is_streaming !== y.is_streaming) {
-      return false;
-    }
-    const xt = x.tool_result;
-    const yt = y.tool_result;
-    if (xt !== yt) {
-      if (!xt || !yt) return false;
-      if (xt[0] !== yt[0] || xt[1] !== yt[1]) return false;
-    }
-  }
-  return true;
-}
-function isRecord(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function isHexString(value) {
-  return typeof value === "string" && /^0x[0-9a-fA-F]*$/.test(value);
-}
-function isEvmAddress(value) {
-  return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value);
-}
-function normalizeAaCall(value) {
-  if (!isRecord(value) || !isEvmAddress(value.to) || typeof value.value !== "string" || value.data !== void 0 && !isHexString(value.data)) {
-    return null;
-  }
-  return __spreadValues({
-    to: value.to,
-    value: value.value
-  }, value.data !== void 0 ? { data: value.data } : {});
-}
-function normalizeAaFee(value) {
-  var _a, _b, _c;
-  if (!isRecord(value) || !isRecord(value.asset) || typeof value.amount !== "string" || typeof value.recipient !== "string" || value.recipient.length === 0) {
-    return null;
-  }
-  const asset = value.asset.kind === "native" ? { kind: "native" } : (value.asset.kind === "token" || value.asset.kind === "erc20") && typeof ((_a = value.asset.address) != null ? _a : value.asset.token) === "string" && String((_b = value.asset.address) != null ? _b : value.asset.token).length > 0 ? {
-    kind: "token",
-    address: String((_c = value.asset.address) != null ? _c : value.asset.token)
-  } : null;
-  return asset ? { asset, amount: value.amount, recipient: value.recipient } : null;
-}
-function isOpaqueSigningRequestId(value) {
-  return typeof value === "string" && /^sign:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value
-  );
-}
-function normalizeSignablePayload(value) {
-  if (!isRecord(value)) return null;
-  if (value.kind === "evm_personal" && isHexString(value.message)) {
-    return { kind: value.kind, message: value.message };
-  }
-  if (value.kind === "evm_typed_data" && isRecord(value.typed_data)) {
-    return { kind: value.kind, typedData: value.typed_data };
-  }
-  if (value.kind === "svm_message" && typeof value.message_base64 === "string") {
-    return { kind: value.kind, messageBase64: value.message_base64 };
-  }
-  if (value.kind === "svm_transaction" && typeof value.transaction_base64 === "string") {
-    return { kind: value.kind, transactionBase64: value.transaction_base64 };
-  }
-  return null;
-}
-function normalizeSigningPayload(value) {
-  if (!isRecord(value)) return null;
-  const payloads = Array.isArray(value.payloads) ? value.payloads.map(normalizeSignablePayload) : [];
-  const calls = Array.isArray(value.calls) ? value.calls.map(normalizeAaCall) : [];
-  const fees = Array.isArray(value.fees) ? value.fees.map(normalizeAaFee) : [];
-  const hasInvalidCalls = value.calls !== void 0 && !Array.isArray(value.calls) || calls.some((call) => call === null);
-  const hasInvalidFees = value.fees !== void 0 && !Array.isArray(value.fees) || fees.some(
-    (fee) => fee === null || !isEvmAddress(fee.recipient) || fee.asset.kind === "token" && !isEvmAddress(fee.asset.address)
-  );
-  const isErc4337 = value.executionKind === "erc4337";
-  if (!isOpaqueSigningRequestId(value.requestId) || value.chainFamily !== "evm" && value.chainFamily !== "svm" || value.executionKind !== "message" && value.executionKind !== "transaction" && value.executionKind !== "erc4337" || value.executionKind === "erc4337" && value.chainFamily !== "evm" || typeof value.signer !== "string" || typeof value.description !== "string" || payloads.length === 0 || payloads.some((payload) => payload === null) || payloads.some(
-    (payload) => value.chainFamily === "evm" ? !(payload == null ? void 0 : payload.kind.startsWith("evm_")) : !(payload == null ? void 0 : payload.kind.startsWith("svm_"))
-  ) || hasInvalidCalls || hasInvalidFees || isErc4337 && (typeof value.operationId !== "string" || !isEvmAddress(value.executor) || typeof value.expiresAt !== "string" || typeof value.callsDigest !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(value.callsDigest) || value.sponsorship !== "required" || calls.length === 0 || fees.length === 0)) {
-    return null;
-  }
-  return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
-    requestId: value.requestId,
-    chainFamily: value.chainFamily,
-    executionKind: value.executionKind,
-    signer: value.signer,
-    description: value.description,
-    payloads
-  }, typeof value.chainId === "number" ? { chainId: value.chainId } : {}), typeof value.cluster === "string" ? { cluster: value.cluster } : {}), typeof value.broadcaster === "string" ? { broadcaster: value.broadcaster } : {}), typeof value.operationId === "string" ? { operationId: value.operationId } : {}), isHexString(value.executor) ? { executor: value.executor } : {}), typeof value.expiresAt === "string" ? { expiresAt: value.expiresAt } : {}), isHexString(value.callsDigest) ? { callsDigest: value.callsDigest } : {}), calls.length ? { calls } : {}), fees.length ? { fees } : {}), value.sponsorship === "required" ? { sponsorship: "required" } : {});
-}
-function applySessionState(state, deps) {
-  var _a;
-  if (state.user_state) {
-    deps.resolveUserState(state.user_state);
-  }
-  if (state.messages) {
-    if (!aomiMessagesEqual(state.messages, deps.getMessages())) {
-      deps.setMessages(state.messages);
-      deps.emit("messages", state.messages);
-    }
-  }
-  if (state.title) {
-    deps.setTitle(state.title);
-  }
-  if ((_a = state.system_events) == null ? void 0 : _a.length) {
-    dispatchSystemEvents(state.system_events, deps);
-  }
-}
-function handleSessionSSEEvent(event, deps) {
-  if (event.type === "title_changed" && event.new_title) {
-    deps.setTitle(event.new_title);
-    deps.emit("title_changed", { title: event.new_title });
-  } else if (event.type === "tool_update") {
-    deps.emit("tool_update", event);
-  } else if (event.type === "tool_complete") {
-    deps.emit("tool_complete", event);
-  } else if (isAomiTaskEventType(event.type)) {
-    const taskEvent = parseAomiTaskEvent(event);
-    if (taskEvent) {
-      if (taskEvent.type === "task_started") {
-        deps.emit("task_started", taskEvent);
-      } else if (taskEvent.type === "task_activity") {
-        deps.emit("task_activity", taskEvent);
-      } else {
-        deps.emit("task_completed", taskEvent);
-      }
-    }
-  } else if (event.type === "wallet_tx_request" || event.type === "wallet_signing_request" || event.type.startsWith("wallet::solana_")) {
-    dispatchSystemEvents(
-      [
-        {
-          InlineCall: {
-            type: event.type,
-            payload: event.payload
-          }
-        }
-      ],
-      deps
-    );
-  }
-}
-function dispatchSolanaRequest(request, deps) {
-  let queued;
-  if (request.kind === "solana_send") {
-    queued = deps.walletController.enqueue("solana_send", request.payload);
-    deps.emit("wallet_solana_send_request", queued);
-  } else {
-    queued = deps.walletController.enqueue(
-      "solana_sign_and_send",
-      request.payload
-    );
-    deps.emit("wallet_solana_sign_and_send_request", queued);
-  }
-}
-function dispatchSystemEvents(events, deps) {
-  var _a, _b, _c;
-  for (const event of events) {
-    const unwrapped = unwrapSystemEvent(event);
-    if (!unwrapped) continue;
-    if (unwrapped.type === "wallet_signing_request") {
-      const payload = normalizeSigningPayload(unwrapped.payload);
-      if (payload) {
-        const req = deps.walletController.enqueue("signing", payload);
-        deps.emit("wallet_signing_request", req);
-      }
-    } else if (unwrapped.type === "wallet_tx_request") {
-      const solanaRequest = normalizeSolanaWalletRequest(
-        (_a = unwrapped.payload) != null ? _a : {}
-      );
-      if (solanaRequest) {
-        dispatchSolanaRequest(solanaRequest, deps);
-        continue;
-      }
-      const normalizedPayload = normalizeTxPayload(unwrapped.payload);
-      const payload = normalizedPayload ? hydrateTxPayloadFromUserState(normalizedPayload, deps.userState()) : null;
-      if (payload) {
-        const req = deps.walletController.enqueue("transaction", payload);
-        deps.emit("wallet_tx_request", req);
-      }
-    } else if (unwrapped.type === "wallet::solana_send_request") {
-      const payload = normalizeSolanaSignPayload((_b = unwrapped.payload) != null ? _b : {});
-      const req = deps.walletController.enqueue("solana_send", payload);
-      deps.emit("wallet_solana_send_request", req);
-    } else if (unwrapped.type === "wallet::solana_sign_and_send_request") {
-      const payload = normalizeSolanaSignPayload((_c = unwrapped.payload) != null ? _c : {});
-      const req = deps.walletController.enqueue(
-        "solana_sign_and_send",
-        payload
-      );
-      deps.emit("wallet_solana_sign_and_send_request", req);
-    } else if (unwrapped.type === "system_notice" || unwrapped.type === "system_error" || unwrapped.type === "async_callback") {
-      deps.emit(
-        unwrapped.type,
-        unwrapped.payload
-      );
-    } else {
-      deps.emit(
-        unwrapped.type,
-        unwrapped.payload
-      );
-    }
-  }
-}
-
-// src/session/state.ts
-function isRecord2(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function addExtValue(userState, key, value) {
-  const current = userState != null ? userState : {};
-  const currentExt = isRecord2(current["ext"]) ? current["ext"] : {};
-  return __spreadProps(__spreadValues({}, current), {
-    ext: __spreadProps(__spreadValues({}, currentExt), {
-      [key]: value
-    })
-  });
-}
-function removeExtValue(userState, key) {
-  if (!userState) return void 0;
-  const currentExt = userState["ext"];
-  if (!isRecord2(currentExt)) return void 0;
-  const nextExt = __spreadValues({}, currentExt);
-  delete nextExt[key];
-  return __spreadProps(__spreadValues({}, userState), { ext: nextExt });
-}
-function resolveWalletState(userState, address3, chainId3) {
-  const prevEvm = isRecord2(userState == null ? void 0 : userState.evm) ? userState == null ? void 0 : userState.evm : {};
-  const prevConn = isRecord2(userState == null ? void 0 : userState.connection) ? userState == null ? void 0 : userState.connection : {};
-  return __spreadProps(__spreadValues({}, userState != null ? userState : {}), {
-    evm: __spreadProps(__spreadValues({}, prevEvm), {
-      address: address3,
-      chain_id: chainId3 != null ? chainId3 : 1
-    }),
-    connection: __spreadProps(__spreadValues({}, prevConn), {
-      is_connected: true
-    })
-  });
-}
-function warnIfUserStateMisaligned(expected, actual) {
-  const expectedUserState = UserState.normalize(expected);
-  const normalizedActualUserState = UserState.reconcile(
-    expectedUserState,
-    actual
-  );
-  if (!expectedUserState || !normalizedActualUserState) {
-    return;
-  }
-  if (!isSubsetMatch(expectedUserState, normalizedActualUserState)) {
-    const expectedJson = JSON.stringify(sortJson(expectedUserState));
-    const actualJson = JSON.stringify(sortJson(normalizedActualUserState));
-    console.warn(
-      `[session] Backend user_state mismatch (non-fatal). expected subset=${expectedJson} actual=${actualJson}`
-    );
-  }
-}
-
-// src/session/wallet.ts
-function isRecord3(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function txIdsFromPayload(payload) {
-  if (Array.isArray(payload.txIds) && payload.txIds.length > 0) {
-    return [...payload.txIds];
-  }
-  if (typeof payload.txId === "number") {
-    return [payload.txId];
-  }
-  return [];
-}
-function solanaPendingIdFields(payload) {
-  const fields = {};
-  if (payload.pendingSolanaId !== void 0) {
-    fields.pending_solana_id = payload.pendingSolanaId;
-  }
-  if ("pendingSolanaIds" in payload && Array.isArray(payload.pendingSolanaIds) && payload.pendingSolanaIds.length > 0) {
-    fields.pending_svm_tx_ids = [...payload.pendingSolanaIds];
-  }
-  return fields;
-}
-var SessionWalletController = class {
-  constructor(deps) {
-    this.deps = deps;
-    this.requests = [];
-    this.nextId = 1;
-    this.resolvedRequestIds = /* @__PURE__ */ new Set();
-    this.resolvingRequestIds = /* @__PURE__ */ new Set();
-  }
-  get length() {
-    return this.requests.length;
-  }
-  list() {
-    return [...this.requests];
-  }
-  find(id) {
-    return this.requests.find((request) => request.id === id);
-  }
-  enqueue(kind, payload) {
-    var _a;
-    const id = this.requestId(kind, payload);
-    const existing = this.requests.find((request) => request.id === id);
-    const timestamp2 = (_a = existing == null ? void 0 : existing.timestamp) != null ? _a : Date.now();
-    const req = this.request(kind, payload, id, timestamp2);
-    if (this.resolvedRequestIds.has(id) && !existing) {
-      return req;
-    }
-    this.requests = existing ? this.requests.map((request) => request.id === id ? req : request) : [...this.requests, req];
-    this.dedupeTransactionRequests(req);
-    this.changed();
-    return req;
-  }
-  remove(id) {
-    const idx = this.requests.findIndex((request2) => request2.id === id);
-    if (idx === -1) return null;
-    const [request] = this.requests.splice(idx, 1);
-    this.changed();
-    return request;
-  }
-  sync() {
-    const userState = this.deps.getUserState();
-    const pending = isRecord3(userState == null ? void 0 : userState.pending) ? userState.pending : void 0;
-    const pendingTxs = isRecord3(pending == null ? void 0 : pending.evm_txs) ? pending.evm_txs : void 0;
-    const pendingSolanaTxs = isRecord3(pending == null ? void 0 : pending.solana_txs) ? pending.solana_txs : isRecord3(pending == null ? void 0 : pending.svm_ixs) ? pending.svm_ixs : void 0;
-    const next = [];
-    this.syncTransactions(next, pendingTxs);
-    this.syncSolana(next, pendingSolanaTxs);
-    const nextIdSet = new Set(next.map((request) => request.id));
-    for (const existing of this.requests) {
-      if (existing.kind !== "transaction" && !nextIdSet.has(existing.id) && !this.resolvedRequestIds.has(existing.id)) {
-        next.push(existing);
-      }
-    }
-    if (this.sameRequests(next)) return;
-    this.requests = next;
-    this.changed();
-  }
-  async resolve(requestId, result) {
-    const req = this.find(requestId);
-    if (!req) {
-      throw new Error(`No pending wallet request with id "${requestId}"`);
-    }
-    if (result.kind !== req.kind) {
-      throw new Error(
-        `WalletRequestResult.kind mismatch for "${requestId}": request is "${req.kind}" but result is "${result.kind}".`
-      );
-    }
-    if (this.resolvingRequestIds.has(requestId)) return;
-    this.resolvingRequestIds.add(requestId);
-    try {
-      if (this.deps.resolveAgentAction) {
-        await this.deps.resolveAgentAction(req, result);
-        this.finishRequest(req);
-        return;
-      }
-      const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
-      if (req.kind === "transaction" && result.kind === "transaction") {
-        await this.resolveTransaction(req.payload, result);
-      } else if (req.kind === "signing" && result.kind === "signing") {
-        await this.deps.completeSigningRequest(req.payload.requestId, {
-          status: "signed",
-          signatures: result.signatures
-        });
-      } else if (req.kind === "solana_send" && result.kind === "solana_send") {
-        await send("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
-          status: "submitted",
-          signature: result.signature,
-          signed_tx: result.signedTx
-        }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-          description: req.payload.description
-        }), solanaPendingIdFields(req.payload)));
-      } else if (req.kind === "solana_sign_and_send" && result.kind === "solana_sign_and_send") {
-        await send("wallet::solana_sign_and_send_complete", __spreadValues(__spreadProps(__spreadValues({
-          status: "submitted",
-          signature: result.signature,
-          signed_tx: result.signedTx
-        }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-          description: req.payload.description
-        }), solanaPendingIdFields(req.payload)));
-      }
-      this.finishRequest(req);
-    } finally {
-      this.resolvingRequestIds.delete(requestId);
-    }
-  }
-  async reject(requestId, reason) {
-    const req = this.find(requestId);
-    if (!req) {
-      throw new Error(`No pending wallet request with id "${requestId}"`);
-    }
-    if (this.resolvingRequestIds.has(requestId)) return;
-    this.resolvingRequestIds.add(requestId);
-    try {
-      if (this.deps.rejectAgentAction) {
-        await this.deps.rejectAgentAction(req, reason);
-        this.finishRequest(req);
-        return;
-      }
-      const send = (type, payload) => this.deps.sendSystemEvent(type, payload);
-      if (req.kind === "transaction") {
-        const pendingTxIds = txIdsFromPayload(req.payload);
-        await send("wallet:tx_complete", {
-          txHash: "",
-          status: "failed",
-          error: reason != null ? reason : "Request rejected",
-          pending_tx_ids: pendingTxIds,
-          batched: pendingTxIds.length > 1,
-          call_count: pendingTxIds.length
-        });
-      } else if (req.kind === "signing") {
-        await this.deps.completeSigningRequest(req.payload.requestId, {
-          status: "rejected",
-          reason
-        });
-      } else if (req.kind === "solana_send") {
-        await send("wallet::solana_send_complete", __spreadValues(__spreadProps(__spreadValues({
-          status: "rejected",
-          error: reason != null ? reason : "Request rejected"
-        }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-          description: req.payload.description
-        }), solanaPendingIdFields(req.payload)));
-      } else {
-        await send("wallet::solana_sign_and_send_complete", __spreadValues(__spreadProps(__spreadValues({
-          status: "rejected",
-          error: reason != null ? reason : "Request rejected"
-        }, req.payload.unsignedTx !== void 0 ? { unsigned_tx: req.payload.unsignedTx } : {}), {
-          description: req.payload.description
-        }), solanaPendingIdFields(req.payload)));
-      }
-      this.finishRequest(req);
-    } finally {
-      this.resolvingRequestIds.delete(requestId);
-    }
-  }
-  /** Drop a request locally after an out-of-band host acknowledgement. */
-  dismiss(requestId) {
-    const req = this.find(requestId);
-    if (!req) return;
-    this.finishRequest(req);
-  }
-  async resolveTransaction(payload, result) {
-    var _a, _b, _c, _d, _e;
-    const pendingTxIds = (_a = result.completedTxIds) != null ? _a : txIdsFromPayload(payload);
-    await this.deps.sendSystemEvent("wallet:tx_complete", {
-      txHash: result.txHash,
-      status: "success",
-      amount: result.amount,
-      pending_tx_ids: pendingTxIds,
-      execution_kind: result.executionKind,
-      batched: (_b = result.batched) != null ? _b : pendingTxIds.length > 1,
-      call_count: (_c = result.callCount) != null ? _c : pendingTxIds.length
-    });
-    if ((_d = result.failedTxIds) == null ? void 0 : _d.length) {
-      await this.deps.sendSystemEvent("wallet:tx_complete", {
-        txHash: "",
-        status: "failed",
-        error: (_e = result.failureReason) != null ? _e : "Batch aborted after a mid-sequence failure; these legs were not executed",
-        pending_tx_ids: result.failedTxIds,
-        batched: result.failedTxIds.length > 1,
-        call_count: result.failedTxIds.length
-      });
-    }
-  }
-  clearResolvedSolanaPending(request) {
-    const userState = this.deps.getUserState();
-    const pending = isRecord3(userState == null ? void 0 : userState.pending) ? userState.pending : void 0;
-    if (!userState || !pending) return;
-    if (request.kind === "transaction" || request.kind === "signing") return;
-    const ids = "pendingSolanaIds" in request.payload && Array.isArray(request.payload.pendingSolanaIds) && request.payload.pendingSolanaIds.length > 0 ? request.payload.pendingSolanaIds : request.payload.pendingSolanaId !== void 0 ? [request.payload.pendingSolanaId] : [];
-    if (ids.length === 0) return;
-    const targets = [
-      ["svm_ixs", ids],
-      ["solana_txs", ids]
-    ];
-    const nextPending = __spreadValues({}, pending);
-    let changed = false;
-    for (const [bucketName, ids2] of targets) {
-      const bucket = isRecord3(nextPending[bucketName]) ? __spreadValues({}, nextPending[bucketName]) : void 0;
-      if (!bucket) continue;
-      for (const id of ids2) {
-        if (Object.hasOwn(bucket, String(id))) {
-          delete bucket[String(id)];
-          changed = true;
-        }
-      }
-      nextPending[bucketName] = bucket;
-    }
-    if (changed) {
-      this.deps.resolveUserState(__spreadProps(__spreadValues({}, userState), { pending: nextPending }));
-    }
-  }
-  finishRequest(request) {
-    this.remove(request.id);
-    this.resolvedRequestIds.add(request.id);
-    this.clearResolvedSolanaPending(request);
-  }
-  syncTransactions(next, pendingTxs) {
-    var _a, _b;
-    const entries = Object.entries(pendingTxs != null ? pendingTxs : {}).filter(([id]) => Number.isInteger(Number(id))).filter(
-      ([, raw]) => !isRecord3(raw) || raw.current_lifecycle !== "awaiting_aa_signature" && raw.current_lifecycle !== "inflight"
-    ).sort((left, right) => Number(left[0]) - Number(right[0]));
-    const pendingIds = new Set(entries.map(([id]) => Number(id)));
-    const covered = /* @__PURE__ */ new Set();
-    const existing = this.requests.filter(
-      (request) => request.kind === "transaction"
-    ).map((request) => ({ request, txIds: txIdsFromPayload(request.payload) })).filter(
-      ({ txIds }) => txIds.length > 0 && txIds.every((id) => pendingIds.has(id))
-    ).sort(
-      (left, right) => left.txIds.length !== right.txIds.length ? right.txIds.length - left.txIds.length : left.request.timestamp - right.request.timestamp
-    );
-    for (const { request, txIds } of existing) {
-      if (txIds.some((txId) => covered.has(txId))) continue;
-      const payload = hydrateTxPayloadFromUserState(
-        request.payload,
-        this.deps.getUserState()
-      );
-      next.push({
-        id: this.requestId("transaction", payload),
-        kind: "transaction",
-        payload,
-        timestamp: request.timestamp
-      });
-      txIds.forEach((txId) => covered.add(txId));
-    }
-    if (!this.deps.syncPendingTxRequestsFromUserState) return;
-    for (const [id, raw] of entries) {
-      const txId = Number(id);
-      if (covered.has(txId)) continue;
-      const payload = hydrateTxPayloadFromUserState(
-        { txId, txIds: [txId], aaPreference: "auto" },
-        { pending: { evm_txs: { [id]: isRecord3(raw) ? raw : {} } } }
-      );
-      const requestId = this.requestId("transaction", payload);
-      next.push({
-        id: requestId,
-        kind: "transaction",
-        payload,
-        timestamp: (_b = (_a = this.requests.find((request) => request.id === requestId)) == null ? void 0 : _a.timestamp) != null ? _b : Date.now()
-      });
-    }
-  }
-  syncSolana(next, pendingSolanaRequests) {
-    var _a, _b;
-    for (const [id, raw] of Object.entries(pendingSolanaRequests != null ? pendingSolanaRequests : {}).sort(
-      (left, right) => Number(left[0]) - Number(right[0])
-    )) {
-      const normalized = normalizeSolanaWalletRequest(__spreadProps(__spreadValues({}, isRecord3(raw) ? raw : {}), {
-        chain_kind: "svm",
-        pending_solana_id: Number(id)
-      }));
-      if (!normalized || normalized.kind !== "solana_send" && normalized.kind !== "solana_sign_and_send")
-        continue;
-      const requestId = this.requestId(normalized.kind, normalized.payload);
-      if (this.resolvedRequestIds.has(requestId)) continue;
-      next.push(
-        this.request(
-          normalized.kind,
-          normalized.payload,
-          requestId,
-          (_b = (_a = this.requests.find((request) => request.id === requestId)) == null ? void 0 : _a.timestamp) != null ? _b : Date.now()
-        )
-      );
-    }
-  }
-  requestId(kind, payload) {
-    let id;
-    if (kind === "transaction") {
-      const txPayload = payload;
-      if (typeof txPayload.requestId === "string" && txPayload.requestId.length > 0) {
-        id = `txreq-${txPayload.requestId}`;
-      }
-      const txIds = txIdsFromPayload(txPayload);
-      if (!id && txIds.length > 0) id = `tx-${txIds.join("-")}`;
-    } else if (kind === "signing") {
-      id = payload.requestId;
-    } else {
-      const { requestId, pendingSolanaId } = payload;
-      if (requestId) id = requestId;
-      if (!id && typeof pendingSolanaId === "number")
-        id = `${kind}-${pendingSolanaId}`;
-    }
-    id != null ? id : id = `wreq-${this.nextId++}`;
-    return id;
-  }
-  request(kind, payload, id, timestamp2) {
-    if (kind === "transaction") {
-      return {
-        id,
-        kind,
-        payload,
-        timestamp: timestamp2
-      };
-    }
-    if (kind === "signing") {
-      return {
-        id,
-        kind,
-        payload,
-        timestamp: timestamp2
-      };
-    }
-    return {
-      id,
-      kind,
-      payload,
-      timestamp: timestamp2
-    };
-  }
-  dedupeTransactionRequests(req) {
-    if (req.kind !== "transaction") return;
-    const nextTxIds = txIdsFromPayload(req.payload);
-    if (nextTxIds.length === 0) return;
-    const nextTxIdSet = new Set(nextTxIds);
-    this.requests = this.requests.filter((request) => {
-      if (request.id === req.id || request.kind !== "transaction") return true;
-      const requestTxIds = txIdsFromPayload(request.payload);
-      return requestTxIds.length === 0 || !requestTxIds.every((txId) => nextTxIdSet.has(txId));
-    });
-  }
-  sameRequests(next) {
-    return next.length === this.requests.length && next.every((request, index) => {
-      const current = this.requests[index];
-      return (current == null ? void 0 : current.id) === request.id && current.kind === request.kind && JSON.stringify(current.payload) === JSON.stringify(request.payload);
-    });
-  }
-  changed() {
-    this.deps.onChange(this.list());
-  }
-};
-
-// src/aa/policy.ts
-function aaModeFromExecutionKind(executionKind) {
-  if (!executionKind) return void 0;
-  if (executionKind.endsWith("_4337")) return "4337";
-  if (executionKind.endsWith("_7702")) return "7702";
-  if (executionKind === "eoa") return "none";
-  return void 0;
-}
-
-// src/session/index.ts
-var SIGNING_RECOVERY_MIN_INTERVAL_MS = 5e3;
-var ClientSession = class extends TypedEventEmitter {
-  constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c, _d, _e, _f;
-    super();
-    this.agentActions = /* @__PURE__ */ new Map();
-    this.pollTimer = null;
-    this.pollingActive = false;
-    this.pollInFlight = false;
-    this.pollFailureCount = 0;
-    this.unsubscribeSSE = null;
-    this.isSSEActive = false;
-    this._isProcessing = false;
-    this._backendWasProcessing = false;
-    this.recoveringSigningRequestIds = /* @__PURE__ */ new Set();
-    this.signingRecoveryInFlight = null;
-    this.signingRecoveryTimer = null;
-    this.lastSigningRecoveryAt = 0;
-    this._messages = [];
-    this.closed = false;
-    this.pendingResolve = null;
-    this.handleVisibilityChange = () => {
-      if (typeof document !== "undefined" && !document.hidden && !this.pollInFlight) {
-        this.schedulePoll(0);
-      }
-    };
-    this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
-    this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
-    this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
-    this.model = sessionOptions == null ? void 0 : sessionOptions.model;
-    this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
-    this.apiKey = sessionOptions == null ? void 0 : sessionOptions.apiKey;
-    this.paymentMethod = sessionOptions == null ? void 0 : sessionOptions.paymentMethod;
-    this.transport = (_c = sessionOptions == null ? void 0 : sessionOptions.transport) != null ? _c : "agent";
-    const initialUserState = UserState.reconcile(
-      void 0,
-      sessionOptions == null ? void 0 : sessionOptions.userState
-    );
-    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(
-      initialUserState != null ? initialUserState : {},
-      "client_type",
-      sessionOptions.clientType
-    ) : initialUserState;
-    this.clientId = (_d = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _d : crypto.randomUUID();
-    this.syncPendingTxRequestsFromUserState = (_e = sessionOptions == null ? void 0 : sessionOptions.syncPendingTxRequestsFromUserState) != null ? _e : true;
-    this.pollIntervalMs = (_f = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _f : 500;
-    this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
-    this.walletController = new SessionWalletController({
-      getUserState: () => this.userState,
-      resolveUserState: (userState) => this.resolveUserState(userState),
-      sendSystemEvent: (type, payload) => this.sendSystemEvent(type, payload),
-      completeSigningRequest: (requestId, body) => this.completeSigningRequest(requestId, body),
-      onChange: (requests) => this.emit("wallet_requests_changed", requests),
-      syncPendingTxRequestsFromUserState: this.syncPendingTxRequestsFromUserState,
-      resolveAgentAction: this.transport === "agent" ? (request, result) => this.resolveAgentAction(request, result) : void 0,
-      rejectAgentAction: this.transport === "agent" ? (request, reason) => this.rejectAgentAction(request, reason) : void 0
-    });
-    if (this.transport === "legacy") {
-      queueMicrotask(() => this.scheduleSigningRequestRecovery(true));
-    }
-  }
-  // ===========================================================================
-  // Public API — Chat
-  // ===========================================================================
-  /**
-   * Send a message and wait for the AI to finish processing.
-   *
-   * The returned promise resolves when `is_processing` becomes `false` AND
-   * there are no pending wallet requests. If a wallet request arrives
-   * mid-processing, polling continues but the promise pauses until the
-   * request is resolved or rejected via `resolve()` / `reject()`.
-   */
-  async send(message) {
-    this.assertOpen();
-    const response = await this.submitChat(message);
-    if (!response.is_processing && this.walletController.length === 0) {
-      return { messages: this._messages, title: this._title };
-    }
-    this._isProcessing = true;
-    this.emit("processing_start", void 0);
-    return new Promise((resolve) => {
-      this.pendingResolve = resolve;
-      this.startPolling();
-    });
-  }
-  /**
-   * Send a message without waiting for completion.
-   * Polling starts in the background; listen to events for updates.
-   */
-  async sendAsync(message) {
-    this.assertOpen();
-    const response = await this.submitChat(message);
-    if (response.is_processing) {
-      this._isProcessing = true;
-      this.emit("processing_start", void 0);
-      this.startPolling();
-    }
-    return response;
-  }
-  // ===========================================================================
-  // Public API — Wallet Request Resolution
-  // ===========================================================================
-  /**
-   * Resolve a pending wallet request. The `result.kind` discriminator must
-   * match the originating request's kind — sending a `transaction` result for a `signing`
-   * request would post the wrong wire event with empty fields, so we
-   * fail fast at runtime instead.
-   */
-  async resolve(requestId, result) {
-    await this.walletController.resolve(requestId, result);
-    this.resumeAfterWalletResponse();
-  }
-  /**
-   * Reject a pending wallet request.
-   * Sends an error to the backend and resumes polling.
-   */
-  async reject(requestId, reason) {
-    await this.walletController.reject(requestId, reason);
-    this.resumeAfterWalletResponse();
-  }
-  /**
-   * Drop a pending wallet request locally without completing it. Hosts should
-   * normally use `resolve` or `reject`; this is reserved for externally
-   * acknowledged lifecycle cleanup.
-   */
-  dismiss(requestId) {
-    this.walletController.dismiss(requestId);
-    this.resumeAfterWalletResponse();
-  }
-  // ===========================================================================
-  // Public API — Control
-  // ===========================================================================
-  /**
-   * Cancel the AI's current response.
-   */
-  async interrupt() {
-    this.stopPolling();
-    if (this.transport === "agent") {
-      this.applyAgentDelta(await this.client.agent.interrupt(this.sessionId));
-    } else {
-      const response = await this.client.interrupt(this.sessionId, {
-        app: this.app,
-        applicationId: this.applicationId
-      });
-      this.applyState(response);
-    }
-    this._isProcessing = false;
-    this.emit("processing_end", void 0);
-    this.resolvePending();
-  }
-  /**
-   * Close the session. Stops polling, unsubscribes SSE, removes all listeners.
-   * The session cannot be used after closing.
-   */
-  close() {
-    var _a;
-    if (this.closed) return;
-    this.closed = true;
-    this.stopPolling();
-    if (this.signingRecoveryTimer) {
-      clearTimeout(this.signingRecoveryTimer);
-      this.signingRecoveryTimer = null;
-    }
-    (_a = this.unsubscribeSSE) == null ? void 0 : _a.call(this);
-    this.unsubscribeSSE = null;
-    this.isSSEActive = false;
-    this.resolvePending();
-    this.removeAllListeners();
-  }
-  // ===========================================================================
-  // Public API — Accessors
-  // ===========================================================================
-  /** Current messages in the session. */
-  getMessages() {
-    return this._messages;
-  }
-  /** Current session title. */
-  getTitle() {
-    return this._title;
-  }
-  /** Latest authoritative backend user_state snapshot seen by this session. */
-  getUserState() {
-    return this.userState ? __spreadValues({}, this.userState) : void 0;
-  }
-  /** Pending wallet requests waiting for resolve/reject. */
-  getPendingRequests() {
-    return this.walletController.list();
-  }
-  /** Whether the AI is currently processing. */
-  getIsProcessing() {
-    return this._isProcessing;
-  }
-  /** Last status observed from the canonical Agent transport. */
-  getAgentStatus() {
-    return this.agentStatus;
-  }
-  getIsSSEActive() {
-    return this.isSSEActive;
-  }
-  setSSEActive(active) {
-    var _a;
-    this.assertOpen();
-    if (active === this.isSSEActive) {
-      return;
-    }
-    this.isSSEActive = active;
-    if (active) {
-      this.startSSE();
-      return;
-    }
-    (_a = this.unsubscribeSSE) == null ? void 0 : _a.call(this);
-    this.unsubscribeSSE = null;
-  }
-  syncRuntimeOptions(options) {
-    var _a, _b, _c, _d;
-    const previousApplicationId = (_a = this.applicationId) == null ? void 0 : _a.toString();
-    this.app = options.app;
-    this.model = options.model;
-    this.applicationId = options.applicationId;
-    this.apiKey = options.apiKey;
-    this.clientId = (_b = options.clientId) != null ? _b : this.clientId;
-    if (options.userState) {
-      this.resolveUserState(options.userState);
-    }
-    if (this.isSSEActive && previousApplicationId !== ((_c = this.applicationId) == null ? void 0 : _c.toString())) {
-      (_d = this.unsubscribeSSE) == null ? void 0 : _d.call(this);
-      this.startSSE();
-    }
-  }
-  startSSE() {
-    if (this.transport === "agent") {
-      if (this._isProcessing) this.startPolling();
-      return;
-    }
-    this.unsubscribeSSE = this.client.subscribeSSE(
-      this.sessionId,
-      (event) => this.handleSSEEvent(event),
-      (error) => this.emit("error", { error }),
-      { applicationId: this.applicationId }
-    );
-  }
-  resolveUserState(userState, opts) {
-    const previousSerialized = stableUserStateString(this.userState);
-    this.userState = UserState.reconcile(this.userState, userState);
-    const nextSerialized = stableUserStateString(this.userState);
-    this.walletController.sync();
-    if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previousSerialized !== nextSerialized) {
-      this.emit("user_state_updated", this.userState);
-    }
-  }
-  setClientType(clientType) {
-    var _a;
-    this.resolveUserState(
-      UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType)
-    );
-  }
-  addExtValue(key, value) {
-    this.resolveUserState(addExtValue(this.userState, key, value));
-  }
-  removeExtValue(key) {
-    const next = removeExtValue(this.userState, key);
-    if (next) {
-      this.resolveUserState(next);
-    }
-  }
-  resolveWallet(address3, chainId3) {
-    this.resolveUserState(resolveWalletState(this.userState, address3, chainId3));
-  }
-  /**
-   * The subset of the stored state the client may send to the backend. Drops
-   * backend-authority `pending` (in-flight requests the client only receives).
-   */
-  outboundUserState() {
-    return UserState.toOwned(this.userState);
-  }
-  async syncUserState() {
-    this.assertOpen();
-    if (this.transport === "agent") {
-      const delta = await this.client.agent.check(this.sessionId, {
-        cursor: this.agentCursor
-      });
-      this.applyAgentDelta(delta);
-      return this.agentState(delta);
-    }
-    const state = await this.client.fetchState(
-      this.sessionId,
-      this.outboundUserState(),
-      this.clientId,
-      { app: this.app, applicationId: this.applicationId }
-    );
-    this.assertUserStateAligned(state.user_state);
-    this.applyState(state);
-    return state;
-  }
-  // ===========================================================================
-  // Public API — Polling Control
-  // ===========================================================================
-  /** Whether the session is currently polling for state updates. */
-  getIsPolling() {
-    return this.pollingActive;
-  }
-  /**
-   * Fetch the current state from the backend (one-shot).
-   * Automatically starts polling if the backend is processing.
-   */
-  async fetchCurrentState() {
-    this.assertOpen();
-    if (this.transport === "agent") {
-      const delta = await this.client.agent.check(this.sessionId, {
-        cursor: this.agentCursor
-      });
-      this.applyAgentDelta(delta);
-      const active = this.agentActive(delta);
-      if (active && !this.pollingActive) {
-        this._isProcessing = true;
-        this.emit("processing_start", void 0);
-        this.startPolling();
-      } else if (!active) {
-        this._isProcessing = false;
-      }
-      return;
-    }
-    const state = await this.client.fetchState(
-      this.sessionId,
-      this.outboundUserState(),
-      this.clientId,
-      { app: this.app, applicationId: this.applicationId }
-    );
-    this.assertUserStateAligned(state.user_state);
-    this.applyState(state);
-    if (state.is_processing && !this.pollingActive) {
-      this._isProcessing = true;
-      this.emit("processing_start", void 0);
-      this.startPolling();
-    } else if (!state.is_processing) {
-      this._isProcessing = false;
-    }
-  }
-  /**
-   * Start polling for state updates. Idempotent — no-op if already polling.
-   * Useful for resuming polling after resolving a wallet request.
-   */
-  startPolling() {
-    var _a;
-    if (this.pollingActive || this.closed) return;
-    this.pollingActive = true;
-    this._backendWasProcessing = true;
-    (_a = this.logger) == null ? void 0 : _a.debug("[session] polling started", this.sessionId);
-    if (typeof document !== "undefined") {
-      document.addEventListener(
-        "visibilitychange",
-        this.handleVisibilityChange
-      );
-    }
-    this.schedulePoll(this.currentPollInterval());
-  }
-  /** Stop polling for state updates. Idempotent — no-op if not polling. */
-  stopPolling() {
-    var _a;
-    this.pollingActive = false;
-    if (this.pollTimer) {
-      clearTimeout(this.pollTimer);
-      this.pollTimer = null;
-    }
-    if (typeof document !== "undefined") {
-      document.removeEventListener(
-        "visibilitychange",
-        this.handleVisibilityChange
-      );
-    }
-    (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
-  }
-  async pollTick() {
-    var _a;
-    if (!this.pollingActive || this.pollInFlight) return;
-    this.pollTimer = null;
-    this.pollInFlight = true;
-    try {
-      if (this.transport === "agent") {
-        const delta = await this.client.agent.check(this.sessionId, {
-          cursor: this.agentCursor,
-          waitMs: 25e3
-        });
-        if (!this.pollingActive) return;
-        this.pollFailureCount = 0;
-        this.applyAgentDelta(delta);
-        const active = this.agentActive(delta);
-        if (this._backendWasProcessing && !active) {
-          this.emit("backend_idle", void 0);
-        }
-        this._backendWasProcessing = active;
-        if (!active && this.walletController.length === 0) {
-          this.stopPolling();
-          this._isProcessing = false;
-          this.emit("processing_end", void 0);
-          this.resolvePending();
-        }
-        return;
-      }
-      const state = await this.client.fetchState(
-        this.sessionId,
-        this.outboundUserState(),
-        this.clientId,
-        { app: this.app, applicationId: this.applicationId }
-      );
-      if (!this.pollingActive) return;
-      this.pollFailureCount = 0;
-      this.assertUserStateAligned(state.user_state);
-      this.applyState(state);
-      if (this._backendWasProcessing && !state.is_processing) {
-        this.emit("backend_idle", void 0);
-      }
-      this._backendWasProcessing = !!state.is_processing;
-      if (!state.is_processing && this.walletController.length === 0) {
-        this.stopPolling();
-        this._isProcessing = false;
-        this.emit("processing_end", void 0);
-        this.resolvePending();
-      }
-    } catch (error) {
-      this.pollFailureCount += 1;
-      (_a = this.logger) == null ? void 0 : _a.debug("[session] poll error", error);
-      this.emit("error", { error });
-    } finally {
-      this.pollInFlight = false;
-      if (this.pollingActive) {
-        this.schedulePoll(
-          Math.min(
-            this.currentPollInterval() * 2 ** this.pollFailureCount,
-            5e3
-          )
-        );
-      }
-    }
-  }
-  currentPollInterval() {
-    return typeof document !== "undefined" && document.hidden ? 2e3 : this.pollIntervalMs;
-  }
-  schedulePoll(delayMs) {
-    if (!this.pollingActive || this.closed) return;
-    if (this.pollTimer) clearTimeout(this.pollTimer);
-    this.pollTimer = setTimeout(() => {
-      void this.pollTick();
-    }, delayMs);
-  }
-  // ===========================================================================
-  // Internal — State Application
-  // ===========================================================================
-  applyState(state) {
-    applySessionState(state, {
-      userState: () => this.userState,
-      resolveUserState: (userState) => this.resolveUserState(userState),
-      setMessages: (messages) => {
-        this._messages = messages;
-      },
-      getMessages: () => this.getMessages(),
-      setTitle: (title) => {
-        this._title = title;
-      },
-      walletController: this.walletController,
-      emit: (type, payload) => this.emit(type, payload)
-    });
-    this.scheduleSigningRequestRecovery();
-  }
-  /**
-   * Coalesce recovery behind one request and a bounded cadence. State polling
-   * may run twice per second; durable handoff recovery does not need to.
-   */
-  scheduleSigningRequestRecovery(immediate = false) {
-    if (this.transport === "agent" || this.closed || this.signingRecoveryInFlight)
-      return;
-    const elapsed = Date.now() - this.lastSigningRecoveryAt;
-    const delay2 = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
-    if (delay2 === 0) {
-      void this.recoverSigningRequests();
-      return;
-    }
-    if (this.signingRecoveryTimer) return;
-    this.signingRecoveryTimer = setTimeout(() => {
-      this.signingRecoveryTimer = null;
-      if (!this.closed) void this.recoverSigningRequests();
-    }, delay2);
-  }
-  /**
-   * A signing event is transient, but its backend-owned operation is durable.
-   * Recover an attended handoff from the operation view when a tab reload or
-   * reconnect happens after the original event was delivered.
-   */
-  async recoverSigningRequests() {
-    if (this.signingRecoveryInFlight) {
-      await this.signingRecoveryInFlight;
-      return;
-    }
-    const recovery = this.fetchSigningRequests();
-    this.signingRecoveryInFlight = recovery;
-    try {
-      await recovery;
-    } finally {
-      this.lastSigningRecoveryAt = Date.now();
-      this.signingRecoveryInFlight = null;
-    }
-  }
-  async fetchSigningRequests() {
-    var _a, _b;
-    let response;
-    try {
-      response = await this.client.request(
-        "GET",
-        "/api/widget/v1/signing-requests",
-        { sessionId: this.sessionId }
-      );
-    } catch (error) {
-      (_a = this.logger) == null ? void 0 : _a.debug("[session] signing request recovery failed", error);
-      return;
-    }
-    for (const request of (_b = response.requests) != null ? _b : []) {
-      const requestId = typeof request === "object" && request !== null && typeof request.requestId === "string" ? request.requestId : void 0;
-      if (!requestId) continue;
-      if (this.walletController.find(requestId) || this.recoveringSigningRequestIds.has(requestId)) {
-        continue;
-      }
-      this.recoveringSigningRequestIds.add(requestId);
-      try {
-        this.handleSSEEvent({
-          type: "wallet_signing_request",
-          payload: request
-        });
-      } finally {
-        this.recoveringSigningRequestIds.delete(requestId);
-      }
-    }
-  }
-  // ===========================================================================
-  // Internal — SSE Handling
-  // ===========================================================================
-  handleSSEEvent(event) {
-    handleSessionSSEEvent(event, {
-      userState: () => this.userState,
-      resolveUserState: (userState) => this.resolveUserState(userState),
-      setMessages: (messages) => {
-        this._messages = messages;
-      },
-      getMessages: () => this.getMessages(),
-      setTitle: (title) => {
-        this._title = title;
-      },
-      walletController: this.walletController,
-      emit: (type, payload) => this.emit(type, payload)
-    });
-  }
-  // ===========================================================================
-  // Internal — Helpers
-  // ===========================================================================
-  async sendSystemEvent(type, payload) {
-    const message = JSON.stringify({ type, payload });
-    await this.client.sendSystemMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId
-    });
-  }
-  async completeSigningRequest(requestId, body) {
-    await this.client.request(
-      "POST",
-      `/api/widget/v1/signing-requests/${encodeURIComponent(requestId)}`,
-      {
-        sessionId: this.sessionId,
-        body
-      }
-    );
-  }
-  /** Shared completion path for send()/sendAsync() after the chat POST. */
-  async submitChat(message) {
-    var _a;
-    if (this.transport === "agent") {
-      const applicationId = Number(this.applicationId);
-      const operation = ((_a = this.agentStartOperation) == null ? void 0 : _a.message) === message ? this.agentStartOperation : {
-        message,
-        idempotencyKey: `idem_${crypto.randomUUID().replaceAll("-", "")}`
-      };
-      this.agentStartOperation = operation;
-      let delta;
-      try {
-        delta = await this.client.agent.start(
-          __spreadProps(__spreadValues(__spreadValues({
-            sessionId: this.sessionId,
-            message
-          }, Number.isSafeInteger(applicationId) && applicationId > 0 ? { applicationId } : { app: this.app }), this.model ? { model: this.model } : {}), {
-            wallets: this.agentWallets()
-          }),
-          { idempotencyKey: operation.idempotencyKey }
-        );
-      } catch (error) {
-        if (error instanceof AgentApiError && !error.retryable) {
-          this.agentStartOperation = void 0;
-        }
-        throw error;
-      }
-      this.agentStartOperation = void 0;
-      this.applyAgentDelta(delta);
-      return this.agentState(delta);
-    }
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-      apiKey: this.apiKey,
-      userState: this.outboundUserState(),
-      clientId: this.clientId,
-      paymentMethod: this.paymentMethod
-    });
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
-    return response;
-  }
-  agentActive(delta) {
-    return delta.status === "processing" || delta.status === "awaiting_user";
-  }
-  agentState(delta) {
-    return {
-      messages: this._messages,
-      title: this._title,
-      is_processing: this.agentActive(delta)
-    };
-  }
-  agentWallets() {
-    var _a, _b, _c;
-    const normalized = UserState.normalize(this.userState);
-    const chainId3 = Number((_a = normalized == null ? void 0 : normalized.evm) == null ? void 0 : _a.chain_id);
-    return __spreadValues(__spreadValues({}, ((_b = normalized == null ? void 0 : normalized.evm) == null ? void 0 : _b.address) ? {
-      evm: __spreadValues({
-        address: normalized.evm.address
-      }, Number.isSafeInteger(chainId3) && chainId3 > 0 ? { chainId: chainId3 } : {})
-    } : {}), ((_c = normalized == null ? void 0 : normalized.svm) == null ? void 0 : _c.address) ? {
-      svm: __spreadValues({
-        address: normalized.svm.address
-      }, normalized.svm.cluster ? { cluster: normalized.svm.cluster } : {})
-    } : {});
-  }
-  applyAgentDelta(delta) {
-    if (delta.sessionId !== this.sessionId) {
-      throw new TypeError("Agent response session does not match the request");
-    }
-    this.agentCursor = delta.cursor;
-    this.agentStatus = delta.status;
-    let messagesChanged = false;
-    for (const incoming of delta.messages) {
-      const message = this.agentMessage(incoming);
-      const index = message.id ? this._messages.findIndex((current) => current.id === message.id) : -1;
-      if (index >= 0) this._messages[index] = message;
-      else this._messages.push(message);
-      messagesChanged = true;
-    }
-    if (messagesChanged) this.emit("messages", [...this._messages]);
-    if (delta.title && delta.title !== this._title) {
-      this._title = delta.title;
-      this.emit("title_changed", { title: delta.title });
-    }
-    this.applyAgentActivity(delta.activity);
-    this.syncAgentActions(delta.actions);
-  }
-  agentMessage(message) {
-    var _a;
-    return __spreadValues(__spreadValues({
-      id: message.id,
-      sender: message.role,
-      content: message.content,
-      timestamp: message.createdAt,
-      is_streaming: message.streaming,
-      tool_result: (_a = message.toolResult) != null ? _a : null
-    }, message.toolName ? { tool_name: message.toolName } : {}), message.toolArguments !== void 0 ? { tool_arguments: message.toolArguments } : {});
-  }
-  applyAgentActivity(activity) {
-    for (const event of activity) {
-      const type = typeof event.type === "string" ? event.type : void 0;
-      if (type === "tool_update" || type === "tool_complete" || type === "task_started" || type === "task_activity" || type === "task_completed") {
-        this.emit(type, event);
-      }
-    }
-  }
-  syncAgentActions(actions) {
-    const visible = /* @__PURE__ */ new Set();
-    for (const action of actions) {
-      this.agentActions.set(action.id, action);
-      if (action.status !== "pending") continue;
-      visible.add(action.id);
-      this.enqueueAgentAction(action);
-    }
-    for (const request of this.walletController.list()) {
-      const actionId = this.actionIdForRequest(request.id);
-      if (this.agentActions.has(actionId) && !visible.has(actionId)) {
-        this.walletController.dismiss(request.id);
-      }
-    }
-  }
-  enqueueAgentAction(action) {
-    var _a, _b, _c, _d, _e;
-    if (action.type === "external_transaction" && action.chainFamily === "evm") {
-      const typed2 = action;
-      this.walletController.enqueue("transaction", {
-        requestId: typed2.id,
-        chainId: typed2.chainId,
-        aaPreference: "none",
-        calls: typed2.transactions.map((transaction, index) => {
-          var _a2;
-          return {
-            txId: index + 1,
-            to: transaction.to,
-            value: transaction.value,
-            data: transaction.data,
-            chainId: typed2.chainId,
-            from: transaction.from,
-            gas: (_a2 = transaction.gas) != null ? _a2 : void 0,
-            description: transaction.description
-          };
-        }),
-        txIds: typed2.transactions.map((_, index) => index + 1)
-      });
-      return;
-    }
-    if (action.type === "external_transaction") {
-      const typed2 = action;
-      const transaction = typed2.transactions[0];
-      if (transaction) {
-        this.walletController.enqueue("solana_sign_and_send", {
-          requestId: typed2.id,
-          unsignedTx: transaction.unsignedTransactionBase64,
-          description: typed2.description,
-          cluster: typed2.cluster,
-          transactions: typed2.transactions.map((item) => ({
-            id: item.id,
-            unsignedTx: item.unsignedTransactionBase64,
-            description: item.description
-          }))
-        });
-      }
-      return;
-    }
-    const typed = action;
-    this.walletController.enqueue("signing", {
-      requestId: typed.id,
-      chainFamily: typed.chainFamily,
-      executionKind: typed.executionKind === "account_abstraction" || typed.executionKind === "hosted" ? "erc4337" : typed.executionKind,
-      signer: typed.signer,
-      chainId: (_a = typed.chainId) != null ? _a : void 0,
-      cluster: (_b = typed.cluster) != null ? _b : void 0,
-      description: typed.description,
-      payloads: typed.payloads.map((payload) => {
-        if (payload.kind === "evm_personal") {
-          return { kind: payload.kind, message: payload.message };
-        }
-        if (payload.kind === "evm_typed_data") {
-          return { kind: payload.kind, typedData: payload.typedData };
-        }
-        if (payload.kind === "svm_message") {
-          return { kind: payload.kind, messageBase64: payload.messageBase64 };
-        }
-        return {
-          kind: payload.kind,
-          transactionBase64: payload.transactionBase64
-        };
-      }),
-      broadcaster: typed.broadcaster,
-      operationId: (_c = typed.operationId) != null ? _c : void 0,
-      executor: typed.executor,
-      expiresAt: (_d = typed.expiresAt) != null ? _d : void 0,
-      callsDigest: typed.callsDigest,
-      calls: typed.calls,
-      fees: typed.fees,
-      sponsorship: (_e = typed.sponsorship) != null ? _e : void 0
-    });
-  }
-  async resolveAgentAction(request, result) {
-    var _a, _b, _c;
-    const action = this.agentActions.get(this.actionIdForRequest(request.id));
-    if (!action)
-      throw new Error(`No Agent action for wallet request "${request.id}"`);
-    let actionResult;
-    if (action.type === "signing_request" && result.kind === "signing") {
-      actionResult = {
-        status: "signed",
-        revision: action.revision,
-        outputs: action.payloads.map((payload, index) => __spreadValues({
-          id: payload.id
-        }, payload.kind === "svm_transaction" ? { signedTransactionBase64: result.signatures[index] } : { signature: result.signatures[index] }))
-      };
-    } else if (action.type === "external_transaction" && action.chainFamily === "evm" && result.kind === "transaction") {
-      const completed = new Set(
-        (_a = result.completedTxIds) != null ? _a : action.transactions.map((_, index) => index + 1)
-      );
-      const failed = new Set((_b = result.failedTxIds) != null ? _b : []);
-      actionResult = {
-        status: "submitted",
-        revision: action.revision,
-        legs: action.transactions.map((transaction, index) => {
-          var _a2, _b2, _c2;
-          return __spreadValues(__spreadValues({
-            id: transaction.id,
-            status: completed.has(index + 1) ? "submitted" : failed.has(index + 1) ? "failed" : "skipped"
-          }, completed.has(index + 1) ? { transactionId: (_b2 = (_a2 = result.txHashes) == null ? void 0 : _a2[index]) != null ? _b2 : result.txHash } : {}), failed.has(index + 1) ? { reason: (_c2 = result.failureReason) != null ? _c2 : "Transaction failed" } : {});
-        })
-      };
-    } else if (action.type === "external_transaction" && action.chainFamily === "svm" && (result.kind === "solana_send" || result.kind === "solana_sign_and_send")) {
-      const byId = new Map(
-        ((_c = result.legs) != null ? _c : []).map((leg) => [leg.id, leg])
-      );
-      if (action.transactions.length > 1 && byId.size === 0) {
-        throw new Error(
-          `SVM Agent batch "${action.id}" requires per-leg wallet results`
-        );
-      }
-      actionResult = {
-        status: "submitted",
-        revision: action.revision,
-        legs: action.transactions.map((transaction, index) => {
-          var _a2, _b2;
-          const leg = (_a2 = byId.get(transaction.id)) != null ? _a2 : index === 0 && action.transactions.length === 1 ? {
-            id: transaction.id,
-            status: "submitted",
-            signature: result.signature,
-            signedTx: result.signedTx
-          } : void 0;
-          return __spreadValues(__spreadValues(__spreadValues({
-            id: transaction.id,
-            status: (_b2 = leg == null ? void 0 : leg.status) != null ? _b2 : "skipped"
-          }, (leg == null ? void 0 : leg.signature) ? { transactionId: leg.signature } : {}), (leg == null ? void 0 : leg.signedTx) ? { signedTransactionBase64: leg.signedTx } : {}), (leg == null ? void 0 : leg.reason) ? { reason: leg.reason } : {});
-        })
-      };
-    } else {
-      throw new Error(`Agent action/result kind mismatch for "${request.id}"`);
-    }
-    await this.client.agent.resolveAction(
-      this.sessionId,
-      action.id,
-      actionResult
-    );
-  }
-  async rejectAgentAction(request, reason) {
-    const action = this.agentActions.get(this.actionIdForRequest(request.id));
-    if (!action)
-      throw new Error(`No Agent action for wallet request "${request.id}"`);
-    await this.client.agent.resolveAction(this.sessionId, action.id, {
-      status: "rejected",
-      revision: action.revision,
-      reason: reason != null ? reason : "Request rejected"
-    });
-  }
-  actionIdForRequest(requestId) {
-    return requestId.startsWith("txreq-") ? requestId.slice(6) : requestId;
-  }
-  resumeAfterWalletResponse() {
-    if (!this._isProcessing) {
-      this._isProcessing = true;
-      this.emit("processing_start", void 0);
-    }
-    this.startPolling();
-  }
-  resolvePending() {
-    if (this.pendingResolve) {
-      const resolve = this.pendingResolve;
-      this.pendingResolve = null;
-      resolve({ messages: this._messages, title: this._title });
-    }
-  }
-  assertOpen() {
-    if (this.closed) {
-      throw new Error("Session is closed");
-    }
-  }
-  assertUserStateAligned(actualUserState) {
-    warnIfUserStateMisaligned(this.userState, actualUserState);
-  }
-};
 
 // src/chains.ts
 import { defineChain } from "viem";
@@ -5374,10 +3920,6 @@ export {
   handlePaymentChallenges,
   hydrateTxPayloadFromUserState,
   isAomiTaskEventType,
-  isAsyncCallback,
-  isInlineCall,
-  isSystemError,
-  isSystemNotice,
   isUnboundWalletError,
   megaeth,
   monad,
@@ -5401,7 +3943,6 @@ export {
   toAAWalletCalls,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
-  unwrapSystemEvent,
   wrapFetchWithPaymentChallenges
 };
 //# sourceMappingURL=index.js.map

@@ -364,7 +364,11 @@ export function pendingSolTxsFromBackendUserState(
     });
   }
 
-  next.sort((left, right) => left.solanaId - right.solanaId);
+  next.sort(
+    (left, right) =>
+      (left.solanaId ?? Number.MAX_SAFE_INTEGER) -
+      (right.solanaId ?? Number.MAX_SAFE_INTEGER),
+  );
   return next;
 }
 

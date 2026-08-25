@@ -15,7 +15,6 @@ import {
   printTaskStarted,
   printToolComplete,
   printToolResultLine,
-  printToolUpdate,
   toToolResultKey,
 } from "../output";
 import {
@@ -201,12 +200,6 @@ export async function chatCommand(
 
       if (verbose || isAlwaysVisibleTool(name)) {
         printToolComplete(event);
-      }
-    });
-
-    session.on("tool_update", (event) => {
-      if (verbose) {
-        printToolUpdate(event);
       }
     });
 

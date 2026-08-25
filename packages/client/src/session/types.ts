@@ -1,10 +1,10 @@
 import type {
   AomiMessage,
-  AomiSSEEvent,
   AomiTaskActivityEvent,
   AomiTaskCompletedEvent,
   AomiTaskStartedEvent,
 } from "../types";
+import type { AgentActivity } from "../agent/types";
 import type {
   AomiClientType,
   UserState as UserStateShape,
@@ -162,8 +162,6 @@ export type SendResult = {
 };
 
 export type SessionOptions = {
-  /** Agent is the permanent transport; legacy is an explicit rollback adapter. */
-  transport?: "agent" | "legacy";
   /** Session ID. Auto-generated (crypto.randomUUID) if omitted. */
   sessionId?: string;
   /** App for chat messages. Default: "default" */
@@ -172,22 +170,12 @@ export type SessionOptions = {
   model?: string | null;
   /** Optional concrete application row to route chat/model calls to. */
   applicationId?: number | string | null;
-  /** API key override. */
-  apiKey?: string;
   /** User state to send with requests (wallet connection info, etc). */
   userState?: UserStateShape;
   /** Optional client type hint forwarded to the backend via userState.ext.client_type. */
   clientType?: AomiClientType;
   /** Stable client ID used for secret-vault association. */
   clientId?: string;
-  /** Optional backend payment method override for chat turns. */
-  paymentMethod?: string | null;
-  /**
-   * When true (default), synthesize pending transaction wallet requests from
-   * `user_state.pending_txs` during state sync. Web UI should disable this and
-   * rely on explicit `wallet_tx_request` events from `send_transaction_to_wallet`.
-   */
-  syncPendingTxRequestsFromUserState?: boolean;
   /** Polling interval in ms. Default: 500 */
   pollIntervalMs?: number;
   /** Logger for debug output. Pass `console` for verbose logging. */
@@ -198,7 +186,6 @@ export type SessionRuntimeOptions = {
   app: string;
   model?: string | null;
   applicationId?: number | string | null;
-  apiKey?: string;
   clientId?: string;
   userState?: UserStateShape;
 };
@@ -211,8 +198,7 @@ export type SessionEventMap = {
   system_notice: { message: string };
   system_error: { message: string };
   async_callback: Record<string, unknown>;
-  tool_update: AomiSSEEvent;
-  tool_complete: AomiSSEEvent;
+  tool_complete: AgentActivity;
   task_started: AomiTaskStartedEvent;
   task_activity: AomiTaskActivityEvent;
   task_completed: AomiTaskCompletedEvent;

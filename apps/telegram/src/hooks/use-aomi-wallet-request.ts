@@ -50,7 +50,6 @@ export function useAomiWalletRequest(input: {
       },
       {
         sessionId: input.sessionId,
-        syncPendingTxRequestsFromUserState: true,
       },
     );
 

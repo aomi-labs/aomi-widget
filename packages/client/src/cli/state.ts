@@ -648,16 +648,9 @@ export function writeState(state: CliSessionState): void {
   ensureStorageDirs();
 
   const sessions = readAllStoredSessions();
-  const activeLocalId = readActiveLocalId();
-
-  const existingBySessionId = sessions.find(
+  const existing = sessions.find(
     (session) => session.sessionId === state.sessionId,
   );
-  const existingByActive =
-    activeLocalId !== null
-      ? sessions.find((session) => session.localId === activeLocalId)
-      : undefined;
-  const existing = existingBySessionId ?? existingByActive;
 
   const now = Date.now();
   const localId = existing?.localId ?? getNextLocalId(sessions);

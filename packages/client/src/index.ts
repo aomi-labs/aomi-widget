@@ -103,19 +103,14 @@ export type {
   GetAccountBearer,
   AomiMessage,
   AomiWalletFamily,
-  AomiChatResponse,
   AomiClearSecretsResponse,
-  AomiCreateThreadResponse,
   AomiAccountResponse,
   AomiDeleteSecretResponse,
   AomiIngestSecretsResponse,
-  AomiInterruptResponse,
   AomiListSecretsResponse,
   AomiSecretSlot,
   AomiSimulateFee,
   AomiSimulateResponse,
-  AomiSSEEvent,
-  AomiSSEEventType,
   AomiTaskActivityEvent,
   AomiTaskActivityKind,
   AomiTaskCompletedEvent,
@@ -123,10 +118,6 @@ export type {
   AomiTaskEventType,
   AomiTaskStartedEvent,
   AomiTaskStatus,
-  AomiStateResponse,
-  AomiSystemEvent,
-  AomiSystemResponse,
-  AomiThread,
   Logger,
 } from "./types";
 export {
@@ -163,10 +154,6 @@ export {
   CLIENT_TYPE_WEB_UI,
 } from "./user-state";
 export {
-  isAsyncCallback,
-  isInlineCall,
-  isSystemError,
-  isSystemNotice,
   isAomiTaskEventType,
   parseAomiTaskEvent,
   AOMI_TASK_EVENT_TYPES,
@@ -195,7 +182,6 @@ export type {
 // =============================================================================
 
 export { TypedEventEmitter } from "./event";
-export { unwrapSystemEvent, type UnwrappedEvent } from "./event";
 
 // =============================================================================
 // Wallet Utilities
