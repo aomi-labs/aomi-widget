@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { WidgetProductPageContent } from "../../../_v3-shared/products/widget/page";
-import widgetStyles from "../../../_v3-shared/products/widget/widget-product.module.css";
+import { WidgetProductPageContent } from "../../../_marketing/products/widget/page";
+import widgetStyles from "../../../_marketing/products/widget/widget-product.module.css";
 
 export const metadata: Metadata = {
   title: "Human Interface | Aomi",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function HumanInterfacePage() {
   return (
-    <div className={widgetStyles.v3Tokens}>
+    <div className={widgetStyles.marketingTokens}>
       <WidgetProductPageContent
         contactHref="/contact"
         productName="HUMAN INTERFACE"

@@ -276,7 +276,7 @@ export default function PluginSdkPage() {
                 className={`${styles.managedPlatformFrame} ${styles.managedPlatformOverview}`}
               >
                 <Image
-                  src="/assets/v3/plugin-sdk/aomi-build-overview-anonymized.png"
+                  src="/assets/landing/plugin-sdk/aomi-build-overview-anonymized.png"
                   alt="Aomi Build overview showing projects, live deployments, recent releases, and operational navigation"
                   width={1630}
                   height={965}
@@ -288,7 +288,7 @@ export default function PluginSdkPage() {
                 className={`${styles.managedPlatformFrame} ${styles.managedPlatformProject}`}
               >
                 <Image
-                  src="/assets/v3/plugin-sdk/aomi-build-project-home-anonymized.png"
+                  src="/assets/landing/plugin-sdk/aomi-build-project-home-anonymized.png"
                   alt="Aomi Build project home showing live status, environment readiness, chat access, and project management details"
                   width={1378}
                   height={1142}

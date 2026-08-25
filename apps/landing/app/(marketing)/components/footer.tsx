@@ -4,7 +4,7 @@ import { AomiLogo } from "../../components/aomi-logo";
 import { products, resources, solutions, MARKETING_ROOT } from "../site";
 import styles from "../marketing.module.css";
 
-export function V3Footer() {
+export function MarketingFooter() {
   return (
     <footer className={styles.footer}>
       <div className={styles.footerInner}>

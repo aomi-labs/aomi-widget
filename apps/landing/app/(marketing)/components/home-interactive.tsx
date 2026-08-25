@@ -72,7 +72,7 @@ function CopyButton({
   );
 }
 
-export function V3HeroContent() {
+export function HomeHeroContent() {
   const [installing, setInstalling] = useState(false);
   const [selected, setSelected] = useState<(typeof installers)[number]>(
     installers[0],

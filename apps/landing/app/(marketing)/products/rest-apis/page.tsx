@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import RestApiProductPageContent from "../../../_v3-shared/products/api/page";
-import apiStyles from "../../../_v3-shared/products/api/rest-api.module.css";
+import RestApiProductPageContent from "../../../_marketing/products/api/page";
+import apiStyles from "../../../_marketing/products/api/rest-api.module.css";
 
 export const metadata: Metadata = {
   title: "REST APIs | Aomi",
@@ -11,11 +11,11 @@ export const metadata: Metadata = {
 
 export default function RestApiProductPage() {
   return (
-    <div className={apiStyles.v3Tokens}>
+    <div className={apiStyles.marketingTokens}>
       <RestApiProductPageContent
         humanInterfaceHref="/products/widget"
         pluginSdkHref="/products/plugin-sdk"
-        useV3Layout
+        useMarketingLayout
       />
     </div>
   );

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { V3DetailPage } from "../../detail-page";
+import { DetailPage } from "../../detail-page";
 import { productBySlug, products } from "../../site";
 
 export function generateStaticParams() {
@@ -31,5 +31,5 @@ export default async function ProductPage({
   const { slug } = await params;
   const page = productBySlug[slug];
   if (!page) notFound();
-  return <V3DetailPage page={page} kind="product" />;
+  return <DetailPage page={page} kind="product" />;
 }

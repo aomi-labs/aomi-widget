@@ -6,7 +6,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
-import type { SolutionConfig } from "../_v3-shared/solutions/solution-data";
+import type { SolutionConfig } from "../_marketing/solutions/solution-data";
 import { SolutionShowcase } from "./components/solution-showcase";
 import { MARKETING_ROOT } from "./site";
 import styles from "./marketing.module.css";
@@ -26,7 +26,7 @@ const productHref = (href: string) => {
     : `${MARKETING_ROOT}/products`;
 };
 
-export function V3SolutionPage({ solution }: { solution: SolutionConfig }) {
+export function SolutionPage({ solution }: { solution: SolutionConfig }) {
   return (
     <main className={styles.solutionPage}>
       <section className={styles.solutionHero}>

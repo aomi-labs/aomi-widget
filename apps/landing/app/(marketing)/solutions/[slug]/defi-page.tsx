@@ -103,7 +103,7 @@ const benchResults = [
   { model: "haiku-4.5", rate: 74.0, trailing: true },
 ] as const;
 
-export function V3DefiPage() {
+export function DefiPage() {
   const [showPreparedAction, setShowPreparedAction] = useState(false);
 
   return (

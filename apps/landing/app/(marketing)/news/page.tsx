@@ -27,7 +27,7 @@ const notes = [
   },
   {
     type: "Product",
-    date: "V3 preview",
+    date: "Product preview",
     title: "Execution infrastructure, made legible",
     body: "A new product system for the surfaces, policies, and receipts between model intent and settlement.",
     href: "/",

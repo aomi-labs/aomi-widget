@@ -3,7 +3,7 @@ import Image from "next/image";
 import styles from "./trading-world.module.css";
 import { WorldMarketsExample } from "./world-markets-example";
 
-export function V3TradingPage() {
+export function TradingPage() {
   return (
     <main className={styles.page}>
       <section className={styles.hero}>
@@ -42,7 +42,7 @@ export function V3TradingPage() {
         <figure className={styles.productStack}>
           <div className={styles.buildScreen}>
             <Image
-              src="/assets/v3/solutions/trading/aomi-build-create.png"
+              src="/assets/landing/solutions/trading/aomi-build-create.png"
               alt="Aomi Build screen for creating an agent from a prompt or template"
               width={2406}
               height={1302}
@@ -51,7 +51,7 @@ export function V3TradingPage() {
           </div>
           <div className={styles.integrationScreen}>
             <Image
-              src="/assets/v3/solutions/trading/aomi-build-integrations.png"
+              src="/assets/landing/solutions/trading/aomi-build-integrations.png"
               alt="Aomi Build Integrations screen showing Telegram setup, BotFather commands, and an attached app"
               width={2328}
               height={1964}

@@ -2,7 +2,7 @@
  * Marketing theme roles derived from aomi-design/src/tokens/tokens.css.
  * Source commit: 8c6a8b351a4154ad46580f79cff4340ca3253da5
  *
- * Components consume semantic --v3-* aliases from marketing.module.css.
+ * Components consume semantic --landing-* aliases from marketing.module.css.
  * Palette values and light/dark decisions live here, in one place.
  */
 

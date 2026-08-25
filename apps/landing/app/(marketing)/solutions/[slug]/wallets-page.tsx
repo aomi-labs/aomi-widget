@@ -33,7 +33,7 @@ const stopBuilding = [
   },
 ] as const;
 
-export function V3WalletsPage() {
+export function WalletsPage() {
   return (
     <main className={styles.walletsPage}>
       <section className={`${styles.sectorHero} ${styles.walletsHero}`}>

@@ -2,7 +2,7 @@
 
 import { Check, CircleDot } from "lucide-react";
 import { useState } from "react";
-import type { SolutionConfig } from "../../_v3-shared/solutions/solution-data";
+import type { SolutionConfig } from "../../_marketing/solutions/solution-data";
 import styles from "../marketing.module.css";
 
 export function SolutionShowcase({ solution }: { solution: SolutionConfig }) {

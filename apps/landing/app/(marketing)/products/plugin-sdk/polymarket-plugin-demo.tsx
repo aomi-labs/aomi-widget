@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Check, Pause, Play, RotateCcw, ShieldCheck } from "lucide-react";
-import { resolveWidgetFixture } from "../../../_v3-shared/products/widget/fixture-data";
+import { resolveWidgetFixture } from "../../../_marketing/products/widget/fixture-data";
 import styles from "./plugin-sdk-marketing.module.css";
 
 type DemoLine = {

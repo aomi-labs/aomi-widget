@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Fragment } from "react";
-import type { SolutionConfig } from "../../../_v3-shared/solutions/solution-data";
+import type { SolutionConfig } from "../../../_marketing/solutions/solution-data";
 import { MARKETING_ROOT } from "../../site";
 import { FintechMandate } from "./sector-visuals";
 import styles from "./sector-pages.module.css";
@@ -167,7 +167,7 @@ const statusLabel: Record<ControlStatus, string> = {
   preparing: "In preparation",
 };
 
-export function V3FintechPage({ solution }: { solution: SolutionConfig }) {
+export function FintechPage({ solution }: { solution: SolutionConfig }) {
   return (
     <main className={styles.fintechPage}>
       <section className={`${styles.sectorHero} ${styles.fintechHero}`}>

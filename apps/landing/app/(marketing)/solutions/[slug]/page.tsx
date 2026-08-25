@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { solutionPages } from "../../../_v3-shared/solutions/solution-data";
+import { solutionPages } from "../../../_marketing/solutions/solution-data";
 import { solutions } from "../../site";
-import { V3DefiPage } from "./defi-page";
-import { V3FintechPage } from "./fintech-page";
-import { V3NftPage } from "./nft-page";
-import { V3TradingPage } from "./trading-page";
-import { V3WalletsPage } from "./wallets-page";
+import { DefiPage } from "./defi-page";
+import { FintechPage } from "./fintech-page";
+import { NftPage } from "./nft-page";
+import { TradingPage } from "./trading-page";
+import { WalletsPage } from "./wallets-page";
 
 export function generateStaticParams() {
   return solutions.map((item) => ({ slug: item.slug }));
@@ -60,10 +60,10 @@ export default async function SolutionPage({
   const { slug } = await params;
   const solution = solutionPages[slug as keyof typeof solutionPages];
   if (!solution) notFound();
-  if (slug === "defi") return <V3DefiPage />;
-  if (slug === "fintech") return <V3FintechPage solution={solution} />;
-  if (slug === "trading") return <V3TradingPage />;
-  if (slug === "nft") return <V3NftPage solution={solution} />;
-  if (slug === "wallets") return <V3WalletsPage />;
+  if (slug === "defi") return <DefiPage />;
+  if (slug === "fintech") return <FintechPage solution={solution} />;
+  if (slug === "trading") return <TradingPage />;
+  if (slug === "nft") return <NftPage solution={solution} />;
+  if (slug === "wallets") return <WalletsPage />;
   notFound();
 }

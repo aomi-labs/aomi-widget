@@ -1,5 +1,5 @@
 .page {
-  background: var(--v3-paper);
+  background: var(--landing-paper);
   overflow-x: clip;
 }
 
@@ -16,10 +16,10 @@
 
 .eyebrow {
   margin: 0;
-  color: var(--v3-muted);
-  font-family: var(--v3-mono);
-  font-size: var(--v3-eyebrow);
-  letter-spacing: var(--v3-eyebrow-ls);
+  color: var(--landing-muted);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-eyebrow);
+  letter-spacing: var(--landing-eyebrow-ls);
   line-height: 1.5;
   text-transform: uppercase;
 }
@@ -27,35 +27,35 @@
 .heroCopy h1 {
   max-width: 22ch;
   margin: 18px 0 0;
-  font-family: var(--v3-serif);
-  font-size: var(--v3-h1);
+  font-family: var(--landing-serif);
+  font-size: var(--landing-h1);
   font-weight: 700;
-  letter-spacing: var(--v3-h1-ls);
-  line-height: var(--v3-h1-lh);
+  letter-spacing: var(--landing-h1-ls);
+  line-height: var(--landing-h1-lh);
   text-wrap: balance;
 }
 
 .heroIntro {
   max-width: 580px;
   margin: 28px 0 0;
-  color: var(--v3-copy);
-  font-family: var(--v3-sans);
-  font-size: var(--v3-lead);
-  line-height: var(--v3-lead-lh);
+  color: var(--landing-copy);
+  font-family: var(--landing-sans);
+  font-size: var(--landing-lead);
+  line-height: var(--landing-lead-lh);
 }
 
 .hero .heroCta {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: var(--v3-btn-h);
+  min-height: var(--landing-btn-h);
   margin-top: 32px;
-  padding: var(--v3-btn-pad);
+  padding: var(--landing-btn-pad);
   border-radius: 999px;
-  background: var(--v3-ink-surface);
+  background: var(--landing-ink-surface);
   color: #fff;
-  font-family: var(--v3-sans);
-  font-size: var(--v3-btn);
+  font-family: var(--landing-sans);
+  font-size: var(--landing-btn);
   font-weight: 600;
   transition:
     background 180ms ease,
@@ -63,7 +63,7 @@
 }
 
 .hero .heroCta:hover {
-  background: var(--v3-blue-dark);
+  background: var(--landing-blue-dark);
   transform: translateY(-2px);
 }
 
@@ -77,7 +77,7 @@
   margin: 52px 0 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  border-top: 1px solid var(--v3-border);
+  border-top: 1px solid var(--landing-border);
 }
 
 .heroProof div {
@@ -85,19 +85,19 @@
 }
 
 .heroProof dt {
-  color: var(--v3-muted);
-  font-family: var(--v3-mono);
-  font-size: var(--v3-eyebrow);
-  letter-spacing: var(--v3-eyebrow-ls);
+  color: var(--landing-muted);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-eyebrow);
+  letter-spacing: var(--landing-eyebrow-ls);
 }
 
 .heroProof dd {
   max-width: 14ch;
   margin: 8px 0 0;
-  font-family: var(--v3-sans);
-  font-size: var(--v3-micro);
+  font-family: var(--landing-sans);
+  font-size: var(--landing-micro);
   font-weight: 600;
-  line-height: var(--v3-micro-lh);
+  line-height: var(--landing-micro-lh);
 }
 
 .productStack {
@@ -140,9 +140,9 @@
 
 :global(html[data-theme="dark"]) .buildScreen,
 :global(html[data-theme="dark"]) .integrationScreen {
-  border-color: var(--v3-border);
-  background: var(--v3-raised);
-  box-shadow: 0 30px 90px var(--v3-shadow);
+  border-color: var(--landing-border);
+  background: var(--landing-raised);
+  box-shadow: 0 30px 90px var(--landing-shadow);
 }
 
 :global(html[data-theme="dark"]) .buildScreen img,

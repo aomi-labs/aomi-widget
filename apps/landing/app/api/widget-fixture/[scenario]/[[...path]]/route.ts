@@ -3,7 +3,7 @@ import {
   resolveWidgetFixture,
   type WidgetFixture,
   type WidgetFixtureKey,
-} from "../../../../_v3-shared/products/widget/fixture-data";
+} from "../../../../_marketing/products/widget/fixture-data";
 
 export const dynamic = "force-dynamic";
 

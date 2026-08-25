@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { AgentToolingsPageContent } from "../../../_v3-shared/products/cli-mcp/page";
-import toolingStyles from "../../../_v3-shared/products/cli-mcp/agentic-surfaces.module.css";
+import { AgentToolingsPageContent } from "../../../_marketing/products/cli-mcp/page";
+import toolingStyles from "../../../_marketing/products/cli-mcp/agentic-surfaces.module.css";
 
 export const metadata: Metadata = {
   title: "Agent Toolings | Aomi",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function AgentToolingsPage() {
   return (
-    <div className={toolingStyles.v3Tokens}>
+    <div className={toolingStyles.marketingTokens}>
       <AgentToolingsPageContent productName="Agent Toolings" />
     </div>
   );

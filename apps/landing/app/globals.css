@@ -3,6 +3,19 @@
 @import "tw-animate-css";
 @import "../../shadcn-registry/src/themes/default.css";
 
+@font-face {
+  font-family: "Aomi Source Serif";
+  src: url("/assets/landing/home/fonts/source-serif-semibold-latin.woff2")
+    format("woff2");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+:root {
+  --font-source-serif-4: "Aomi Source Serif";
+}
+
 /* Scan the npm package dist so Tailwind picks up component classes */
 @source "../../shadcn-registry/src";
 

@@ -1,4 +1,18 @@
-# Canonical V3 Landing Cutover
+# Canonical Landing
+
+Current session goal: **CANONICAL LANDING IMPLEMENTATION CLEANUP VERIFIED
+2026-08-25** — remove migration-era version names and generated-export
+scaffolding from the one production landing implementation, give every retained
+asset a semantic name, and delete unused export files without changing the
+approved design, navigation, animation, or responsive behavior. The canonical
+implementation now lives under `_marketing` and `assets/landing`; the homepage
+keeps only six Latin font files, 30 named logo files, and three named runtime
+dependencies. Desktop and 390px browser checks confirm working dropdown and
+drawer navigation, all 19 mobile links, fixed navigation, no horizontal
+overflow, no asset or console errors, and retained running animations. All 16
+internal navigation routes return 200. Landing TypeScript, repository ESLint,
+production build, authored-file Prettier, JavaScript syntax, asset-reference
+integrity, and `git diff --check` pass.
 
 Current session goal: **PRICING FAQ HEADING VERIFIED 2026-08-25** — rename the
 pricing FAQ section heading from “Questions people ask.” to “FAQ”.
@@ -23,7 +37,7 @@ full-width divider rules around a centered 1220px bar, consistent 120px cell
 height and inset spacing, and responsive two-column and single-column states.
 
 Current session goal: **SITE-WIDE TYPOGRAPHY GUARDRAILS VERIFIED 2026-08-25** —
-replace legacy per-card 9–13px marketing copy with one semantic V3 scale:
+replace legacy per-card 9–13px marketing copy with one semantic landing scale:
 23px card headings, 16.5px body/card copy, and 14px metadata, eyebrows, and
 actions. The homepage reference, product pages, solution pages, editorial
 routes, legal pages, agent guides, and research shell inherit those CSS-level
@@ -58,8 +72,8 @@ smaller 11px composer type and zero horizontal overflow; landing TypeScript,
 scoped Prettier, route, and `git diff --check` pass.
 
 Current session goal: **SITE-WIDE FLAT SLIDERS VERIFIED 2026-08-25** — the
-static V3 homepage and React marketing routes now use one interaction model for
-segmented sliders: a single shadowless `--v3-blue` indicator moves beneath
+the static homepage and React marketing routes now use one interaction model for
+segmented sliders: a single shadowless blue indicator moves beneath
 transparent buttons, while hover leaves both active and inactive buttons
 visually unchanged. The shared liquid-glass layer can no longer reintroduce a
 second hover or selected pill. Browser checks confirm the Fintech mandate,
@@ -97,7 +111,7 @@ targets Build, desktop overlap is intentional, and mobile has zero horizontal
 overflow; TypeScript, scoped ESLint and Prettier, route and asset checks, and
 `git diff --check` pass.
 
-Current session goal: **FLAT V3 INTERACTIONS VERIFIED 2026-08-25** — the Agent
+Current session goal: **FLAT INTERACTIONS VERIFIED 2026-08-25** — the Agent
 Toolings Skills/MCP/CLI selector now uses one shadowless blue pill whose only
 animation is horizontal sliding, its setup facts use regular weight, and the
 REST API execution-boundary copy uses the pale-blue note-panel treatment. The
@@ -136,7 +150,7 @@ the fixed light/dark switcher diameter exactly matched the navigation height on
 desktop and mobile before the manual control was removed.
 
 Previous session goal: **FIXED AND COMPACT MOBILE NAVIGATION VERIFIED
-2026-08-25** — the static V3 homepage navigation now remains fixed at its
+2026-08-25** — the static homepage navigation now remains fixed at its
 22px desktop and 18px mobile viewport offsets while scrolling. Mobile
 navigation is reduced to a 48px pill with a 32px homepage menu control and a
 36px React menu control, tighter horizontal insets, and 20px clearance from the
@@ -147,12 +161,12 @@ TypeScript, Prettier, route/asset checks, and `git diff --check` pass.
 ## Validation-grid official logos
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-25** — replace
-the V3 landing validation grid's letter placeholders and text-only entries with
+the landing validation grid's letter placeholders and text-only entries with
 official partner, chain, protocol, and backer artwork, while preserving its
 existing labels, layout, grayscale treatment, and marquee behavior.
 
 Previous session goal: **UPPER-RIGHT THEME CONTROL VERIFIED 2026-08-25** — the
-V3 appearance control now lives in one fixed upper-right position, outside the
+The appearance control now lives in one fixed upper-right position, outside the
 navigation, on both the static homepage and every React marketing subpage. At
 phone widths the navigation reserves room for it, with no overlap or horizontal
 overflow. Desktop and mobile browser checks confirm one working theme control,
@@ -160,17 +174,17 @@ functional mobile drawers, and clean spacing; TypeScript, scoped ESLint,
 JavaScript syntax, all marketing route/asset checks, and `git diff --check`
 pass. The current worktree is running at http://localhost:3001/.
 
-Previous session goal: **MOBILE V3 ADAPTATION VERIFIED 2026-08-25** — the
-canonical V3 marketing surface now reflows from 320px phones through tablet
+Previous session goal: **MOBILE ADAPTATION VERIFIED 2026-08-25** — the
+canonical marketing surface now reflows from 320px phones through tablet
 widths instead of retaining the static homepage's 1160px desktop canvas. The
 homepage has a native, touch-friendly 19-link drawer; hero/front-back install
 views, validation rails, comparison content, feature cards, FAQ, and footer
 stack without document-level horizontal overflow. The existing React mobile
 drawer also navigates correctly. All 15 marketing routes are overflow-clean at
 320px, the homepage is clean at 390px and 768px, and the 1440px desktop remains
-visually identical to V3 with all 39 motion signatures unchanged. JavaScript
+visually identical to the approved design with all 39 motion signatures unchanged. JavaScript
 syntax, landing TypeScript, scoped ESLint, route/asset checks, and
-`git diff --check` pass. No public `/v2` or `/v3` copy was restored.
+`git diff --check` pass. No obsolete versioned route copy was restored.
 
 ## Marketing light/dark theme
 

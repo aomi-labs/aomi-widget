@@ -7,7 +7,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import type { DetailPage } from "./site";
+import type { DetailPage as DetailPageConfig } from "./site";
 import { products, solutions, MARKETING_ROOT } from "./site";
 import styles from "./marketing.module.css";
 
@@ -18,11 +18,11 @@ const toneClass = {
   ink: styles.detailHeroInk,
 } as const;
 
-export function V3DetailPage({
+export function DetailPage({
   page,
   kind,
 }: {
-  page: DetailPage;
+  page: DetailPageConfig;
   kind: "product" | "solution";
 }) {
   const related = (kind === "product" ? products : solutions)

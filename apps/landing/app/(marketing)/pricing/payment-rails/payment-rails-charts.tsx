@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
  * same, emitted as JSX so the charts server-render.
  */
 
-const MONO = "var(--v3-mono)";
+const MONO = "var(--landing-mono)";
 
 const C = {
   bg: "#ffffff",
@@ -71,7 +71,14 @@ function gateGlyph(cx: number, state: "open" | "closed"): ReactNode {
   if (state === "open") {
     return (
       <g key={`gate-${cx}`}>
-        <circle cx={cx} cy={y0} r={4.5} fill={c} stroke={C.bg} strokeWidth={1.5} />
+        <circle
+          cx={cx}
+          cy={y0}
+          r={4.5}
+          fill={c}
+          stroke={C.bg}
+          strokeWidth={1.5}
+        />
         <line
           x1={cx}
           y1={y0}
@@ -134,7 +141,14 @@ function gateGlyph(cx: number, state: "open" | "closed"): ReactNode {
         );
       })}
       <circle cx={ax} cy={y0} r={3} fill={c} />
-      <circle cx={cx} cy={y0} r={4.5} fill={c} stroke={C.bg} strokeWidth={1.5} />
+      <circle
+        cx={cx}
+        cy={y0}
+        r={4.5}
+        fill={c}
+        stroke={C.bg}
+        strokeWidth={1.5}
+      />
       <text
         x={cx - 6}
         y={y0 - 12}
@@ -223,21 +237,24 @@ export function BalanceTimeline() {
 
       {/* the pay gate rail at balance = 0 */}
       <line x1={L} y1={y0} x2={W - R} y2={y0} stroke={C.gate} strokeWidth={3} />
-      {Array.from({ length: Math.floor((W - R - 6 - (L + 6)) / 22) + 1 }, (_, i) => {
-        const gx = L + 6 + i * 22;
-        return (
-          <line
-            key={gx}
-            x1={gx}
-            y1={y0 - 3.5}
-            x2={gx}
-            y2={y0 + 3.5}
-            stroke={C.gate}
-            strokeWidth={1}
-            opacity={0.5}
-          />
-        );
-      })}
+      {Array.from(
+        { length: Math.floor((W - R - 6 - (L + 6)) / 22) + 1 },
+        (_, i) => {
+          const gx = L + 6 + i * 22;
+          return (
+            <line
+              key={gx}
+              x1={gx}
+              y1={y0 - 3.5}
+              x2={gx}
+              y2={y0 + 3.5}
+              stroke={C.gate}
+              strokeWidth={1}
+              opacity={0.5}
+            />
+          );
+        },
+      )}
       <text
         x={L - 12}
         y={y0 + 4}
@@ -466,7 +483,14 @@ export function GateComparison() {
       >
         GATE CHECKS &amp; BILLING · 6 TURNS
       </text>
-      <line x1={12} y1={154} x2={988} y2={154} stroke={C.grid} strokeWidth={1} />
+      <line
+        x1={12}
+        y1={154}
+        x2={988}
+        y2={154}
+        stroke={C.grid}
+        strokeWidth={1}
+      />
 
       {lanes.map((lane) => (
         <g key={lane.title}>

@@ -9,7 +9,7 @@ export type FaqItem = {
   answer: string;
 };
 
-export function V3Faq({ items }: { items: readonly FaqItem[] }) {
+export function MarketingFaq({ items }: { items: readonly FaqItem[] }) {
   const [open, setOpen] = useState(0);
   const id = useId();
 

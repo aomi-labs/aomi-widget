@@ -1,6 +1,6 @@
 /*
  * Ported from the aomi-design explainer
- * `communication/info/x402-deferred-credit-gate.html`, re-expressed in v3
+ * `communication/info/x402-deferred-credit-gate.html`, re-expressed in the landing
  * tokens. The chart literals stay as-is so both figures match the original.
  */
 
@@ -14,12 +14,12 @@
   --pr-red: #d2495b;
   --pr-red-ink: #b8394a;
   padding: 132px 0 112px;
-  color: var(--v3-ink);
-  background: var(--v3-paper);
+  color: var(--landing-ink);
+  background: var(--landing-paper);
 }
 
 .shell {
-  width: min(1060px, calc(100% - 2 * var(--v3-page-inset)));
+  width: min(1060px, calc(100% - 2 * var(--landing-page-inset)));
   margin-inline: auto;
 }
 
@@ -32,15 +32,15 @@
   align-items: center;
   gap: 7px;
   margin-bottom: 26px;
-  color: var(--v3-muted);
-  font-family: var(--v3-mono);
+  color: var(--landing-muted);
+  font-family: var(--landing-mono);
   font-size: 11.5px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .back:hover {
-  color: var(--v3-blue-dark);
+  color: var(--landing-blue-dark);
 }
 
 .back svg {
@@ -49,8 +49,8 @@
 
 .eyebrow {
   margin: 0 0 16px;
-  color: var(--v3-blue-dark);
-  font-family: var(--v3-mono);
+  color: var(--landing-blue-dark);
+  font-family: var(--landing-mono);
   font-size: 11px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -59,7 +59,7 @@
 .hero h1 {
   max-width: 20ch;
   margin: 0 0 14px;
-  font-family: var(--v3-serif);
+  font-family: var(--landing-serif);
   font-size: clamp(32px, 4vw, 44px);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -69,20 +69,20 @@
 .hero h1 em {
   font-style: italic;
   font-weight: 400;
-  color: var(--v3-blue-dark);
+  color: var(--landing-blue-dark);
 }
 
 .sub {
   max-width: 70ch;
   margin: 0;
-  color: var(--v3-copy);
+  color: var(--landing-copy);
   font-size: 15.5px;
   line-height: 1.65;
 }
 
 .sub em {
   font-style: italic;
-  color: var(--v3-ink);
+  color: var(--landing-ink);
 }
 
 .chips {
@@ -93,33 +93,33 @@
 }
 
 .chip {
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 999px;
   padding: 8px 12px;
-  color: var(--v3-muted);
-  background: var(--v3-wash);
-  font-family: var(--v3-mono);
+  color: var(--landing-muted);
+  background: var(--landing-wash);
+  font-family: var(--landing-mono);
   font-size: 12.5px;
   font-weight: 500;
 }
 
 .chip b {
-  color: var(--v3-ink);
+  color: var(--landing-ink);
   font-weight: 600;
 }
 
 .section {
   margin-top: 22px;
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 20px;
   padding: 26px 28px;
-  background: var(--v3-paper);
+  background: var(--landing-paper);
   box-shadow: 0 1px 2px rgba(13, 13, 15, 0.04);
 }
 
 .section h2 {
   margin: 0;
-  font-family: var(--v3-serif);
+  font-family: var(--landing-serif);
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -128,13 +128,13 @@
 .note {
   max-width: 80ch;
   margin: 9px 0 22px;
-  color: var(--v3-muted);
+  color: var(--landing-muted);
   font-size: 13.5px;
   line-height: 1.7;
 }
 
 .note b {
-  color: var(--v3-ink);
+  color: var(--landing-ink);
   font-weight: 600;
 }
 
@@ -154,7 +154,7 @@
   flex-wrap: wrap;
   gap: 16px;
   margin-top: 16px;
-  color: var(--v3-muted);
+  color: var(--landing-muted);
   font-size: 12.5px;
 }
 
@@ -192,7 +192,7 @@
 }
 
 .dot[data-tone="grey"] {
-  background: var(--v3-faint);
+  background: var(--landing-faint);
 }
 
 .dot[data-tone="red"] {
@@ -200,7 +200,7 @@
 }
 
 .dot[data-tone="blue"] {
-  background: var(--v3-blue-dark);
+  background: var(--landing-blue-dark);
 }
 
 /* decision flow */
@@ -212,10 +212,10 @@
 }
 
 .node {
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 12px;
   padding: 13px 16px;
-  background: var(--v3-paper);
+  background: var(--landing-paper);
 }
 
 .nodeTitle {
@@ -224,20 +224,20 @@
 
 .nodeDetail {
   margin-top: 3px;
-  color: var(--v3-muted);
+  color: var(--landing-muted);
   font-size: 12.5px;
   line-height: 1.6;
 }
 
 .decision {
-  border-color: var(--v3-faint);
-  background: var(--v3-wash);
+  border-color: var(--landing-faint);
+  background: var(--landing-wash);
 }
 
 .arrow {
   padding: 8px 0;
-  color: var(--v3-faint);
-  font-family: var(--v3-mono);
+  color: var(--landing-faint);
+  font-family: var(--landing-mono);
   font-size: 12px;
   font-weight: 600;
   text-align: center;
@@ -261,7 +261,7 @@
   align-self: flex-start;
   border-radius: 999px;
   padding: 6px 9px;
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -291,7 +291,7 @@
 }
 
 .mono {
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
 }
 
 .pill,
@@ -300,7 +300,7 @@
   margin-right: 6px;
   border-radius: 999px;
   padding: 3px 7px;
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: 11px;
   font-weight: 600;
 }
@@ -327,34 +327,34 @@
 }
 
 .card {
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 16px;
   padding: 20px;
-  background: var(--v3-wash);
+  background: var(--landing-wash);
 }
 
 .card h3 {
   margin: 0 0 4px;
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: 15px;
   font-weight: 600;
 }
 
 .lead {
   margin: 0 0 12px;
-  color: var(--v3-muted);
+  color: var(--landing-muted);
   font-size: 12.5px;
 }
 
 .lead em {
   font-style: italic;
-  color: var(--v3-ink);
+  color: var(--landing-ink);
 }
 
 .card ul {
   margin: 0;
   padding-left: 18px;
-  color: var(--v3-muted);
+  color: var(--landing-muted);
   font-size: 13px;
 }
 
@@ -364,7 +364,7 @@
 }
 
 .card li b {
-  color: var(--v3-ink);
+  color: var(--landing-ink);
   font-weight: 600;
 }
 
@@ -388,7 +388,7 @@
   float: right;
   border-radius: 999px;
   padding: 5px 8px;
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -407,21 +407,21 @@
 
 .badgeX402 {
   color: #35608f;
-  background: var(--v3-blue-soft);
+  background: var(--landing-blue-soft);
 }
 
 .badgeMpp {
   color: #a64668;
-  background: var(--v3-pink-soft);
+  background: var(--landing-pink-soft);
 }
 
 .page code {
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 6px;
   padding: 1px 5px;
-  color: var(--v3-copy);
-  background: var(--v3-wash);
-  font-family: var(--v3-mono);
+  color: var(--landing-copy);
+  background: var(--landing-wash);
+  font-family: var(--landing-mono);
   font-size: 12px;
 }
 
@@ -431,8 +431,8 @@
   align-items: flex-start;
   margin-top: 26px;
   padding-top: 22px;
-  border-top: 1px solid var(--v3-border);
-  color: var(--v3-muted);
+  border-top: 1px solid var(--landing-border);
+  color: var(--landing-muted);
   font-size: 13px;
   line-height: 1.7;
 }
@@ -443,7 +443,7 @@
 }
 
 .foot b {
-  color: var(--v3-ink);
+  color: var(--landing-ink);
 }
 
 .backRow {
@@ -454,7 +454,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--v3-blue-dark);
+  color: var(--landing-blue-dark);
   font-size: 14px;
   font-weight: 600;
 }

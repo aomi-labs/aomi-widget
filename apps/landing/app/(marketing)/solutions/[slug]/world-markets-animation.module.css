@@ -25,9 +25,9 @@
   --canvas: #09090b;
   --surface: #09090b;
   --surface-glass: rgba(9, 9, 11, 0.92);
-  --ink: var(--v3-ink);
-  --line: var(--v3-border);
-  --muted: var(--v3-muted);
+  --ink: var(--landing-ink);
+  --line: var(--landing-border);
+  --muted: var(--landing-muted);
 }
 
 :global(html[data-theme="dark"]) .animation .lockup > svg:first-child path {
@@ -44,18 +44,18 @@
   align-items: baseline;
   gap: 18px;
   margin-bottom: 16px;
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .storyboardFrame > header span {
-  color: var(--v3-blue);
+  color: var(--landing-blue);
 }
 
 .storyboardFrame > header strong {
-  color: var(--v3-muted);
+  color: var(--landing-muted);
   font-weight: 500;
 }
 
@@ -107,11 +107,11 @@
 
 .lockup span {
   color: #8b9099;
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
 }
 
 .lockup b {
-  font-family: var(--v3-serif);
+  font-family: var(--landing-serif);
   font-size: 1.08em;
   font-weight: 600;
 }
@@ -122,7 +122,7 @@
   padding: 0.65cqw 1cqw;
   color: var(--muted);
   background: var(--surface-glass);
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: clamp(4px, 0.88cqw, 11px);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -152,7 +152,7 @@
 .closeScene > p {
   margin: 0;
   color: var(--sky);
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: clamp(5px, 1.08cqw, 13px);
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -161,7 +161,7 @@
 
 .sceneCopy h3 {
   margin: 1.25cqw 0 0;
-  font-family: var(--v3-serif);
+  font-family: var(--landing-serif);
   font-size: clamp(20px, 4.8cqw, 58px);
   font-weight: 700;
   letter-spacing: -0.04em;
@@ -371,7 +371,7 @@
 .marketPanel dt,
 .mandatePanel small {
   color: #8b9099;
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: clamp(4px, 0.82cqw, 10px);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -401,7 +401,7 @@
 
 .connectCard h3 {
   margin: 0.7cqw 0 0;
-  font-family: var(--v3-serif);
+  font-family: var(--landing-serif);
   font-size: clamp(9px, 2.25cqw, 27px);
   line-height: 1.18;
 }
@@ -437,7 +437,7 @@
   padding: 0.55cqw;
   color: #365f8c;
   background: var(--sky-soft);
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: clamp(4px, 0.78cqw, 9px);
   text-align: center;
 }
@@ -858,7 +858,7 @@
 
 .contractNode small {
   color: #416cac;
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: clamp(4px, 0.9cqw, 11px);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -901,7 +901,7 @@
   padding: 0.9cqw 1.4cqw;
   color: #d2495b;
   background: var(--surface);
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: clamp(6px, 1.45cqw, 18px);
   text-transform: uppercase;
   transform: rotate(-7deg);
@@ -955,7 +955,7 @@
   padding: 0.65cqw 0.9cqw;
   color: #087d1b;
   background: #e8fce8;
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: clamp(4px, 0.82cqw, 10px);
   text-transform: uppercase;
 }
@@ -1032,7 +1032,7 @@
 .mandatePanel > footer {
   margin-top: 0.85cqw;
   color: #7c828b;
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: clamp(4px, 0.78cqw, 9px);
 }
 
@@ -1047,7 +1047,7 @@
 .closeScene h3 {
   max-width: 86cqw;
   margin: 1.4cqw auto 0;
-  font-family: var(--v3-serif);
+  font-family: var(--landing-serif);
   font-size: clamp(21px, 5.15cqw, 62px);
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1058,7 +1058,7 @@
   max-width: 71cqw;
   margin: 1.6cqw auto 0;
   color: var(--muted);
-  font-family: var(--v3-sans);
+  font-family: var(--landing-sans);
   font-size: clamp(7px, 1.65cqw, 20px);
   line-height: 1.45;
 }
@@ -1077,7 +1077,7 @@
   border-radius: 999px;
   padding: 0.75cqw 1cqw;
   background: var(--surface);
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: clamp(4px, 0.95cqw, 11px);
 }
 
@@ -1140,7 +1140,7 @@
   align-items: center;
   justify-content: space-between;
   color: #8b9099;
-  font-family: var(--v3-mono);
+  font-family: var(--landing-mono);
   font-size: clamp(4px, 0.9cqw, 11px);
 }
 

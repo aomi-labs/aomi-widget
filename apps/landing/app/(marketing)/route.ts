@@ -4,17 +4,17 @@ import path from "node:path";
 export const dynamic = "force-static";
 export const runtime = "nodejs";
 
-const referencePath = path.join(
+const homePath = path.join(
   process.cwd(),
   "public",
   "assets",
-  "v3",
-  "reference",
+  "landing",
+  "home",
   "index.html",
 );
 
 export async function GET() {
-  const html = await readFile(referencePath, "utf8");
+  const html = await readFile(homePath, "utf8");
 
   return new Response(html, {
     headers: {

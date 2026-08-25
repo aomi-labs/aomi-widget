@@ -8,7 +8,7 @@ import { AomiLogo } from "../../components/aomi-logo";
 import { navGroups } from "../site";
 import styles from "../marketing.module.css";
 
-export function V3Nav() {
+export function MarketingNav() {
   const pathname = usePathname();
   const rootRef = useRef<HTMLElement>(null);
   const [openMenu, setOpenMenu] = useState<string | null>(null);

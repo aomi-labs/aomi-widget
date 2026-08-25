@@ -7,7 +7,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import type { SolutionConfig } from "../../../_v3-shared/solutions/solution-data";
+import type { SolutionConfig } from "../../../_marketing/solutions/solution-data";
 import { MARKETING_ROOT } from "../../site";
 import { NftCollectionConcierge } from "./sector-visuals";
 import styles from "./sector-pages.module.css";
@@ -40,7 +40,7 @@ const trustChecks = [
   },
 ] as const;
 
-export function V3NftPage({ solution }: { solution: SolutionConfig }) {
+export function NftPage({ solution }: { solution: SolutionConfig }) {
   return (
     <main className={styles.nftPage}>
       <section className={`${styles.sectorHero} ${styles.nftHero}`}>

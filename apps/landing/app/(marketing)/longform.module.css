@@ -2,7 +2,7 @@
  * Long-form marketing surfaces: legal pages, agent guides, research articles.
  *
  * These routes are text-first, so they get no bespoke palette of their own.
- * They consume the same semantic --v3-* aliases the rest of the marketing
+ * They consume the same semantic --landing-* aliases the rest of the marketing
  * system exposes from marketing.module.css `.root`, which means light/dark and
  * the canonical type scale follow automatically. Kept in a separate module
  * only to keep marketing.module.css focused on the composed product pages.
@@ -12,57 +12,58 @@
 
 .page {
   padding-top: 0;
-  background: var(--v3-paper);
-  color: var(--v3-ink);
+  background: var(--landing-paper);
+  color: var(--landing-ink);
 }
 
 /* Matches the editorial-route unification in marketing.module.css: one grid
    paper hero for every text-led URL, character from composition instead of a
    per-page pastel. */
 .hero {
-  padding: 180px var(--v3-page-inset) 96px;
-  color: var(--v3-ink);
+  padding: 180px var(--landing-page-inset) 96px;
+  color: var(--landing-ink);
   background:
-    linear-gradient(var(--v3-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--v3-grid) 1px, transparent 1px), var(--v3-paper);
+    linear-gradient(var(--landing-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--landing-grid) 1px, transparent 1px),
+    var(--landing-paper);
   background-size: 56px 56px;
 }
 
 .eyebrow {
   margin: 0;
-  color: var(--v3-blue-dark);
-  font-family: var(--v3-mono);
-  font-size: var(--v3-eyebrow);
+  color: var(--landing-blue-dark);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-eyebrow);
   font-weight: 500;
-  letter-spacing: var(--v3-eyebrow-ls);
+  letter-spacing: var(--landing-eyebrow-ls);
   text-transform: uppercase;
 }
 
 .hero h1 {
   max-width: 820px;
   margin: 22px 0 0;
-  font-family: var(--v3-serif);
-  font-size: var(--v3-h1);
+  font-family: var(--landing-serif);
+  font-size: var(--landing-h1);
   font-weight: 700;
-  letter-spacing: var(--v3-h1-ls);
-  line-height: var(--v3-h1-lh);
+  letter-spacing: var(--landing-h1-ls);
+  line-height: var(--landing-h1-lh);
   text-wrap: balance;
 }
 
 .hero > p:not(.eyebrow) {
   max-width: 690px;
   margin: 28px 0 0;
-  color: var(--v3-copy);
-  font-size: var(--v3-lead);
-  line-height: var(--v3-lead-lh);
+  color: var(--landing-copy);
+  font-size: var(--landing-lead);
+  line-height: var(--landing-lead-lh);
 }
 
 .heroMeta {
   margin: 26px 0 0;
-  color: var(--v3-muted);
-  font-family: var(--v3-mono);
-  font-size: var(--v3-micro);
-  line-height: var(--v3-micro-lh);
+  color: var(--landing-muted);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-micro);
+  line-height: var(--landing-micro-lh);
 }
 
 .heroActions {
@@ -74,14 +75,14 @@
 
 .heroActions a {
   display: inline-flex;
-  min-height: var(--v3-btn-h);
+  min-height: var(--landing-btn-h);
   align-items: center;
   gap: 8px;
-  border: 1px solid var(--v3-border-strong);
+  border: 1px solid var(--landing-border-strong);
   border-radius: 999px;
-  padding: var(--v3-btn-pad);
-  color: var(--v3-ink);
-  font-size: var(--v3-btn);
+  padding: var(--landing-btn-pad);
+  color: var(--landing-ink);
+  font-size: var(--landing-btn);
   transition:
     background 160ms ease,
     border-color 160ms ease;
@@ -90,20 +91,20 @@
 /* Primary action inverts with the theme by construction: the page's text color
    becomes the chip and the page's paper becomes the label. That gives a near
    black chip on light and the same white pill the reference homepage nav uses
-   on dark, without borrowing --v3-ink-surface, which elsewhere in the system
+   on dark, without borrowing --landing-ink-surface, which elsewhere in the system
    means "dark panel" and so stays dark in both themes. */
 .heroActions a:first-child {
-  border-color: var(--v3-ink);
-  color: var(--v3-paper);
-  background: var(--v3-ink);
+  border-color: var(--landing-ink);
+  color: var(--landing-paper);
+  background: var(--landing-ink);
 }
 
 .heroActions a:hover {
-  background: var(--v3-wash);
+  background: var(--landing-wash);
 }
 
 .heroActions a:first-child:hover {
-  background: var(--v3-ink);
+  background: var(--landing-ink);
   opacity: 0.88;
 }
 
@@ -115,7 +116,7 @@
 /* ---------- prose ---------- */
 
 .body {
-  width: var(--v3-page-width);
+  width: var(--landing-page-width);
   margin-inline: auto;
   padding: 88px 0 106px;
 }
@@ -123,9 +124,9 @@
 /* Measure is capped for reading, not for the page. */
 .prose {
   max-width: 720px;
-  color: var(--v3-copy);
-  font-size: var(--v3-body);
-  line-height: var(--v3-body-lh);
+  color: var(--landing-copy);
+  font-size: var(--landing-body);
+  line-height: var(--landing-body-lh);
 }
 
 .proseWide {
@@ -140,36 +141,36 @@
    weight so it reads as the deck rather than as the first body paragraph. */
 .prose > p:first-child {
   margin-top: 0;
-  color: var(--v3-ink);
-  font-size: var(--v3-lead);
-  line-height: var(--v3-lead-lh);
+  color: var(--landing-ink);
+  font-size: var(--landing-lead);
+  line-height: var(--landing-lead-lh);
 }
 
 .prose h2 {
   margin: 64px 0 0;
-  color: var(--v3-ink);
-  font-family: var(--v3-serif);
-  font-size: var(--v3-h2);
+  color: var(--landing-ink);
+  font-family: var(--landing-serif);
+  font-size: var(--landing-h2);
   font-weight: 700;
-  letter-spacing: var(--v3-h2-ls);
-  line-height: var(--v3-h2-lh);
+  letter-spacing: var(--landing-h2-ls);
+  line-height: var(--landing-h2-lh);
 }
 
 .prose h3 {
   margin: 40px 0 0;
-  color: var(--v3-ink);
-  font-family: var(--v3-serif);
-  font-size: var(--v3-h3);
+  color: var(--landing-ink);
+  font-family: var(--landing-serif);
+  font-size: var(--landing-h3);
   font-weight: 700;
-  line-height: var(--v3-h3-lh);
+  line-height: var(--landing-h3-lh);
 }
 
 .prose h4 {
   margin: 32px 0 0;
-  color: var(--v3-ink);
-  font-size: var(--v3-h4);
+  color: var(--landing-ink);
+  font-size: var(--landing-h4);
   font-weight: 600;
-  line-height: var(--v3-h4-lh);
+  line-height: var(--landing-h4-lh);
 }
 
 .prose h2:first-child,
@@ -197,20 +198,24 @@
 }
 
 .prose li::marker {
-  color: var(--v3-faint);
+  color: var(--landing-faint);
 }
 
 .prose strong {
-  color: var(--v3-ink);
+  color: var(--landing-ink);
   font-weight: 600;
 }
 
 .prose a {
-  color: var(--v3-blue-dark);
+  color: var(--landing-blue-dark);
   text-decoration: underline;
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
-  text-decoration-color: color-mix(in srgb, var(--v3-blue) 45%, transparent);
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--landing-blue) 45%,
+    transparent
+  );
 }
 
 .prose a:hover {
@@ -218,42 +223,42 @@
 }
 
 .prose code {
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 5px;
   padding: 1px 5px;
-  color: var(--v3-code-text);
-  background: var(--v3-wash);
-  font-family: var(--v3-mono);
+  color: var(--landing-code-text);
+  background: var(--landing-wash);
+  font-family: var(--landing-mono);
   font-size: 0.88em;
 }
 
 .prose pre {
   overflow-x: auto;
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 12px;
   padding: 20px;
-  background: var(--v3-wash);
+  background: var(--landing-wash);
 }
 
 .prose pre code {
   border: 0;
   padding: 0;
   background: none;
-  font-size: var(--v3-small);
-  line-height: var(--v3-small-lh);
+  font-size: var(--landing-small);
+  line-height: var(--landing-small-lh);
 }
 
 .prose blockquote {
-  border-left: 2px solid var(--v3-border-strong);
+  border-left: 2px solid var(--landing-border-strong);
   padding-left: 20px;
-  color: var(--v3-muted);
+  color: var(--landing-muted);
 }
 
 .prose hr {
   height: 1px;
   margin: 56px 0;
   border: 0;
-  background: var(--v3-border);
+  background: var(--landing-border);
 }
 
 .prose figure {
@@ -267,7 +272,7 @@
   display: block;
   max-width: 100%;
   height: auto;
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 12px;
   padding: 12px;
   background: #fff;
@@ -276,79 +281,79 @@
 .prose figcaption,
 .prose .caption {
   margin-top: 10px;
-  color: var(--v3-muted);
-  font-family: var(--v3-mono);
-  font-size: var(--v3-micro);
-  line-height: var(--v3-micro-lh);
+  color: var(--landing-muted);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-micro);
+  line-height: var(--landing-micro-lh);
 }
 
 /* Emphasis block for clauses a reader must not skim past. Accent border rather
    than a filled warning color: the system has no alert role. */
 .callout {
   margin-top: 24px;
-  border: 1px solid var(--v3-border);
-  border-left: 3px solid var(--v3-blue);
+  border: 1px solid var(--landing-border);
+  border-left: 3px solid var(--landing-blue);
   border-radius: 12px;
   padding: 18px 22px;
-  background: var(--v3-wash);
+  background: var(--landing-wash);
 }
 
 .callout p {
   margin: 0;
-  color: var(--v3-copy);
-  font-size: var(--v3-body);
-  line-height: var(--v3-body-lh);
+  color: var(--landing-copy);
+  font-size: var(--landing-body);
+  line-height: var(--landing-body-lh);
 }
 
 .contactCard {
   margin-top: 20px;
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 12px;
   padding: 20px 22px;
-  background: var(--v3-wash);
+  background: var(--landing-wash);
 }
 
 .contactCard strong {
   display: block;
-  color: var(--v3-ink);
+  color: var(--landing-ink);
   font-weight: 600;
 }
 
 .contactCard p {
   margin: 6px 0 0;
-  color: var(--v3-copy);
-  font-size: var(--v3-body);
-  line-height: var(--v3-body-lh);
+  color: var(--landing-copy);
+  font-size: var(--landing-body);
+  line-height: var(--landing-body-lh);
 }
 
 /* Tables scroll inside their own container so the page never does. */
 .tableScroll {
   overflow-x: auto;
   margin-top: 28px;
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 12px;
 }
 
 .prose table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--v3-small);
-  line-height: var(--v3-small-lh);
+  font-size: var(--landing-small);
+  line-height: var(--landing-small-lh);
 }
 
 .prose th,
 .prose td {
-  border-bottom: 1px solid var(--v3-border);
+  border-bottom: 1px solid var(--landing-border);
   padding: 12px 16px;
   text-align: left;
   vertical-align: top;
 }
 
 .prose th {
-  color: var(--v3-ink);
-  background: var(--v3-wash);
-  font-family: var(--v3-mono);
-  font-size: var(--v3-micro);
+  color: var(--landing-ink);
+  background: var(--landing-wash);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-micro);
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -367,15 +372,15 @@
   gap: 4px;
   overflow-x: auto;
   margin-top: 12px;
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 14px;
   padding: 14px 18px;
   background:
-    linear-gradient(135deg, var(--v3-glass-highlight), transparent 62%),
-    var(--v3-glass-fill);
+    linear-gradient(135deg, var(--landing-glass-highlight), transparent 62%),
+    var(--landing-glass-fill);
   box-shadow:
-    inset 0 1px 0 var(--v3-glass-highlight),
-    0 12px 32px var(--v3-glass-shadow);
+    inset 0 1px 0 var(--landing-glass-highlight),
+    0 12px 32px var(--landing-glass-shadow);
   backdrop-filter: blur(18px) saturate(1.35);
   -webkit-backdrop-filter: blur(18px) saturate(1.35);
 }
@@ -387,24 +392,24 @@
   border: 0;
   padding: 0;
   background: none;
-  color: var(--v3-code-text);
-  font-family: var(--v3-mono);
-  font-size: var(--v3-small);
+  color: var(--landing-code-text);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-small);
   line-height: 1.9;
   white-space: pre;
 }
 
 .commandBlock code::before {
   content: "$ ";
-  color: var(--v3-faint);
+  color: var(--landing-faint);
 }
 
 .commandLabel {
   margin: 28px 0 0;
-  color: var(--v3-ink);
-  font-size: var(--v3-small);
+  color: var(--landing-ink);
+  font-size: var(--landing-small);
   font-weight: 500;
-  line-height: var(--v3-small-lh);
+  line-height: var(--landing-small-lh);
 }
 
 /* ---------- section lead, shared by guide + legal bodies ---------- */
@@ -416,28 +421,28 @@
 
 .sectionLead h2 {
   margin: 14px 0 0;
-  color: var(--v3-ink);
-  font-family: var(--v3-serif);
-  font-size: var(--v3-h2);
+  color: var(--landing-ink);
+  font-family: var(--landing-serif);
+  font-size: var(--landing-h2);
   font-weight: 700;
-  letter-spacing: var(--v3-h2-ls);
-  line-height: var(--v3-h2-lh);
+  letter-spacing: var(--landing-h2-ls);
+  line-height: var(--landing-h2-lh);
 }
 
 .sectionLead > p:last-child {
   max-width: 580px;
   margin: 20px 0 0;
-  color: var(--v3-muted);
+  color: var(--landing-muted);
   line-height: 1.7;
 }
 
 /* ---------- guide cards (agent landing paths) ---------- */
 
 .section {
-  width: var(--v3-page-width);
+  width: var(--landing-page-width);
   margin-inline: auto;
   padding: 96px 0;
-  border-top: 1px solid var(--v3-border);
+  border-top: 1px solid var(--landing-border);
 }
 
 .cardGrid {
@@ -449,40 +454,40 @@
 .cardGrid article {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 16px;
   padding: 28px;
-  background: var(--v3-raised);
+  background: var(--landing-raised);
   transition:
     border-color 160ms ease,
     transform 160ms ease;
 }
 
 .cardGrid article:hover {
-  border-color: var(--v3-border-strong);
+  border-color: var(--landing-border-strong);
   transform: translateY(-2px);
 }
 
 .cardGrid svg {
   width: 20px;
   height: 20px;
-  color: var(--v3-blue);
+  color: var(--landing-blue);
 }
 
 .cardGrid h3 {
   margin: 18px 0 0;
-  color: var(--v3-ink);
-  font-family: var(--v3-serif);
-  font-size: var(--v3-h3);
+  color: var(--landing-ink);
+  font-family: var(--landing-serif);
+  font-size: var(--landing-h3);
   font-weight: 700;
-  line-height: var(--v3-h3-lh);
+  line-height: var(--landing-h3-lh);
 }
 
 .cardGrid p {
   margin: 12px 0 0;
-  color: var(--v3-muted);
-  font-size: var(--v3-small);
-  line-height: var(--v3-small-lh);
+  color: var(--landing-muted);
+  font-size: var(--landing-small);
+  line-height: var(--landing-small-lh);
 }
 
 .cardLinks {
@@ -491,16 +496,16 @@
   gap: 6px 14px;
   margin-top: 22px;
   padding-top: 18px;
-  border-top: 1px solid var(--v3-border);
+  border-top: 1px solid var(--landing-border);
 }
 
 .cardLinks a {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--v3-blue-dark);
-  font-family: var(--v3-mono);
-  font-size: var(--v3-micro);
+  color: var(--landing-blue-dark);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-micro);
 }
 
 .cardLinks a:hover {
@@ -521,7 +526,7 @@
   height: 3px;
   align-self: center;
   border-radius: 999px;
-  background: var(--v3-faint);
+  background: var(--landing-faint);
   font-style: normal;
 }
 
@@ -530,7 +535,7 @@
 .claimList {
   display: grid;
   gap: 0;
-  border-top: 1px solid var(--v3-border);
+  border-top: 1px solid var(--landing-border);
 }
 
 /* Inside a prose body the rail needs air; as a section's own content the
@@ -543,22 +548,22 @@
   display: grid;
   grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
   gap: 28px;
-  border-bottom: 1px solid var(--v3-border);
+  border-bottom: 1px solid var(--landing-border);
   padding: 26px 0;
 }
 
 .claimList strong {
-  color: var(--v3-ink);
-  font-size: var(--v3-h4);
+  color: var(--landing-ink);
+  font-size: var(--landing-h4);
   font-weight: 600;
-  line-height: var(--v3-h4-lh);
+  line-height: var(--landing-h4-lh);
 }
 
 .claimList p {
   margin: 0;
-  color: var(--v3-muted);
-  font-size: var(--v3-body);
-  line-height: var(--v3-body-lh);
+  color: var(--landing-muted);
+  font-size: var(--landing-body);
+  line-height: var(--landing-body-lh);
 }
 
 /* ---------- article byline ---------- */
@@ -569,9 +574,9 @@
   align-items: center;
   gap: 10px;
   margin: 0;
-  color: var(--v3-muted);
-  font-family: var(--v3-mono);
-  font-size: var(--v3-micro);
+  color: var(--landing-muted);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-micro);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -580,12 +585,12 @@
   width: 3px;
   height: 3px;
   border-radius: 999px;
-  background: var(--v3-faint);
+  background: var(--landing-faint);
   font-style: normal;
 }
 
 .byline a {
-  color: var(--v3-blue-dark);
+  color: var(--landing-blue-dark);
 }
 
 .byline a:hover {
@@ -599,18 +604,18 @@
    as an aside without inventing a new surface color. */
 .figureNote {
   margin-top: 36px;
-  border: 1px dashed var(--v3-border-strong);
+  border: 1px dashed var(--landing-border-strong);
   border-radius: 16px;
   padding: 22px 24px;
-  background: var(--v3-wash);
+  background: var(--landing-wash);
 }
 
 .figureNote p {
   margin: 0;
-  color: var(--v3-muted);
-  font-family: var(--v3-mono);
-  font-size: var(--v3-small);
-  line-height: var(--v3-small-lh);
+  color: var(--landing-muted);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-small);
+  line-height: var(--landing-small-lh);
 }
 
 .fileTree {
@@ -619,18 +624,18 @@
 
 .fileTree pre {
   overflow-x: auto;
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--landing-border);
   border-radius: 12px;
   padding: 20px;
-  color: var(--v3-code-text);
-  background: var(--v3-wash);
-  font-family: var(--v3-mono);
-  font-size: var(--v3-small);
+  color: var(--landing-code-text);
+  background: var(--landing-wash);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-small);
   line-height: 1.9;
 }
 
 .fileTree a {
-  color: var(--v3-blue-dark);
+  color: var(--landing-blue-dark);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
@@ -640,9 +645,9 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 26px;
-  color: var(--v3-blue-dark);
-  font-family: var(--v3-mono);
-  font-size: var(--v3-micro);
+  color: var(--landing-blue-dark);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-micro);
 }
 
 .backLink:hover {
