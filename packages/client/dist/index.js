@@ -223,6 +223,101 @@ function randomIdempotencyKey() {
   return `idem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
 }
 
+// src/pipeline/schema.ts
+var PipelineSchemaError = class extends TypeError {
+  constructor(path, message) {
+    super(`${path}: ${message}`);
+    this.path = path;
+    this.name = "PipelineSchemaError";
+  }
+};
+function validatePipelineArguments(value, schema) {
+  validate(value, schema, "$arguments");
+}
+function validate(value, schema, path) {
+  var _a;
+  if (schema === true) return;
+  if (schema === false) throw new PipelineSchemaError(path, "is not allowed");
+  const variants = (_a = schema.oneOf) != null ? _a : schema.anyOf;
+  if (Array.isArray(variants) && variants.length > 0) {
+    const accepted = variants.some((variant) => {
+      if (!isSchema(variant)) return false;
+      try {
+        validate(value, variant, path);
+        return true;
+      } catch (error) {
+        if (error instanceof PipelineSchemaError) return false;
+        throw error;
+      }
+    });
+    if (!accepted) {
+      throw new PipelineSchemaError(path, "does not match an accepted shape");
+    }
+    return;
+  }
+  if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
+    throw new PipelineSchemaError(path, "is not an allowed value");
+  }
+  const type = schema.type;
+  if (typeof type === "string" && !matchesType(value, type)) {
+    throw new PipelineSchemaError(path, `must be ${article(type)}${type}`);
+  }
+  if (type === "object" || schema.properties || schema.required) {
+    if (!isRecord(value)) {
+      throw new PipelineSchemaError(path, "must be an object");
+    }
+    const required2 = Array.isArray(schema.required) ? schema.required.filter(
+      (item) => typeof item === "string"
+    ) : [];
+    for (const key of required2) {
+      if (!(key in value)) {
+        throw new PipelineSchemaError(`${path}.${key}`, "is required");
+      }
+    }
+    if (isRecord(schema.properties)) {
+      for (const [key, childSchema] of Object.entries(schema.properties)) {
+        if (key in value && isSchema(childSchema)) {
+          validate(value[key], childSchema, `${path}.${key}`);
+        }
+      }
+    }
+  }
+  if (type === "array" && Array.isArray(value) && isSchema(schema.items)) {
+    value.forEach(
+      (item, index) => validate(item, schema.items, `${path}[${index}]`)
+    );
+  }
+}
+function matchesType(value, type) {
+  switch (type) {
+    case "null":
+      return value === null;
+    case "array":
+      return Array.isArray(value);
+    case "object":
+      return isRecord(value);
+    case "integer":
+      return typeof value === "number" && Number.isInteger(value);
+    case "number":
+      return typeof value === "number" && Number.isFinite(value);
+    case "string":
+      return typeof value === "string";
+    case "boolean":
+      return typeof value === "boolean";
+    default:
+      return true;
+  }
+}
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function isSchema(value) {
+  return typeof value === "boolean" || isRecord(value);
+}
+function article(value) {
+  return /^[aeiou]/i.test(value) ? "an " : "a ";
+}
+
 // src/pipeline/transport.ts
 var PipelineApiError = class extends Error {
   constructor(status, code, message, retryable, requestId, details) {
@@ -235,28 +330,173 @@ var PipelineApiError = class extends Error {
     this.name = "PipelineApiError";
   }
 };
-var PipelineTransport = class {
+var EvmPipelineTransport = class {
   constructor(requestResponse) {
     this.requestResponse = requestResponse;
   }
+  build(input) {
+    return json(this.requestResponse, "POST", "/v1/pipeline/evm/build", {
+      body: jsonBody(input)
+    });
+  }
+  stage(input) {
+    return json(this.requestResponse, "POST", "/v1/pipeline/evm/stage", {
+      body: jsonBody(input)
+    });
+  }
+  simulate(build) {
+    return json(this.requestResponse, "POST", "/v1/pipeline/evm/simulate", {
+      body: { build: jsonBody(build) }
+    });
+  }
+  commit(build, options = {}) {
+    return json(this.requestResponse, "POST", "/v1/pipeline/evm/commit", {
+      headers: commitHeaders(build.digest, options),
+      body: { build: jsonBody(build) }
+    });
+  }
+};
+var SvmPipelineTransport = class {
+  constructor(requestResponse) {
+    this.requestResponse = requestResponse;
+  }
+  build(input) {
+    return json(this.requestResponse, "POST", "/v1/pipeline/svm/build", {
+      body: jsonBody(input)
+    });
+  }
+  stage(input) {
+    return json(this.requestResponse, "POST", "/v1/pipeline/svm/stage", {
+      body: jsonBody(input)
+    });
+  }
+  simulate(build) {
+    return json(this.requestResponse, "POST", "/v1/pipeline/svm/simulate", {
+      body: { build: jsonBody(build) }
+    });
+  }
+  commit(build, options = {}) {
+    return json(this.requestResponse, "POST", "/v1/pipeline/svm/commit", {
+      headers: commitHeaders(build.digest, options),
+      body: { build: jsonBody(build) }
+    });
+  }
+};
+var PipelineOperationTransport = class {
+  constructor(requestResponse, scope, owner) {
+    this.requestResponse = requestResponse;
+    this.href = `/v1/pipeline/${scope}/${encodeURIComponent(required("name", owner))}`;
+  }
+  directory() {
+    return json(this.requestResponse, "GET", this.href);
+  }
+  operations() {
+    return json(this.requestResponse, "GET", `${this.href}/operations`);
+  }
+  operation(name) {
+    return json(
+      this.requestResponse,
+      "GET",
+      `${this.href}/operations/${encodeURIComponent(required("operation", name))}`
+    );
+  }
+  invoke(name, args, options) {
+    return invokeOperation(
+      this.requestResponse,
+      `${this.href}/operations/${encodeURIComponent(required("operation", name))}`,
+      args,
+      options
+    );
+  }
+};
+var PipelineSkillTransport = class extends PipelineOperationTransport {
+  constructor(skillRequestResponse, skill) {
+    super(skillRequestResponse, "skills", skill);
+    this.skillRequestResponse = skillRequestResponse;
+  }
+  async instructions() {
+    const response = await this.skillRequestResponse(
+      "GET",
+      `${this.href}/SKILL.md`,
+      { headers: { accept: "text/markdown" } }
+    );
+    if (!response.ok) throw await pipelineError(response);
+    return response.text();
+  }
+};
+var PipelineAppsTransport = class {
+  constructor(requestResponse) {
+    this.requestResponse = requestResponse;
+  }
+  list() {
+    return json(this.requestResponse, "GET", "/v1/pipeline/apps");
+  }
+  get(app) {
+    return new PipelineOperationTransport(this.requestResponse, "apps", app);
+  }
+};
+var PipelineSkillsTransport = class {
+  constructor(requestResponse) {
+    this.requestResponse = requestResponse;
+  }
+  list() {
+    return json(this.requestResponse, "GET", "/v1/pipeline/skills");
+  }
+  get(skill) {
+    return new PipelineSkillTransport(this.requestResponse, skill);
+  }
+};
+var PipelineTransport = class {
+  constructor(requestResponse) {
+    this.requestResponse = requestResponse;
+    this.evm = new EvmPipelineTransport(requestResponse);
+    this.svm = new SvmPipelineTransport(requestResponse);
+    this.apps = new PipelineAppsTransport(requestResponse);
+    this.skills = new PipelineSkillsTransport(requestResponse);
+  }
+  root() {
+    return json(this.requestResponse, "GET", "/v1/pipeline");
+  }
+  read(path = "/v1/pipeline") {
+    return json(this.requestResponse, "GET", pipelinePath(path));
+  }
+  app(name) {
+    return this.apps.get(name);
+  }
+  skill(name) {
+    return this.skills.get(name);
+  }
+  invoke(path, args, options) {
+    return invokeOperation(
+      this.requestResponse,
+      operationPath(path),
+      args,
+      options
+    );
+  }
+  /** @deprecated Use `pipeline.apps.list()` filesystem discovery. */
   listApps(options = {}) {
-    return this.json("GET", "/v1/pipeline/apps", {
+    return json(this.requestResponse, "GET", "/v1/pipeline/apps", {
       query: { limit: options.limit }
     });
   }
+  /** @deprecated Use `pipeline.app(app).directory()`. */
   getApp(app) {
-    return this.json(
+    return json(
+      this.requestResponse,
       "GET",
       `/v1/pipeline/apps/${encodeURIComponent(required("app", app))}`
     );
   }
+  /** @deprecated Crawl the filesystem discovery surface. */
   searchApps(options = {}) {
-    return this.json("GET", "/v1/pipeline/search/apps", {
+    return json(this.requestResponse, "GET", "/v1/pipeline/search/apps", {
       query: { q: options.q, limit: options.limit }
     });
   }
+  /** @deprecated Use fixed chain routes or scoped operations. */
   listTools(options = {}) {
-    return this.json("GET", "/v1/pipeline/tools", {
+    return json(this.requestResponse, "GET", "/v1/pipeline/tools", {
       query: {
         app: options.app,
         namespace: options.namespace,
@@ -264,55 +504,78 @@ var PipelineTransport = class {
       }
     });
   }
+  /** @deprecated Use fixed chain routes or scoped operations. */
   getTool(toolId, options = {}) {
-    return this.json(
+    return json(
+      this.requestResponse,
       "GET",
       `/v1/pipeline/tools/${encodeURIComponent(required("toolId", toolId))}`,
       { query: { app: options.app } }
     );
   }
+  /** @deprecated Crawl the filesystem discovery surface. */
   searchTools(options = {}) {
-    return this.json("GET", "/v1/pipeline/search/tools", {
+    return json(this.requestResponse, "GET", "/v1/pipeline/search/tools", {
       query: { q: options.q, app: options.app, limit: options.limit }
     });
   }
+  /** @deprecated Use `pipeline.skills.list()` filesystem discovery. */
   listSkills(options = {}) {
-    return this.json("GET", "/v1/pipeline/skills", {
+    return json(this.requestResponse, "GET", "/v1/pipeline/skills", {
       query: { limit: options.limit }
     });
   }
+  /** @deprecated Use `pipeline.skill(skill).directory()`. */
   getSkill(skillId) {
-    return this.json(
+    return json(
+      this.requestResponse,
       "GET",
       `/v1/pipeline/skills/${encodeURIComponent(required("skillId", skillId))}`
     );
   }
+  /** @deprecated Use fixed chain lifecycle or scoped `invoke()`. */
   callTool(request, options) {
-    return this.json("POST", "/v1/pipeline/tool-calls", {
+    return json(this.requestResponse, "POST", "/v1/pipeline/tool-calls", {
       headers: executionHeaders(options),
       body: request
     });
   }
+  /** @deprecated Use chain-specific Build composition. */
   run(request, options) {
-    return this.json("POST", "/v1/pipeline/runs", {
+    return json(this.requestResponse, "POST", "/v1/pipeline/runs", {
       headers: executionHeaders(options),
       body: request
     });
-  }
-  async json(method, path, options) {
-    return parsePipelineResponse(
-      await this.requestResponse(method, path, options)
-    );
   }
 };
+async function invokeOperation(requestResponse, path, args, options = {}) {
+  if (options.validate !== false) {
+    const descriptor = await json(
+      requestResponse,
+      "GET",
+      path
+    );
+    validatePipelineArguments(args, descriptor.inputSchema);
+  }
+  return json(requestResponse, "POST", path, {
+    headers: mutationHeaders2(options),
+    body: jsonBody(args)
+  });
+}
+async function json(requestResponse, method, path, options) {
+  return parsePipelineResponse(await requestResponse(method, path, options));
+}
 async function parsePipelineResponse(response) {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
   if (response.ok) {
     if (response.status === 204) return void 0;
     return await response.json();
   }
+  throw await pipelineError(response);
+}
+async function pipelineError(response) {
+  var _a, _b, _c, _d, _e, _f, _g, _h;
   const body = await response.json().catch(() => null);
-  throw new PipelineApiError(
+  return new PipelineApiError(
     response.status,
     (_b = (_a = body == null ? void 0 : body.error) == null ? void 0 : _a.code) != null ? _b : "pipeline_request_failed",
     (_d = (_c = body == null ? void 0 : body.error) == null ? void 0 : _c.message) != null ? _d : `Pipeline request failed with HTTP ${response.status}`,
@@ -321,16 +584,59 @@ async function parsePipelineResponse(response) {
     (_h = body == null ? void 0 : body.error) == null ? void 0 : _h.details
   );
 }
+function jsonBody(value) {
+  return normalizeJson(value);
+}
+function normalizeJson(value) {
+  if (typeof value === "bigint") return value.toString(10);
+  if (Array.isArray(value)) return value.map(normalizeJson);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, normalizeJson(item)])
+    );
+  }
+  return value;
+}
 function required(name, value) {
   const normalized = value.trim();
   if (!normalized) throw new TypeError(`${name} is required`);
   return normalized;
 }
-function executionHeaders(options) {
-  const idempotencyKey = required("idempotencyKey", options.idempotencyKey);
+function pipelinePath(path) {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  const full = normalized.startsWith("/v1/pipeline") ? normalized : `/v1/pipeline${normalized}`;
+  if (full !== "/v1/pipeline" && !full.startsWith("/v1/pipeline/")) {
+    throw new TypeError("path must resolve beneath /v1/pipeline");
+  }
+  return full.replace(/\/+$/, "");
+}
+function operationPath(path) {
+  const full = pipelinePath(path);
+  if (!/\/operations\/[^/]+$/.test(full)) {
+    throw new TypeError("operation path must end in /operations/{operation}");
+  }
+  return full;
+}
+function commitHeaders(digest, options) {
+  var _a;
+  return mutationHeaders2(__spreadProps(__spreadValues({}, options), {
+    idempotencyKey: (_a = options.idempotencyKey) != null ? _a : digest
+  }));
+}
+function mutationHeaders2(options) {
+  var _a;
   return __spreadValues({
-    "idempotency-key": idempotencyKey
+    "idempotency-key": required(
+      "idempotencyKey",
+      (_a = options.idempotencyKey) != null ? _a : randomIdempotencyKey2()
+    )
   }, options.paymentSignature ? { "payment-signature": options.paymentSignature } : {});
+}
+function executionHeaders(options) {
+  return mutationHeaders2(options);
+}
+function randomIdempotencyKey2() {
+  return `idem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
 }
 
 // src/guest-auth.ts
@@ -1022,13 +1328,13 @@ async function ensureSvmWalletBoundVia(post, wallet, signMessage) {
   if (!challenge.message_base64) {
     throw new Error("bind challenge returned no svm message payload");
   }
-  const signature = await signMessage(base64ToBytes(challenge.message_base64));
+  const signature2 = await signMessage(base64ToBytes(challenge.message_base64));
   try {
     return {
       status: "bound",
       state: await authorizationCommit(post, {
         permit: challenge.permit,
-        signature: bytesToBase64(signature)
+        signature: bytesToBase64(signature2)
       })
     };
   } catch (error) {
@@ -1276,412 +1582,372 @@ function decodeJwtPayload(token) {
   return JSON.parse(decodeBase64Url(payload));
 }
 
-// src/siws.ts
-function buildSiwsMessage(input) {
-  var _a;
-  const statement = input.intent === "link" ? "Only sign this message if you want this Solana wallet attached to the current Aomi account." : "Sign in to Aomi.";
-  return `${input.domain} wants you to sign in with your Solana account:
-${input.address}
-
-${statement}
-
-URI: ${input.uri}
-Version: 1
-Chain ID: ${input.chainId}
-Nonce: ${input.nonce}
-Issued At: ${((_a = input.issuedAt) != null ? _a : /* @__PURE__ */ new Date()).toISOString()}`;
-}
-
-// src/payment.ts
-import { wrapFetchWithPayment } from "@x402/fetch";
-var MAX_PAYMENT_CHALLENGES = 4;
-function paymentResponseHeader(response) {
-  var _a;
-  return (_a = response.headers.get("payment-response")) != null ? _a : response.headers.get("x-payment-response");
-}
-function withInitialResponse(initialResponse, fetchImpl) {
-  let pendingResponse = initialResponse;
-  return (input, init) => {
-    if (pendingResponse) {
-      const response = pendingResponse;
-      pendingResponse = void 0;
-      return Promise.resolve(response);
-    }
-    return fetchImpl(input, init);
-  };
-}
-async function handlePaymentChallenges(request, initialResponse, fetchImpl, client) {
-  let response = initialResponse;
-  let attempts = 0;
-  while (response.status === 402) {
-    if (attempts > 0 && paymentResponseHeader(response) === null) {
-      return response;
-    }
-    if (attempts === MAX_PAYMENT_CHALLENGES) {
-      throw new Error(
-        `Exceeded ${MAX_PAYMENT_CHALLENGES} sequential x402 payment challenges`
-      );
-    }
-    response = await wrapFetchWithPayment(
-      withInitialResponse(response, fetchImpl),
-      client
-    )(request.clone());
-    attempts += 1;
+// src/event.ts
+var TypedEventEmitter = class {
+  constructor() {
+    this.listeners = /* @__PURE__ */ new Map();
   }
-  return response;
-}
-function wrapFetchWithPaymentChallenges(fetchImpl, client) {
-  return async (input, init) => {
-    const request = new Request(input, init);
-    const response = await fetchImpl(request.clone());
-    return handlePaymentChallenges(request, response, fetchImpl, client);
-  };
-}
-
-// src/widget-session.ts
-import { getAddress } from "viem";
-import { createSiweMessage } from "viem/siwe";
-var EXPIRES_AT_MILLISECONDS_THRESHOLD2 = 1e11;
-var MAX_WIDGET_CHALLENGE_LIFETIME_MS = 10 * 60 * 1e3;
-var MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS = 60 * 1e3;
-function createProviderCredentialAdapter(input) {
-  let inferredFingerprint = null;
-  let stagedCredential = null;
-  return {
-    getFingerprint: async () => {
-      const subject = input.getSubject();
-      if (subject) return `${input.provider}:${subject}`;
-      if (inferredFingerprint) return inferredFingerprint;
-      const credential = await input.getCredential();
-      if (!credential || credential.provider !== input.provider) return null;
-      stagedCredential = credential;
-      const tokenSubject = decodeJwtSubject(credential.providerToken);
-      inferredFingerprint = tokenSubject ? `${input.provider}:${tokenSubject}` : `${input.provider}:authenticated-session`;
-      return inferredFingerprint;
-    },
-    exchange: async ({ baseUrl, fetch: fetchImpl }) => {
-      const credential = stagedCredential != null ? stagedCredential : await input.getCredential();
-      stagedCredential = null;
-      if (!credential || credential.provider !== input.provider) {
-        throw new Error("Widget provider credential is unavailable");
+  on(type, handler) {
+    let set = this.listeners.get(type);
+    if (!set) {
+      set = /* @__PURE__ */ new Set();
+      this.listeners.set(type, set);
+    }
+    set.add(handler);
+    return () => {
+      set.delete(handler);
+      if (set.size === 0) {
+        this.listeners.delete(type);
       }
-      return exchangeJson(
-        fetchImpl,
-        joinUrl(baseUrl, "/api/widget/auth/exchange"),
-        {
-          provider: input.provider,
-          environment: input.environment,
-          provider_token: credential.providerToken,
-          key_id: credential.keyId
+    };
+  }
+  once(type, handler) {
+    const wrapper = ((payload) => {
+      unsub();
+      handler(payload);
+    });
+    const unsub = this.on(type, wrapper);
+    return unsub;
+  }
+  emit(type, payload) {
+    const typeSet = this.listeners.get(type);
+    if (typeSet) {
+      for (const handler of typeSet) {
+        handler(payload);
+      }
+    }
+    if (type !== "*") {
+      const wildcardSet = this.listeners.get("*");
+      if (wildcardSet) {
+        for (const handler of wildcardSet) {
+          handler({ type, payload });
         }
-      );
-    },
-    signOut: async () => {
-      var _a;
-      inferredFingerprint = null;
-      stagedCredential = null;
-      await ((_a = input.signOut) == null ? void 0 : _a.call(input));
+      }
     }
-  };
-}
-function createSignedChallengeAdapter(config) {
-  return {
-    getFingerprint: async () => config.getFingerprint(config.normalizeSigner(await config.getSigner())),
-    exchange: async ({ baseUrl, fetch: fetchImpl }) => {
-      const signer = config.normalizeSigner(await config.getSigner());
-      const challenge = await challengeJson(
-        fetchImpl,
-        joinUrl(baseUrl, config.noncePath),
-        { wallet_address: signer.address, chain_id: signer.chainId }
-      );
-      assertChallengeBinding(challenge);
-      const message = config.buildMessage({ signer, challenge });
-      const signature = await signer.signMessage(message);
-      return exchangeJson(fetchImpl, joinUrl(baseUrl, config.verifyPath), {
-        message,
-        signature,
-        wallet_address: signer.address,
-        chain_id: signer.chainId
-      });
+  }
+  off(type, handler) {
+    const set = this.listeners.get(type);
+    if (set) {
+      set.delete(handler);
+      if (set.size === 0) {
+        this.listeners.delete(type);
+      }
     }
-  };
-}
-function createSiweWidgetAuthAdapter(input) {
-  return createSignedChallengeAdapter({
-    noncePath: "/api/widget/auth/siwe/nonce",
-    verifyPath: "/api/widget/auth/siwe/verify",
-    getSigner: input.getSigner,
-    normalizeSigner: normalizeSiweSigner,
-    getFingerprint: (signer) => `${signer.chainId}:${signer.address.toLowerCase()}`,
-    buildMessage: ({ signer, challenge }) => createSiweMessage({
-      address: signer.address,
-      chainId: signer.chainId,
-      domain: challenge.domain,
-      uri: challenge.uri,
-      version: "1",
-      nonce: challenge.nonce,
-      issuedAt: new Date(challenge.issuedAt),
-      expirationTime: new Date(challenge.expirationTime),
-      // Kept identical to the SIWS statement (buildSiwsMessage). The SIWS
-      // server verifier requires exactly "Sign in to Aomi."; the SIWE
-      // verifier does not check statement text, so aligning is safe.
-      statement: "Sign in to Aomi."
-    })
-  });
-}
-function createSiwsWidgetAuthAdapter(input) {
-  return createSignedChallengeAdapter({
-    noncePath: "/api/widget/auth/siws/nonce",
-    verifyPath: "/api/widget/auth/siws/verify",
-    getSigner: input.getSigner,
-    normalizeSigner: (signer) => signer,
-    getFingerprint: (signer) => `${signer.chainId}:${signer.address}`,
-    buildMessage: ({ signer, challenge }) => buildSiwsMessage({
-      address: signer.address,
-      chainId: signer.chainId,
-      nonce: challenge.nonce,
-      intent: "sign-in",
-      domain: challenge.domain,
-      uri: challenge.uri,
-      issuedAt: new Date(challenge.issuedAt)
-    })
-  });
-}
-function createWidgetSessionProvider(input) {
-  var _a, _b, _c;
-  const { adapter } = input;
-  const fetchImpl = (_a = input.fetch) != null ? _a : fetch;
-  const now = (_b = input.now) != null ? _b : Date.now;
-  const refreshBeforeExpiryMs = (_c = input.refreshBeforeExpiryMs) != null ? _c : 6e4;
-  let cached = null;
-  let pending = null;
-  let disposed = false;
-  let epoch = 0;
-  let latestFingerprint = null;
-  let nextFingerprintRequestId = 0;
-  let latestResolvedFingerprint = null;
-  let lastForcedAccessToken = null;
-  const listeners = /* @__PURE__ */ new Set();
-  const notify = () => {
-    for (const listener of listeners) listener();
-  };
-  const revokeSession = async (session) => {
-    await fetchImpl(joinUrl(input.baseUrl, "/api/widget/auth/session"), {
-      method: "DELETE",
-      credentials: "omit",
-      headers: { Authorization: `Bearer ${session.accessToken}` }
-    }).catch(() => void 0);
-  };
-  const base2 = async ({ forceRefresh = false } = {}) => {
-    if (disposed) {
-      throw new Error("Widget session provider has been disposed");
-    }
-    const startEpoch = epoch;
-    const fingerprintRequestId = ++nextFingerprintRequestId;
-    const fingerprint = await adapter.getFingerprint();
-    if (!fingerprint) throw new Error("Widget auth identity is unavailable");
-    if (disposed || epoch !== startEpoch) {
-      throw new Error("Widget session request was superseded");
-    }
-    if (latestResolvedFingerprint && latestResolvedFingerprint.requestId > fingerprintRequestId && latestResolvedFingerprint.fingerprint !== fingerprint) {
-      throw new Error("Widget session request was superseded");
-    }
-    if (!latestResolvedFingerprint || fingerprintRequestId > latestResolvedFingerprint.requestId) {
-      latestResolvedFingerprint = {
-        requestId: fingerprintRequestId,
-        fingerprint
-      };
-    }
-    latestFingerprint = fingerprint;
-    if ((pending == null ? void 0 : pending.fingerprint) === fingerprint) {
-      return (await pending.promise).accessToken;
-    }
-    const refreshAt = cached ? cached.expiresAt * 1e3 - refreshBeforeExpiryMs : 0;
-    if (forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && cached.accessToken === lastForcedAccessToken && now() < refreshAt) {
-      return cached.accessToken;
-    }
-    if (!forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && now() < refreshAt) {
-      return cached.accessToken;
-    }
-    const stale = cached;
-    const retainStaleDuringForcedExchange = Boolean(
-      forceRefresh && (stale == null ? void 0 : stale.fingerprint) === fingerprint && now() < refreshAt
-    );
-    if (retainStaleDuringForcedExchange && stale) {
-      lastForcedAccessToken = stale.accessToken;
-    } else if (stale) {
-      cached = null;
-      void revokeSession(stale);
-    }
-    if (!pending || pending.fingerprint !== fingerprint) {
-      let clearPending2 = function() {
-        if ((pending == null ? void 0 : pending.promise) === promise) pending = null;
-      };
-      var clearPending = clearPending2;
-      const forcedExchange = forceRefresh;
-      const promise = adapter.exchange({ baseUrl: input.baseUrl, fetch: fetchImpl }).then(async (session) => {
-        const isCurrent = !disposed && epoch === startEpoch && fingerprint === latestFingerprint;
-        if (!isCurrent) {
-          await revokeSession(session);
-          throw new Error("Widget session exchange was superseded");
-        }
-        cached = __spreadProps(__spreadValues({}, session), { fingerprint });
-        lastForcedAccessToken = forcedExchange ? session.accessToken : null;
-        if (retainStaleDuringForcedExchange && stale) {
-          void revokeSession(stale);
-        }
-        notify();
-        return session;
-      });
-      pending = { fingerprint, promise };
-      void promise.then(clearPending2, clearPending2);
-    }
-    return (await pending.promise).accessToken;
-  };
-  const revoke = async () => {
-    const session = cached;
-    epoch += 1;
-    cached = null;
-    pending = null;
-    latestResolvedFingerprint = null;
-    lastForcedAccessToken = null;
-    notify();
-    if (session) await revokeSession(session);
-  };
-  const provider = Object.assign(base2, {
-    required: true,
-    revoke,
-    signOut: async () => {
-      var _a2;
-      await revoke();
-      await ((_a2 = adapter.signOut) == null ? void 0 : _a2.call(adapter));
-    },
-    dispose: () => {
-      disposed = true;
-      epoch += 1;
-      cached = null;
-      pending = null;
-      latestResolvedFingerprint = null;
-      lastForcedAccessToken = null;
-      notify();
-      listeners.clear();
-    },
-    subscribe: (listener) => {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    }
-  });
-  return provider;
-}
-var WidgetChallengeBindingError = class extends Error {
-  constructor(message) {
-    super(`Widget challenge rejected before signing: ${message}`);
-    this.name = "WidgetChallengeBindingError";
+  }
+  removeAllListeners() {
+    this.listeners.clear();
   }
 };
-function assertChallengeBinding(challenge) {
-  var _a, _b;
-  if (!((_a = challenge.nonce) == null ? void 0 : _a.trim())) {
-    throw new WidgetChallengeBindingError("challenge has no nonce");
-  }
-  const now = Date.now();
-  const issued = Date.parse(challenge.issuedAt);
-  if (Number.isNaN(issued)) {
-    throw new WidgetChallengeBindingError(
-      "challenge has no parseable issuedAt"
-    );
-  }
-  if (issued > now + MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS) {
-    throw new WidgetChallengeBindingError("challenge was issued in the future");
-  }
-  const expires = Date.parse(challenge.expirationTime);
-  if (Number.isNaN(expires)) {
-    throw new WidgetChallengeBindingError(
-      "challenge has no parseable expirationTime"
-    );
-  }
-  if (expires <= now) {
-    throw new WidgetChallengeBindingError("challenge is already expired");
-  }
-  if (expires <= issued || expires - issued > MAX_WIDGET_CHALLENGE_LIFETIME_MS) {
-    throw new WidgetChallengeBindingError(
-      "challenge validity window is not bounded"
-    );
-  }
-  const pageOrigin = typeof window !== "undefined" && ((_b = window.location) == null ? void 0 : _b.origin) ? window.location.origin : null;
-  if (!pageOrigin) return;
-  if (challenge.uri !== pageOrigin) {
-    throw new WidgetChallengeBindingError(
-      `challenge uri "${challenge.uri}" is not this page's origin "${pageOrigin}"`
-    );
-  }
-  const pageHost = new URL(pageOrigin).host;
-  if (challenge.domain !== pageHost) {
-    throw new WidgetChallengeBindingError(
-      `challenge domain "${challenge.domain}" is not this page's host "${pageHost}"`
-    );
-  }
-}
-async function challengeJson(fetchImpl, url, body) {
-  const response = await fetchImpl(url, requestInit(body));
-  if (!response.ok)
-    throw new Error(`Widget challenge failed: ${response.status}`);
-  const value = await response.json();
-  for (const key of [
-    "nonce",
-    "domain",
-    "uri",
-    "issued_at",
-    "expiration_time"
-  ]) {
-    if (typeof value[key] !== "string")
-      throw new Error("Widget challenge is invalid");
-  }
-  return {
-    nonce: value.nonce,
-    domain: value.domain,
-    uri: value.uri,
-    issuedAt: value.issued_at,
-    expirationTime: value.expiration_time
-  };
-}
-async function exchangeJson(fetchImpl, url, body) {
-  const response = await fetchImpl(url, requestInit(body));
-  if (!response.ok)
-    throw new Error(`Widget auth exchange failed: ${response.status}`);
-  const value = await response.json();
-  if (typeof value.access_token !== "string" || typeof value.expires_at !== "number") {
-    throw new Error("Widget session response is invalid");
-  }
-  if (value.expires_at > EXPIRES_AT_MILLISECONDS_THRESHOLD2) {
-    throw new Error("Widget session expires_at must be seconds, not ms");
-  }
-  return { accessToken: value.access_token, expiresAt: value.expires_at };
-}
-function requestInit(body) {
-  return {
-    method: "POST",
-    credentials: "omit",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  };
-}
-function normalizeSiweSigner(signer) {
-  if (!Number.isInteger(signer.chainId) || signer.chainId <= 0) {
-    throw new Error("Widget SIWE signer has no valid chain id");
-  }
-  return __spreadProps(__spreadValues({}, signer), { address: getAddress(signer.address) });
-}
 
-// src/internal/env.ts
-function safeEnv(read) {
-  try {
-    return read();
-  } catch (e) {
-    return void 0;
+// src/wallet/controller.ts
+var WalletController = class extends TypedEventEmitter {
+  constructor(wallet) {
+    super();
+    this.wallet = wallet;
   }
+  canHandle(request) {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+    if (request.kind === "transaction") {
+      return Boolean(
+        ((_b = (_a = this.wallet) == null ? void 0 : _a.evm) == null ? void 0 : _b.sendCalls) || ((_d = (_c = this.wallet) == null ? void 0 : _c.evm) == null ? void 0 : _d.sendTransaction)
+      );
+    }
+    if (request.kind === "signing") {
+      if (request.payload.chainFamily === "evm") {
+        const wallet2 = (_e = this.wallet) == null ? void 0 : _e.evm;
+        return Boolean(
+          wallet2 && request.payload.payloads.every(
+            (payload) => payload.kind === "evm_personal" ? wallet2.signMessage : payload.kind === "evm_typed_data" ? wallet2.signTypedData : false
+          )
+        );
+      }
+      const wallet = (_f = this.wallet) == null ? void 0 : _f.svm;
+      return Boolean(
+        wallet && request.payload.payloads.every(
+          (payload) => payload.kind === "svm_message" ? wallet.signMessage : payload.kind === "svm_transaction" ? wallet.signTransaction : false
+        )
+      );
+    }
+    return Boolean(
+      ((_h = (_g = this.wallet) == null ? void 0 : _g.svm) == null ? void 0 : _h.signAndSendTransaction) || ((_j = (_i = this.wallet) == null ? void 0 : _i.svm) == null ? void 0 : _j.sendTransaction)
+    );
+  }
+  async execute(request) {
+    this.emit("request", request);
+    try {
+      const result = await this.executeRequest(request);
+      this.emit("resolved", { request, result });
+      return result;
+    } catch (error) {
+      this.emit("rejected", { request, error });
+      throw error;
+    }
+  }
+  userState() {
+    var _a, _b;
+    if (!((_a = this.wallet) == null ? void 0 : _a.evm) && !((_b = this.wallet) == null ? void 0 : _b.svm)) return void 0;
+    return __spreadValues(__spreadValues({
+      connection: { is_connected: true }
+    }, this.wallet.evm ? {
+      evm: __spreadValues({
+        address: this.wallet.evm.address
+      }, this.evmChainId() ? { chain_id: this.evmChainId() } : {})
+    } : {}), this.wallet.svm ? {
+      svm: __spreadValues({
+        address: this.wallet.svm.address
+      }, this.svmCluster() ? { cluster: this.svmCluster() } : {})
+    } : {});
+  }
+  executeRequest(request) {
+    switch (request.kind) {
+      case "transaction":
+        return this.executeEvmTransactions(request);
+      case "signing":
+        return this.executeSigning(request);
+      case "solana_send":
+      case "solana_sign_and_send":
+        return this.executeSvmTransactions(request);
+    }
+  }
+  async executeEvmTransactions(request) {
+    var _a, _b, _c, _d;
+    const wallet = (_a = this.wallet) == null ? void 0 : _a.evm;
+    if (!wallet) throw new Error("No EVM wallet adapter is configured");
+    const senders = new Set(
+      ((_b = request.payload.calls) != null ? _b : []).map((call) => {
+        var _a2;
+        return (_a2 = call.from) == null ? void 0 : _a2.toLowerCase();
+      }).filter((address3) => Boolean(address3))
+    );
+    if (senders.size > 0 && (senders.size !== 1 || !senders.has(wallet.address.toLowerCase()))) {
+      throw new Error("The active EVM wallet is not the requested sender");
+    }
+    const calls = ((_c = request.payload.calls) == null ? void 0 : _c.length) ? request.payload.calls.map(({ to, data, value }) => ({
+      to,
+      data,
+      value
+    })) : request.payload.to ? [
+      {
+        to: request.payload.to,
+        data: request.payload.data,
+        value: request.payload.value
+      }
+    ] : [];
+    if (calls.length === 0) throw new Error("Wallet request contains no calls");
+    const chainId3 = (_d = request.payload.chainId) != null ? _d : this.evmChainId();
+    if (!chainId3) throw new Error("EVM wallet request has no chainId");
+    if (this.evmChainId() !== chainId3) {
+      if (!wallet.switchChain) {
+        throw new Error(`EVM wallet cannot switch to chain ${chainId3}`);
+      }
+      await wallet.switchChain(chainId3);
+    }
+    const hashes = [];
+    if (wallet.sendCalls) {
+      hashes.push(
+        ...transactionHashes(await wallet.sendCalls({ chainId: chainId3, calls }))
+      );
+    } else if (wallet.sendTransaction) {
+      for (const call of calls) {
+        hashes.push(
+          ...transactionHashes(
+            await wallet.sendTransaction(__spreadValues({ chainId: chainId3 }, call))
+          )
+        );
+      }
+    } else {
+      throw new Error("EVM wallet cannot send calls");
+    }
+    if (hashes.length === 0) {
+      throw new Error("EVM wallet returned no transaction hash");
+    }
+    return {
+      kind: "transaction",
+      txHash: hashes.at(-1),
+      txHashes: hashes,
+      completedTxIds: request.payload.txIds,
+      executionKind: "eoa",
+      batched: calls.length > 1,
+      callCount: calls.length
+    };
+  }
+  async executeSigning(request) {
+    var _a, _b;
+    const signatures = [];
+    if (request.payload.chainFamily === "evm") {
+      const wallet = (_a = this.wallet) == null ? void 0 : _a.evm;
+      if (!wallet) throw new Error("No EVM wallet adapter is configured");
+      if (wallet.address.toLowerCase() !== request.payload.signer.toLowerCase()) {
+        throw new Error("The active EVM wallet is not the requested signer");
+      }
+      if (request.payload.chainId && this.evmChainId() !== request.payload.chainId) {
+        if (!wallet.switchChain) {
+          throw new Error(
+            `EVM wallet cannot switch to chain ${request.payload.chainId}`
+          );
+        }
+        await wallet.switchChain(request.payload.chainId);
+      }
+      for (const payload of request.payload.payloads) {
+        if (payload.kind === "evm_personal") {
+          if (!wallet.signMessage)
+            throw new Error("EVM wallet cannot sign messages");
+          signatures.push(
+            signature(
+              await wallet.signMessage({
+                message: payload.message,
+                chainId: request.payload.chainId
+              })
+            )
+          );
+        } else if (payload.kind === "evm_typed_data") {
+          if (!wallet.signTypedData) {
+            throw new Error("EVM wallet cannot sign typed data");
+          }
+          signatures.push(
+            signature(
+              await wallet.signTypedData({
+                typedData: payload.typedData,
+                chainId: request.payload.chainId
+              })
+            )
+          );
+        } else {
+          throw new Error("EVM signing request contains an SVM payload");
+        }
+      }
+    } else {
+      const wallet = (_b = this.wallet) == null ? void 0 : _b.svm;
+      if (!wallet) throw new Error("No SVM wallet adapter is configured");
+      if (wallet.address !== request.payload.signer) {
+        throw new Error("The active SVM wallet is not the requested signer");
+      }
+      await this.switchSvmCluster(request.payload.cluster);
+      for (const payload of request.payload.payloads) {
+        if (payload.kind === "svm_message") {
+          if (!wallet.signMessage)
+            throw new Error("SVM wallet cannot sign messages");
+          signatures.push(
+            signature(
+              await wallet.signMessage({
+                messageBase64: payload.messageBase64,
+                cluster: request.payload.cluster
+              })
+            )
+          );
+        } else if (payload.kind === "svm_transaction") {
+          if (!wallet.signTransaction) {
+            throw new Error("SVM wallet cannot sign transactions");
+          }
+          signatures.push(
+            signedTransaction(
+              await wallet.signTransaction({
+                transactionBase64: payload.transactionBase64,
+                cluster: request.payload.cluster
+              })
+            )
+          );
+        } else {
+          throw new Error("SVM signing request contains an EVM payload");
+        }
+      }
+    }
+    return { kind: "signing", signatures };
+  }
+  async executeSvmTransactions(request) {
+    var _a, _b, _c, _d;
+    const wallet = (_a = this.wallet) == null ? void 0 : _a.svm;
+    if (!wallet) throw new Error("No SVM wallet adapter is configured");
+    await this.switchSvmCluster(request.payload.cluster);
+    const transactions = ((_b = request.payload.transactions) == null ? void 0 : _b.length) ? request.payload.transactions : request.payload.unsignedTx ? [
+      {
+        id: (_c = request.payload.requestId) != null ? _c : request.id,
+        unsignedTx: request.payload.unsignedTx,
+        description: request.payload.description
+      }
+    ] : [];
+    if (transactions.length === 0) {
+      throw new Error("SVM wallet request contains no transaction");
+    }
+    const legs = [];
+    for (const transaction of transactions) {
+      const result = wallet.signAndSendTransaction ? await wallet.signAndSendTransaction({
+        transactionBase64: transaction.unsignedTx,
+        cluster: request.payload.cluster
+      }) : wallet.sendTransaction ? await wallet.sendTransaction({
+        transactionBase64: transaction.unsignedTx,
+        cluster: request.payload.cluster
+      }) : void 0;
+      if (result === void 0) {
+        throw new Error("SVM wallet cannot send transactions");
+      }
+      legs.push(__spreadValues({
+        id: transaction.id,
+        status: "submitted",
+        signature: (_d = transactionHashes(result)[0]) != null ? _d : signature(result)
+      }, typeof result === "object" && "signedTransaction" in result ? { signedTx: result.signedTransaction } : {}));
+    }
+    const last = legs.at(-1);
+    return {
+      kind: request.kind,
+      signature: last.signature,
+      signedTx: last.signedTx,
+      legs
+    };
+  }
+  evmChainId() {
+    var _a, _b;
+    const value = (_b = (_a = this.wallet) == null ? void 0 : _a.evm) == null ? void 0 : _b.chainId;
+    return typeof value === "function" ? value() : value;
+  }
+  svmCluster() {
+    var _a, _b;
+    const value = (_b = (_a = this.wallet) == null ? void 0 : _a.svm) == null ? void 0 : _b.cluster;
+    return typeof value === "function" ? value() : value;
+  }
+  async switchSvmCluster(cluster) {
+    var _a, _b;
+    if (!cluster || cluster === this.svmCluster()) return;
+    const switchCluster = (_b = (_a = this.wallet) == null ? void 0 : _a.svm) == null ? void 0 : _b.switchCluster;
+    if (!switchCluster) {
+      throw new Error(`SVM wallet cannot switch to ${cluster}`);
+    }
+    await switchCluster(cluster);
+  }
+};
+function transactionHashes(result) {
+  if (typeof result === "string") return [result];
+  const value = asRecord(result);
+  if (!value) return [];
+  if (Array.isArray(value.hashes)) {
+    return value.hashes.filter(
+      (hash2) => typeof hash2 === "string"
+    );
+  }
+  if (Array.isArray(value.transactionHashes)) {
+    return value.transactionHashes.filter(
+      (hash2) => typeof hash2 === "string"
+    );
+  }
+  const hash = typeof value.hash === "string" ? value.hash : typeof value.transactionHash === "string" ? value.transactionHash : void 0;
+  return hash ? [hash] : [];
+}
+function signature(result) {
+  if (typeof result === "string") return result;
+  const value = asRecord(result);
+  if (typeof (value == null ? void 0 : value.signature) === "string") return value.signature;
+  throw new Error("Wallet returned no signature");
+}
+function signedTransaction(result) {
+  if (typeof result === "string") return result;
+  const value = asRecord(result);
+  if (typeof (value == null ? void 0 : value.signedTransaction) === "string") {
+    return value.signedTransaction;
+  }
+  throw new Error("Wallet returned no signed transaction");
+}
+function asRecord(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
 }
 
 // src/user-state/normalize.ts
@@ -2099,111 +2365,6 @@ var UserState;
   UserState2.withExt = withExt;
 })(UserState || (UserState = {}));
 
-// src/types.ts
-var AOMI_TASK_EVENT_TYPES = [
-  "task_started",
-  "task_activity",
-  "task_completed"
-];
-function isAomiTaskEventType(type) {
-  return AOMI_TASK_EVENT_TYPES.includes(type);
-}
-var asString = (value) => typeof value === "string" ? value : void 0;
-function parseAomiTaskEvent(event) {
-  var _a, _b, _c, _d;
-  const raw = event;
-  const type = asString(raw.type);
-  if (!type || !isAomiTaskEventType(type)) return null;
-  const agentId = asString(raw.agent_id);
-  if (!agentId) return null;
-  const callId = (_a = asString(raw.call_id)) != null ? _a : "";
-  if (type === "task_started") {
-    return __spreadValues(__spreadValues({
-      type,
-      call_id: callId,
-      agent_id: agentId,
-      label: (_b = asString(raw.label)) != null ? _b : "",
-      app: (_c = asString(raw.app)) != null ? _c : null,
-      resumed: raw.resumed === true
-    }, asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
-  }
-  if (type === "task_activity") {
-    const childSeq = raw.child_seq;
-    if (typeof childSeq !== "number" || !Number.isFinite(childSeq)) return null;
-    const kind = raw.kind === "note" ? "note" : "tool_call";
-    return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
-      type,
-      call_id: callId,
-      agent_id: agentId,
-      kind,
-      child_seq: childSeq
-    }, asString(raw.tool_name) ? { tool_name: raw.tool_name } : null), raw.args !== void 0 ? { args: raw.args } : null), asString(raw.result_preview) ? { result_preview: raw.result_preview } : null), asString(raw.text) ? { text: raw.text } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
-  }
-  return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
-    type,
-    call_id: callId,
-    agent_id: agentId,
-    status: (_d = asString(raw.status)) != null ? _d : "completed"
-  }, asString(raw.message) ? { message: raw.message } : null), typeof raw.staged_count === "number" ? { staged_count: raw.staged_count } : null), typeof raw.steps === "number" ? { steps: raw.steps } : null), typeof raw.duration_ms === "number" ? { duration_ms: raw.duration_ms } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
-}
-
-// src/event.ts
-var TypedEventEmitter = class {
-  constructor() {
-    this.listeners = /* @__PURE__ */ new Map();
-  }
-  on(type, handler) {
-    let set = this.listeners.get(type);
-    if (!set) {
-      set = /* @__PURE__ */ new Set();
-      this.listeners.set(type, set);
-    }
-    set.add(handler);
-    return () => {
-      set.delete(handler);
-      if (set.size === 0) {
-        this.listeners.delete(type);
-      }
-    };
-  }
-  once(type, handler) {
-    const wrapper = ((payload) => {
-      unsub();
-      handler(payload);
-    });
-    const unsub = this.on(type, wrapper);
-    return unsub;
-  }
-  emit(type, payload) {
-    const typeSet = this.listeners.get(type);
-    if (typeSet) {
-      for (const handler of typeSet) {
-        handler(payload);
-      }
-    }
-    if (type !== "*") {
-      const wildcardSet = this.listeners.get("*");
-      if (wildcardSet) {
-        for (const handler of wildcardSet) {
-          handler({ type, payload });
-        }
-      }
-    }
-  }
-  off(type, handler) {
-    const set = this.listeners.get(type);
-    if (set) {
-      set.delete(handler);
-      if (set.size === 0) {
-        this.listeners.delete(type);
-      }
-    }
-  }
-  removeAllListeners() {
-    this.listeners.clear();
-  }
-};
-
 // src/session/json.ts
 function stableUserStateString(state) {
   return JSON.stringify(sortJson(state != null ? state : {}));
@@ -2222,12 +2383,12 @@ function sortJson(value) {
 }
 
 // src/session/state.ts
-function isRecord(value) {
+function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function addExtValue(userState, key, value) {
   const current = userState != null ? userState : {};
-  const currentExt = isRecord(current["ext"]) ? current["ext"] : {};
+  const currentExt = isRecord2(current["ext"]) ? current["ext"] : {};
   return __spreadProps(__spreadValues({}, current), {
     ext: __spreadProps(__spreadValues({}, currentExt), {
       [key]: value
@@ -2237,14 +2398,14 @@ function addExtValue(userState, key, value) {
 function removeExtValue(userState, key) {
   if (!userState) return void 0;
   const currentExt = userState["ext"];
-  if (!isRecord(currentExt)) return void 0;
+  if (!isRecord2(currentExt)) return void 0;
   const nextExt = __spreadValues({}, currentExt);
   delete nextExt[key];
   return __spreadProps(__spreadValues({}, userState), { ext: nextExt });
 }
 function resolveWalletState(userState, address3, chainId3) {
-  const prevEvm = isRecord(userState == null ? void 0 : userState.evm) ? userState == null ? void 0 : userState.evm : {};
-  const prevConn = isRecord(userState == null ? void 0 : userState.connection) ? userState == null ? void 0 : userState.connection : {};
+  const prevEvm = isRecord2(userState == null ? void 0 : userState.evm) ? userState == null ? void 0 : userState.evm : {};
+  const prevConn = isRecord2(userState == null ? void 0 : userState.connection) ? userState == null ? void 0 : userState.connection : {};
   return __spreadProps(__spreadValues({}, userState != null ? userState : {}), {
     evm: __spreadProps(__spreadValues({}, prevEvm), {
       address: address3,
@@ -2519,6 +2680,10 @@ var ClientSession = class extends TypedEventEmitter {
   getAgentStatus() {
     return this.agentStatus;
   }
+  /** Current canonical Agent actions, preserving backend order of discovery. */
+  getAgentActions() {
+    return [...this.agentActions.values()];
+  }
   syncRuntimeOptions(options) {
     var _a;
     this.app = options.app;
@@ -2765,7 +2930,11 @@ var ClientSession = class extends TypedEventEmitter {
   syncAgentActions(actions) {
     const visible = /* @__PURE__ */ new Set();
     for (const action of actions) {
+      const previous = this.agentActions.get(action.id);
       this.agentActions.set(action.id, action);
+      if (!previous || previous.revision !== action.revision || previous.status !== action.status) {
+        this.emit("agent_action", action);
+      }
       if (action.status !== "pending") continue;
       visible.add(action.id);
       this.enqueueAgentAction(action);
@@ -2953,9 +3122,881 @@ var ClientSession = class extends TypedEventEmitter {
   }
 };
 
+// src/sdk/agent.ts
+var AgentRun = class extends TypedEventEmitter {
+  constructor(client, prompt, wallet, options = {}) {
+    super();
+    this.wallet = wallet;
+    this.actions = /* @__PURE__ */ new Map();
+    this.processingRequests = /* @__PURE__ */ new Set();
+    const walletState = wallet.userState();
+    const userState = options.userState ? UserState.reconcile(walletState, options.userState) : walletState;
+    this.session = new ClientSession(client, __spreadProps(__spreadValues({}, options), {
+      userState
+    }));
+    this.session.on("agent_action", (action) => this.receiveAction(action));
+    this.session.on("wallet_requests_changed", (requests) => {
+      for (const request of requests)
+        this.receiveWalletRequest(request, options);
+    });
+    this.session.on("error", ({ error }) => this.emit("error", { error }));
+    this.completion = Promise.resolve().then(() => this.session.send(prompt)).then((result) => {
+      const completed = __spreadProps(__spreadValues({}, result), {
+        sessionId: this.session.sessionId,
+        actions: [...this.actions.values()]
+      });
+      this.emit("completed", completed);
+      this.session.close();
+      return completed;
+    }).catch((error) => {
+      this.emit("error", { error });
+      this.session.close();
+      throw error;
+    });
+    void this.completion.catch(() => void 0);
+  }
+  result() {
+    return this.completion;
+  }
+  then(onfulfilled, onrejected) {
+    return this.completion.then(onfulfilled, onrejected);
+  }
+  interrupt() {
+    return this.session.interrupt();
+  }
+  resolve(requestId, result) {
+    return this.session.resolve(requestId, result);
+  }
+  reject(requestId, reason) {
+    return this.session.reject(requestId, reason);
+  }
+  receiveAction(action) {
+    const presented = presentAction(action);
+    this.actions.set(presented.id, presented);
+    this.emit("action", presented);
+    const simulation = actionSimulation(action);
+    if (simulation) this.emit("simulation", simulation);
+  }
+  receiveWalletRequest(request, options) {
+    if (this.processingRequests.has(request.id)) return;
+    this.emit("wallet_request", request);
+    if (options.autoWallet === false || !this.wallet.canHandle(request)) return;
+    this.processingRequests.add(request.id);
+    void this.wallet.execute(request).then((result) => this.session.resolve(request.id, result)).catch((error) => this.emit("error", { error })).finally(() => this.processingRequests.delete(request.id));
+  }
+};
+var AomiAgent = class {
+  constructor(raw, client, wallet) {
+    this.raw = raw;
+    this.client = client;
+    this.wallet = wallet;
+  }
+  run(prompt, options) {
+    const normalized = prompt.trim();
+    if (!normalized) throw new TypeError("prompt is required");
+    return new AgentRun(this.client, normalized, this.wallet, options);
+  }
+};
+function presentAction(action) {
+  var _a, _b, _c;
+  if (action.type === "external_transaction" && action.chainFamily === "evm") {
+    return {
+      id: action.id,
+      chainFamily: "evm",
+      kind: "calls",
+      status: action.status,
+      chainId: action.chainId,
+      description: action.description,
+      calls: action.transactions.map((transaction) => {
+        var _a2;
+        return {
+          to: transaction.to,
+          data: transaction.data,
+          value: transaction.value,
+          from: transaction.from,
+          gas: (_a2 = transaction.gas) != null ? _a2 : void 0,
+          description: transaction.description
+        };
+      })
+    };
+  }
+  if (action.type === "external_transaction") {
+    const transaction = action.transactions[0];
+    return {
+      id: action.id,
+      chainFamily: "svm",
+      kind: "transaction",
+      status: action.status,
+      cluster: action.cluster,
+      description: action.description,
+      transaction: {
+        transaction: (_a = transaction == null ? void 0 : transaction.unsignedTransactionBase64) != null ? _a : "",
+        encoding: "base64",
+        cluster: action.cluster,
+        feePayer: action.signer
+      }
+    };
+  }
+  return {
+    id: action.id,
+    chainFamily: action.chainFamily,
+    kind: "signing",
+    status: action.status,
+    description: action.description,
+    signer: action.signer,
+    chainId: (_b = action.chainId) != null ? _b : void 0,
+    cluster: (_c = action.cluster) != null ? _c : void 0
+  };
+}
+function actionSimulation(action) {
+  if (action.type !== "external_transaction" || action.chainFamily !== "evm") {
+    return void 0;
+  }
+  const simulations = action.transactions.flatMap(
+    (transaction) => transaction.simulation ? [transaction.simulation] : []
+  );
+  if (simulations.length === 0) return void 0;
+  const warnings = simulations.flatMap(
+    (simulation) => simulation.error ? [simulation.error] : []
+  );
+  return {
+    status: simulations.every((simulation) => simulation.success) ? "passed" : "failed",
+    balanceChanges: [],
+    fees: [],
+    warnings,
+    gas: {
+      estimates: simulations.map((simulation) => simulation.gasUsed)
+    }
+  };
+}
+
+// src/sdk/build.ts
+var EvmStaged = class {
+  constructor(raw, transport, wallet) {
+    this.raw = raw;
+    this.transport = transport;
+    this.wallet = wallet;
+  }
+  get version() {
+    return this.raw.version;
+  }
+  get status() {
+    return this.raw.status;
+  }
+  get actions() {
+    return this.raw.actions.map((action) => __spreadProps(__spreadValues({}, action), {
+      chainFamily: "evm",
+      kind: "calls"
+    }));
+  }
+  get digest() {
+    return this.raw.digest;
+  }
+  async simulate() {
+    return new EvmBuild(
+      await this.transport.simulate(this.raw),
+      this.transport,
+      this.wallet
+    );
+  }
+  toJSON() {
+    return this.raw;
+  }
+};
+var EvmBuild = class {
+  constructor(raw, transport, wallet) {
+    this.raw = raw;
+    this.transport = transport;
+    this.wallet = wallet;
+  }
+  get version() {
+    return this.raw.version;
+  }
+  get status() {
+    return this.raw.status;
+  }
+  get actions() {
+    return this.raw.actions.map((action) => __spreadProps(__spreadValues({}, action), {
+      chainFamily: "evm",
+      kind: "calls"
+    }));
+  }
+  get summary() {
+    return this.raw.summary;
+  }
+  get simulation() {
+    return this.raw.simulation;
+  }
+  get digest() {
+    return this.raw.digest;
+  }
+  async commit(options) {
+    const result = await this.transport.commit(this.raw, options);
+    if (!result.walletRequest || !this.wallet.canHandle(result.walletRequest)) {
+      return result;
+    }
+    return __spreadProps(__spreadValues({}, result), {
+      walletResult: await this.wallet.execute(result.walletRequest)
+    });
+  }
+  toJSON() {
+    return this.raw;
+  }
+};
+var SvmStaged = class {
+  constructor(raw, transport, wallet) {
+    this.raw = raw;
+    this.transport = transport;
+    this.wallet = wallet;
+  }
+  get version() {
+    return this.raw.version;
+  }
+  get status() {
+    return this.raw.status;
+  }
+  get actions() {
+    return this.raw.actions.map((action) => __spreadProps(__spreadValues({}, action), {
+      chainFamily: "svm"
+    }));
+  }
+  get digest() {
+    return this.raw.digest;
+  }
+  async simulate() {
+    return new SvmBuild(
+      await this.transport.simulate(this.raw),
+      this.transport,
+      this.wallet
+    );
+  }
+  toJSON() {
+    return this.raw;
+  }
+};
+var SvmBuild = class {
+  constructor(raw, transport, wallet) {
+    this.raw = raw;
+    this.transport = transport;
+    this.wallet = wallet;
+  }
+  get version() {
+    return this.raw.version;
+  }
+  get status() {
+    return this.raw.status;
+  }
+  get actions() {
+    return this.raw.actions.map((action) => __spreadProps(__spreadValues({}, action), {
+      chainFamily: "svm"
+    }));
+  }
+  get summary() {
+    return this.raw.summary;
+  }
+  get simulation() {
+    return this.raw.simulation;
+  }
+  get digest() {
+    return this.raw.digest;
+  }
+  async commit(options) {
+    const result = await this.transport.commit(this.raw, options);
+    if (!result.walletRequest || !this.wallet.canHandle(result.walletRequest)) {
+      return result;
+    }
+    return __spreadProps(__spreadValues({}, result), {
+      walletResult: await this.wallet.execute(result.walletRequest)
+    });
+  }
+  toJSON() {
+    return this.raw;
+  }
+};
+
+// src/sdk/pipeline.ts
+var AomiEvmPipeline = class {
+  constructor(raw, wallet) {
+    this.raw = raw;
+    this.wallet = wallet;
+  }
+  async build(input) {
+    if ("calls" in input) {
+      return (await this.stage(input)).simulate();
+    }
+    return new EvmBuild(await this.raw.build(input), this.raw, this.wallet);
+  }
+  async stage(input) {
+    const request = "actions" in input ? input : {
+      actions: [
+        {
+          chainId: input.chainId,
+          calls: input.calls,
+          description: input.description
+        }
+      ]
+    };
+    return new EvmStaged(await this.raw.stage(request), this.raw, this.wallet);
+  }
+  async simulate(build) {
+    const value = build instanceof EvmStaged ? build.raw : build;
+    return new EvmBuild(await this.raw.simulate(value), this.raw, this.wallet);
+  }
+  commit(build, options) {
+    const value = build instanceof EvmBuild ? build : new EvmBuild(build, this.raw, this.wallet);
+    return value.commit(options);
+  }
+};
+var AomiSvmPipeline = class {
+  constructor(raw, wallet) {
+    this.raw = raw;
+    this.wallet = wallet;
+  }
+  async build(input) {
+    if ("kind" in input) {
+      return (await this.stage(input)).simulate();
+    }
+    return new SvmBuild(await this.raw.build(input), this.raw, this.wallet);
+  }
+  async stage(input) {
+    return new SvmStaged(await this.raw.stage(input), this.raw, this.wallet);
+  }
+  async simulate(build) {
+    const value = build instanceof SvmStaged ? build.raw : build;
+    return new SvmBuild(await this.raw.simulate(value), this.raw, this.wallet);
+  }
+  commit(build, options) {
+    const value = build instanceof SvmBuild ? build : new SvmBuild(build, this.raw, this.wallet);
+    return value.commit(options);
+  }
+};
+var AomiPipelineOperationScope = class {
+  constructor(raw, evm, svm) {
+    this.raw = raw;
+    this.evm = evm;
+    this.svm = svm;
+  }
+  directory() {
+    return this.raw.directory();
+  }
+  operations() {
+    return this.raw.operations();
+  }
+  operation(name) {
+    return this.raw.operation(name);
+  }
+  invoke(name, args, options) {
+    return this.raw.invoke(name, args, options);
+  }
+  async build(name, args, options = {}) {
+    var _a, _b;
+    const descriptor = await this.raw.operation(name);
+    validatePipelineArguments(args, descriptor.inputSchema);
+    const chainFamily = (_b = (_a = options.chainFamily) != null ? _a : descriptor.chainFamily) != null ? _b : inferChainFamily(args);
+    const input = { operation: descriptor.href, arguments: args };
+    return chainFamily === "svm" ? this.svm.build(input) : this.evm.build(input);
+  }
+};
+var AomiPipelineSkillScope = class extends AomiPipelineOperationScope {
+  constructor(skillRaw, evm, svm) {
+    super(skillRaw, evm, svm);
+    this.skillRaw = skillRaw;
+  }
+  instructions() {
+    return this.skillRaw.instructions();
+  }
+};
+var AomiPipeline = class {
+  constructor(raw, wallet) {
+    this.raw = raw;
+    this.evm = new AomiEvmPipeline(raw.evm, wallet);
+    this.svm = new AomiSvmPipeline(raw.svm, wallet);
+  }
+  app(name) {
+    return new AomiPipelineOperationScope(
+      this.raw.app(name),
+      this.evm,
+      this.svm
+    );
+  }
+  skill(name) {
+    return new AomiPipelineSkillScope(this.raw.skill(name), this.evm, this.svm);
+  }
+};
+function inferChainFamily(args) {
+  return "cluster" in args || "instructions" in args || "transaction" in args ? "svm" : "evm";
+}
+
+// src/sdk/aomi.ts
+var Aomi = class {
+  constructor(options) {
+    const _a = options, { wallet } = _a, clientOptions = __objRest(_a, ["wallet"]);
+    this.raw = new AomiClient(clientOptions);
+    this.wallet = new WalletController(wallet);
+    this.pipeline = new AomiPipeline(this.raw.pipeline, this.wallet);
+    this.agent = new AomiAgent(this.raw.agent, this.raw, this.wallet);
+  }
+};
+
+// src/siws.ts
+function buildSiwsMessage(input) {
+  var _a;
+  const statement = input.intent === "link" ? "Only sign this message if you want this Solana wallet attached to the current Aomi account." : "Sign in to Aomi.";
+  return `${input.domain} wants you to sign in with your Solana account:
+${input.address}
+
+${statement}
+
+URI: ${input.uri}
+Version: 1
+Chain ID: ${input.chainId}
+Nonce: ${input.nonce}
+Issued At: ${((_a = input.issuedAt) != null ? _a : /* @__PURE__ */ new Date()).toISOString()}`;
+}
+
+// src/payment.ts
+import { wrapFetchWithPayment } from "@x402/fetch";
+var MAX_PAYMENT_CHALLENGES = 4;
+function paymentResponseHeader(response) {
+  var _a;
+  return (_a = response.headers.get("payment-response")) != null ? _a : response.headers.get("x-payment-response");
+}
+function withInitialResponse(initialResponse, fetchImpl) {
+  let pendingResponse = initialResponse;
+  return (input, init) => {
+    if (pendingResponse) {
+      const response = pendingResponse;
+      pendingResponse = void 0;
+      return Promise.resolve(response);
+    }
+    return fetchImpl(input, init);
+  };
+}
+async function handlePaymentChallenges(request, initialResponse, fetchImpl, client) {
+  let response = initialResponse;
+  let attempts = 0;
+  while (response.status === 402) {
+    if (attempts > 0 && paymentResponseHeader(response) === null) {
+      return response;
+    }
+    if (attempts === MAX_PAYMENT_CHALLENGES) {
+      throw new Error(
+        `Exceeded ${MAX_PAYMENT_CHALLENGES} sequential x402 payment challenges`
+      );
+    }
+    response = await wrapFetchWithPayment(
+      withInitialResponse(response, fetchImpl),
+      client
+    )(request.clone());
+    attempts += 1;
+  }
+  return response;
+}
+function wrapFetchWithPaymentChallenges(fetchImpl, client) {
+  return async (input, init) => {
+    const request = new Request(input, init);
+    const response = await fetchImpl(request.clone());
+    return handlePaymentChallenges(request, response, fetchImpl, client);
+  };
+}
+
+// src/widget-session.ts
+import { getAddress } from "viem";
+import { createSiweMessage } from "viem/siwe";
+var EXPIRES_AT_MILLISECONDS_THRESHOLD2 = 1e11;
+var MAX_WIDGET_CHALLENGE_LIFETIME_MS = 10 * 60 * 1e3;
+var MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS = 60 * 1e3;
+function createProviderCredentialAdapter(input) {
+  let inferredFingerprint = null;
+  let stagedCredential = null;
+  return {
+    getFingerprint: async () => {
+      const subject = input.getSubject();
+      if (subject) return `${input.provider}:${subject}`;
+      if (inferredFingerprint) return inferredFingerprint;
+      const credential = await input.getCredential();
+      if (!credential || credential.provider !== input.provider) return null;
+      stagedCredential = credential;
+      const tokenSubject = decodeJwtSubject(credential.providerToken);
+      inferredFingerprint = tokenSubject ? `${input.provider}:${tokenSubject}` : `${input.provider}:authenticated-session`;
+      return inferredFingerprint;
+    },
+    exchange: async ({ baseUrl, fetch: fetchImpl }) => {
+      const credential = stagedCredential != null ? stagedCredential : await input.getCredential();
+      stagedCredential = null;
+      if (!credential || credential.provider !== input.provider) {
+        throw new Error("Widget provider credential is unavailable");
+      }
+      return exchangeJson(
+        fetchImpl,
+        joinUrl(baseUrl, "/api/widget/auth/exchange"),
+        {
+          provider: input.provider,
+          environment: input.environment,
+          provider_token: credential.providerToken,
+          key_id: credential.keyId
+        }
+      );
+    },
+    signOut: async () => {
+      var _a;
+      inferredFingerprint = null;
+      stagedCredential = null;
+      await ((_a = input.signOut) == null ? void 0 : _a.call(input));
+    }
+  };
+}
+function createSignedChallengeAdapter(config) {
+  return {
+    getFingerprint: async () => config.getFingerprint(config.normalizeSigner(await config.getSigner())),
+    exchange: async ({ baseUrl, fetch: fetchImpl }) => {
+      const signer = config.normalizeSigner(await config.getSigner());
+      const challenge = await challengeJson(
+        fetchImpl,
+        joinUrl(baseUrl, config.noncePath),
+        { wallet_address: signer.address, chain_id: signer.chainId }
+      );
+      assertChallengeBinding(challenge);
+      const message = config.buildMessage({ signer, challenge });
+      const signature2 = await signer.signMessage(message);
+      return exchangeJson(fetchImpl, joinUrl(baseUrl, config.verifyPath), {
+        message,
+        signature: signature2,
+        wallet_address: signer.address,
+        chain_id: signer.chainId
+      });
+    }
+  };
+}
+function createSiweWidgetAuthAdapter(input) {
+  return createSignedChallengeAdapter({
+    noncePath: "/api/widget/auth/siwe/nonce",
+    verifyPath: "/api/widget/auth/siwe/verify",
+    getSigner: input.getSigner,
+    normalizeSigner: normalizeSiweSigner,
+    getFingerprint: (signer) => `${signer.chainId}:${signer.address.toLowerCase()}`,
+    buildMessage: ({ signer, challenge }) => createSiweMessage({
+      address: signer.address,
+      chainId: signer.chainId,
+      domain: challenge.domain,
+      uri: challenge.uri,
+      version: "1",
+      nonce: challenge.nonce,
+      issuedAt: new Date(challenge.issuedAt),
+      expirationTime: new Date(challenge.expirationTime),
+      // Kept identical to the SIWS statement (buildSiwsMessage). The SIWS
+      // server verifier requires exactly "Sign in to Aomi."; the SIWE
+      // verifier does not check statement text, so aligning is safe.
+      statement: "Sign in to Aomi."
+    })
+  });
+}
+function createSiwsWidgetAuthAdapter(input) {
+  return createSignedChallengeAdapter({
+    noncePath: "/api/widget/auth/siws/nonce",
+    verifyPath: "/api/widget/auth/siws/verify",
+    getSigner: input.getSigner,
+    normalizeSigner: (signer) => signer,
+    getFingerprint: (signer) => `${signer.chainId}:${signer.address}`,
+    buildMessage: ({ signer, challenge }) => buildSiwsMessage({
+      address: signer.address,
+      chainId: signer.chainId,
+      nonce: challenge.nonce,
+      intent: "sign-in",
+      domain: challenge.domain,
+      uri: challenge.uri,
+      issuedAt: new Date(challenge.issuedAt)
+    })
+  });
+}
+function createWidgetSessionProvider(input) {
+  var _a, _b, _c;
+  const { adapter } = input;
+  const fetchImpl = (_a = input.fetch) != null ? _a : fetch;
+  const now = (_b = input.now) != null ? _b : Date.now;
+  const refreshBeforeExpiryMs = (_c = input.refreshBeforeExpiryMs) != null ? _c : 6e4;
+  let cached = null;
+  let pending = null;
+  let disposed = false;
+  let epoch = 0;
+  let latestFingerprint = null;
+  let nextFingerprintRequestId = 0;
+  let latestResolvedFingerprint = null;
+  let lastForcedAccessToken = null;
+  const listeners = /* @__PURE__ */ new Set();
+  const notify = () => {
+    for (const listener of listeners) listener();
+  };
+  const revokeSession = async (session) => {
+    await fetchImpl(joinUrl(input.baseUrl, "/api/widget/auth/session"), {
+      method: "DELETE",
+      credentials: "omit",
+      headers: { Authorization: `Bearer ${session.accessToken}` }
+    }).catch(() => void 0);
+  };
+  const base2 = async ({ forceRefresh = false } = {}) => {
+    if (disposed) {
+      throw new Error("Widget session provider has been disposed");
+    }
+    const startEpoch = epoch;
+    const fingerprintRequestId = ++nextFingerprintRequestId;
+    const fingerprint = await adapter.getFingerprint();
+    if (!fingerprint) throw new Error("Widget auth identity is unavailable");
+    if (disposed || epoch !== startEpoch) {
+      throw new Error("Widget session request was superseded");
+    }
+    if (latestResolvedFingerprint && latestResolvedFingerprint.requestId > fingerprintRequestId && latestResolvedFingerprint.fingerprint !== fingerprint) {
+      throw new Error("Widget session request was superseded");
+    }
+    if (!latestResolvedFingerprint || fingerprintRequestId > latestResolvedFingerprint.requestId) {
+      latestResolvedFingerprint = {
+        requestId: fingerprintRequestId,
+        fingerprint
+      };
+    }
+    latestFingerprint = fingerprint;
+    if ((pending == null ? void 0 : pending.fingerprint) === fingerprint) {
+      return (await pending.promise).accessToken;
+    }
+    const refreshAt = cached ? cached.expiresAt * 1e3 - refreshBeforeExpiryMs : 0;
+    if (forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && cached.accessToken === lastForcedAccessToken && now() < refreshAt) {
+      return cached.accessToken;
+    }
+    if (!forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && now() < refreshAt) {
+      return cached.accessToken;
+    }
+    const stale = cached;
+    const retainStaleDuringForcedExchange = Boolean(
+      forceRefresh && (stale == null ? void 0 : stale.fingerprint) === fingerprint && now() < refreshAt
+    );
+    if (retainStaleDuringForcedExchange && stale) {
+      lastForcedAccessToken = stale.accessToken;
+    } else if (stale) {
+      cached = null;
+      void revokeSession(stale);
+    }
+    if (!pending || pending.fingerprint !== fingerprint) {
+      let clearPending2 = function() {
+        if ((pending == null ? void 0 : pending.promise) === promise) pending = null;
+      };
+      var clearPending = clearPending2;
+      const forcedExchange = forceRefresh;
+      const promise = adapter.exchange({ baseUrl: input.baseUrl, fetch: fetchImpl }).then(async (session) => {
+        const isCurrent = !disposed && epoch === startEpoch && fingerprint === latestFingerprint;
+        if (!isCurrent) {
+          await revokeSession(session);
+          throw new Error("Widget session exchange was superseded");
+        }
+        cached = __spreadProps(__spreadValues({}, session), { fingerprint });
+        lastForcedAccessToken = forcedExchange ? session.accessToken : null;
+        if (retainStaleDuringForcedExchange && stale) {
+          void revokeSession(stale);
+        }
+        notify();
+        return session;
+      });
+      pending = { fingerprint, promise };
+      void promise.then(clearPending2, clearPending2);
+    }
+    return (await pending.promise).accessToken;
+  };
+  const revoke = async () => {
+    const session = cached;
+    epoch += 1;
+    cached = null;
+    pending = null;
+    latestResolvedFingerprint = null;
+    lastForcedAccessToken = null;
+    notify();
+    if (session) await revokeSession(session);
+  };
+  const provider = Object.assign(base2, {
+    required: true,
+    revoke,
+    signOut: async () => {
+      var _a2;
+      await revoke();
+      await ((_a2 = adapter.signOut) == null ? void 0 : _a2.call(adapter));
+    },
+    dispose: () => {
+      disposed = true;
+      epoch += 1;
+      cached = null;
+      pending = null;
+      latestResolvedFingerprint = null;
+      lastForcedAccessToken = null;
+      notify();
+      listeners.clear();
+    },
+    subscribe: (listener) => {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    }
+  });
+  return provider;
+}
+var WidgetChallengeBindingError = class extends Error {
+  constructor(message) {
+    super(`Widget challenge rejected before signing: ${message}`);
+    this.name = "WidgetChallengeBindingError";
+  }
+};
+function assertChallengeBinding(challenge) {
+  var _a, _b;
+  if (!((_a = challenge.nonce) == null ? void 0 : _a.trim())) {
+    throw new WidgetChallengeBindingError("challenge has no nonce");
+  }
+  const now = Date.now();
+  const issued = Date.parse(challenge.issuedAt);
+  if (Number.isNaN(issued)) {
+    throw new WidgetChallengeBindingError(
+      "challenge has no parseable issuedAt"
+    );
+  }
+  if (issued > now + MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS) {
+    throw new WidgetChallengeBindingError("challenge was issued in the future");
+  }
+  const expires = Date.parse(challenge.expirationTime);
+  if (Number.isNaN(expires)) {
+    throw new WidgetChallengeBindingError(
+      "challenge has no parseable expirationTime"
+    );
+  }
+  if (expires <= now) {
+    throw new WidgetChallengeBindingError("challenge is already expired");
+  }
+  if (expires <= issued || expires - issued > MAX_WIDGET_CHALLENGE_LIFETIME_MS) {
+    throw new WidgetChallengeBindingError(
+      "challenge validity window is not bounded"
+    );
+  }
+  const pageOrigin = typeof window !== "undefined" && ((_b = window.location) == null ? void 0 : _b.origin) ? window.location.origin : null;
+  if (!pageOrigin) return;
+  if (challenge.uri !== pageOrigin) {
+    throw new WidgetChallengeBindingError(
+      `challenge uri "${challenge.uri}" is not this page's origin "${pageOrigin}"`
+    );
+  }
+  const pageHost = new URL(pageOrigin).host;
+  if (challenge.domain !== pageHost) {
+    throw new WidgetChallengeBindingError(
+      `challenge domain "${challenge.domain}" is not this page's host "${pageHost}"`
+    );
+  }
+}
+async function challengeJson(fetchImpl, url, body) {
+  const response = await fetchImpl(url, requestInit(body));
+  if (!response.ok)
+    throw new Error(`Widget challenge failed: ${response.status}`);
+  const value = await response.json();
+  for (const key of [
+    "nonce",
+    "domain",
+    "uri",
+    "issued_at",
+    "expiration_time"
+  ]) {
+    if (typeof value[key] !== "string")
+      throw new Error("Widget challenge is invalid");
+  }
+  return {
+    nonce: value.nonce,
+    domain: value.domain,
+    uri: value.uri,
+    issuedAt: value.issued_at,
+    expirationTime: value.expiration_time
+  };
+}
+async function exchangeJson(fetchImpl, url, body) {
+  const response = await fetchImpl(url, requestInit(body));
+  if (!response.ok)
+    throw new Error(`Widget auth exchange failed: ${response.status}`);
+  const value = await response.json();
+  if (typeof value.access_token !== "string" || typeof value.expires_at !== "number") {
+    throw new Error("Widget session response is invalid");
+  }
+  if (value.expires_at > EXPIRES_AT_MILLISECONDS_THRESHOLD2) {
+    throw new Error("Widget session expires_at must be seconds, not ms");
+  }
+  return { accessToken: value.access_token, expiresAt: value.expires_at };
+}
+function requestInit(body) {
+  return {
+    method: "POST",
+    credentials: "omit",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  };
+}
+function normalizeSiweSigner(signer) {
+  if (!Number.isInteger(signer.chainId) || signer.chainId <= 0) {
+    throw new Error("Widget SIWE signer has no valid chain id");
+  }
+  return __spreadProps(__spreadValues({}, signer), { address: getAddress(signer.address) });
+}
+
+// src/internal/env.ts
+function safeEnv(read) {
+  try {
+    return read();
+  } catch (e) {
+    return void 0;
+  }
+}
+
+// src/types.ts
+var AOMI_TASK_EVENT_TYPES = [
+  "task_started",
+  "task_activity",
+  "task_completed"
+];
+function isAomiTaskEventType(type) {
+  return AOMI_TASK_EVENT_TYPES.includes(type);
+}
+var asString = (value) => typeof value === "string" ? value : void 0;
+function parseAomiTaskEvent(event) {
+  var _a, _b, _c, _d;
+  const raw = event;
+  const type = asString(raw.type);
+  if (!type || !isAomiTaskEventType(type)) return null;
+  const agentId = asString(raw.agent_id);
+  if (!agentId) return null;
+  const callId = (_a = asString(raw.call_id)) != null ? _a : "";
+  if (type === "task_started") {
+    return __spreadValues(__spreadValues({
+      type,
+      call_id: callId,
+      agent_id: agentId,
+      label: (_b = asString(raw.label)) != null ? _b : "",
+      app: (_c = asString(raw.app)) != null ? _c : null,
+      resumed: raw.resumed === true
+    }, asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
+  }
+  if (type === "task_activity") {
+    const childSeq = raw.child_seq;
+    if (typeof childSeq !== "number" || !Number.isFinite(childSeq)) return null;
+    const kind = raw.kind === "note" ? "note" : "tool_call";
+    return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
+      type,
+      call_id: callId,
+      agent_id: agentId,
+      kind,
+      child_seq: childSeq
+    }, asString(raw.tool_name) ? { tool_name: raw.tool_name } : null), raw.args !== void 0 ? { args: raw.args } : null), asString(raw.result_preview) ? { result_preview: raw.result_preview } : null), asString(raw.text) ? { text: raw.text } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
+  }
+  return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
+    type,
+    call_id: callId,
+    agent_id: agentId,
+    status: (_d = asString(raw.status)) != null ? _d : "completed"
+  }, asString(raw.message) ? { message: raw.message } : null), typeof raw.staged_count === "number" ? { staged_count: raw.staged_count } : null), typeof raw.steps === "number" ? { steps: raw.steps } : null), typeof raw.duration_ms === "number" ? { duration_ms: raw.duration_ms } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
+}
+
 // src/wallet-utils.ts
 import { getAddress as getAddress2 } from "viem";
-function asRecord(value) {
+function asRecord2(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return void 0;
   return value;
@@ -2963,13 +4004,13 @@ function asRecord(value) {
 function pendingTxsFromUserState(userState) {
   var _a, _b;
   const normalized = UserState.normalize(userState);
-  const pending = asRecord(normalized == null ? void 0 : normalized.pending);
-  return (_b = asRecord(pending == null ? void 0 : pending.evm_txs)) != null ? _b : asRecord((_a = asRecord(userState)) == null ? void 0 : _a.pending_txs);
+  const pending = asRecord2(normalized == null ? void 0 : normalized.pending);
+  return (_b = asRecord2(pending == null ? void 0 : pending.evm_txs)) != null ? _b : asRecord2((_a = asRecord2(userState)) == null ? void 0 : _a.pending_txs);
 }
 function getToolArgs(payload) {
   var _a;
-  const root = asRecord(payload);
-  const nestedArgs = asRecord(root == null ? void 0 : root.args);
+  const root = asRecord2(payload);
+  const nestedArgs = asRecord2(root == null ? void 0 : root.args);
   return (_a = nestedArgs != null ? nestedArgs : root) != null ? _a : {};
 }
 function parseChainKind(value) {
@@ -3100,9 +4141,9 @@ function normalizePendingTxData(pendingEntry) {
 }
 function normalizeTxPayload(payload) {
   var _a, _b, _c, _d, _e, _f, _g;
-  const root = asRecord(payload);
+  const root = asRecord2(payload);
   const args = getToolArgs(payload);
-  const ctx = asRecord(root == null ? void 0 : root.ctx);
+  const ctx = asRecord2(root == null ? void 0 : root.ctx);
   const txIds = parseTxIds((_a = args.tx_ids) != null ? _a : args.txIds);
   if (txIds.length === 0) return null;
   const to = normalizeAddress(args.to);
@@ -3144,7 +4185,7 @@ function hydrateTxPayloadFromUserState(payload, userState, options) {
   }
   const calls = [];
   for (const txId of txIds) {
-    const pendingEntry = asRecord(pendingTxsRaw[String(txId)]);
+    const pendingEntry = asRecord2(pendingTxsRaw[String(txId)]);
     if (!pendingEntry) {
       if (strict) {
         throw new Error("pending_tx_not_found");
@@ -3216,7 +4257,7 @@ function normalizeSolanaSignMessagePayload(payload) {
 }
 function normalizeSolanaWalletRequest(payload) {
   var _a, _b, _c;
-  const root = asRecord(payload);
+  const root = asRecord2(payload);
   const args = getToolArgs(payload);
   const solanaRequest = __spreadValues(__spreadValues({}, root != null ? root : {}), args);
   const chainKind = (_c = (_b = (_a = parseChainKind(args.chain_kind)) != null ? _a : parseChainKind(args.chain_family)) != null ? _b : parseChainKind(root == null ? void 0 : root.chain_kind)) != null ? _c : parseChainKind(root == null ? void 0 : root.chain_family);
@@ -3293,14 +4334,14 @@ function toViemSignTypedDataArgs(payload) {
     return null;
   }
   return {
-    domain: asRecord(typedData.domain),
+    domain: asRecord2(typedData.domain),
     types: Object.fromEntries(
       Object.entries((_a = typedData.types) != null ? _a : {}).filter(
         ([typeName]) => typeName !== "EIP712Domain"
       )
     ),
     primaryType,
-    message: asRecord(typedData.message)
+    message: asRecord2(typedData.message)
   };
 }
 function toViemSignMessageArgs(payload) {
@@ -3796,11 +4837,11 @@ function resolveChainCapabilities(capabilities, chainId3) {
   if (!capabilities) {
     return void 0;
   }
-  const asRecord2 = capabilities;
+  const asRecord3 = capabilities;
   const eip155Key = `eip155:${chainId3}`;
   const decimalKey = String(chainId3);
   const hexKey = `0x${chainId3.toString(16)}`;
-  return (_b = (_a = asRecord2[eip155Key]) != null ? _a : asRecord2[decimalKey]) != null ? _b : asRecord2[hexKey];
+  return (_b = (_a = asRecord3[eip155Key]) != null ? _a : asRecord3[decimalKey]) != null ? _b : asRecord3[hexKey];
 }
 
 // src/aa/fee.ts
@@ -3883,21 +4924,41 @@ export {
   AOMI_TASK_EVENT_TYPES,
   AccountCredentialUnavailableError,
   AgentApiError,
+  AgentRun,
   AgentTransport,
+  Aomi,
+  AomiAgent,
   AomiClient,
+  AomiEvmPipeline,
+  AomiPipeline,
+  AomiPipelineOperationScope,
+  AomiPipelineSkillScope,
+  AomiSvmPipeline,
   CHAINS_BY_ID,
   CHAIN_NAMES,
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
+  EvmBuild,
+  EvmPipelineTransport,
+  EvmStaged,
   MAX_AUTO_FEE_WEI,
   PartialWalletExecutionError,
   PipelineApiError,
+  PipelineAppsTransport,
+  PipelineOperationTransport,
+  PipelineSchemaError,
+  PipelineSkillTransport,
+  PipelineSkillsTransport,
   PipelineTransport,
   SUPPORTED_CHAINS,
   SUPPORTED_CHAIN_IDS,
   ClientSession as Session,
+  SvmBuild,
+  SvmPipelineTransport,
+  SvmStaged,
   TypedEventEmitter,
   UserState,
+  WalletController,
   WidgetChallengeBindingError,
   aaModeFromExecutionKind,
   appIdentityKey,
@@ -3943,6 +5004,7 @@ export {
   toAAWalletCalls,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
+  validatePipelineArguments,
   wrapFetchWithPaymentChallenges
 };
 //# sourceMappingURL=index.js.map

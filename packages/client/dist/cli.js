@@ -842,15 +842,136 @@ var init_transport = __esm({
   }
 });
 
+// src/pipeline/schema.ts
+function validatePipelineArguments(value, schema) {
+  validate(value, schema, "$arguments");
+}
+function validate(value, schema, path) {
+  var _a3;
+  if (schema === true) return;
+  if (schema === false) throw new PipelineSchemaError(path, "is not allowed");
+  const variants = (_a3 = schema.oneOf) != null ? _a3 : schema.anyOf;
+  if (Array.isArray(variants) && variants.length > 0) {
+    const accepted = variants.some((variant) => {
+      if (!isSchema(variant)) return false;
+      try {
+        validate(value, variant, path);
+        return true;
+      } catch (error) {
+        if (error instanceof PipelineSchemaError) return false;
+        throw error;
+      }
+    });
+    if (!accepted) {
+      throw new PipelineSchemaError(path, "does not match an accepted shape");
+    }
+    return;
+  }
+  if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
+    throw new PipelineSchemaError(path, "is not an allowed value");
+  }
+  const type = schema.type;
+  if (typeof type === "string" && !matchesType(value, type)) {
+    throw new PipelineSchemaError(path, `must be ${article(type)}${type}`);
+  }
+  if (type === "object" || schema.properties || schema.required) {
+    if (!isRecord(value)) {
+      throw new PipelineSchemaError(path, "must be an object");
+    }
+    const required3 = Array.isArray(schema.required) ? schema.required.filter(
+      (item) => typeof item === "string"
+    ) : [];
+    for (const key of required3) {
+      if (!(key in value)) {
+        throw new PipelineSchemaError(`${path}.${key}`, "is required");
+      }
+    }
+    if (isRecord(schema.properties)) {
+      for (const [key, childSchema] of Object.entries(schema.properties)) {
+        if (key in value && isSchema(childSchema)) {
+          validate(value[key], childSchema, `${path}.${key}`);
+        }
+      }
+    }
+  }
+  if (type === "array" && Array.isArray(value) && isSchema(schema.items)) {
+    value.forEach(
+      (item, index) => validate(item, schema.items, `${path}[${index}]`)
+    );
+  }
+}
+function matchesType(value, type) {
+  switch (type) {
+    case "null":
+      return value === null;
+    case "array":
+      return Array.isArray(value);
+    case "object":
+      return isRecord(value);
+    case "integer":
+      return typeof value === "number" && Number.isInteger(value);
+    case "number":
+      return typeof value === "number" && Number.isFinite(value);
+    case "string":
+      return typeof value === "string";
+    case "boolean":
+      return typeof value === "boolean";
+    default:
+      return true;
+  }
+}
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+function isSchema(value) {
+  return typeof value === "boolean" || isRecord(value);
+}
+function article(value) {
+  return /^[aeiou]/i.test(value) ? "an " : "a ";
+}
+var PipelineSchemaError;
+var init_schema = __esm({
+  "src/pipeline/schema.ts"() {
+    "use strict";
+    PipelineSchemaError = class extends TypeError {
+      constructor(path, message) {
+        super(`${path}: ${message}`);
+        this.path = path;
+        this.name = "PipelineSchemaError";
+      }
+    };
+  }
+});
+
 // src/pipeline/transport.ts
+async function invokeOperation(requestResponse, path, args, options = {}) {
+  if (options.validate !== false) {
+    const descriptor = await json(
+      requestResponse,
+      "GET",
+      path
+    );
+    validatePipelineArguments(args, descriptor.inputSchema);
+  }
+  return json(requestResponse, "POST", path, {
+    headers: mutationHeaders2(options),
+    body: jsonBody(args)
+  });
+}
+async function json(requestResponse, method, path, options) {
+  return parsePipelineResponse(await requestResponse(method, path, options));
+}
 async function parsePipelineResponse(response) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h;
   if (response.ok) {
     if (response.status === 204) return void 0;
     return await response.json();
   }
+  throw await pipelineError(response);
+}
+async function pipelineError(response) {
+  var _a3, _b, _c, _d, _e, _f, _g, _h;
   const body = await response.json().catch(() => null);
-  throw new PipelineApiError(
+  return new PipelineApiError(
     response.status,
     (_b = (_a3 = body == null ? void 0 : body.error) == null ? void 0 : _a3.code) != null ? _b : "pipeline_request_failed",
     (_d = (_c = body == null ? void 0 : body.error) == null ? void 0 : _c.message) != null ? _d : `Pipeline request failed with HTTP ${response.status}`,
@@ -859,21 +980,65 @@ async function parsePipelineResponse(response) {
     (_h = body == null ? void 0 : body.error) == null ? void 0 : _h.details
   );
 }
+function jsonBody(value) {
+  return normalizeJson(value);
+}
+function normalizeJson(value) {
+  if (typeof value === "bigint") return value.toString(10);
+  if (Array.isArray(value)) return value.map(normalizeJson);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, normalizeJson(item)])
+    );
+  }
+  return value;
+}
 function required(name, value) {
   const normalized = value.trim();
   if (!normalized) throw new TypeError(`${name} is required`);
   return normalized;
 }
-function executionHeaders(options) {
-  const idempotencyKey = required("idempotencyKey", options.idempotencyKey);
+function pipelinePath(path) {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  const full = normalized.startsWith("/v1/pipeline") ? normalized : `/v1/pipeline${normalized}`;
+  if (full !== "/v1/pipeline" && !full.startsWith("/v1/pipeline/")) {
+    throw new TypeError("path must resolve beneath /v1/pipeline");
+  }
+  return full.replace(/\/+$/, "");
+}
+function operationPath(path) {
+  const full = pipelinePath(path);
+  if (!/\/operations\/[^/]+$/.test(full)) {
+    throw new TypeError("operation path must end in /operations/{operation}");
+  }
+  return full;
+}
+function commitHeaders(digest, options) {
+  var _a3;
+  return mutationHeaders2(__spreadProps(__spreadValues({}, options), {
+    idempotencyKey: (_a3 = options.idempotencyKey) != null ? _a3 : digest
+  }));
+}
+function mutationHeaders2(options) {
+  var _a3;
   return __spreadValues({
-    "idempotency-key": idempotencyKey
+    "idempotency-key": required(
+      "idempotencyKey",
+      (_a3 = options.idempotencyKey) != null ? _a3 : randomIdempotencyKey2()
+    )
   }, options.paymentSignature ? { "payment-signature": options.paymentSignature } : {});
 }
-var PipelineApiError, PipelineTransport;
+function executionHeaders(options) {
+  return mutationHeaders2(options);
+}
+function randomIdempotencyKey2() {
+  return `idem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
+}
+var PipelineApiError, EvmPipelineTransport, SvmPipelineTransport, PipelineOperationTransport, PipelineSkillTransport, PipelineAppsTransport, PipelineSkillsTransport, PipelineTransport;
 var init_transport2 = __esm({
   "src/pipeline/transport.ts"() {
     "use strict";
+    init_schema();
     PipelineApiError = class extends Error {
       constructor(status, code, message, retryable, requestId, details) {
         super(message);
@@ -885,28 +1050,173 @@ var init_transport2 = __esm({
         this.name = "PipelineApiError";
       }
     };
-    PipelineTransport = class {
+    EvmPipelineTransport = class {
       constructor(requestResponse) {
         this.requestResponse = requestResponse;
       }
+      build(input2) {
+        return json(this.requestResponse, "POST", "/v1/pipeline/evm/build", {
+          body: jsonBody(input2)
+        });
+      }
+      stage(input2) {
+        return json(this.requestResponse, "POST", "/v1/pipeline/evm/stage", {
+          body: jsonBody(input2)
+        });
+      }
+      simulate(build) {
+        return json(this.requestResponse, "POST", "/v1/pipeline/evm/simulate", {
+          body: { build: jsonBody(build) }
+        });
+      }
+      commit(build, options = {}) {
+        return json(this.requestResponse, "POST", "/v1/pipeline/evm/commit", {
+          headers: commitHeaders(build.digest, options),
+          body: { build: jsonBody(build) }
+        });
+      }
+    };
+    SvmPipelineTransport = class {
+      constructor(requestResponse) {
+        this.requestResponse = requestResponse;
+      }
+      build(input2) {
+        return json(this.requestResponse, "POST", "/v1/pipeline/svm/build", {
+          body: jsonBody(input2)
+        });
+      }
+      stage(input2) {
+        return json(this.requestResponse, "POST", "/v1/pipeline/svm/stage", {
+          body: jsonBody(input2)
+        });
+      }
+      simulate(build) {
+        return json(this.requestResponse, "POST", "/v1/pipeline/svm/simulate", {
+          body: { build: jsonBody(build) }
+        });
+      }
+      commit(build, options = {}) {
+        return json(this.requestResponse, "POST", "/v1/pipeline/svm/commit", {
+          headers: commitHeaders(build.digest, options),
+          body: { build: jsonBody(build) }
+        });
+      }
+    };
+    PipelineOperationTransport = class {
+      constructor(requestResponse, scope, owner) {
+        this.requestResponse = requestResponse;
+        this.href = `/v1/pipeline/${scope}/${encodeURIComponent(required("name", owner))}`;
+      }
+      directory() {
+        return json(this.requestResponse, "GET", this.href);
+      }
+      operations() {
+        return json(this.requestResponse, "GET", `${this.href}/operations`);
+      }
+      operation(name) {
+        return json(
+          this.requestResponse,
+          "GET",
+          `${this.href}/operations/${encodeURIComponent(required("operation", name))}`
+        );
+      }
+      invoke(name, args, options) {
+        return invokeOperation(
+          this.requestResponse,
+          `${this.href}/operations/${encodeURIComponent(required("operation", name))}`,
+          args,
+          options
+        );
+      }
+    };
+    PipelineSkillTransport = class extends PipelineOperationTransport {
+      constructor(skillRequestResponse, skill) {
+        super(skillRequestResponse, "skills", skill);
+        this.skillRequestResponse = skillRequestResponse;
+      }
+      async instructions() {
+        const response = await this.skillRequestResponse(
+          "GET",
+          `${this.href}/SKILL.md`,
+          { headers: { accept: "text/markdown" } }
+        );
+        if (!response.ok) throw await pipelineError(response);
+        return response.text();
+      }
+    };
+    PipelineAppsTransport = class {
+      constructor(requestResponse) {
+        this.requestResponse = requestResponse;
+      }
+      list() {
+        return json(this.requestResponse, "GET", "/v1/pipeline/apps");
+      }
+      get(app) {
+        return new PipelineOperationTransport(this.requestResponse, "apps", app);
+      }
+    };
+    PipelineSkillsTransport = class {
+      constructor(requestResponse) {
+        this.requestResponse = requestResponse;
+      }
+      list() {
+        return json(this.requestResponse, "GET", "/v1/pipeline/skills");
+      }
+      get(skill) {
+        return new PipelineSkillTransport(this.requestResponse, skill);
+      }
+    };
+    PipelineTransport = class {
+      constructor(requestResponse) {
+        this.requestResponse = requestResponse;
+        this.evm = new EvmPipelineTransport(requestResponse);
+        this.svm = new SvmPipelineTransport(requestResponse);
+        this.apps = new PipelineAppsTransport(requestResponse);
+        this.skills = new PipelineSkillsTransport(requestResponse);
+      }
+      root() {
+        return json(this.requestResponse, "GET", "/v1/pipeline");
+      }
+      read(path = "/v1/pipeline") {
+        return json(this.requestResponse, "GET", pipelinePath(path));
+      }
+      app(name) {
+        return this.apps.get(name);
+      }
+      skill(name) {
+        return this.skills.get(name);
+      }
+      invoke(path, args, options) {
+        return invokeOperation(
+          this.requestResponse,
+          operationPath(path),
+          args,
+          options
+        );
+      }
+      /** @deprecated Use `pipeline.apps.list()` filesystem discovery. */
       listApps(options = {}) {
-        return this.json("GET", "/v1/pipeline/apps", {
+        return json(this.requestResponse, "GET", "/v1/pipeline/apps", {
           query: { limit: options.limit }
         });
       }
+      /** @deprecated Use `pipeline.app(app).directory()`. */
       getApp(app) {
-        return this.json(
+        return json(
+          this.requestResponse,
           "GET",
           `/v1/pipeline/apps/${encodeURIComponent(required("app", app))}`
         );
       }
+      /** @deprecated Crawl the filesystem discovery surface. */
       searchApps(options = {}) {
-        return this.json("GET", "/v1/pipeline/search/apps", {
+        return json(this.requestResponse, "GET", "/v1/pipeline/search/apps", {
           query: { q: options.q, limit: options.limit }
         });
       }
+      /** @deprecated Use fixed chain routes or scoped operations. */
       listTools(options = {}) {
-        return this.json("GET", "/v1/pipeline/tools", {
+        return json(this.requestResponse, "GET", "/v1/pipeline/tools", {
           query: {
             app: options.app,
             namespace: options.namespace,
@@ -914,45 +1224,48 @@ var init_transport2 = __esm({
           }
         });
       }
+      /** @deprecated Use fixed chain routes or scoped operations. */
       getTool(toolId, options = {}) {
-        return this.json(
+        return json(
+          this.requestResponse,
           "GET",
           `/v1/pipeline/tools/${encodeURIComponent(required("toolId", toolId))}`,
           { query: { app: options.app } }
         );
       }
+      /** @deprecated Crawl the filesystem discovery surface. */
       searchTools(options = {}) {
-        return this.json("GET", "/v1/pipeline/search/tools", {
+        return json(this.requestResponse, "GET", "/v1/pipeline/search/tools", {
           query: { q: options.q, app: options.app, limit: options.limit }
         });
       }
+      /** @deprecated Use `pipeline.skills.list()` filesystem discovery. */
       listSkills(options = {}) {
-        return this.json("GET", "/v1/pipeline/skills", {
+        return json(this.requestResponse, "GET", "/v1/pipeline/skills", {
           query: { limit: options.limit }
         });
       }
+      /** @deprecated Use `pipeline.skill(skill).directory()`. */
       getSkill(skillId) {
-        return this.json(
+        return json(
+          this.requestResponse,
           "GET",
           `/v1/pipeline/skills/${encodeURIComponent(required("skillId", skillId))}`
         );
       }
+      /** @deprecated Use fixed chain lifecycle or scoped `invoke()`. */
       callTool(request, options) {
-        return this.json("POST", "/v1/pipeline/tool-calls", {
+        return json(this.requestResponse, "POST", "/v1/pipeline/tool-calls", {
           headers: executionHeaders(options),
           body: request
         });
       }
+      /** @deprecated Use chain-specific Build composition. */
       run(request, options) {
-        return this.json("POST", "/v1/pipeline/runs", {
+        return json(this.requestResponse, "POST", "/v1/pipeline/runs", {
           headers: executionHeaders(options),
           body: request
         });
-      }
-      async json(method, path, options) {
-        return parsePipelineResponse(
-          await this.requestResponse(method, path, options)
-        );
       }
     };
   }
@@ -2128,12 +2441,12 @@ var init_json = __esm({
 });
 
 // src/session/state.ts
-function isRecord(value) {
+function isRecord2(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function addExtValue(userState, key, value) {
   const current = userState != null ? userState : {};
-  const currentExt = isRecord(current["ext"]) ? current["ext"] : {};
+  const currentExt = isRecord2(current["ext"]) ? current["ext"] : {};
   return __spreadProps(__spreadValues({}, current), {
     ext: __spreadProps(__spreadValues({}, currentExt), {
       [key]: value
@@ -2143,14 +2456,14 @@ function addExtValue(userState, key, value) {
 function removeExtValue(userState, key) {
   if (!userState) return void 0;
   const currentExt = userState["ext"];
-  if (!isRecord(currentExt)) return void 0;
+  if (!isRecord2(currentExt)) return void 0;
   const nextExt = __spreadValues({}, currentExt);
   delete nextExt[key];
   return __spreadProps(__spreadValues({}, userState), { ext: nextExt });
 }
 function resolveWalletState(userState, address3, chainId3) {
-  const prevEvm = isRecord(userState == null ? void 0 : userState.evm) ? userState == null ? void 0 : userState.evm : {};
-  const prevConn = isRecord(userState == null ? void 0 : userState.connection) ? userState == null ? void 0 : userState.connection : {};
+  const prevEvm = isRecord2(userState == null ? void 0 : userState.evm) ? userState == null ? void 0 : userState.evm : {};
+  const prevConn = isRecord2(userState == null ? void 0 : userState.connection) ? userState == null ? void 0 : userState.connection : {};
   return __spreadProps(__spreadValues({}, userState != null ? userState : {}), {
     evm: __spreadProps(__spreadValues({}, prevEvm), {
       address: address3,
@@ -2448,6 +2761,10 @@ var init_session = __esm({
       getAgentStatus() {
         return this.agentStatus;
       }
+      /** Current canonical Agent actions, preserving backend order of discovery. */
+      getAgentActions() {
+        return [...this.agentActions.values()];
+      }
       syncRuntimeOptions(options) {
         var _a3;
         this.app = options.app;
@@ -2694,7 +3011,11 @@ var init_session = __esm({
       syncAgentActions(actions) {
         const visible = /* @__PURE__ */ new Set();
         for (const action of actions) {
+          const previous = this.agentActions.get(action.id);
           this.agentActions.set(action.id, action);
+          if (!previous || previous.revision !== action.revision || previous.status !== action.status) {
+            this.emit("agent_action", action);
+          }
           if (action.status !== "pending") continue;
           visible.add(action.id);
           this.enqueueAgentAction(action);
@@ -9073,8 +9394,8 @@ async function fetchStatus(deploymentId, platform, activationToken, backendUrl) 
   if (!res.ok) {
     const message = (() => {
       try {
-        const json = JSON.parse(text2);
-        if (json && typeof json === "object" && json.error) return json.error;
+        const json2 = JSON.parse(text2);
+        if (json2 && typeof json2 === "object" && json2.error) return json2.error;
       } catch (e) {
       }
       return `${res.status} ${res.statusText}`;
@@ -9212,8 +9533,8 @@ function resolvePlatform2(args) {
 async function extractError(res) {
   try {
     const text2 = await res.text();
-    const json = JSON.parse(text2);
-    if (json && typeof json === "object" && json.error) return json.error;
+    const json2 = JSON.parse(text2);
+    if (json2 && typeof json2 === "object" && json2.error) return json2.error;
     return text2 || `${res.status} ${res.statusText}`;
   } catch (e) {
     return `${res.status} ${res.statusText}`;
@@ -9482,9 +9803,9 @@ async function deployCommand(args) {
     const message = (() => {
       var _a4, _b2;
       try {
-        const json = JSON.parse(text2);
-        if (json && typeof json === "object")
-          return (_b2 = (_a4 = json.error) != null ? _a4 : json.reason) != null ? _b2 : `${res.status} ${res.statusText}`;
+        const json2 = JSON.parse(text2);
+        if (json2 && typeof json2 === "object")
+          return (_b2 = (_a4 = json2.error) != null ? _a4 : json2.reason) != null ? _b2 : `${res.status} ${res.statusText}`;
       } catch (e) {
       }
       return `${res.status} ${res.statusText}`;
@@ -10951,7 +11272,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.6.5",
+  version: "0.6.6",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",
@@ -10979,7 +11300,8 @@ var package_default = {
   ],
   scripts: {
     build: "tsup",
-    "clean:dist": "rm -rf dist"
+    "clean:dist": "rm -rf dist",
+    typecheck: "tsc --project tsconfig.typecheck.json"
   },
   devDependencies: {
     "fast-check": "^4.8.0"

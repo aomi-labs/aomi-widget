@@ -4,7 +4,7 @@ import type {
   AomiTaskCompletedEvent,
   AomiTaskStartedEvent,
 } from "../types";
-import type { AgentActivity } from "../agent/types";
+import type { AgentAction, AgentActivity } from "../agent/types";
 import type {
   AomiClientType,
   UserState as UserStateShape,
@@ -191,6 +191,7 @@ export type SessionRuntimeOptions = {
 };
 
 export type SessionEventMap = {
+  agent_action: AgentAction;
   wallet_tx_request: WalletRequest;
   wallet_signing_request: WalletRequest;
   wallet_solana_send_request: WalletRequest;

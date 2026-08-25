@@ -261,6 +261,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     return this.agentStatus;
   }
 
+  /** Current canonical Agent actions, preserving backend order of discovery. */
+  getAgentActions(): AgentAction[] {
+    return [...this.agentActions.values()];
+  }
+
   syncRuntimeOptions(options: SessionRuntimeOptions): void {
     this.app = options.app;
     this.model = options.model;
@@ -574,7 +579,15 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private syncAgentActions(actions: AgentAction[]): void {
     const visible = new Set<string>();
     for (const action of actions) {
+      const previous = this.agentActions.get(action.id);
       this.agentActions.set(action.id, action);
+      if (
+        !previous ||
+        previous.revision !== action.revision ||
+        previous.status !== action.status
+      ) {
+        this.emit("agent_action", action);
+      }
       if (action.status !== "pending") continue;
       visible.add(action.id);
       this.enqueueAgentAction(action);

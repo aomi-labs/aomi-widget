@@ -4,25 +4,77 @@
 
 export { AomiClient, secretNamesFrom } from "./client";
 export { AgentApiError, AgentTransport } from "./agent/transport";
-export { PipelineApiError, PipelineTransport } from "./pipeline/transport";
+export {
+  EvmPipelineTransport,
+  PipelineApiError,
+  PipelineAppsTransport,
+  PipelineOperationTransport,
+  PipelineSkillTransport,
+  PipelineSkillsTransport,
+  PipelineTransport,
+  SvmPipelineTransport,
+} from "./pipeline/transport";
+export {
+  PipelineSchemaError,
+  validatePipelineArguments,
+} from "./pipeline/schema";
 export type {
+  AomiAction,
+  AomiSigningAction,
+  EvmCall,
+  EvmCallInput,
+  EvmCommitResult,
+  EvmDirectInput,
+  EvmPresentedAction,
+  EvmSimulatedBuild,
+  EvmStageActionInput,
+  EvmStageInput,
+  EvmStagedAction,
+  EvmStagedBuild,
   PipelineAction,
+  PipelineActionSummary,
   PipelineAppResponse,
   PipelineAppsResponse,
+  PipelineBalanceChange,
   PipelineCatalogResponse,
+  PipelineCommitOptions,
+  PipelineDirectory,
+  PipelineDirectoryEntry,
+  PipelineDirectoryEntryKind,
   PipelineExecutionOptions,
   PipelineExecutionResponse,
+  PipelineFeeEstimate,
+  PipelineFilesystemResource,
+  PipelineGuardResult,
+  PipelineInvokeOptions,
+  PipelineJsonSchema,
   PipelineListOptions,
+  PipelineOperationBuildInput,
+  PipelineOperationDescriptor,
+  PipelineOperationInvocation,
   PipelineResource,
   PipelineRunRequest,
   PipelineSearchOptions,
   PipelineSearchResponse,
+  PipelineSimulation,
+  PipelineSimulationStatus,
   PipelineSkillsResponse,
   PipelineToolCallRequest,
   PipelineToolListOptions,
   PipelineToolResponse,
   PipelineToolSearchOptions,
   PipelineToolsResponse,
+  PipelineTransactionReceipt,
+  SvmAccountMeta,
+  SvmCommitResult,
+  SvmDirectInput,
+  SvmInstruction,
+  SvmPresentedAction,
+  SvmSimulatedBuild,
+  SvmStageInput,
+  SvmStagedAction,
+  SvmStagedBuild,
+  SvmTransaction,
 } from "./pipeline/types";
 export type {
   AgentAction,
@@ -65,6 +117,28 @@ export {
   AccountCredentialUnavailableError,
   createAccountBearerProvider,
 } from "./account-session";
+
+// =============================================================================
+// High-level product SDK
+// =============================================================================
+
+export { Aomi } from "./sdk/aomi";
+export type { AomiOptions } from "./sdk/aomi";
+export { AomiAgent, AgentRun } from "./sdk/agent";
+export type {
+  AgentRunEventMap,
+  AgentRunOptions,
+  AgentRunResult,
+} from "./sdk/agent";
+export { EvmBuild, EvmStaged, SvmBuild, SvmStaged } from "./sdk/build";
+export {
+  AomiEvmPipeline,
+  AomiPipeline,
+  AomiPipelineOperationScope,
+  AomiPipelineSkillScope,
+  AomiSvmPipeline,
+} from "./sdk/pipeline";
+export type { AomiOperationBuildOptions } from "./sdk/pipeline";
 export { buildSiwsMessage } from "./siws";
 export type { SiwsChainId, SiwsIntent } from "./siws";
 export {
@@ -201,6 +275,15 @@ export {
   toAAWalletCall,
   parseChainId,
 } from "./wallet-utils";
+export { WalletController } from "./wallet/controller";
+export type {
+  AomiWalletAdapter,
+  EvmWalletAdapter,
+  EvmWalletCall,
+  SvmWalletAdapter,
+  WalletControllerEvents,
+  WalletTransactionResult,
+} from "./wallet/controller";
 
 export type {
   WalletTxPayload,

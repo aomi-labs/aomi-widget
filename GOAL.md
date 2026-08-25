@@ -1,5 +1,20 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## TypeScript SDK and developer surfaces
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STACKED PR/CI IN
+PROGRESS 2026-08-25** — ship the final frontend/client API package on the
+unified public Agent/Pipeline transport. `AomiClient` now exposes stateless,
+chain-specific EVM/SVM Build lifecycles plus filesystem discovery and
+runtime-schema-driven app/skill operations. The new high-level `Aomi` facade
+adds fluent review-before-commit Builds, an awaitable/event-driven Agent run,
+one shared EVM/SVM wallet controller, compatible action/simulation
+presentation, and the `raw` escape hatch. Deprecated flat Pipeline methods
+remain only for migration parity; arbitrary Catalog operation generation stays
+an explicit later capability. The publishable client is patch-bumped to
+`@aomi-labs/client@0.6.6`; focused negative type checks, all 271 client tests,
+client lint/build, and packed-tarball inspection pass locally.
+
 ## Canonical Agent/Pipeline ownership cleanup
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-25** — make

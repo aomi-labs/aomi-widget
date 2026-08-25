@@ -1,6 +1,6 @@
-import { x402Client, x402HTTPClient } from '@x402/core/client';
 import * as viem from 'viem';
 import { Hex, Chain } from 'viem';
+import { x402Client, x402HTTPClient } from '@x402/core/client';
 
 interface components {
     schemas: {
@@ -1026,436 +1026,6 @@ declare class AgentSessionsTransport {
     private json;
 }
 
-type Schemas = components["schemas"];
-type PipelineCatalogResponse = Schemas["PipelineAppList"] | Schemas["PipelineAppDescription"] | Schemas["PipelineToolList"] | Schemas["PipelineToolDescription"] | Schemas["PipelineSkillList"] | Schemas["PipelineSkill"] | Schemas["PipelineSearchResults"];
-type PipelineExecutionResponse = Schemas["PipelineToolCallResponse"] | Schemas["PipelineRunResponse"];
-type PipelineAction = Schemas["PipelineAction"];
-type PipelineResource = Record<string, unknown>;
-interface PipelineListOptions {
-    /** Result limit, bounded by the selected catalog operation. */
-    limit?: number;
-}
-interface PipelineToolListOptions extends PipelineListOptions {
-    app?: string;
-    namespace?: string;
-}
-interface PipelineSearchOptions extends PipelineListOptions {
-    q?: string;
-}
-interface PipelineToolSearchOptions extends PipelineSearchOptions {
-    app?: string;
-}
-/**
- * Headers that bind one fail-closed, at-most-once Pipeline execution.
- *
- * The transport deliberately does not manufacture this key: callers must
- * retain and reuse it for the same logical operation. An unknown post-effect
- * crash may remain permanently pending; the client does not retry or claim
- * recovery for that outcome.
- */
-interface PipelineExecutionOptions {
-    idempotencyKey: string;
-    paymentSignature?: string;
-}
-type PipelineAppsResponse = Schemas["PipelineAppList"];
-type PipelineAppResponse = Schemas["PipelineAppDescription"];
-type PipelineToolsResponse = Schemas["PipelineToolList"];
-type PipelineToolResponse = Schemas["PipelineToolDescription"];
-type PipelineSkillsResponse = Schemas["PipelineSkillList"];
-type PipelineSearchResponse = Schemas["PipelineSearchResults"];
-type GeneratedPipelineToolCallRequest = Schemas["PipelineToolCallRequest"];
-/** Public execution context resolved and enforced by the backend runtime. */
-type PipelineToolCallRequest = Omit<GeneratedPipelineToolCallRequest, "skills"> & {
-    skills?: string[];
-};
-type GeneratedPipelineRunRequest = Schemas["PipelineRunRequest"];
-type PipelineRunRequestBase = Omit<GeneratedPipelineRunRequest, "program" | "plan" | "skills"> & {
-    skills?: string[];
-};
-/** The server requires exactly one frozen program representation. */
-type PipelineRunRequest = PipelineRunRequestBase & ({
-    program: string;
-    plan?: never;
-} | {
-    program?: never;
-    plan: Record<string, unknown>;
-});
-
-type RequestResponse = (method: AomiHttpMethod, path: string, options?: AomiRequestOptions) => Promise<Response>;
-declare class PipelineApiError extends Error {
-    readonly status: number;
-    readonly code: string;
-    readonly retryable: boolean;
-    readonly requestId?: string | undefined;
-    readonly details?: unknown | undefined;
-    constructor(status: number, code: string, message: string, retryable: boolean, requestId?: string | undefined, details?: unknown | undefined);
-}
-/** The single typed transport for every first-party Pipeline consumer. */
-declare class PipelineTransport {
-    private readonly requestResponse;
-    constructor(requestResponse: RequestResponse);
-    listApps(options?: PipelineListOptions): Promise<PipelineAppsResponse>;
-    getApp(app: string): Promise<PipelineAppResponse>;
-    searchApps(options?: PipelineSearchOptions): Promise<PipelineSearchResponse>;
-    listTools(options?: PipelineToolListOptions): Promise<PipelineToolsResponse>;
-    getTool(toolId: string, options?: {
-        app?: string;
-    }): Promise<PipelineToolResponse>;
-    searchTools(options?: PipelineToolSearchOptions): Promise<PipelineSearchResponse>;
-    listSkills(options?: PipelineListOptions): Promise<PipelineSkillsResponse>;
-    getSkill(skillId: string): Promise<PipelineCatalogResponse>;
-    callTool<T extends PipelineExecutionResponse = PipelineExecutionResponse>(request: PipelineToolCallRequest, options: PipelineExecutionOptions): Promise<T>;
-    run<T extends PipelineExecutionResponse = PipelineExecutionResponse>(request: PipelineRunRequest, options: PipelineExecutionOptions): Promise<T>;
-    private json;
-}
-
-/**
- * Read secret names out of a {@link AomiListSecretsResponse} whichever shape
- * the backend sent.
- *
- * A backend from before per-user app secrets were retired answers
- * `{ by_app: { <app>: [names] } }`; the one after answers `{ names: [...] }`
- * (plus an empty `by_app` for one release). This client ships ahead of the
- * backend, so it has to read both — and a browser tab cached across the
- * cutover will hit each of them in turn.
- */
-declare function secretNamesFrom(response: AomiListSecretsResponse): string[];
-declare class AomiClient {
-    readonly agent: AgentTransport;
-    readonly pipeline: PipelineTransport;
-    private readonly baseUrl;
-    private readonly apiKey?;
-    private readonly fetchImpl;
-    private readonly rawFetchImpl;
-    private readonly logger?;
-    constructor(options: AomiClientOptions);
-    /**
-     * Low-level request escape hatch for the full backend route manifest.
-     * Prefer the typed helpers below for common chat/session/account flows.
-     */
-    request<T = unknown>(method: AomiHttpMethod, path: string, options?: AomiRequestOptions): Promise<T>;
-    /** Raw authenticated response transport shared by JSON, SSE, and MCP clients. */
-    requestResponse(method: AomiHttpMethod, path: string, options?: AomiRequestOptions): Promise<Response>;
-    /**
-     * Ingest client-scoped secrets. Returns opaque `$SECRET:<name>` handles.
-     *
-     * There is no app scope. A hosted app's Environment belongs to its Builder
-     * and is configured in Aomi Build; a per-user copy of it was a second,
-     * process-local store that answered the same handle differently depending on
-     * which fleet host served the turn. The backend answers 410 to any request
-     * that still carries one.
-     */
-    ingestSecrets(sessionId: string, clientId: string, secrets: Record<string, string>): Promise<AomiIngestSecretsResponse>;
-    /** Clear every client-scoped secret and unbind the session. */
-    clearSecrets(sessionId: string, clientId: string): Promise<AomiClearSecretsResponse>;
-    /** Remove a single named client-scoped secret. */
-    deleteSecret(sessionId: string, clientId: string, name: string): Promise<AomiDeleteSecretResponse>;
-    /**
-     * List the stored secret NAMES for this client — never values.
-     *
-     * Read the result with {@link secretNamesFrom}, which tolerates the
-     * pre-cutover `by_app` shape as well as the flat `names` list.
-     */
-    listSecrets(sessionId: string, clientId?: string): Promise<AomiListSecretsResponse>;
-    /**
-     * Get available apps as full descriptors (name + declared secret slots).
-     * The settings page consumes the slot info to render per-app inputs and
-     * the chat shell uses it to gate app load when required slots are unfilled.
-     */
-    getApps(sessionId: string, options?: {
-        apiKey?: string;
-        platforms?: AomiPlatformFilter;
-        applicationId?: ApplicationId;
-    }): Promise<AomiAppDescriptor[]>;
-    /**
-     * Fetch the account bound to the authenticated request (resolved from the
-     * account bearer). Returns `null` when the session is not bound to a real
-     * user — the backend answers `/api/account` with HTTP 400 for
-     * anonymous sessions, which is the normal "no bearer / not logged in" case
-     * rather than an error.
-     */
-    fetchAccountProfile(sessionId: string): Promise<AomiAccountProfile | null>;
-    /**
-     * Fetch the full account for the authenticated request. Throws on any
-     * non-OK response; use `fetchAccountProfile` for the null-on-anonymous
-     * variant.
-     */
-    getAccount(sessionId: string): Promise<AomiAccountResponse>;
-    createAccountApproval(request: AomiCreateApprovalRequest): Promise<AomiAccessApproval>;
-    /**
-     * Mint a Privy browser auth URL bound to the current backend session.
-     */
-    beginPrivyAuth(sessionId: string, options?: {
-        application?: string;
-        walletFamily?: AomiAuthWalletFamily;
-        purpose?: AomiAuthPurpose;
-    }): Promise<AomiBeginAccountAuthResponse>;
-    /**
-     * Start Privy's separate one-time delegated-signer consent. This is not a
-     * wallet-link operation and callers should label it as enabling Auto.
-     */
-    beginPrivyDelegation(sessionId: string, options?: {
-        application?: string;
-        walletFamily?: AomiAuthWalletFamily;
-    }): Promise<AomiBeginAccountAuthResponse>;
-    /**
-     * Get available models.
-     */
-    getModels(sessionId: string, options?: {
-        apiKey?: string;
-        applicationId?: ApplicationId;
-    }): Promise<string[]>;
-    /**
-     * Set the model for a session.
-     */
-    setModel(sessionId: string, rig: string, options?: {
-        app?: string;
-        applicationId?: ApplicationId;
-        apiKey?: string;
-        clientId?: string;
-    }): Promise<{
-        success: boolean;
-        rig: string;
-        baml: string;
-        created: boolean;
-    }>;
-    /**
-     * List BYOK keys (one per LLM provider) bound to the current account.
-     */
-    listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]>;
-    /**
-     * Save or replace a BYOK key for the current account.
-     */
-    saveByokKey(sessionId: string, provider: string, byokKey: string, label?: string): Promise<AomiByokKeyEntry>;
-    /**
-     * Delete a BYOK key for the current account.
-     */
-    deleteByokKey(sessionId: string, provider: string): Promise<boolean>;
-    /**
-     * Simulate transactions as an atomic batch.
-     * Each tx sees state changes from previous txs (e.g., approve → swap).
-     * Sends full tx payloads — the backend does not look up by ID.
-     */
-    simulateBatch(sessionId: string, transactions: Array<{
-        to: string;
-        value?: string;
-        data?: string;
-        label?: string;
-        chain_id?: number;
-        chainId?: number;
-    }>, options?: {
-        from?: string;
-        chainId?: number;
-    }): Promise<AomiSimulateResponse>;
-}
-
-type SiwsChainId = "solana:mainnet" | "solana:devnet" | "solana:testnet";
-type SiwsIntent = "sign-in" | "link";
-declare function buildSiwsMessage(input: {
-    address: string;
-    chainId: SiwsChainId;
-    nonce: string;
-    intent: SiwsIntent;
-    domain: string;
-    uri: string;
-    issuedAt?: Date;
-}): string;
-
-type WidgetAuthSession = {
-    accessToken: string;
-    expiresAt: number;
-};
-/**
- * @deprecated Ambiguous with the `WidgetSession` type exported by
- * `@aomi-labs/account`, which describes a different (BFF-side) shape. Prefer
- * {@link WidgetAuthSession}. Retained as an alias for backward compatibility
- * with the published `@aomi-labs/client` API.
- */
-type WidgetSession = WidgetAuthSession;
-type WidgetAuthAdapter = {
-    getFingerprint(): string | null | Promise<string | null>;
-    exchange(input: {
-        baseUrl: string;
-        fetch: typeof fetch;
-    }): Promise<WidgetAuthSession>;
-    signOut?(): Promise<void>;
-};
-type WidgetSessionProvider = GetAccountBearer & {
-    readonly required: true;
-    revoke(): Promise<void>;
-    signOut(): Promise<void>;
-    dispose(): void;
-    subscribe(listener: () => void): () => void;
-};
-type WidgetSessionSigner = {
-    address: string;
-    chainId: number;
-    signMessage(message: string): Promise<string>;
-};
-type SiwsWidgetSessionSigner = {
-    address: string;
-    chainId: SiwsChainId;
-    signMessage(message: string): Promise<string>;
-};
-type ProviderCredential = {
-    provider: string;
-    tokenKind?: string;
-    providerToken: string;
-    keyId?: string;
-};
-declare function createProviderCredentialAdapter(input: {
-    provider: string;
-    environment: string;
-    getCredential(): Promise<ProviderCredential | null>;
-    getSubject(): string | null;
-    signOut?: () => Promise<void>;
-}): WidgetAuthAdapter;
-declare function createSiweWidgetAuthAdapter(input: {
-    getSigner(): Promise<WidgetSessionSigner>;
-}): WidgetAuthAdapter;
-declare function createSiwsWidgetAuthAdapter(input: {
-    getSigner(): Promise<SiwsWidgetSessionSigner>;
-}): WidgetAuthAdapter;
-declare function createWidgetSessionProvider(input: {
-    baseUrl: string;
-    adapter: WidgetAuthAdapter;
-    fetch?: typeof fetch;
-    now?: () => number;
-    refreshBeforeExpiryMs?: number;
-}): WidgetSessionProvider;
-/**
- * Never blind-sign an authentication message.
- *
- * The message the wallet signs is built entirely from this server-supplied
- * challenge, so a compromised or misrouted upstream could otherwise hand the
- * user a signature bound to an attacker's domain, a stale nonce, or an
- * already-expired session. The Portal mints the challenge from the caller's
- * exact Origin (domain = host, uri = origin, no rewriting), which makes this
- * checkable client-side with zero configuration:
- *
- * - `uri` must be the origin this page is running on, and `domain` its host.
- *   In a browser that is `window.location`; in non-browser runtimes (tests,
- *   node scripts) there is no ambient origin to bind to, so the origin checks
- *   are skipped and only nonce/expiry hold.
- * - `nonce` must be present; `issuedAt` / `expirationTime` must describe a
- *   currently valid, bounded challenge window. Portal issues five-minute
- *   challenges; ten minutes leaves deployment skew without accepting an
- *   attacker-controlled long-lived signing request.
- *
- * Throwing here means the wallet prompt never appears — strictly better than
- * a signed-then-rejected round trip, and it restores default-on the guard
- * partner hosts (agentic-somm's deleted `assertSiweMessage`) used to carry
- * one-per-host.
- */
-declare class WidgetChallengeBindingError extends Error {
-    constructor(message: string);
-}
-
-/**
- * Structurally identical to {@link ProviderCredential}; aliased so the widget
- * and account credential shapes cannot drift within `@aomi-labs/client`.
- */
-type AccountCredentialProvider = () => Promise<ProviderCredential>;
-declare class AccountCredentialUnavailableError extends Error {
-    constructor(message?: string);
-}
-type AccountSessionExchangeResponse = {
-    access_token: string;
-    token_type: "Bearer";
-    expires_at: number;
-    user_id: string;
-};
-type BetterAuthTokenResponse = {
-    /** Aomi AccountBearer shape from /api/aomi/account-bearer. */
-    bearer?: string;
-    expires_at?: number;
-    expiresAt?: number;
-    user_id?: string;
-    userId?: string;
-};
-type BetterAuthAccountTokenSourceOptions = {
-    /** Portal/auth origin. Defaults to `baseUrl` when omitted. */
-    baseUrl?: string;
-    /**
-     * When enabled, a missing Better Auth cookie can be created by exchanging the
-     * connected wallet provider credential. Disable this when another account
-     * runtime already owns provider exchange to avoid duplicate wallet prompts.
-     */
-    providerExchange?: boolean;
-};
-type AccountBearerProviderOptions = {
-    baseUrl: string;
-    getProviderCredential?: AccountCredentialProvider;
-    betterAuthToken?: BetterAuthAccountTokenSourceOptions;
-    fetch?: typeof fetch;
-    now?: () => number;
-    refreshBeforeExpiryMs?: number;
-};
-type AccountBearerProvider = GetAccountBearer & {
-    subscribe: (listener: () => void) => () => void;
-    dispose: () => void;
-};
-/** Cache and refresh the short-lived Aomi bearer used for backend requests. */
-declare function createAccountBearerProvider({ baseUrl, getProviderCredential, betterAuthToken, fetch: fetchImpl, now, refreshBeforeExpiryMs, }: AccountBearerProviderOptions): AccountBearerProvider;
-
-/**
- * Pays an x402 challenge and follows a new challenge only when the preceding
- * signed response includes a settlement receipt.
- */
-declare function handlePaymentChallenges(request: Request, initialResponse: Response, fetchImpl: typeof globalThis.fetch, client: x402Client | x402HTTPClient): Promise<Response>;
-/** Adds bounded sequential x402 settlement to a fetch implementation. */
-declare function wrapFetchWithPaymentChallenges(fetchImpl: typeof globalThis.fetch, client: x402Client | x402HTTPClient): typeof globalThis.fetch;
-
-/**
- * Canonical home for app-descriptor identity logic. The backend speaks
- * snake_case and may scope a single app `name` across multiple platforms, so
- * both normalization (wire shape → descriptor) and identity (descriptor →
- * stable key) live here to keep every consumer — client, React control state,
- * UI selectors, and any future server/BFF code — in lockstep.
- */
-/**
- * Coerce an arbitrary wire item (string id, camelCase object, or snake_case
- * object) into a single camelCase {@link AomiAppDescriptor}. Returns null for
- * anything without a usable `name`.
- */
-declare function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null;
-/**
- * Stable key identifying an app for dedup and selection-matching. Prefers the
- * concrete backend `applicationId`, falls back to `platform:name`, then `name`.
- * Server-side dedup and client-side selection must agree, so both call this.
- */
-declare function appIdentityKey(descriptor: AomiAppDescriptor): string;
-
-/**
- * Read an environment variable defensively.
- *
- * The value is supplied through a thunk so the literal `process.env.X`
- * reference stays in the source — bundlers (Next.js, Vite `define`) still
- * inline it at build time — while the try/catch tolerates `process` being
- * undefined in pure-browser builds instead of throwing a ReferenceError.
- */
-declare function safeEnv(read: () => string | undefined): string | undefined;
-
-type Listener<T = unknown> = (payload: T) => void;
-/**
- * Minimal typed event emitter with wildcard support.
- *
- * ```ts
- * type Events = { message: string; error: { code: number } };
- * const ee = new TypedEventEmitter<Events>();
- * ee.on("message", (msg) => console.log(msg));
- * ee.emit("message", "hello");
- * ```
- */
-declare class TypedEventEmitter<EventMap extends Record<string, unknown> = Record<string, unknown>> {
-    private listeners;
-    on<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): () => void;
-    once<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): () => void;
-    emit<K extends keyof EventMap & string>(type: K, payload: EventMap[K]): void;
-    off<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): void;
-    removeAllListeners(): void;
-}
-
 type AAMode = "4337" | "7702";
 type AASponsorship = "disabled" | "optional" | "required";
 type AAWalletCall = {
@@ -1876,6 +1446,7 @@ type SessionRuntimeOptions = {
     userState?: UserState;
 };
 type SessionEventMap = {
+    agent_action: AgentAction;
     wallet_tx_request: WalletRequest;
     wallet_signing_request: WalletRequest;
     wallet_solana_send_request: WalletRequest;
@@ -1908,6 +1479,808 @@ type SessionEventMap = {
         payload: unknown;
     };
 };
+
+type Schemas = components["schemas"];
+/** JSON Schema as returned by the live Pipeline Catalog. */
+type PipelineJsonSchema = boolean | Record<string, unknown>;
+type PipelineDirectoryEntryKind = "directory" | "operation" | "document";
+interface PipelineDirectoryEntry {
+    name: string;
+    kind: PipelineDirectoryEntryKind;
+    href: string;
+    description?: string;
+}
+interface PipelineDirectory {
+    kind: "directory";
+    path: string;
+    entries: PipelineDirectoryEntry[];
+}
+interface PipelineOperationDescriptor {
+    kind: "operation";
+    name: string;
+    description: string;
+    method: "POST";
+    href: string;
+    inputSchema: PipelineJsonSchema;
+    outputSchema?: PipelineJsonSchema;
+    chainFamily?: "evm" | "svm";
+}
+interface PipelineDocument {
+    kind: "document";
+    name: string;
+    href: string;
+    mediaType: string;
+    content: string;
+}
+type PipelineFilesystemResource = PipelineDirectory | PipelineOperationDescriptor | PipelineDocument;
+interface PipelineOperationInvocation<Arguments extends Record<string, unknown> = Record<string, unknown>> {
+    operation: string;
+    arguments: Arguments;
+}
+type PipelineOperationBuildInput<Arguments extends Record<string, unknown> = Record<string, unknown>> = PipelineOperationInvocation<Arguments> | {
+    operations: PipelineOperationInvocation<Arguments>[];
+};
+interface PipelineInvokeOptions {
+    /** Validate arguments against the live operation descriptor before POSTing. */
+    validate?: boolean;
+    idempotencyKey?: string;
+    paymentSignature?: string;
+}
+interface PipelineCommitOptions {
+    /** Defaults to the portable Build digest, making repeated commits stable. */
+    idempotencyKey?: string;
+    paymentSignature?: string;
+}
+type PipelineSimulationStatus = "passed" | "failed";
+interface PipelineBalanceChange {
+    account?: string;
+    asset: string;
+    amount: string;
+    direction?: "in" | "out";
+    symbol?: string;
+    decimals?: number;
+    chainId?: number;
+    cluster?: string;
+}
+interface PipelineFeeEstimate {
+    asset: string;
+    amount: string;
+    symbol?: string;
+    usdValue?: string;
+    kind?: string;
+}
+interface PipelineGuardResult {
+    name: string;
+    status: "passed" | "failed" | "warning";
+    message?: string;
+}
+interface PipelineSimulation {
+    status: PipelineSimulationStatus;
+    balanceChanges: PipelineBalanceChange[];
+    fees: PipelineFeeEstimate[];
+    warnings: string[];
+    guards?: PipelineGuardResult[];
+    gas?: Record<string, unknown>;
+    logs?: unknown[];
+}
+interface PipelineActionSummary {
+    title?: string;
+    description?: string;
+    actionCount?: number;
+    transactionCount?: number;
+    assetsIn?: string[];
+    assetsOut?: string[];
+    contracts?: string[];
+    programs?: string[];
+    chains?: Array<number | string>;
+}
+interface EvmCallInput {
+    to: `0x${string}`;
+    data?: `0x${string}`;
+    /** bigint is accepted at the SDK boundary and encoded as a decimal string. */
+    value?: bigint | string;
+    from?: `0x${string}`;
+    gas?: bigint | string;
+    description?: string;
+}
+interface EvmCall extends Omit<EvmCallInput, "value" | "gas"> {
+    value?: string;
+    gas?: string;
+}
+interface EvmStageActionInput {
+    chainId: number;
+    calls: EvmCallInput[];
+    description?: string;
+}
+interface EvmStageInput {
+    actions: EvmStageActionInput[];
+}
+interface EvmDirectInput {
+    chainId: number;
+    calls: EvmCallInput[];
+    description?: string;
+}
+interface EvmStagedAction {
+    id: string;
+    chainFamily?: "evm";
+    kind?: "calls";
+    status?: string;
+    chainId: number;
+    calls: EvmCall[];
+    description?: string;
+}
+type EvmPresentedAction = EvmStagedAction & {
+    chainFamily: "evm";
+    kind: "calls";
+};
+interface EvmStagedBuild {
+    version: 1;
+    status: "staged";
+    actions: EvmStagedAction[];
+    digest: string;
+}
+interface EvmSimulatedBuild {
+    version: 1;
+    status: "simulated";
+    actions: EvmStagedAction[];
+    simulation: PipelineSimulation;
+    summary?: PipelineActionSummary;
+    digest: string;
+}
+interface PipelineTransactionReceipt {
+    id?: string;
+    transactionId: string;
+    status?: "submitted" | "confirmed" | "failed";
+    chainId?: number;
+    cluster?: string;
+    blockNumber?: number | string;
+}
+interface EvmCommitResult {
+    version: 1;
+    status: "committed" | "submitted" | "awaiting_wallet";
+    digest: string;
+    receipts?: PipelineTransactionReceipt[];
+    walletRequest?: Extract<WalletRequest, {
+        kind: "transaction" | "signing";
+    }>;
+    /** Present on high-level results when the configured wallet handled a request. */
+    walletResult?: WalletRequestResult;
+}
+interface SvmAccountMeta {
+    pubkey: string;
+    isSigner: boolean;
+    isWritable: boolean;
+}
+interface SvmInstruction {
+    programId: string;
+    accounts: SvmAccountMeta[];
+    /** Base64 by default; an explicit encoding keeps byte semantics unambiguous. */
+    data: string;
+    encoding?: "base64" | "base58";
+}
+interface SvmTransaction {
+    transaction: string;
+    encoding?: "base64";
+    cluster?: string;
+    feePayer?: string;
+}
+type SvmStageInput = {
+    kind: "instructions";
+    instructions: SvmInstruction[];
+    cluster?: string;
+    feePayer?: string;
+} | {
+    kind: "transaction";
+    transaction: SvmTransaction;
+};
+type SvmDirectInput = SvmStageInput;
+type SvmStagedAction = {
+    id: string;
+    chainFamily?: "svm";
+    kind: "instructions";
+    status?: string;
+    instructions: SvmInstruction[];
+    cluster?: string;
+    description?: string;
+} | {
+    id: string;
+    chainFamily?: "svm";
+    kind: "transaction";
+    status?: string;
+    transaction: SvmTransaction;
+    cluster?: string;
+    description?: string;
+};
+type SvmPresentedAction = SvmStagedAction & {
+    chainFamily: "svm";
+};
+interface SvmStagedBuild {
+    version: 1;
+    status: "staged";
+    actions: SvmStagedAction[];
+    digest: string;
+}
+interface SvmSimulatedBuild {
+    version: 1;
+    status: "simulated";
+    actions: SvmStagedAction[];
+    simulation: PipelineSimulation;
+    summary?: PipelineActionSummary;
+    digest: string;
+}
+interface SvmCommitResult {
+    version: 1;
+    status: "committed" | "submitted" | "awaiting_wallet";
+    digest: string;
+    receipts?: PipelineTransactionReceipt[];
+    walletRequest?: Extract<WalletRequest, {
+        kind: "signing" | "solana_send" | "solana_sign_and_send";
+    }>;
+    /** Present on high-level results when the configured wallet handled a request. */
+    walletResult?: WalletRequestResult;
+}
+interface AomiSigningAction {
+    id: string;
+    chainFamily: "evm" | "svm";
+    kind: "signing";
+    status: string;
+    description?: string;
+    signer: string;
+    chainId?: number;
+    cluster?: string;
+}
+type AomiAction = EvmPresentedAction | SvmPresentedAction | AomiSigningAction;
+type PipelineCatalogResponse = Schemas["PipelineAppList"] | Schemas["PipelineAppDescription"] | Schemas["PipelineToolList"] | Schemas["PipelineToolDescription"] | Schemas["PipelineSkillList"] | Schemas["PipelineSkill"] | Schemas["PipelineSearchResults"];
+type PipelineExecutionResponse = Schemas["PipelineToolCallResponse"] | Schemas["PipelineRunResponse"];
+type PipelineAction = Schemas["PipelineAction"];
+type PipelineResource = Record<string, unknown>;
+interface PipelineListOptions {
+    /** Result limit, bounded by the selected catalog operation. */
+    limit?: number;
+}
+interface PipelineToolListOptions extends PipelineListOptions {
+    app?: string;
+    namespace?: string;
+}
+interface PipelineSearchOptions extends PipelineListOptions {
+    q?: string;
+}
+interface PipelineToolSearchOptions extends PipelineSearchOptions {
+    app?: string;
+}
+/** Headers binding one fail-closed, at-most-once compatibility execution. */
+interface PipelineExecutionOptions {
+    idempotencyKey: string;
+    paymentSignature?: string;
+}
+type PipelineAppsResponse = Schemas["PipelineAppList"];
+type PipelineAppResponse = Schemas["PipelineAppDescription"];
+type PipelineToolsResponse = Schemas["PipelineToolList"];
+type PipelineToolResponse = Schemas["PipelineToolDescription"];
+type PipelineSkillsResponse = Schemas["PipelineSkillList"];
+type PipelineSearchResponse = Schemas["PipelineSearchResults"];
+type GeneratedPipelineToolCallRequest = Schemas["PipelineToolCallRequest"];
+/** @deprecated Use chain lifecycle or scoped operation methods. */
+type PipelineToolCallRequest = Omit<GeneratedPipelineToolCallRequest, "skills"> & {
+    skills?: string[];
+};
+type GeneratedPipelineRunRequest = Schemas["PipelineRunRequest"];
+type PipelineRunRequestBase = Omit<GeneratedPipelineRunRequest, "program" | "plan" | "skills"> & {
+    skills?: string[];
+};
+/** @deprecated Use chain lifecycle or scoped operation methods. */
+type PipelineRunRequest = PipelineRunRequestBase & ({
+    program: string;
+    plan?: never;
+} | {
+    program?: never;
+    plan: Record<string, unknown>;
+});
+
+type RequestResponse = (method: AomiHttpMethod, path: string, options?: AomiRequestOptions) => Promise<Response>;
+declare class PipelineApiError extends Error {
+    readonly status: number;
+    readonly code: string;
+    readonly retryable: boolean;
+    readonly requestId?: string | undefined;
+    readonly details?: unknown | undefined;
+    constructor(status: number, code: string, message: string, retryable: boolean, requestId?: string | undefined, details?: unknown | undefined);
+}
+declare class EvmPipelineTransport {
+    private readonly requestResponse;
+    constructor(requestResponse: RequestResponse);
+    build(input: PipelineOperationBuildInput): Promise<EvmSimulatedBuild>;
+    stage(input: EvmStageInput): Promise<EvmStagedBuild>;
+    simulate(build: EvmStagedBuild): Promise<EvmSimulatedBuild>;
+    commit(build: EvmSimulatedBuild, options?: PipelineCommitOptions): Promise<EvmCommitResult>;
+}
+declare class SvmPipelineTransport {
+    private readonly requestResponse;
+    constructor(requestResponse: RequestResponse);
+    build(input: PipelineOperationBuildInput): Promise<SvmSimulatedBuild>;
+    stage(input: SvmStageInput): Promise<SvmStagedBuild>;
+    simulate(build: SvmStagedBuild): Promise<SvmSimulatedBuild>;
+    commit(build: SvmSimulatedBuild, options?: PipelineCommitOptions): Promise<SvmCommitResult>;
+}
+declare class PipelineOperationTransport {
+    private readonly requestResponse;
+    readonly href: string;
+    constructor(requestResponse: RequestResponse, scope: "apps" | "skills", owner: string);
+    directory(): Promise<PipelineDirectory>;
+    operations(): Promise<PipelineDirectory>;
+    operation(name: string): Promise<PipelineOperationDescriptor>;
+    invoke<T = unknown>(name: string, args: Record<string, unknown>, options?: PipelineInvokeOptions): Promise<T>;
+}
+declare class PipelineSkillTransport extends PipelineOperationTransport {
+    private readonly skillRequestResponse;
+    constructor(skillRequestResponse: RequestResponse, skill: string);
+    instructions(): Promise<string>;
+}
+declare class PipelineAppsTransport {
+    private readonly requestResponse;
+    constructor(requestResponse: RequestResponse);
+    list(): Promise<PipelineDirectory>;
+    get(app: string): PipelineOperationTransport;
+}
+declare class PipelineSkillsTransport {
+    private readonly requestResponse;
+    constructor(requestResponse: RequestResponse);
+    list(): Promise<PipelineDirectory>;
+    get(skill: string): PipelineSkillTransport;
+}
+/** The wire-close typed transport for every first-party Pipeline consumer. */
+declare class PipelineTransport {
+    private readonly requestResponse;
+    readonly evm: EvmPipelineTransport;
+    readonly svm: SvmPipelineTransport;
+    readonly apps: PipelineAppsTransport;
+    readonly skills: PipelineSkillsTransport;
+    constructor(requestResponse: RequestResponse);
+    root(): Promise<PipelineDirectory>;
+    read(path?: string): Promise<PipelineFilesystemResource>;
+    app(name: string): PipelineOperationTransport;
+    skill(name: string): PipelineSkillTransport;
+    invoke<T = unknown>(path: string, args: Record<string, unknown>, options?: PipelineInvokeOptions): Promise<T>;
+    /** @deprecated Use `pipeline.apps.list()` filesystem discovery. */
+    listApps(options?: PipelineListOptions): Promise<PipelineAppsResponse>;
+    /** @deprecated Use `pipeline.app(app).directory()`. */
+    getApp(app: string): Promise<PipelineAppResponse>;
+    /** @deprecated Crawl the filesystem discovery surface. */
+    searchApps(options?: PipelineSearchOptions): Promise<PipelineSearchResponse>;
+    /** @deprecated Use fixed chain routes or scoped operations. */
+    listTools(options?: PipelineToolListOptions): Promise<PipelineToolsResponse>;
+    /** @deprecated Use fixed chain routes or scoped operations. */
+    getTool(toolId: string, options?: {
+        app?: string;
+    }): Promise<PipelineToolResponse>;
+    /** @deprecated Crawl the filesystem discovery surface. */
+    searchTools(options?: PipelineToolSearchOptions): Promise<PipelineSearchResponse>;
+    /** @deprecated Use `pipeline.skills.list()` filesystem discovery. */
+    listSkills(options?: PipelineListOptions): Promise<PipelineSkillsResponse>;
+    /** @deprecated Use `pipeline.skill(skill).directory()`. */
+    getSkill(skillId: string): Promise<PipelineCatalogResponse>;
+    /** @deprecated Use fixed chain lifecycle or scoped `invoke()`. */
+    callTool<T extends PipelineExecutionResponse = PipelineExecutionResponse>(request: PipelineToolCallRequest, options: PipelineExecutionOptions): Promise<T>;
+    /** @deprecated Use chain-specific Build composition. */
+    run<T extends PipelineExecutionResponse = PipelineExecutionResponse>(request: PipelineRunRequest, options: PipelineExecutionOptions): Promise<T>;
+}
+
+/**
+ * Read secret names out of a {@link AomiListSecretsResponse} whichever shape
+ * the backend sent.
+ *
+ * A backend from before per-user app secrets were retired answers
+ * `{ by_app: { <app>: [names] } }`; the one after answers `{ names: [...] }`
+ * (plus an empty `by_app` for one release). This client ships ahead of the
+ * backend, so it has to read both — and a browser tab cached across the
+ * cutover will hit each of them in turn.
+ */
+declare function secretNamesFrom(response: AomiListSecretsResponse): string[];
+declare class AomiClient {
+    readonly agent: AgentTransport;
+    readonly pipeline: PipelineTransport;
+    private readonly baseUrl;
+    private readonly apiKey?;
+    private readonly fetchImpl;
+    private readonly rawFetchImpl;
+    private readonly logger?;
+    constructor(options: AomiClientOptions);
+    /**
+     * Low-level request escape hatch for the full backend route manifest.
+     * Prefer the typed helpers below for common chat/session/account flows.
+     */
+    request<T = unknown>(method: AomiHttpMethod, path: string, options?: AomiRequestOptions): Promise<T>;
+    /** Raw authenticated response transport shared by JSON, SSE, and MCP clients. */
+    requestResponse(method: AomiHttpMethod, path: string, options?: AomiRequestOptions): Promise<Response>;
+    /**
+     * Ingest client-scoped secrets. Returns opaque `$SECRET:<name>` handles.
+     *
+     * There is no app scope. A hosted app's Environment belongs to its Builder
+     * and is configured in Aomi Build; a per-user copy of it was a second,
+     * process-local store that answered the same handle differently depending on
+     * which fleet host served the turn. The backend answers 410 to any request
+     * that still carries one.
+     */
+    ingestSecrets(sessionId: string, clientId: string, secrets: Record<string, string>): Promise<AomiIngestSecretsResponse>;
+    /** Clear every client-scoped secret and unbind the session. */
+    clearSecrets(sessionId: string, clientId: string): Promise<AomiClearSecretsResponse>;
+    /** Remove a single named client-scoped secret. */
+    deleteSecret(sessionId: string, clientId: string, name: string): Promise<AomiDeleteSecretResponse>;
+    /**
+     * List the stored secret NAMES for this client — never values.
+     *
+     * Read the result with {@link secretNamesFrom}, which tolerates the
+     * pre-cutover `by_app` shape as well as the flat `names` list.
+     */
+    listSecrets(sessionId: string, clientId?: string): Promise<AomiListSecretsResponse>;
+    /**
+     * Get available apps as full descriptors (name + declared secret slots).
+     * The settings page consumes the slot info to render per-app inputs and
+     * the chat shell uses it to gate app load when required slots are unfilled.
+     */
+    getApps(sessionId: string, options?: {
+        apiKey?: string;
+        platforms?: AomiPlatformFilter;
+        applicationId?: ApplicationId;
+    }): Promise<AomiAppDescriptor[]>;
+    /**
+     * Fetch the account bound to the authenticated request (resolved from the
+     * account bearer). Returns `null` when the session is not bound to a real
+     * user — the backend answers `/api/account` with HTTP 400 for
+     * anonymous sessions, which is the normal "no bearer / not logged in" case
+     * rather than an error.
+     */
+    fetchAccountProfile(sessionId: string): Promise<AomiAccountProfile | null>;
+    /**
+     * Fetch the full account for the authenticated request. Throws on any
+     * non-OK response; use `fetchAccountProfile` for the null-on-anonymous
+     * variant.
+     */
+    getAccount(sessionId: string): Promise<AomiAccountResponse>;
+    createAccountApproval(request: AomiCreateApprovalRequest): Promise<AomiAccessApproval>;
+    /**
+     * Mint a Privy browser auth URL bound to the current backend session.
+     */
+    beginPrivyAuth(sessionId: string, options?: {
+        application?: string;
+        walletFamily?: AomiAuthWalletFamily;
+        purpose?: AomiAuthPurpose;
+    }): Promise<AomiBeginAccountAuthResponse>;
+    /**
+     * Start Privy's separate one-time delegated-signer consent. This is not a
+     * wallet-link operation and callers should label it as enabling Auto.
+     */
+    beginPrivyDelegation(sessionId: string, options?: {
+        application?: string;
+        walletFamily?: AomiAuthWalletFamily;
+    }): Promise<AomiBeginAccountAuthResponse>;
+    /**
+     * Get available models.
+     */
+    getModels(sessionId: string, options?: {
+        apiKey?: string;
+        applicationId?: ApplicationId;
+    }): Promise<string[]>;
+    /**
+     * Set the model for a session.
+     */
+    setModel(sessionId: string, rig: string, options?: {
+        app?: string;
+        applicationId?: ApplicationId;
+        apiKey?: string;
+        clientId?: string;
+    }): Promise<{
+        success: boolean;
+        rig: string;
+        baml: string;
+        created: boolean;
+    }>;
+    /**
+     * List BYOK keys (one per LLM provider) bound to the current account.
+     */
+    listByokKeys(sessionId: string): Promise<AomiByokKeyEntry[]>;
+    /**
+     * Save or replace a BYOK key for the current account.
+     */
+    saveByokKey(sessionId: string, provider: string, byokKey: string, label?: string): Promise<AomiByokKeyEntry>;
+    /**
+     * Delete a BYOK key for the current account.
+     */
+    deleteByokKey(sessionId: string, provider: string): Promise<boolean>;
+    /**
+     * Simulate transactions as an atomic batch.
+     * Each tx sees state changes from previous txs (e.g., approve → swap).
+     * Sends full tx payloads — the backend does not look up by ID.
+     */
+    simulateBatch(sessionId: string, transactions: Array<{
+        to: string;
+        value?: string;
+        data?: string;
+        label?: string;
+        chain_id?: number;
+        chainId?: number;
+    }>, options?: {
+        from?: string;
+        chainId?: number;
+    }): Promise<AomiSimulateResponse>;
+}
+
+declare class PipelineSchemaError extends TypeError {
+    readonly path: string;
+    constructor(path: string, message: string);
+}
+/**
+ * Small dependency-free validator for the JSON Schema vocabulary emitted by
+ * the live Catalog. The backend remains authoritative; this catches ordinary
+ * integration mistakes before an operation POST without pretending to be a
+ * complete JSON Schema implementation.
+ */
+declare function validatePipelineArguments(value: unknown, schema: PipelineJsonSchema): void;
+
+type SiwsChainId = "solana:mainnet" | "solana:devnet" | "solana:testnet";
+type SiwsIntent = "sign-in" | "link";
+declare function buildSiwsMessage(input: {
+    address: string;
+    chainId: SiwsChainId;
+    nonce: string;
+    intent: SiwsIntent;
+    domain: string;
+    uri: string;
+    issuedAt?: Date;
+}): string;
+
+type WidgetAuthSession = {
+    accessToken: string;
+    expiresAt: number;
+};
+/**
+ * @deprecated Ambiguous with the `WidgetSession` type exported by
+ * `@aomi-labs/account`, which describes a different (BFF-side) shape. Prefer
+ * {@link WidgetAuthSession}. Retained as an alias for backward compatibility
+ * with the published `@aomi-labs/client` API.
+ */
+type WidgetSession = WidgetAuthSession;
+type WidgetAuthAdapter = {
+    getFingerprint(): string | null | Promise<string | null>;
+    exchange(input: {
+        baseUrl: string;
+        fetch: typeof fetch;
+    }): Promise<WidgetAuthSession>;
+    signOut?(): Promise<void>;
+};
+type WidgetSessionProvider = GetAccountBearer & {
+    readonly required: true;
+    revoke(): Promise<void>;
+    signOut(): Promise<void>;
+    dispose(): void;
+    subscribe(listener: () => void): () => void;
+};
+type WidgetSessionSigner = {
+    address: string;
+    chainId: number;
+    signMessage(message: string): Promise<string>;
+};
+type SiwsWidgetSessionSigner = {
+    address: string;
+    chainId: SiwsChainId;
+    signMessage(message: string): Promise<string>;
+};
+type ProviderCredential = {
+    provider: string;
+    tokenKind?: string;
+    providerToken: string;
+    keyId?: string;
+};
+declare function createProviderCredentialAdapter(input: {
+    provider: string;
+    environment: string;
+    getCredential(): Promise<ProviderCredential | null>;
+    getSubject(): string | null;
+    signOut?: () => Promise<void>;
+}): WidgetAuthAdapter;
+declare function createSiweWidgetAuthAdapter(input: {
+    getSigner(): Promise<WidgetSessionSigner>;
+}): WidgetAuthAdapter;
+declare function createSiwsWidgetAuthAdapter(input: {
+    getSigner(): Promise<SiwsWidgetSessionSigner>;
+}): WidgetAuthAdapter;
+declare function createWidgetSessionProvider(input: {
+    baseUrl: string;
+    adapter: WidgetAuthAdapter;
+    fetch?: typeof fetch;
+    now?: () => number;
+    refreshBeforeExpiryMs?: number;
+}): WidgetSessionProvider;
+/**
+ * Never blind-sign an authentication message.
+ *
+ * The message the wallet signs is built entirely from this server-supplied
+ * challenge, so a compromised or misrouted upstream could otherwise hand the
+ * user a signature bound to an attacker's domain, a stale nonce, or an
+ * already-expired session. The Portal mints the challenge from the caller's
+ * exact Origin (domain = host, uri = origin, no rewriting), which makes this
+ * checkable client-side with zero configuration:
+ *
+ * - `uri` must be the origin this page is running on, and `domain` its host.
+ *   In a browser that is `window.location`; in non-browser runtimes (tests,
+ *   node scripts) there is no ambient origin to bind to, so the origin checks
+ *   are skipped and only nonce/expiry hold.
+ * - `nonce` must be present; `issuedAt` / `expirationTime` must describe a
+ *   currently valid, bounded challenge window. Portal issues five-minute
+ *   challenges; ten minutes leaves deployment skew without accepting an
+ *   attacker-controlled long-lived signing request.
+ *
+ * Throwing here means the wallet prompt never appears — strictly better than
+ * a signed-then-rejected round trip, and it restores default-on the guard
+ * partner hosts (agentic-somm's deleted `assertSiweMessage`) used to carry
+ * one-per-host.
+ */
+declare class WidgetChallengeBindingError extends Error {
+    constructor(message: string);
+}
+
+/**
+ * Structurally identical to {@link ProviderCredential}; aliased so the widget
+ * and account credential shapes cannot drift within `@aomi-labs/client`.
+ */
+type AccountCredentialProvider = () => Promise<ProviderCredential>;
+declare class AccountCredentialUnavailableError extends Error {
+    constructor(message?: string);
+}
+type AccountSessionExchangeResponse = {
+    access_token: string;
+    token_type: "Bearer";
+    expires_at: number;
+    user_id: string;
+};
+type BetterAuthTokenResponse = {
+    /** Aomi AccountBearer shape from /api/aomi/account-bearer. */
+    bearer?: string;
+    expires_at?: number;
+    expiresAt?: number;
+    user_id?: string;
+    userId?: string;
+};
+type BetterAuthAccountTokenSourceOptions = {
+    /** Portal/auth origin. Defaults to `baseUrl` when omitted. */
+    baseUrl?: string;
+    /**
+     * When enabled, a missing Better Auth cookie can be created by exchanging the
+     * connected wallet provider credential. Disable this when another account
+     * runtime already owns provider exchange to avoid duplicate wallet prompts.
+     */
+    providerExchange?: boolean;
+};
+type AccountBearerProviderOptions = {
+    baseUrl: string;
+    getProviderCredential?: AccountCredentialProvider;
+    betterAuthToken?: BetterAuthAccountTokenSourceOptions;
+    fetch?: typeof fetch;
+    now?: () => number;
+    refreshBeforeExpiryMs?: number;
+};
+type AccountBearerProvider = GetAccountBearer & {
+    subscribe: (listener: () => void) => () => void;
+    dispose: () => void;
+};
+/** Cache and refresh the short-lived Aomi bearer used for backend requests. */
+declare function createAccountBearerProvider({ baseUrl, getProviderCredential, betterAuthToken, fetch: fetchImpl, now, refreshBeforeExpiryMs, }: AccountBearerProviderOptions): AccountBearerProvider;
+
+type Listener<T = unknown> = (payload: T) => void;
+/**
+ * Minimal typed event emitter with wildcard support.
+ *
+ * ```ts
+ * type Events = { message: string; error: { code: number } };
+ * const ee = new TypedEventEmitter<Events>();
+ * ee.on("message", (msg) => console.log(msg));
+ * ee.emit("message", "hello");
+ * ```
+ */
+declare class TypedEventEmitter<EventMap extends Record<string, unknown> = Record<string, unknown>> {
+    private listeners;
+    on<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): () => void;
+    once<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): () => void;
+    emit<K extends keyof EventMap & string>(type: K, payload: EventMap[K]): void;
+    off<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): void;
+    removeAllListeners(): void;
+}
+
+interface EvmWalletCall {
+    to: string;
+    data?: string;
+    value?: string;
+}
+type WalletTransactionResult = string | {
+    hash?: string;
+    transactionHash?: string;
+} | {
+    hashes?: string[];
+    transactionHashes?: string[];
+};
+interface EvmWalletAdapter {
+    address: string;
+    chainId?: number | (() => number | undefined);
+    sendCalls?: (input: {
+        chainId: number;
+        calls: EvmWalletCall[];
+    }) => Promise<WalletTransactionResult>;
+    sendTransaction?: (input: EvmWalletCall & {
+        chainId: number;
+    }) => Promise<WalletTransactionResult>;
+    signMessage?: (input: {
+        message: string;
+        chainId?: number;
+    }) => Promise<string | {
+        signature: string;
+    }>;
+    signTypedData?: (input: {
+        typedData: Record<string, unknown>;
+        chainId?: number;
+    }) => Promise<string | {
+        signature: string;
+    }>;
+    switchChain?: (chainId: number) => Promise<unknown>;
+}
+interface SvmWalletAdapter {
+    address: string;
+    cluster?: string | (() => string | undefined);
+    signTransaction?: (input: {
+        transactionBase64: string;
+        cluster?: string;
+    }) => Promise<string | {
+        signedTransaction?: string;
+        signature?: string;
+    }>;
+    sendTransaction?: (input: {
+        transactionBase64: string;
+        cluster?: string;
+    }) => Promise<WalletTransactionResult>;
+    signAndSendTransaction?: (input: {
+        transactionBase64: string;
+        cluster?: string;
+    }) => Promise<string | {
+        signature?: string;
+        signedTransaction?: string;
+    }>;
+    signMessage?: (input: {
+        messageBase64: string;
+        cluster?: string;
+    }) => Promise<string | {
+        signature: string;
+    }>;
+    switchCluster?: (cluster: string) => Promise<unknown>;
+}
+interface AomiWalletAdapter {
+    evm?: EvmWalletAdapter;
+    svm?: SvmWalletAdapter;
+}
+interface WalletControllerEvents extends Record<string, unknown> {
+    request: WalletRequest;
+    resolved: {
+        request: WalletRequest;
+        result: WalletRequestResult;
+    };
+    rejected: {
+        request: WalletRequest;
+        error: unknown;
+    };
+}
+/** Shared Pipeline and Agent wallet execution boundary. */
+declare class WalletController extends TypedEventEmitter<WalletControllerEvents> {
+    readonly wallet?: AomiWalletAdapter | undefined;
+    constructor(wallet?: AomiWalletAdapter | undefined);
+    canHandle(request: WalletRequest): boolean;
+    execute(request: WalletRequest): Promise<WalletRequestResult>;
+    userState(): Record<string, unknown> | undefined;
+    private executeRequest;
+    private executeEvmTransactions;
+    private executeSigning;
+    private executeSvmTransactions;
+    private evmChainId;
+    private svmCluster;
+    private switchSvmCluster;
+}
 
 declare function aaModeFromExecutionKind(executionKind: string | undefined): "4337" | "7702" | "none" | undefined;
 
@@ -1990,6 +2363,8 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     getIsProcessing(): boolean;
     /** Last status observed from the canonical Agent transport. */
     getAgentStatus(): AgentStatus | undefined;
+    /** Current canonical Agent actions, preserving backend order of discovery. */
+    getAgentActions(): AgentAction[];
     syncRuntimeOptions(options: SessionRuntimeOptions): void;
     resolveUserState(userState: UserState, opts?: {
         skipEmit?: boolean;
@@ -2033,6 +2408,199 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private resolvePending;
     private assertOpen;
 }
+
+interface AgentRunOptions extends Omit<SessionOptions, "userState" | "sessionId"> {
+    sessionId?: string;
+    userState?: UserState;
+    /** Set false to surface wallet requests without executing the adapter. */
+    autoWallet?: boolean;
+}
+interface AgentRunResult extends SendResult {
+    sessionId: string;
+    actions: AomiAction[];
+}
+interface AgentRunEventMap extends Record<string, unknown> {
+    action: AomiAction;
+    simulation: PipelineSimulation;
+    wallet_request: WalletRequest;
+    completed: AgentRunResult;
+    error: {
+        error: unknown;
+    };
+}
+/** One stateful Agent turn. It is both event-driven and Promise-like. */
+declare class AgentRun extends TypedEventEmitter<AgentRunEventMap> implements PromiseLike<AgentRunResult> {
+    private readonly wallet;
+    readonly session: ClientSession;
+    private readonly completion;
+    private readonly actions;
+    private readonly processingRequests;
+    constructor(client: AomiClient, prompt: string, wallet: WalletController, options?: AgentRunOptions);
+    result(): Promise<AgentRunResult>;
+    then<TResult1 = AgentRunResult, TResult2 = never>(onfulfilled?: ((value: AgentRunResult) => TResult1 | PromiseLike<TResult1>) | null, onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null): PromiseLike<TResult1 | TResult2>;
+    interrupt(): Promise<void>;
+    resolve(requestId: string, result: WalletRequestResult): Promise<void>;
+    reject(requestId: string, reason?: string): Promise<void>;
+    private receiveAction;
+    private receiveWalletRequest;
+}
+declare class AomiAgent {
+    readonly raw: AomiClient["agent"];
+    private readonly client;
+    private readonly wallet;
+    constructor(raw: AomiClient["agent"], client: AomiClient, wallet: WalletController);
+    run(prompt: string, options?: AgentRunOptions): AgentRun;
+}
+
+declare class EvmStaged {
+    readonly raw: EvmStagedBuild;
+    private readonly transport;
+    private readonly wallet;
+    constructor(raw: EvmStagedBuild, transport: EvmPipelineTransport, wallet: WalletController);
+    get version(): 1;
+    get status(): "staged";
+    get actions(): EvmPresentedAction[];
+    get digest(): string;
+    simulate(): Promise<EvmBuild>;
+    toJSON(): EvmStagedBuild;
+}
+declare class EvmBuild {
+    readonly raw: EvmSimulatedBuild;
+    private readonly transport;
+    private readonly wallet;
+    constructor(raw: EvmSimulatedBuild, transport: EvmPipelineTransport, wallet: WalletController);
+    get version(): 1;
+    get status(): "simulated";
+    get actions(): EvmPresentedAction[];
+    get summary(): PipelineActionSummary | undefined;
+    get simulation(): PipelineSimulation;
+    get digest(): string;
+    commit(options?: PipelineCommitOptions): Promise<EvmCommitResult>;
+    toJSON(): EvmSimulatedBuild;
+}
+declare class SvmStaged {
+    readonly raw: SvmStagedBuild;
+    private readonly transport;
+    private readonly wallet;
+    constructor(raw: SvmStagedBuild, transport: SvmPipelineTransport, wallet: WalletController);
+    get version(): 1;
+    get status(): "staged";
+    get actions(): SvmPresentedAction[];
+    get digest(): string;
+    simulate(): Promise<SvmBuild>;
+    toJSON(): SvmStagedBuild;
+}
+declare class SvmBuild {
+    readonly raw: SvmSimulatedBuild;
+    private readonly transport;
+    private readonly wallet;
+    constructor(raw: SvmSimulatedBuild, transport: SvmPipelineTransport, wallet: WalletController);
+    get version(): 1;
+    get status(): "simulated";
+    get actions(): SvmPresentedAction[];
+    get summary(): PipelineActionSummary | undefined;
+    get simulation(): PipelineSimulation;
+    get digest(): string;
+    commit(options?: PipelineCommitOptions): Promise<SvmCommitResult>;
+    toJSON(): SvmSimulatedBuild;
+}
+
+declare class AomiEvmPipeline {
+    readonly raw: EvmPipelineTransport;
+    private readonly wallet;
+    constructor(raw: EvmPipelineTransport, wallet: WalletController);
+    build(input: PipelineOperationBuildInput | EvmDirectInput): Promise<EvmBuild>;
+    stage(input: EvmStageInput | EvmDirectInput): Promise<EvmStaged>;
+    simulate(build: EvmStaged | EvmStagedBuild): Promise<EvmBuild>;
+    commit(build: EvmBuild | EvmSimulatedBuild, options?: PipelineCommitOptions): Promise<EvmCommitResult>;
+}
+declare class AomiSvmPipeline {
+    readonly raw: SvmPipelineTransport;
+    private readonly wallet;
+    constructor(raw: SvmPipelineTransport, wallet: WalletController);
+    build(input: PipelineOperationBuildInput | SvmDirectInput): Promise<SvmBuild>;
+    stage(input: SvmStageInput): Promise<SvmStaged>;
+    simulate(build: SvmStaged | SvmStagedBuild): Promise<SvmBuild>;
+    commit(build: SvmBuild | SvmSimulatedBuild, options?: PipelineCommitOptions): Promise<SvmCommitResult>;
+}
+interface AomiOperationBuildOptions {
+    /** Override Catalog metadata when integrating an older descriptor. */
+    chainFamily?: "evm" | "svm";
+}
+declare class AomiPipelineOperationScope {
+    readonly raw: PipelineOperationTransport;
+    private readonly evm;
+    private readonly svm;
+    constructor(raw: PipelineOperationTransport, evm: AomiEvmPipeline, svm: AomiSvmPipeline);
+    directory(): Promise<PipelineDirectory>;
+    operations(): Promise<PipelineDirectory>;
+    operation(name: string): Promise<PipelineOperationDescriptor>;
+    invoke<T = unknown>(name: string, args: Record<string, unknown>, options?: PipelineInvokeOptions): Promise<T>;
+    build(name: string, args: Record<string, unknown>, options?: AomiOperationBuildOptions): Promise<EvmBuild | SvmBuild>;
+}
+declare class AomiPipelineSkillScope extends AomiPipelineOperationScope {
+    readonly skillRaw: PipelineSkillTransport;
+    constructor(skillRaw: PipelineSkillTransport, evm: AomiEvmPipeline, svm: AomiSvmPipeline);
+    instructions(): Promise<string>;
+}
+declare class AomiPipeline {
+    readonly raw: PipelineTransport;
+    readonly evm: AomiEvmPipeline;
+    readonly svm: AomiSvmPipeline;
+    constructor(raw: PipelineTransport, wallet: WalletController);
+    app(name: string): AomiPipelineOperationScope;
+    skill(name: string): AomiPipelineSkillScope;
+}
+
+interface AomiOptions extends AomiClientOptions {
+    wallet?: AomiWalletAdapter;
+}
+/** Product-oriented SDK facade. Use `raw` for wire-close protocol control. */
+declare class Aomi {
+    readonly raw: AomiClient;
+    readonly pipeline: AomiPipeline;
+    readonly agent: AomiAgent;
+    readonly wallet: WalletController;
+    constructor(options: AomiOptions);
+}
+
+/**
+ * Pays an x402 challenge and follows a new challenge only when the preceding
+ * signed response includes a settlement receipt.
+ */
+declare function handlePaymentChallenges(request: Request, initialResponse: Response, fetchImpl: typeof globalThis.fetch, client: x402Client | x402HTTPClient): Promise<Response>;
+/** Adds bounded sequential x402 settlement to a fetch implementation. */
+declare function wrapFetchWithPaymentChallenges(fetchImpl: typeof globalThis.fetch, client: x402Client | x402HTTPClient): typeof globalThis.fetch;
+
+/**
+ * Canonical home for app-descriptor identity logic. The backend speaks
+ * snake_case and may scope a single app `name` across multiple platforms, so
+ * both normalization (wire shape → descriptor) and identity (descriptor →
+ * stable key) live here to keep every consumer — client, React control state,
+ * UI selectors, and any future server/BFF code — in lockstep.
+ */
+/**
+ * Coerce an arbitrary wire item (string id, camelCase object, or snake_case
+ * object) into a single camelCase {@link AomiAppDescriptor}. Returns null for
+ * anything without a usable `name`.
+ */
+declare function normalizeAppDescriptor(item: unknown): AomiAppDescriptor | null;
+/**
+ * Stable key identifying an app for dedup and selection-matching. Prefers the
+ * concrete backend `applicationId`, falls back to `platform:name`, then `name`.
+ * Server-side dedup and client-side selection must agree, so both call this.
+ */
+declare function appIdentityKey(descriptor: AomiAppDescriptor): string;
+
+/**
+ * Read an environment variable defensively.
+ *
+ * The value is supplied through a thunk so the literal `process.env.X`
+ * reference stays in the source — bundlers (Next.js, Vite `define`) still
+ * inline it at build time — while the try/catch tolerates `process` being
+ * undefined in pure-browser builds instead of throwing a ReferenceError.
+ */
+declare function safeEnv(read: () => string | undefined): string | undefined;
 
 type ChainInfo = {
     id: number;
@@ -2370,4 +2938,4 @@ declare function appendFeeCallToPayload(payload: WalletTxPayload, fee: AomiSimul
     strictAa?: boolean;
 }): WalletTxPayload;
 
-export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AgentAction, type AgentActionResult, type AgentActivity, AgentApiError, type AgentDelta, type AgentMessage, type AgentSessionPage, type AgentSessionRecord, type AgentStartRequest, type AgentStatus, AgentTransport, type AgentWalletContext, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiListSecretsResponse, type AomiMessage, type AomiOAuthResource, type AomiOAuthTokenProvider, type AomiOAuthTokenRequest, type AomiOAuthTokenSet, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type ApplicationId, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type EvmExternalTransactionAction, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type GuestSessionProvider, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type OwnedUserState, type PartialWalletExecution, PartialWalletExecutionError, type PipelineAction, PipelineApiError, type PipelineAppResponse, type PipelineAppsResponse, type PipelineCatalogResponse, type PipelineExecutionOptions, type PipelineExecutionResponse, type PipelineListOptions, type PipelineResource, type PipelineRunRequest, type PipelineSearchOptions, type PipelineSearchResponse, type PipelineSkillsResponse, type PipelineToolCallRequest, type PipelineToolListOptions, type PipelineToolResponse, type PipelineToolSearchOptions, type PipelineToolsResponse, PipelineTransport, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SigningRequestAction, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, type SvmExternalTransactionAction, TypedEventEmitter, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSignablePayload, type WalletSigningPayload, type WalletSolanaLegResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, WidgetChallengeBindingError, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createGuestSessionProvider, createOAuthTokenProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, partialWalletExecution, posterFromClient, robinhood, safeEnv, secretNamesFrom, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, wrapFetchWithPaymentChallenges };
+export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type AgentAction, type AgentActionResult, type AgentActivity, AgentApiError, type AgentDelta, type AgentMessage, AgentRun, type AgentRunEventMap, type AgentRunOptions, type AgentRunResult, type AgentSessionPage, type AgentSessionRecord, type AgentStartRequest, type AgentStatus, AgentTransport, type AgentWalletContext, Aomi, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, type AomiAction, AomiAgent, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, AomiEvmPipeline, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiListSecretsResponse, type AomiMessage, type AomiOAuthResource, type AomiOAuthTokenProvider, type AomiOAuthTokenRequest, type AomiOAuthTokenSet, type AomiOperationBuildOptions, type AomiOptions, AomiPipeline, AomiPipelineOperationScope, AomiPipelineSkillScope, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSecretSlot, type AomiSigningAction, type AomiSimulateFee, type AomiSimulateResponse, AomiSvmPipeline, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiUsageStats, type AomiUser, type AomiWalletAdapter, type AomiWalletFamily, type ApplicationId, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, EvmBuild, type EvmCall, type EvmCallInput, type EvmCommitResult, type EvmDirectInput, type EvmExternalTransactionAction, EvmPipelineTransport, type EvmPresentedAction, type EvmSimulatedBuild, type EvmStageActionInput, type EvmStageInput, EvmStaged, type EvmStagedAction, type EvmStagedBuild, type EvmWalletAdapter, type EvmWalletCall, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type GuestSessionProvider, type Logger, MAX_AUTO_FEE_WEI, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type OwnedUserState, type PartialWalletExecution, PartialWalletExecutionError, type PipelineAction, type PipelineActionSummary, PipelineApiError, type PipelineAppResponse, type PipelineAppsResponse, PipelineAppsTransport, type PipelineBalanceChange, type PipelineCatalogResponse, type PipelineCommitOptions, type PipelineDirectory, type PipelineDirectoryEntry, type PipelineDirectoryEntryKind, type PipelineExecutionOptions, type PipelineExecutionResponse, type PipelineFeeEstimate, type PipelineFilesystemResource, type PipelineGuardResult, type PipelineInvokeOptions, type PipelineJsonSchema, type PipelineListOptions, type PipelineOperationBuildInput, type PipelineOperationDescriptor, type PipelineOperationInvocation, PipelineOperationTransport, type PipelineResource, type PipelineRunRequest, PipelineSchemaError, type PipelineSearchOptions, type PipelineSearchResponse, type PipelineSimulation, type PipelineSimulationStatus, PipelineSkillTransport, type PipelineSkillsResponse, PipelineSkillsTransport, type PipelineToolCallRequest, type PipelineToolListOptions, type PipelineToolResponse, type PipelineToolSearchOptions, type PipelineToolsResponse, type PipelineTransactionReceipt, PipelineTransport, type ProviderCredential, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SigningRequestAction, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, type SvmAccountMeta, SvmBuild, type SvmCommitResult, type SvmDirectInput, type SvmExternalTransactionAction, type SvmInstruction, SvmPipelineTransport, type SvmPresentedAction, type SvmSimulatedBuild, type SvmStageInput, SvmStaged, type SvmStagedAction, type SvmStagedBuild, type SvmTransaction, type SvmWalletAdapter, TypedEventEmitter, UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, WalletController, type WalletControllerEvents, type WalletEip712Payload, type WalletRequest, type WalletRequestKind, type WalletRequestResult, type WalletSignablePayload, type WalletSigningPayload, type WalletSolanaLegResult, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTransactionResult, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, WidgetChallengeBindingError, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createGuestSessionProvider, createOAuthTokenProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, hydrateTxPayloadFromUserState, isAomiTaskEventType, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, partialWalletExecution, posterFromClient, robinhood, safeEnv, secretNamesFrom, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, validatePipelineArguments, wrapFetchWithPaymentChallenges };

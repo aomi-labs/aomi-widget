@@ -1,12 +1,23 @@
 import type { AomiHttpMethod, AomiRequestOptions } from "../types";
+import { validatePipelineArguments } from "./schema";
 import type {
+  EvmCommitResult,
+  EvmSimulatedBuild,
+  EvmStageInput,
+  EvmStagedBuild,
   PipelineAppResponse,
   PipelineAppsResponse,
   PipelineCatalogResponse,
+  PipelineCommitOptions,
+  PipelineDirectory,
   PipelineErrorBody,
   PipelineExecutionOptions,
   PipelineExecutionResponse,
+  PipelineFilesystemResource,
+  PipelineInvokeOptions,
   PipelineListOptions,
+  PipelineOperationBuildInput,
+  PipelineOperationDescriptor,
   PipelineRunRequest,
   PipelineSearchOptions,
   PipelineSearchResponse,
@@ -16,6 +27,10 @@ import type {
   PipelineToolResponse,
   PipelineToolSearchOptions,
   PipelineToolsResponse,
+  SvmCommitResult,
+  SvmSimulatedBuild,
+  SvmStageInput,
+  SvmStagedBuild,
 } from "./types";
 
 type RequestResponse = (
@@ -38,35 +53,227 @@ export class PipelineApiError extends Error {
   }
 }
 
-/** The single typed transport for every first-party Pipeline consumer. */
-export class PipelineTransport {
+export class EvmPipelineTransport {
   constructor(private readonly requestResponse: RequestResponse) {}
 
+  build(input: PipelineOperationBuildInput): Promise<EvmSimulatedBuild> {
+    return json(this.requestResponse, "POST", "/v1/pipeline/evm/build", {
+      body: jsonBody(input),
+    });
+  }
+
+  stage(input: EvmStageInput): Promise<EvmStagedBuild> {
+    return json(this.requestResponse, "POST", "/v1/pipeline/evm/stage", {
+      body: jsonBody(input),
+    });
+  }
+
+  simulate(build: EvmStagedBuild): Promise<EvmSimulatedBuild> {
+    return json(this.requestResponse, "POST", "/v1/pipeline/evm/simulate", {
+      body: { build: jsonBody(build) },
+    });
+  }
+
+  commit(
+    build: EvmSimulatedBuild,
+    options: PipelineCommitOptions = {},
+  ): Promise<EvmCommitResult> {
+    return json(this.requestResponse, "POST", "/v1/pipeline/evm/commit", {
+      headers: commitHeaders(build.digest, options),
+      body: { build: jsonBody(build) },
+    });
+  }
+}
+
+export class SvmPipelineTransport {
+  constructor(private readonly requestResponse: RequestResponse) {}
+
+  build(input: PipelineOperationBuildInput): Promise<SvmSimulatedBuild> {
+    return json(this.requestResponse, "POST", "/v1/pipeline/svm/build", {
+      body: jsonBody(input),
+    });
+  }
+
+  stage(input: SvmStageInput): Promise<SvmStagedBuild> {
+    return json(this.requestResponse, "POST", "/v1/pipeline/svm/stage", {
+      body: jsonBody(input),
+    });
+  }
+
+  simulate(build: SvmStagedBuild): Promise<SvmSimulatedBuild> {
+    return json(this.requestResponse, "POST", "/v1/pipeline/svm/simulate", {
+      body: { build: jsonBody(build) },
+    });
+  }
+
+  commit(
+    build: SvmSimulatedBuild,
+    options: PipelineCommitOptions = {},
+  ): Promise<SvmCommitResult> {
+    return json(this.requestResponse, "POST", "/v1/pipeline/svm/commit", {
+      headers: commitHeaders(build.digest, options),
+      body: { build: jsonBody(build) },
+    });
+  }
+}
+
+export class PipelineOperationTransport {
+  readonly href: string;
+
+  constructor(
+    private readonly requestResponse: RequestResponse,
+    scope: "apps" | "skills",
+    owner: string,
+  ) {
+    this.href = `/v1/pipeline/${scope}/${encodeURIComponent(required("name", owner))}`;
+  }
+
+  directory(): Promise<PipelineDirectory> {
+    return json(this.requestResponse, "GET", this.href);
+  }
+
+  operations(): Promise<PipelineDirectory> {
+    return json(this.requestResponse, "GET", `${this.href}/operations`);
+  }
+
+  operation(name: string): Promise<PipelineOperationDescriptor> {
+    return json(
+      this.requestResponse,
+      "GET",
+      `${this.href}/operations/${encodeURIComponent(required("operation", name))}`,
+    );
+  }
+
+  invoke<T = unknown>(
+    name: string,
+    args: Record<string, unknown>,
+    options?: PipelineInvokeOptions,
+  ): Promise<T> {
+    return invokeOperation(
+      this.requestResponse,
+      `${this.href}/operations/${encodeURIComponent(required("operation", name))}`,
+      args,
+      options,
+    );
+  }
+}
+
+export class PipelineSkillTransport extends PipelineOperationTransport {
+  constructor(
+    private readonly skillRequestResponse: RequestResponse,
+    skill: string,
+  ) {
+    super(skillRequestResponse, "skills", skill);
+  }
+
+  async instructions(): Promise<string> {
+    const response = await this.skillRequestResponse(
+      "GET",
+      `${this.href}/SKILL.md`,
+      { headers: { accept: "text/markdown" } },
+    );
+    if (!response.ok) throw await pipelineError(response);
+    return response.text();
+  }
+}
+
+export class PipelineAppsTransport {
+  constructor(private readonly requestResponse: RequestResponse) {}
+
+  list(): Promise<PipelineDirectory> {
+    return json(this.requestResponse, "GET", "/v1/pipeline/apps");
+  }
+
+  get(app: string): PipelineOperationTransport {
+    return new PipelineOperationTransport(this.requestResponse, "apps", app);
+  }
+}
+
+export class PipelineSkillsTransport {
+  constructor(private readonly requestResponse: RequestResponse) {}
+
+  list(): Promise<PipelineDirectory> {
+    return json(this.requestResponse, "GET", "/v1/pipeline/skills");
+  }
+
+  get(skill: string): PipelineSkillTransport {
+    return new PipelineSkillTransport(this.requestResponse, skill);
+  }
+}
+
+/** The wire-close typed transport for every first-party Pipeline consumer. */
+export class PipelineTransport {
+  readonly evm: EvmPipelineTransport;
+  readonly svm: SvmPipelineTransport;
+  readonly apps: PipelineAppsTransport;
+  readonly skills: PipelineSkillsTransport;
+
+  constructor(private readonly requestResponse: RequestResponse) {
+    this.evm = new EvmPipelineTransport(requestResponse);
+    this.svm = new SvmPipelineTransport(requestResponse);
+    this.apps = new PipelineAppsTransport(requestResponse);
+    this.skills = new PipelineSkillsTransport(requestResponse);
+  }
+
+  root(): Promise<PipelineDirectory> {
+    return json(this.requestResponse, "GET", "/v1/pipeline");
+  }
+
+  read(path = "/v1/pipeline"): Promise<PipelineFilesystemResource> {
+    return json(this.requestResponse, "GET", pipelinePath(path));
+  }
+
+  app(name: string): PipelineOperationTransport {
+    return this.apps.get(name);
+  }
+
+  skill(name: string): PipelineSkillTransport {
+    return this.skills.get(name);
+  }
+
+  invoke<T = unknown>(
+    path: string,
+    args: Record<string, unknown>,
+    options?: PipelineInvokeOptions,
+  ): Promise<T> {
+    return invokeOperation(
+      this.requestResponse,
+      operationPath(path),
+      args,
+      options,
+    );
+  }
+
+  /** @deprecated Use `pipeline.apps.list()` filesystem discovery. */
   listApps(options: PipelineListOptions = {}): Promise<PipelineAppsResponse> {
-    return this.json("GET", "/v1/pipeline/apps", {
+    return json(this.requestResponse, "GET", "/v1/pipeline/apps", {
       query: { limit: options.limit },
     });
   }
 
+  /** @deprecated Use `pipeline.app(app).directory()`. */
   getApp(app: string): Promise<PipelineAppResponse> {
-    return this.json(
+    return json(
+      this.requestResponse,
       "GET",
       `/v1/pipeline/apps/${encodeURIComponent(required("app", app))}`,
     );
   }
 
+  /** @deprecated Crawl the filesystem discovery surface. */
   searchApps(
     options: PipelineSearchOptions = {},
   ): Promise<PipelineSearchResponse> {
-    return this.json("GET", "/v1/pipeline/search/apps", {
+    return json(this.requestResponse, "GET", "/v1/pipeline/search/apps", {
       query: { q: options.q, limit: options.limit },
     });
   }
 
+  /** @deprecated Use fixed chain routes or scoped operations. */
   listTools(
     options: PipelineToolListOptions = {},
   ): Promise<PipelineToolsResponse> {
-    return this.json("GET", "/v1/pipeline/tools", {
+    return json(this.requestResponse, "GET", "/v1/pipeline/tools", {
       query: {
         app: options.app,
         namespace: options.namespace,
@@ -75,69 +282,96 @@ export class PipelineTransport {
     });
   }
 
+  /** @deprecated Use fixed chain routes or scoped operations. */
   getTool(
     toolId: string,
     options: { app?: string } = {},
   ): Promise<PipelineToolResponse> {
-    return this.json(
+    return json(
+      this.requestResponse,
       "GET",
       `/v1/pipeline/tools/${encodeURIComponent(required("toolId", toolId))}`,
       { query: { app: options.app } },
     );
   }
 
+  /** @deprecated Crawl the filesystem discovery surface. */
   searchTools(
     options: PipelineToolSearchOptions = {},
   ): Promise<PipelineSearchResponse> {
-    return this.json("GET", "/v1/pipeline/search/tools", {
+    return json(this.requestResponse, "GET", "/v1/pipeline/search/tools", {
       query: { q: options.q, app: options.app, limit: options.limit },
     });
   }
 
+  /** @deprecated Use `pipeline.skills.list()` filesystem discovery. */
   listSkills(
     options: PipelineListOptions = {},
   ): Promise<PipelineSkillsResponse> {
-    return this.json("GET", "/v1/pipeline/skills", {
+    return json(this.requestResponse, "GET", "/v1/pipeline/skills", {
       query: { limit: options.limit },
     });
   }
 
+  /** @deprecated Use `pipeline.skill(skill).directory()`. */
   getSkill(skillId: string): Promise<PipelineCatalogResponse> {
-    return this.json(
+    return json(
+      this.requestResponse,
       "GET",
       `/v1/pipeline/skills/${encodeURIComponent(required("skillId", skillId))}`,
     );
   }
 
+  /** @deprecated Use fixed chain lifecycle or scoped `invoke()`. */
   callTool<T extends PipelineExecutionResponse = PipelineExecutionResponse>(
     request: PipelineToolCallRequest,
     options: PipelineExecutionOptions,
   ): Promise<T> {
-    return this.json("POST", "/v1/pipeline/tool-calls", {
+    return json(this.requestResponse, "POST", "/v1/pipeline/tool-calls", {
       headers: executionHeaders(options),
       body: request,
     });
   }
 
+  /** @deprecated Use chain-specific Build composition. */
   run<T extends PipelineExecutionResponse = PipelineExecutionResponse>(
     request: PipelineRunRequest,
     options: PipelineExecutionOptions,
   ): Promise<T> {
-    return this.json("POST", "/v1/pipeline/runs", {
+    return json(this.requestResponse, "POST", "/v1/pipeline/runs", {
       headers: executionHeaders(options),
       body: request,
     });
   }
+}
 
-  private async json<T>(
-    method: AomiHttpMethod,
-    path: string,
-    options?: AomiRequestOptions,
-  ): Promise<T> {
-    return parsePipelineResponse<T>(
-      await this.requestResponse(method, path, options),
+async function invokeOperation<T>(
+  requestResponse: RequestResponse,
+  path: string,
+  args: Record<string, unknown>,
+  options: PipelineInvokeOptions = {},
+): Promise<T> {
+  if (options.validate !== false) {
+    const descriptor = await json<PipelineOperationDescriptor>(
+      requestResponse,
+      "GET",
+      path,
     );
+    validatePipelineArguments(args, descriptor.inputSchema);
   }
+  return json(requestResponse, "POST", path, {
+    headers: mutationHeaders(options),
+    body: jsonBody(args),
+  });
+}
+
+async function json<T>(
+  requestResponse: RequestResponse,
+  method: AomiHttpMethod,
+  path: string,
+  options?: AomiRequestOptions,
+): Promise<T> {
+  return parsePipelineResponse<T>(await requestResponse(method, path, options));
 }
 
 async function parsePipelineResponse<T>(response: Response): Promise<T> {
@@ -145,10 +379,14 @@ async function parsePipelineResponse<T>(response: Response): Promise<T> {
     if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
   }
+  throw await pipelineError(response);
+}
+
+async function pipelineError(response: Response): Promise<PipelineApiError> {
   const body = (await response
     .json()
     .catch(() => null)) as PipelineErrorBody | null;
-  throw new PipelineApiError(
+  return new PipelineApiError(
     response.status,
     body?.error?.code ?? "pipeline_request_failed",
     body?.error?.message ??
@@ -161,18 +399,75 @@ async function parsePipelineResponse<T>(response: Response): Promise<T> {
   );
 }
 
+function jsonBody<T>(value: T): T {
+  return normalizeJson(value) as T;
+}
+
+function normalizeJson(value: unknown): unknown {
+  if (typeof value === "bigint") return value.toString(10);
+  if (Array.isArray(value)) return value.map(normalizeJson);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, normalizeJson(item)]),
+    );
+  }
+  return value;
+}
+
 function required(name: string, value: string): string {
   const normalized = value.trim();
   if (!normalized) throw new TypeError(`${name} is required`);
   return normalized;
 }
 
-function executionHeaders(options: PipelineExecutionOptions): HeadersInit {
-  const idempotencyKey = required("idempotencyKey", options.idempotencyKey);
+function pipelinePath(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  const full = normalized.startsWith("/v1/pipeline")
+    ? normalized
+    : `/v1/pipeline${normalized}`;
+  if (full !== "/v1/pipeline" && !full.startsWith("/v1/pipeline/")) {
+    throw new TypeError("path must resolve beneath /v1/pipeline");
+  }
+  return full.replace(/\/+$/, "");
+}
+
+function operationPath(path: string): string {
+  const full = pipelinePath(path);
+  if (!/\/operations\/[^/]+$/.test(full)) {
+    throw new TypeError("operation path must end in /operations/{operation}");
+  }
+  return full;
+}
+
+function commitHeaders(
+  digest: string,
+  options: PipelineCommitOptions,
+): HeadersInit {
+  return mutationHeaders({
+    ...options,
+    idempotencyKey: options.idempotencyKey ?? digest,
+  });
+}
+
+function mutationHeaders(options: {
+  idempotencyKey?: string;
+  paymentSignature?: string;
+}): HeadersInit {
   return {
-    "idempotency-key": idempotencyKey,
+    "idempotency-key": required(
+      "idempotencyKey",
+      options.idempotencyKey ?? randomIdempotencyKey(),
+    ),
     ...(options.paymentSignature
       ? { "payment-signature": options.paymentSignature }
       : {}),
   };
+}
+
+function executionHeaders(options: PipelineExecutionOptions): HeadersInit {
+  return mutationHeaders(options);
+}
+
+function randomIdempotencyKey(): string {
+  return `idem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
 }
