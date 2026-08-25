@@ -2,6 +2,27 @@
 
 ## Last Updated
 
+2026-08-25 — Payment rails split out of /pricing (Cecilia). The x402 deferred
+credit gate explainer from aomi-design
+`communication/info/x402-deferred-credit-gate.html` now lives at
+/pricing/payment-rails rather than going onto /pricing, because the pricing
+page was deliberately built as audience-first and not a technical explainer
+(her instruction, 2026-08-24). New files under (marketing)/pricing/payment-rails:
+page.tsx, payment-rails.module.css, payment-rails-charts.tsx. Both figures are
+a FAITHFUL PORT, not a redesign: the original drew them imperatively into empty
+<svg> nodes on load, and that geometry is transcribed into JSX so they
+server-render. Chart color literals are kept as-is so the output matches; the
+surrounding chrome uses v3 tokens. Nav: "Pricing" was a plain link and is now a
+navGroups dropdown (`pricingLinks` in site.ts) with Pricing and Payment rails,
+so the standalone Pricing links were removed from both desktop and mobile in
+nav.tsx and MARKETING_ROOT became unused there. /pricing gained an "Explore
+payment rails" link in the FAQ intro, which already name-dropped payment rails.
+Also .navPopoverItem radius 12px -> 18px, concentric with .navPopover (30px
+radius minus 12px padding) so inner and outer curves stay parallel.
+NOTE: the dev server in this worktree was crashing and cold-recompiling
+repeatedly during this work; the radius was verified against compiled CSS
+rather than a screenshot, though the page itself is screenshot-verified.
+
 2026-08-25 — /solutions/wallets: replaced the "Two ways to consume" lane
 cards with a new signer-topology section (Cecilia). New component
 `solutions/[slug]/wallet-topology.tsx` renders the login / wallet / chain /
