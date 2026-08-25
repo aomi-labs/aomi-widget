@@ -1,0 +1,220 @@
+.page {
+  background: var(--landing-paper);
+  overflow-x: clip;
+}
+
+.hero {
+  width: min(1440px, calc(100% - 64px));
+  min-height: min(860px, 94vh);
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: minmax(470px, 0.84fr) minmax(0, 1.16fr);
+  gap: clamp(24px, 2vw, 36px);
+  align-items: center;
+  padding: 136px 0 88px;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--landing-muted);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-eyebrow);
+  letter-spacing: var(--landing-eyebrow-ls);
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.heroCopy h1 {
+  max-width: 22ch;
+  margin: 18px 0 0;
+  font-family: var(--landing-serif);
+  font-size: var(--landing-h1);
+  font-weight: 700;
+  letter-spacing: var(--landing-h1-ls);
+  line-height: var(--landing-h1-lh);
+  text-wrap: balance;
+}
+
+.heroIntro {
+  max-width: 580px;
+  margin: 28px 0 0;
+  color: var(--landing-copy);
+  font-family: var(--landing-sans);
+  font-size: var(--landing-lead);
+  line-height: var(--landing-lead-lh);
+}
+
+.hero .heroCta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--landing-btn-h);
+  margin-top: 32px;
+  padding: var(--landing-btn-pad);
+  border-radius: 999px;
+  background: var(--landing-ink-surface);
+  color: #fff;
+  font-family: var(--landing-sans);
+  font-size: var(--landing-btn);
+  font-weight: 600;
+  transition:
+    background 180ms ease,
+    transform 180ms ease;
+}
+
+.hero .heroCta:hover {
+  background: var(--landing-blue-dark);
+  transform: translateY(-2px);
+}
+
+.hero .heroCta svg {
+  width: 14px;
+  height: 14px;
+}
+
+.heroProof {
+  max-width: 560px;
+  margin: 52px 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--landing-border);
+}
+
+.heroProof div {
+  padding: 18px 14px 0 0;
+}
+
+.heroProof dt {
+  color: var(--landing-muted);
+  font-family: var(--landing-mono);
+  font-size: var(--landing-eyebrow);
+  letter-spacing: var(--landing-eyebrow-ls);
+}
+
+.heroProof dd {
+  max-width: 14ch;
+  margin: 8px 0 0;
+  font-family: var(--landing-sans);
+  font-size: var(--landing-micro);
+  font-weight: 600;
+  line-height: var(--landing-micro-lh);
+}
+
+.productStack {
+  position: relative;
+  width: calc(100% + clamp(48px, 5vw, 88px));
+  min-height: clamp(560px, 52vw, 720px);
+  margin: 0 clamp(-88px, -5vw, -48px) 0 0;
+}
+
+.buildScreen,
+.integrationScreen {
+  position: absolute;
+  overflow: hidden;
+  border: 1px solid rgba(23, 31, 43, 0.15);
+  background: #fff;
+  box-shadow: 0 30px 90px rgba(37, 51, 67, 0.18);
+}
+
+.buildScreen img,
+.integrationScreen img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.buildScreen {
+  z-index: 1;
+  top: 4%;
+  right: -3%;
+  width: 104%;
+}
+
+.integrationScreen {
+  z-index: 2;
+  right: auto;
+  bottom: -14%;
+  left: 8%;
+  width: 74%;
+}
+
+:global(html[data-theme="dark"]) .buildScreen,
+:global(html[data-theme="dark"]) .integrationScreen {
+  border-color: var(--landing-border);
+  background: var(--landing-raised);
+  box-shadow: 0 30px 90px var(--landing-shadow);
+}
+
+:global(html[data-theme="dark"]) .buildScreen img,
+:global(html[data-theme="dark"]) .integrationScreen img {
+  filter: invert(0.9) hue-rotate(180deg) brightness(0.96) contrast(0.92);
+}
+
+@media (max-width: 1120px) {
+  .hero {
+    grid-template-columns: 1fr;
+    gap: 58px;
+    padding-top: 132px;
+  }
+
+  .heroCopy h1 {
+    max-width: 17ch;
+  }
+
+  .heroIntro {
+    max-width: 680px;
+  }
+
+  .productStack {
+    width: 100%;
+    min-height: min(74vw, 720px);
+    margin: 0;
+  }
+
+  .buildScreen {
+    right: 0;
+    width: 100%;
+  }
+
+  .integrationScreen {
+    bottom: -10%;
+    left: 10%;
+    width: 78%;
+  }
+}
+
+@media (max-width: 560px) {
+  .hero {
+    gap: 46px;
+    padding: 118px 0 76px;
+  }
+
+  .heroProof {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    margin-top: 40px;
+  }
+
+  .heroProof div {
+    display: grid;
+    grid-template-columns: 34px 1fr;
+    align-items: baseline;
+    padding-top: 0;
+  }
+
+  .heroProof dd {
+    max-width: none;
+    margin-top: 0;
+  }
+
+  .productStack {
+    min-height: 102vw;
+  }
+
+  .integrationScreen {
+    right: auto;
+    bottom: 0;
+    left: 8%;
+    width: 84%;
+  }
+}

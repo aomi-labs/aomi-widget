@@ -1,0 +1,94 @@
+/*
+ * Marketing theme roles derived from aomi-design/src/tokens/tokens.css.
+ * Source commit: 8c6a8b351a4154ad46580f79cff4340ca3253da5
+ *
+ * Components consume semantic --landing-* aliases from marketing.module.css.
+ * Palette values and light/dark decisions live here, in one place.
+ */
+
+.theme {
+  --aomi-cool-0: #ffffff;
+  --aomi-cool-50: #fafafa;
+  --aomi-cool-100: #f4f4f5;
+  --aomi-cool-200: #e4e4e7;
+  --aomi-cool-300: #d4d4d8;
+  --aomi-cool-400: #a1a1aa;
+  --aomi-cool-500: #71717a;
+  --aomi-cool-600: #52525b;
+  --aomi-cool-700: #3f3f46;
+  --aomi-cool-800: #27272a;
+  --aomi-cool-850: #202024;
+  --aomi-cool-900: #18181b;
+  --aomi-cool-950: #09090b;
+
+  --aomi-sky-100: #e2eef8;
+  --aomi-sky-200: #cfe1f3;
+  --aomi-sky-300: #aecbe8;
+  --aomi-sky-400: #7facd6;
+  --aomi-sky-500: #5288c2;
+  --aomi-sky-600: #356d9f;
+
+  --aomi-pink-100: #fbe4ef;
+  --aomi-pink-400: #e77ba6;
+  --aomi-pink-500: #df5d90;
+  --aomi-pink-600: #c8527f;
+
+  --aomi-green-100: #e5f4ed;
+  --aomi-green-400: #77d4aa;
+  --aomi-green-500: #2e9e6b;
+  --aomi-green-600: #237c54;
+
+  --aomi-landing-bg: var(--aomi-cool-0);
+  --aomi-landing-surface: var(--aomi-cool-0);
+  --aomi-landing-surface-subtle: var(--aomi-cool-100);
+  --aomi-landing-surface-raised: var(--aomi-cool-0);
+  --aomi-landing-text: var(--aomi-cool-950);
+  --aomi-landing-text-secondary: var(--aomi-cool-600);
+  --aomi-landing-text-muted: var(--aomi-cool-500);
+  --aomi-landing-text-subtle: var(--aomi-cool-400);
+  --aomi-landing-border: var(--aomi-cool-200);
+  --aomi-landing-border-strong: var(--aomi-cool-300);
+  --aomi-landing-grid: rgba(9, 9, 11, 0.045);
+  --aomi-landing-code-text: var(--aomi-cool-700);
+  --aomi-landing-code-comment: var(--aomi-cool-500);
+  --aomi-landing-accent: var(--aomi-sky-500);
+  --aomi-landing-accent-hover: var(--aomi-sky-600);
+  --aomi-landing-accent-subtle: var(--aomi-sky-100);
+  --aomi-brand-ink: var(--aomi-cool-950);
+  --aomi-text-on-brand-ink: var(--aomi-cool-0);
+  --aomi-landing-on-accent: var(--aomi-cool-0);
+  --aomi-landing-shadow: rgba(9, 9, 11, 0.12);
+  --aomi-glass-fill: rgba(255, 255, 255, 0.68);
+  --aomi-glass-fill-strong: rgba(255, 255, 255, 0.82);
+  --aomi-glass-fill-hover: rgba(255, 255, 255, 0.9);
+  --aomi-glass-border: rgba(255, 255, 255, 0.72);
+  --aomi-glass-highlight: rgba(255, 255, 255, 0.56);
+  --aomi-glass-shadow: rgba(9, 9, 11, 0.14);
+}
+
+:global(html[data-theme="dark"]) .theme {
+  --aomi-landing-bg: var(--aomi-cool-950);
+  --aomi-landing-surface: var(--aomi-cool-900);
+  --aomi-landing-surface-subtle: var(--aomi-cool-850);
+  --aomi-landing-surface-raised: var(--aomi-cool-800);
+  --aomi-landing-text: var(--aomi-cool-50);
+  --aomi-landing-text-secondary: var(--aomi-cool-300);
+  --aomi-landing-text-muted: var(--aomi-cool-400);
+  --aomi-landing-text-subtle: var(--aomi-cool-500);
+  --aomi-landing-border: var(--aomi-cool-800);
+  --aomi-landing-border-strong: var(--aomi-cool-700);
+  --aomi-landing-grid: rgba(161, 161, 170, 0.07);
+  --aomi-landing-code-text: var(--aomi-cool-300);
+  --aomi-landing-code-comment: var(--aomi-cool-400);
+  --aomi-landing-accent: var(--aomi-sky-400);
+  --aomi-landing-accent-hover: var(--aomi-sky-300);
+  --aomi-landing-accent-subtle: #28354a;
+  --aomi-landing-on-accent: var(--aomi-cool-950);
+  --aomi-landing-shadow: rgba(0, 0, 0, 0.34);
+  --aomi-glass-fill: rgba(39, 39, 42, 0.62);
+  --aomi-glass-fill-strong: rgba(39, 39, 42, 0.78);
+  --aomi-glass-fill-hover: rgba(63, 63, 70, 0.82);
+  --aomi-glass-border: rgba(255, 255, 255, 0.15);
+  --aomi-glass-highlight: rgba(255, 255, 255, 0.18);
+  --aomi-glass-shadow: rgba(0, 0, 0, 0.42);
+}
