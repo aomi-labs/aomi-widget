@@ -43,6 +43,13 @@ Both resolve to the same sealed Action, cross the same Plan, Simulate, Guard,
 Sign, and Verify path, and inherit the same durability, custody, fail-closed,
 onchain-verification, and exactly-once-resume guarantees. V2 retains the two
 separate sections.
+The V3 REST API confirm-sheet fixture keeps its existing white, blue, green,
+and warning tokens while using the reference card's compact 1.24:1 desktop
+proportion; mobile returns to content-driven height.
+The V3 Wallets review fixture follows the same compact swap-summary structure
+and 1.24:1 desktop proportion at a 620px maximum width, with page-local markup
+and wallet-page tokens; it does not share or enlarge the product integration
+widget.
 
 The V3 REST API hero uses the same centered, copy-led composition as Agent
 Toolings. Its interactive Agent/Pipeline workbench lives in the dark shared
@@ -152,6 +159,23 @@ before the later tool-design and shipping guidance.
 
 # Landing V3 Sector-Specific Solution Pages
 
+Current session goal: **IMPLEMENTED 2026-08-25** — revise the V3 DeFi solution
+around the vault-operator GTM study instead of presenting Aomi as an AI yield
+optimizer. The page now leads with independent books and policy-bounded exits,
+using a sanitized deterministic incident replay to show reported-versus-shadow
+NAV drift, an operator-owned risk-off runbook, and an expandable Vault
+ChangeSet. The narrative starts in non-executing shadow mode, separates the NAV
+and alert-to-action entry wedges, carries evidence and operating controls in one
+review object, and reframes the shared pipeline as Observe, Reconcile, Compile,
+Simulate, Approve, and Verify. Ownership stays explicit: the vault operator
+keeps the mandate, valuation policy, strategy, and runbooks; Aomi normalizes
+evidence, compiles and simulates exact state transitions, and reconciles final
+state; Safe, MPC, or wallet retains keys and authority. Operator modules cover
+NAV Sentinel, Vault ChangeSet, Incident Commander, and Settlement Copilot. The
+page keeps V3 serif, sans, mono, paper, blue, green, pink, border, spacing, and
+square-grid tokens; blue denotes Aomi system state, green is reserved for
+passed checks, pink marks drift, and the demo remains flat with no shadow.
+
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** —
 replace the shared V3 Fintech, Trading, NFT, and Wallets composition with four
 sector-specific narratives while keeping the V3 navigation, typography,
@@ -174,6 +198,9 @@ ownership of those concepts. Interactive examples are deterministic frontend
 fixtures and do not claim live capital movement, marketplace inventory, or
 production settlement. Desktop and 390px mobile layouts, interactive tab and
 selection states, targeted ESLint, and the production Next build are verified.
+The DeFi hero sequence card keeps its fine green border while rendering flat,
+without a drop shadow. Its three-column open-catalog grid uses square outer
+corners rather than a rounded container.
 Trading temporarily replaces its prior generic harness narrative with the World
 Markets × Aomi example already used on DeFi. Its six existing animated scenes
 are rendered as a complete static storyboard, one full frame at a time, while
@@ -1714,3 +1741,15 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   The `/v2` routes keep the original sizes. Note the sector pages render the
   equivalent rail in PT Serif at `--v3-h4` (18px, weight 700) rather than sans
   — that divergence is untouched and still open.
+- 2026-08-25 V3 DeFi narrative and token pass: kept the established V3 canvas,
+  type scale, page width, spacing, borders, and semantic palette while replacing
+  the generic hero diagram with the deterministic Sommelier allocation fixture.
+  The demo now compares actual fixture markets, proves why the highest APY can be
+  non-executable under venue availability and risk-band policy, and expands into
+  the exact guarded action prepared for the user's signer. Replaced the repeated
+  architecture collage with one square, divider-led execution pipeline and an
+  explicit authority ledger; added distinct product-builder and protocol routes;
+  tightened the action/catalog story; and split the final CTA between execution
+  APIs and Plugin SDK. Blue marks system state, green is reserved for passed or
+  positive outcomes, and the editorial grids use no shadows or decorative
+  rounding.

@@ -5,7 +5,6 @@ import {
   Braces,
   Check,
   FlaskConical,
-  KeyRound,
   ShieldCheck,
   Waypoints,
 } from "lucide-react";
@@ -33,14 +32,6 @@ const stopBuilding = [
     title: "A hash is not proof.",
     body: "A watcher checks signer, chain, calldata, and ordering against the sealed Action before your product reports success. Receipts reconcile without your own indexing stack.",
   },
-] as const;
-
-const receiptRows = [
-  ["Asset out", "0.5 ETH"],
-  ["Minimum received", "1,220 USDC"],
-  ["Route", "Uniswap v3 · Base"],
-  ["Price impact", "5 bps"],
-  ["Network fee", "$0.06"],
 ] as const;
 
 export function V3WalletsPage() {
@@ -198,30 +189,33 @@ export function V3WalletsPage() {
           </div>
         </div>
 
-        <div className={styles.walletReceipt}>
-          <header>
+        <div
+          className={styles.walletReceipt}
+          role="group"
+          aria-label="Swap confirmation preview"
+        >
+          <h3>Swap 0.5 ETH for ~1,240 USDC</h3>
+          <div className={styles.walletReceiptSteps}>
             <div>
-              <ShieldCheck aria-hidden />
-              <span>Action preview</span>
+              <span>Wrap 0.5 ETH</span>
+              <strong>−0.5 ETH</strong>
             </div>
-            <strong>Simulation passed</strong>
-          </header>
-          <h3>Swap through Uniswap v3</h3>
-          <dl>
-            {receiptRows.map(([label, value]) => (
-              <div key={label}>
-                <dt>{label}</dt>
-                <dd>{value}</dd>
-              </div>
-            ))}
-          </dl>
-          <footer>
-            <KeyRound aria-hidden />
-            <span>
-              <strong>Ready for your wallet</strong>
-              No key or approval authority moved to Aomi.
-            </span>
-          </footer>
+            <div>
+              <span>
+                Swap via Uniswap v3
+                <small>Simulated · guards passed</small>
+              </span>
+              <strong>+1,240.18 USDC</strong>
+            </div>
+          </div>
+          <div className={styles.walletReceiptMeta}>
+            <span>Gas: you pay ~$1.20</span>
+            <strong>⚠ Price impact 2.3%</strong>
+          </div>
+          <div className={styles.walletReceiptActions}>
+            <span>Reject</span>
+            <span>Approve</span>
+          </div>
         </div>
       </section>
 

@@ -2,6 +2,37 @@
 
 ## Last Updated
 
+2026-08-25 — v3 nav: removed the native macOS push-button bezel that Safari
+painted around nav triggers such as Products on hover. Nothing in our CSS drew
+it. `.navTrigger` only changes text color on hover, and no `appearance` reset
+existed anywhere in v3.module.css or globals.css, so the button kept
+`appearance: button` and Safari rendered the native control. Fix is a
+`.root button { -webkit-appearance: none; appearance: none; }` reset near the
+top of v3.module.css, which also covers every other v3 button such as the
+mandate, world, and showcase tabs. Not reproducible in Playwright (headless
+WebKit does not paint macOS native control themes), so verify in Safari.
+
+2026-08-24 — /v3/solutions/defi rebuilt as "The universal DeFi executor"
+(Cecilia's angle: lead with coverage + sequences, then the open catalog; drop
+correctness as a lead because hardcoded execution beats an agent there).
+World Markets content already lives on /v3/solutions/trading; defi no longer
+imports it. New page (defi-page.tsx, no longer takes the solution prop):
+hero with a three-protocol sequence card (Aave withdraw -> CoW swap -> Morpho
+supply, one signature), coverage wall (verbs x venues chips), then
+`execution-architecture.tsx` — a responsive v3-token rebuild of the
+aomi-design deck `deliverables/decks/arch-pipeline-0716.html` (which is a
+fixed 1280x720 JS-scaled stage; the rebuild is CSS grid, no outer frame:
+dispatch-application-runtime-tools stack + chain bubbles / plain Full node
+card on the right, horizontal 4-step pipeline underneath, archPulse
+animation, collapses at 1120/860px), then "Make your
+protocol agent-reachable" (Plugin SDK cards), CTA. defi metadata branch added
+in [slug]/page.tsx. defi.module.css world* classes are still LIVE via
+world-markets-example.tsx which trading-page renders — do not prune them.
+COPY RULE from Cecilia (saved to memory): never use staccato tagline
+fragments like "One harness. Many apps. Every chain, forked."; headings state
+plainly what the thing is, e.g. "Architecture for protocol-agnostic execution
+across chains". eslint clean; route 200; screenshot-verified.
+
 2026-08-24 — REST-APIs "shared contract" section rebuilt + /v3/solutions/wallets
 repositioned (Cecilia). (1) /v3/products/rest-apis: the "One Action crosses both
 APIs" section no longer renders the ApiWorkbench curl walls in v3 layout; new

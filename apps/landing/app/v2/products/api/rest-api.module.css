@@ -2456,7 +2456,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
   gap: 26px;
-  align-items: stretch;
+  align-items: start;
 }
 
 .showcaseType {
@@ -2546,9 +2546,10 @@
 
 .confirmSheet {
   display: flex;
+  width: 100%;
+  aspect-ratio: 1.24 / 1;
   flex-direction: column;
   gap: 22px;
-  flex: 1;
   margin-top: 16px;
   padding: 30px 32px 28px;
   border: 1px solid rgba(255, 255, 255, 0.14);
@@ -2706,6 +2707,11 @@
 @media (max-width: 960px) {
   .showcaseBody {
     grid-template-columns: 1fr;
+  }
+
+  .confirmSheet {
+    aspect-ratio: auto;
+    min-height: 420px;
   }
 
   .showcaseFoot {

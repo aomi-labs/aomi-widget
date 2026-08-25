@@ -558,12 +558,17 @@
   display: grid;
   min-height: 0;
   align-content: center;
-  padding: 40px var(--v3-page-inset);
+  padding: 40px 64px;
 }
 
 .fintechFit > div:first-child {
+  padding-left: var(--v3-page-inset);
   color: var(--v3-ink);
   background: var(--v3-blue-soft);
+}
+
+.fintechFit > div:last-child {
+  padding-right: var(--v3-page-inset);
 }
 
 .fintechFit > div:last-child {
@@ -1997,7 +2002,7 @@
 
 .walletReview {
   display: grid;
-  grid-template-columns: minmax(0, 0.78fr) minmax(460px, 1.22fr);
+  grid-template-columns: minmax(0, 1fr) minmax(460px, 620px);
   gap: 90px;
   padding: 112px 0;
   border-top: 1px solid var(--v3-border);
@@ -2029,95 +2034,107 @@
 }
 
 .walletReceipt {
+  display: flex;
+  width: 100%;
+  max-width: 620px;
+  aspect-ratio: 1.24 / 1;
+  align-self: start;
+  justify-self: end;
+  flex-direction: column;
+  gap: 22px;
   border: 1px solid var(--v3-border);
-  padding: 30px;
+  border-radius: 22px;
+  padding: 30px 32px 28px;
+  background: var(--v3-paper);
   box-shadow: 0 30px 90px rgba(18, 33, 45, 0.1);
 }
 
-.walletReceipt > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-bottom: 22px;
-  border-bottom: 1px solid var(--v3-border);
-}
-
-.walletReceipt > header > div {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--v3-muted);
-  font-family: var(--v3-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-}
-
-.walletReceipt > header svg {
-  width: 15px;
-  color: var(--v3-green);
-}
-
-.walletReceipt > header > strong {
-  color: var(--v3-green-dark);
-  font-family: var(--v3-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-}
-
 .walletReceipt > h3 {
-  margin: 28px 0 0;
-  font-family: var(--v3-serif);
-  font-size: 23px;
-  line-height: 1;
-}
-
-.walletReceipt dl {
-  margin: 28px 0 0;
-  border-top: 1px solid var(--v3-border);
-}
-
-.walletReceipt dl > div {
-  display: flex;
-  min-height: 49px;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--v3-border);
-}
-
-.walletReceipt dt {
-  color: var(--v3-muted);
-  font-size: 11px;
-}
-
-.walletReceipt dd {
   margin: 0;
-  font-family: var(--v3-mono);
-  font-size: 11px;
-  font-weight: 600;
+  font-family: var(--v3-sans);
+  font-size: var(--v3-h3);
+  font-weight: 620;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
 }
 
-.walletReceipt > footer {
+.walletReceiptSteps {
   display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  margin-top: 24px;
-  padding: 18px;
-  color: var(--v3-muted);
-  background: var(--v3-blue-soft);
-  font-size: 11px;
-  line-height: 1.5;
+  flex-direction: column;
+  gap: 17px;
 }
 
-.walletReceipt > footer svg {
-  width: 17px;
-  flex: none;
-  color: var(--v3-blue-dark);
+.walletReceiptSteps > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
 }
 
-.walletReceipt > footer strong {
-  display: block;
+.walletReceiptSteps span {
   color: var(--v3-ink);
-  font-size: 12px;
+  font-family: var(--v3-sans);
+  font-size: var(--v3-body);
+}
+
+.walletReceiptSteps small {
+  display: block;
+  margin-top: 3px;
+  color: var(--v3-muted);
+  font-size: var(--v3-small);
+}
+
+.walletReceiptSteps strong {
+  font-family: var(--v3-mono);
+  font-size: var(--v3-small);
+  font-weight: 500;
+  white-space: nowrap;
+  color: #bb5a41;
+}
+
+.walletReceiptSteps > div:last-child strong {
+  color: var(--v3-green-dark);
+}
+
+.walletReceiptMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding-top: 18px;
+  border-top: 1px solid var(--v3-border);
+  color: var(--v3-muted);
+  font-family: var(--v3-sans);
+  font-size: var(--v3-small);
+}
+
+.walletReceiptMeta strong {
+  color: #a66a1e;
+  font-weight: 400;
+}
+
+.walletReceiptActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: auto;
+}
+
+.walletReceiptActions span {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--v3-border);
+  border-radius: 13px;
+  padding: 12px 26px;
+  color: var(--v3-copy);
+  font-family: var(--v3-sans);
+  font-size: var(--v3-small);
+  font-weight: 620;
+}
+
+.walletReceiptActions span:last-child {
+  border-color: var(--v3-green-dark);
+  color: #fff;
+  background: var(--v3-green-dark);
 }
 
 .walletFit {
@@ -2213,6 +2230,11 @@
   .walletReview {
     grid-template-columns: 1fr;
     gap: 42px;
+  }
+
+  .walletReceipt {
+    aspect-ratio: auto;
+    min-height: 420px;
   }
 
   .proofRail {

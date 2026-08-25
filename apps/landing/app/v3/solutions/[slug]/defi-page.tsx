@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ArrowRight,
   Blocks,
@@ -7,237 +9,309 @@ import {
   Waypoints,
 } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { V3 } from "../../site";
 import { ExecutionArchitecture } from "./execution-architecture";
 import styles from "./defi.module.css";
 
-const sequenceSteps = [
+const reconciliationEvidence = [
   {
-    label: "Withdraw 25,000 USDC from Aave v3",
-    detail: "aUSDC redeemed on Ethereum",
-    amount: "+25,000 USDC",
-    direction: "in",
+    label: "Reported NAV",
+    value: "100.00",
+    detail: "Operator book at the latest published checkpoint",
+    outcome: "reported",
+    status: "REPORTED",
   },
   {
-    label: "Swap USDC to WETH through CoW Swap",
-    detail: "Solver auction, settles off the public mempool",
-    amount: "+9.62 WETH",
-    direction: "in",
+    label: "Shadow NAV",
+    value: "99.03",
+    detail: "Reconstructed from assets, debt, rewards, and receivables",
+    outcome: "reconstructed",
+    status: "REBUILT",
   },
   {
-    label: "Supply 9.62 WETH to Morpho Blue",
-    detail: "91.2% utilization market",
-    amount: "−9.62 WETH",
-    direction: "out",
+    label: "Unexplained drift",
+    value: "−0.97%",
+    detail: "One offchain receivable lacks fresh supporting evidence",
+    outcome: "drift",
+    status: "INVESTIGATE",
   },
 ] as const;
 
-const verbs = [
-  "swap",
-  "bridge",
-  "supply",
-  "borrow",
-  "repay",
-  "stake",
-  "unstake",
-  "claim",
-  "provide liquidity",
-  "hedge",
-  "transfer",
-  "schedule",
+const preparedSteps = [
+  ["01", "Reprice", "Exclude the stale receivable from the shadow book"],
+  ["02", "Contain", "Disable new allocation to the affected strategy"],
+  ["03", "Deallocate", "Return exposure to the approved idle venue"],
+  ["04", "Reconcile", "Verify receipts and measure residual exposure"],
 ] as const;
 
-const venues = [
-  "Uniswap",
-  "Aave",
-  "Morpho",
-  "Lido",
-  "CoW Swap",
-  "LiFi",
-  "Curve",
-  "Compound",
-  "Pendle",
-  "GMX",
-  "Hyperliquid",
-  "Polymarket",
-  "Rocket Pool",
-  "Ether.fi",
-  "Stargate",
-  "Jupiter",
-  "Marinade",
-  "Sky",
-  "+ 20 more",
+const proofFacts = [
+  ["Shadow NAV", "independently reconstructed"],
+  ["Role-aware", "permissions and timelocks checked"],
+  ["Exact batch", "decoded and simulated before signing"],
+  ["Reconciled", "receipts through residual exposure"],
 ] as const;
 
-const catalogCards = [
+const evidenceInputs = [
+  "assets",
+  "debts",
+  "rewards",
+  "receivables",
+  "exchange rates",
+  "oracle snapshots",
+] as const;
+
+const controlInputs = [
+  "roles",
+  "caps",
+  "queues",
+  "timelocks",
+  "call ordering",
+  "postconditions",
+] as const;
+
+const catalogStages = [
   {
     icon: Blocks,
-    title: "Wrap what you already run",
-    body: "The endpoints and contract calls your team operates today become typed tools with schemas and preambles through the Plugin SDK. No new infrastructure on your side.",
+    title: "NAV Sentinel",
+    body: "Reconstruct assets, debt, rewards, and receivables independently; surface unexplained drift before it becomes a disclosure problem.",
   },
   {
     icon: ShieldCheck,
-    title: "Inherit the execution lifecycle",
-    body: "Every call your protocol receives arrives fork-simulated, policy-checked, and signed by the user's own wallet. You never handle keys or half-built transactions.",
+    title: "Vault ChangeSet",
+    body: "Turn an approved current-to-target diff into decoded calls, role checks, simulations, and one reviewable signer packet.",
+  },
+  {
+    icon: Layers3,
+    title: "Incident Commander",
+    body: "Map an alert to affected exposure, apply the approved risk-off runbook, and preserve the required action order.",
   },
   {
     icon: Waypoints,
-    title: "Reach every agent and surface",
-    body: "Once listed, your protocol is executable through the Agent API, the Pipeline API, the hosted chat surfaces, and every product built on top of them.",
+    title: "Settlement Copilot",
+    body: "Correlate signatures, receipts, final balances, and residual exposure into evidence an operator can explain and export.",
   },
 ] as const;
 
 export function V3DefiPage() {
+  const [showPreparedAction, setShowPreparedAction] = useState(false);
+
   return (
     <main className={styles.page}>
       <section className={styles.hero}>
         <div className={styles.heroGrid} aria-hidden />
         <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>AOMI FOR DEFI</p>
-          <h1>The universal DeFi executor.</h1>
+          <p className={styles.eyebrow}>AOMI FOR VAULT OPERATIONS</p>
+          <h1>Independent books. Policy-bounded exits.</h1>
           <p className={styles.lede}>
-            Aggregators quote the best price for one hop. Aomi executes the
-            whole workflow. It covers 40+ protocols on EVM and Solana, every
-            action they expose, compiled into one simulated, signable
-            transaction. When a hop is a swap, it routes through the same
-            aggregators you would call yourself.
+            Aomi reconstructs what a vault owns and owes, detects drift between
+            reported and live state, and turns an approved response runbook into
+            decoded, simulated, signer-ready actions—with post-execution
+            evidence.
           </p>
           <div className={styles.heroActions}>
-            <Link href={`${V3}/products/rest-apis`}>
-              Explore the execution APIs <ArrowRight aria-hidden />
-            </Link>
-            <a href="#architecture">See the architecture</a>
+            <a href="#operator-paths">
+              Review the control plane <ArrowRight aria-hidden />
+            </a>
+            <a href="#operator-systems">See the operator systems</a>
           </div>
         </div>
 
-        <div className={styles.seqCard} aria-label="One sealed Action across three protocols">
-          <header>
-            <span>
-              <Layers3 aria-hidden /> One Action · three protocols
-            </span>
-            <strong>SIMULATED · 1 SIGNATURE</strong>
+        <div className={styles.seqCard} aria-label="Vault incident replay demo">
+          <header className={styles.demoMeta}>
+            <span>ILLUSTRATIVE INCIDENT REPLAY</span>
+            <strong>EXTERNALLY MANAGED VAULT</strong>
           </header>
-          <h3>Rotate idle USDC into WETH yield</h3>
-          <ol>
-            {sequenceSteps.map((step, index) => (
-              <li key={step.label}>
-                <span>0{index + 1}</span>
+          <div className={styles.demoPrompt}>
+            Reported exchange rate no longer reconciles with the independently
+            reconstructed vault state.
+          </div>
+          <div className={styles.demoAnswer}>
+            <span>NAV DRIFT DETECTED</span>
+            <h3>Prove the gap. Then compile the approved response.</h3>
+          </div>
+          <ol className={styles.marketList}>
+            {reconciliationEvidence.map((item) => (
+              <li key={item.label} data-outcome={item.outcome}>
                 <div>
-                  <strong>{step.label}</strong>
-                  <small>{step.detail}</small>
+                  <strong>{item.label}</strong>
                 </div>
-                <em data-direction={step.direction}>{step.amount}</em>
+                <em>{item.value}</em>
+                <span>{item.status}</span>
+                <p>{item.detail}</p>
               </li>
             ))}
           </ol>
+          <p className={styles.demoConclusion}>
+            <strong>
+              The operator&apos;s runbook—not the model—defines the response.
+            </strong>{" "}
+            This fixture reprices the book, stops new exposure, deallocates, and
+            verifies the resulting state.
+          </p>
+          <button
+            className={styles.demoToggle}
+            type="button"
+            aria-expanded={showPreparedAction}
+            onClick={() => setShowPreparedAction((current) => !current)}
+          >
+            {showPreparedAction
+              ? "Hide Vault ChangeSet"
+              : "Inspect Vault ChangeSet"}
+            <span aria-hidden>{showPreparedAction ? "−" : "+"}</span>
+          </button>
+          {showPreparedAction ? (
+            <ol className={styles.preparedAction}>
+              {preparedSteps.map(([step, title, body]) => (
+                <li key={step}>
+                  <span>{step}</span>
+                  <strong>{title}</strong>
+                  <p>{body}</p>
+                </li>
+              ))}
+            </ol>
+          ) : null}
           <footer>
-            <Check aria-hidden /> Simulated as one batch on a fork. Guards
-            passed. Your signer approves once.
+            <Check aria-hidden /> No strategy selected · no keys held · signer
+            approval required
           </footer>
         </div>
       </section>
 
-      <section className={styles.proof} aria-label="DeFi coverage guarantees">
-        <div className={styles.proofAudience}>
-          <span>Built for</span>
-          <p>DeFi frontends, yield products, trading bots, and protocol teams</p>
-        </div>
-        {[
-          "One contract for every protocol action",
-          "Whole sequences in one signature",
-          "Simulated before signature",
-        ].map((item, index) => (
-          <div key={item}>
-            <span>0{index + 1}</span>
-            <strong>{item}</strong>
+      <section className={styles.proof} aria-label="DeFi execution facts">
+        {proofFacts.map(([value, label]) => (
+          <div key={label}>
+            <strong>{value}</strong>
+            <span>{label}</span>
           </div>
         ))}
+      </section>
+
+      <section id="operator-paths" className={styles.paths}>
+        <header className={styles.sectionHeading}>
+          <div>
+            <p className={styles.eyebrow}>START WITH THE CONTROL GAP</p>
+            <h2>Run in shadow mode before anything can move.</h2>
+          </div>
+          <p>
+            Keep the mandate, valuation models, protocol tooling, and signer.
+            Aomi begins as an independent evidence and rehearsal layer, then
+            earns the right to prepare execution packets.
+          </p>
+        </header>
+        <div className={styles.pathGrid}>
+          <article>
+            <span>NEED INDEPENDENT FINANCIAL TRUTH?</span>
+            <h3>Run a shadow-NAV engagement.</h3>
+            <p>
+              Reconstruct current assets, liabilities, rewards, and receivables
+              beside the operator&apos;s existing books. Trace every variance to
+              evidence, ownership, and a review state.
+            </p>
+            <a href="#operator-systems">
+              See the NAV control loop <ArrowRight aria-hidden />
+            </a>
+          </article>
+          <article>
+            <span>NEED FASTER RISK-OFF RESPONSE?</span>
+            <h3>Compile one approved runbook.</h3>
+            <p>
+              Start with a real alert. Resolve affected exposure, permissions,
+              caps, queues, and timelocks; then produce the exact ordered calls
+              for the operator&apos;s Safe, MPC, or wallet.
+            </p>
+            <a href="#architecture">
+              Follow alert to evidence <ArrowRight aria-hidden />
+            </a>
+          </article>
+        </div>
       </section>
 
       <section className={styles.coverage}>
         <header className={styles.sectionHeading}>
           <div>
-            <p className={styles.eyebrow}>THE ACTION SPACE</p>
-            <h2>Aggregators cover the swap. DeFi is every other verb too.</h2>
+            <p className={styles.eyebrow}>THE VAULT CHANGESET</p>
+            <h2>One review object from desired state to evidence.</h2>
           </div>
           <p>
-            Routing APIs compete on price for one action type. Most of what a
-            DeFi product needs is everything else, and each of those verbs
-            normally means another bespoke integration. In Aomi they share one
-            catalog and one execution contract.
+            Operators review a financial diff—not blind calldata. The packet
+            carries its inputs, required authority, exact calls, simulation,
+            signer handoff, and postconditions together.
           </p>
         </header>
         <div className={styles.coverageWall}>
           <div className={styles.coverageRow}>
-            <span>Verbs</span>
+            <span>Evidence</span>
             <div>
-              {verbs.map((verb) => (
-                <em key={verb}>{verb}</em>
+              {evidenceInputs.map((input) => (
+                <em key={input}>{input}</em>
               ))}
             </div>
           </div>
           <div className={styles.coverageRow}>
-            <span>Venues</span>
+            <span>Controls</span>
             <div>
-              {venues.map((venue) => (
-                <em key={venue} data-more={venue.startsWith("+") || undefined}>
-                  {venue}
-                </em>
+              {controlInputs.map((input) => (
+                <em key={input}>{input}</em>
               ))}
             </div>
           </div>
           <p className={styles.coverageNote}>
-            Chains: Ethereum, Base, Arbitrum, Optimism, and Solana. Swap and
-            bridge hops route through venues such as CoW Swap and LiFi, so
-            coverage never trades away execution quality.
+            Output: current-to-target diff · decoded ordered calls · full-batch
+            simulation · approval packet · receipts · final-state reconciliation
           </p>
         </div>
       </section>
 
       <ExecutionArchitecture />
 
-      <section className={styles.catalog}>
+      <section id="operator-systems" className={styles.catalog}>
         <header className={styles.sectionHeading}>
           <div>
-            <p className={styles.eyebrow}>THE OPEN CATALOG</p>
-            <h2>Make your protocol agent-reachable.</h2>
+            <p className={styles.eyebrow}>OPERATOR SYSTEMS</p>
+            <h2>Four control loops. One evidence model.</h2>
           </div>
           <p>
-            The executor stays universal because the catalog is open. Protocol
-            teams list themselves by wrapping the interfaces they already
-            operate into tools, then every agent on the platform can execute
-            against them.
+            These systems complement the operator&apos;s models, protocol UIs,
+            monitors, and signer. They do not replace the strategy or assume
+            investment authority.
           </p>
         </header>
-        <div className={styles.needGrid}>
-          {catalogCards.map(({ icon: Icon, title, body }, index) => (
-            <article key={title}>
+        <ol className={styles.catalogFlow}>
+          {catalogStages.map(({ icon: Icon, title, body }, index) => (
+            <li key={title}>
               <div>
                 <Icon aria-hidden />
                 <span>0{index + 1}</span>
               </div>
               <h3>{title}</h3>
               <p>{body}</p>
-            </article>
+            </li>
           ))}
-        </div>
+        </ol>
         <div className={styles.catalogCtaRow}>
-          <Link href={`${V3}/products/plugin-sdk`}>
-            Read about the Plugin SDK <ArrowRight aria-hidden />
+          <Link href={`${V3}/products/rest-apis`}>
+            See the deterministic execution APIs <ArrowRight aria-hidden />
           </Link>
         </div>
       </section>
 
       <section className={styles.cta}>
-        <p className={styles.eyebrow}>Build with Aomi</p>
-        <h2>Bring us one real DeFi flow.</h2>
+        <p className={styles.eyebrow}>START WITH EVIDENCE</p>
+        <h2>Bring one vault and one approved risk-off runbook.</h2>
         <p>
-          Describe the workflow your product needs. We will map it to the
-          catalog, run it on a fork, and hand your signer the sealed Action.
+          Run in shadow mode first. Keep the mandate, models, and keys. Aomi
+          proves current state, rehearses the response, and packages the exact
+          actions for the signer you already trust.
         </p>
-        <Link href={`${V3}/contact`}>
-          Start with one workflow <ArrowRight aria-hidden />
-        </Link>
+        <div className={styles.ctaActions}>
+          <a href="mailto:hello@aomi.dev?subject=Shadow%20NAV%20review">
+            Start a shadow-NAV review <ArrowRight aria-hidden />
+          </a>
+          <a href="mailto:hello@aomi.dev?subject=Risk-off%20runbook%20review">
+            Test a risk-off runbook
+          </a>
+        </div>
       </section>
     </main>
   );

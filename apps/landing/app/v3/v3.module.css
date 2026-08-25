@@ -57,6 +57,13 @@
   text-rendering: optimizeLegibility;
 }
 
+/* Safari draws the native macOS push-button bezel on hover unless the
+   native appearance is switched off. */
+.root button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 @media (max-width: 1024px) {
   .root {
     --v3-page-width: min(1220px, calc(100% - 64px));
