@@ -9,7 +9,7 @@ async function clientName(clientId: string | undefined): Promise<string | null> 
   if (!clientId) return null;
   try {
     const result = await getPool().query(
-      "select name from ba_oauth_applications where client_id = $1 limit 1",
+      "select name from ba_oauth_clients where client_id = $1 limit 1",
       [clientId],
     );
     return typeof result.rows[0]?.name === "string" ? result.rows[0].name : null;

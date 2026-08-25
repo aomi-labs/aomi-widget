@@ -72,16 +72,13 @@ export function selectRegisteredRedirectUri(
 }
 
 async function registeredRedirectUrls(clientId: string): Promise<string[]> {
-  const result = await getPool().query<{ redirect_urls?: string }>(
-    "select redirect_urls from ba_oauth_applications where client_id = $1 limit 1",
+  const result = await getPool().query<{ redirect_uris?: unknown }>(
+    "select redirect_uris from ba_oauth_clients where client_id = $1 limit 1",
     [clientId],
   );
-  const value = result.rows[0]?.redirect_urls;
-  return typeof value === "string"
-    ? value
-        .split(",")
-        .map((url) => url.trim())
-        .filter(Boolean)
+  const value = result.rows[0]?.redirect_uris;
+  return Array.isArray(value)
+    ? value.filter((url): url is string => typeof url === "string")
     : [];
 }
 
