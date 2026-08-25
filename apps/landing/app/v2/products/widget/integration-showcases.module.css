@@ -289,7 +289,7 @@
 
 .sommBrand strong {
   font-family: var(--v2-font-sans), sans-serif;
-  font-size: 18px;
+  font-size: var(--v3-h4, 18px);
   font-weight: 620;
 }
 
@@ -669,7 +669,7 @@
 
 .sommBalances strong {
   font-family: var(--v2-font-mono), monospace;
-  font-size: 18px;
+  font-size: var(--v3-h4, 18px);
   font-weight: 500;
   color: #f0edf3;
 }
@@ -1930,8 +1930,8 @@
 .invariantStrip h3 {
   max-width: none;
   margin-top: 16px;
-  font-size: clamp(34px, 3.4vw, 46px);
-  line-height: 1.08;
+  font-size: var(--v3-h2, clamp(34px, 3.4vw, 46px));
+  line-height: var(--v3-h2-lh, 1.08);
 }
 
 .invariantPoints {
@@ -1955,17 +1955,17 @@
 
 .invariantPoints h4 {
   font-family: var(--v2-font-sans), sans-serif;
-  font-size: 18px;
+  font-size: var(--v3-h4, 18px);
   font-weight: 600;
-  line-height: 1.3;
+  line-height: var(--v3-h4-lh, 1.35);
   color: inherit;
 }
 
 .invariantPoints p {
   margin-top: 6px;
   font-family: var(--v2-font-sans), sans-serif;
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: var(--v3-body, 16px);
+  line-height: var(--v3-body-lh, 1.7);
   color: var(--v2-panel-copy, #ded9e6);
 }
 

@@ -2728,7 +2728,7 @@
 
 .v3Tokens .heroCopy h1 {
   max-width: 16ch;
-  font-size: clamp(42px, 4.6vw, 60px);
+  font-size: var(--v3-h1);
 }
 
 .v3Tokens .architectureLead h2,
@@ -2739,30 +2739,30 @@
 .v3Tokens .sectionIntro h2,
 .v3Tokens .surfaceCopy h2,
 .v3Tokens .toolchainHeading h2 {
-  font-size: clamp(30px, 3vw, 38px);
-  letter-spacing: -0.015em;
-  line-height: 1.12;
+  font-size: var(--v3-h2);
+  letter-spacing: var(--v3-h2-ls);
+  line-height: var(--v3-h2-lh);
 }
 
 .v3Tokens .layerLedger h3,
 .v3Tokens .ruleList h3,
 .v3Tokens .surfaceList h3 {
-  font-size: 23px;
+  font-size: var(--v3-h3);
   letter-spacing: 0;
-  line-height: 1.2;
+  line-height: var(--v3-h3-lh);
 }
 
 .v3Tokens .eyebrow {
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: var(--v3-eyebrow);
   font-weight: 400;
-  letter-spacing: 0.16em;
+  letter-spacing: var(--v3-eyebrow-ls);
   text-transform: uppercase;
 }
 
 .v3Tokens .heroSupport {
-  font-size: 16.5px;
-  line-height: 1.65;
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
 }
 
 .v3Tokens .primaryButton,

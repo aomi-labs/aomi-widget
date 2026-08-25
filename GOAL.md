@@ -92,6 +92,8 @@ selected-venue yield, 30-day spread, TVL, and risk band; it is explicitly
 labeled as fixture data. V2 retains its previous composition.
 The V3 Fintech Somm case-study section uses a clean white surface and a finer
 half-pixel border around its in-production proof pill.
+Its case-study ledger begins with a standard one-pixel ink divider rather than
+the previous heavy two-pixel rule.
 The V3 Fintech operating-model proof rail keeps its full-width top rule visible
 above the horizontal statistics grid.
 The first V3 Sommelier case has a larger desktop lead-in below the proof ledger
@@ -162,7 +164,11 @@ an editorial collection-concierge concept with selectable artwork, an exact
 cost receipt, collector motivations, and an item-level trust dossier. Wallets
 now presents an interactive Ask/Review/Sign journey inside the host wallet,
 followed by trust controls, one review receipt, and an explicit wallet-retained
-authority statement. The generic execution-architecture and repeated product
+authority statement. Its hero now uses a deterministic MetaMask-style wallet
+fixture. The wallet opens on the account and token overview; its Chat action
+reveals an embedded Aomi conversation and looping four-step execution
+walkthrough inside the same wallet surface, with a separate link to the full
+Aomi chat application. The generic execution-architecture and repeated product
 surface sections are absent from all four solution pages; product routes retain
 ownership of those concepts. Interactive examples are deterministic frontend
 fixtures and do not claim live capital movement, marketplace inventory, or
@@ -1638,3 +1644,73 @@ build`, `CI=true npx -y pnpm@10.28.0 install --frozen-lockfile`, and
   `sommelier-liquidity-manager`, `polymarket-trader`,
   `hyperliquid-arb-bot`, and `world-market-telegram`, including matching
   tools, transactions, logs, revenue, charges, and partner payments.
+- 2026-08-24 V3 type-scale unification: promoted the de-facto `.v3Tokens`
+  scale into named custom properties on `.root` in `app/v3/v3.module.css`
+  (`--v3-h1/h2/h3/h4`, `--v3-lead/body/small/micro`, `--v3-eyebrow`,
+  `--v3-btn*`, each with a matching `-lh`/`-ls`) and rolled them across every
+  V3 page. The canonical values are the ones Cecilia pinned from
+  `/v3/products/widget` and `/v3/products/rest-apis`: PT Serif 700 headings at
+  `clamp(42px, 4.6vw, 60px)` / `clamp(30px, 3vw, 38px)` / `23px`, Geist Mono
+  eyebrows at `11px`/`0.16em` in `--v3-muted`, a `16.5px`/1.65 lead, and the
+  blue-and-white pill pair at `13px`/600, 46px tall, `0 20px`. Body copy
+  collapsed from nine ad-hoc steps (13/13.5/14/14.5/15/15.5/16/16.5/17px) to
+  four; an 18px sub-heading tier (`--v3-h4`) was added because four pages had
+  independently invented 18-19px. `/v3/pricing` was the worst offender and is
+  now fully tokenised. Fixed a real specificity bug on `/v3/products/plugin-sdk`
+  where `.sectionHead > p` (0,1,1) outranked `.eyebrow` (0,1,0) and rendered
+  every section eyebrow at 15px. Shared V2 modules were changed only inside
+  their `.v3Tokens` blocks or through the existing `--v2-*` variable layer, so
+  the live `/v2` routes are untouched; device mocks, terminals, code sheets,
+  diagram node labels, and stat numerals are deliberately exempt from the
+  scale. Verified by re-running a computed-style audit across all seven V3
+  pages: no off-scale headings, body copy, or buttons remain.
+- 2026-08-24 V3 trading page brought onto the scale: `/v3/solutions/trading`
+  renders `trading-world.module.css`, which had been authored outside the
+  token set and was missed by the first sweep (that pass covered fintech and
+  defi). Its hero h1 capped at `clamp(48px, 4.8vw, 72px)` — 12px taller than
+  every other V3 page — the CTA was a square 52px/14px ink block while every
+  other V3 call to action is a 46px/13px pill, the eyebrow used
+  `--v3-blue-dark` instead of `--v3-muted`, and the proof rail ran 10px labels
+  at `0.12em`. All now use the tokens, and two off-scale mobile overrides
+  (`h1: 48px`, `heroIntro: 16px` under 560px) were dropped so the clamps
+  govern. Also corrected a mis-assignment from the first sweep: the bulk
+  `17/19/21px → --v3-h4` pass had caught `.heroIntro`, a lead paragraph, and
+  typed it as a sub-heading; it is now `--v3-lead`. Audited the other ten
+  `--v3-h4` call sites — all land on `strong`, `th`, `dd`, or `h3`, so that
+  was the only one.
+- 2026-08-24 V3 wallets fixture fidelity: the Mywallet Chat surface now mounts
+  the same `AomiFrame` transcript component and deterministic thread-state API
+  used by the landing demos instead of maintaining a lookalike execution list.
+  The wallet shell is fixed-height, with transcript and wallet content scrolling
+  internally so long threads cannot stretch the hero. Its entry card now calls
+  out that the Wallet assistant is ready, and the chat header uses the canonical
+  Aomi mark with the neutral `Chat with wallet` label.
+  Its static snapshot was derived read-only from a Cecilia-owned production
+  thread, then reduced to the non-sensitive product story: compare Aave and
+  Compound, choose Compound, and stage the wrap/approve/supply/borrow batch.
+  No account identifiers, wallet addresses, transaction hashes, or database
+  credentials are retained in the fixture.
+- 2026-08-24 V3 undersized-prose sweep: the first unification left every 11px
+  value untouched on the assumption that 11px always meant a mono eyebrow. On
+  the World Markets panels in `defi.module.css` it did not — 11px was sans body
+  prose, and the whole `.worldPanel` / `.worldValidation` block sat one to two
+  tiers below the scale (panel intro 12px, step titles 13.5px, step bodies and
+  checklist rows 11px). Raised to lead / h4 / small respectively. A follow-up
+  audit restricted to sans runs of six or more words then caught the same
+  over-application of `--v3-micro` to real prose in seven more places
+  (`bestFor`, `flowBestFor`, `operateSubhead`, `lifecycleList`, `proofAudience`,
+  `collectorMotivations`, `collectionSelected`, `trustStack`, and the shared
+  pipeline rows); micro is now reserved for captions, meta, and table cells,
+  never running prose. `/v3/solutions/nft` and `/v3/solutions/wallets` were
+  added to the audit set — neither had been checked before. All ten V3 pages
+  now report zero off-scale headings, prose, or buttons.
+- 2026-08-24 V3 proof-rail values scaled down 20%: the sans proof-rail figures
+  on Human Interface ran `clamp(19px, 2vw, 27px)` (27px at desktop) and the
+  matching rail on REST APIs ran `clamp(18px, 1.8vw, 25px)`, so the same
+  component rendered at two sizes. Both now use `clamp(15px, 1.6vw, 21.5px)`
+  in their `.v3Tokens` blocks — exactly -20% on Human Interface as instructed,
+  and REST APIs brought onto the same value. Side effect worth keeping: the
+  Surfaces cell ("Widget · Telegram · Portal") no longer wraps to two lines.
+  The `/v2` routes keep the original sizes. Note the sector pages render the
+  equivalent rail in PT Serif at `--v3-h4` (18px, weight 700) rather than sans
+  — that divergence is untouched and still open.

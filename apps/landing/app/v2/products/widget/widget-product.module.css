@@ -748,12 +748,12 @@
   --v2-font-sans: var(--v3-sans);
   --v2-heading: var(--v3-ink);
   --v2-display-weight: 700;
-  --v2-display-tracking: -0.015em;
-  --v2-display-leading: 1.12;
+  --v2-display-tracking: var(--v3-h2-ls);
+  --v2-display-leading: var(--v3-h2-lh);
   --v2-display-measure: 18ch;
-  --v2-display-h2: clamp(30px, 3vw, 38px);
-  --v2-display-h3: 23px;
-  --v2-case-title: clamp(30px, 3vw, 38px);
+  --v2-display-h2: var(--v3-h2);
+  --v2-display-h3: var(--v3-h3);
+  --v2-case-title: var(--v3-h2);
   --v2-case-measure: 14ch;
   --v2-case-align: start;
   --v2-case-cols: minmax(300px, 0.5fr) minmax(0, 1.5fr);
@@ -762,7 +762,7 @@
   --v2-somm-float-width: min(58%, 448px);
   --v2-somm-float-height: 448px;
   --v2-somm-shadow: 0 18px 40px rgba(9, 9, 11, 0.14);
-  --v2-case-point-size: 18px;
+  --v2-case-point-size: var(--v3-body);
   --v2-case-rows: none;
   --v2-case-row-gap: 0px;
   --v2-case-copy-display: flex;
@@ -780,11 +780,11 @@
   --v2-case-text-col: auto;
   --v2-case-text-width: auto;
   --v2-case-text-margin: 0;
-  --v2-case-body-size: clamp(17px, 1.35vw, 19px);
-  --v2-case-body-leading: 1.6;
+  --v2-case-body-size: var(--v3-lead);
+  --v2-case-body-leading: var(--v3-lead-lh);
   --v2-case-body-color: var(--v3-ink);
   --v2-case-body-gap: 40px;
-  --v2-case-body-weight: 300;
+  --v2-case-body-weight: 400;
   --v2-case-body-pad: 0;
   --v2-case-body-rule: 0;
   --v2-section-pad-bottom: 64px;
@@ -794,8 +794,8 @@
   --v2-panel-copy: rgba(255, 255, 255, 0.78);
   --v2-panel-line: rgba(255, 255, 255, 0.14);
   --v2-panel-radius: 16px;
-  --v2-mono-size: 11px;
-  --v2-body-size: 15px;
+  --v2-mono-size: var(--v3-eyebrow);
+  --v2-body-size: var(--v3-body);
 }
 
 .v3Tokens .checkIcon {
@@ -835,6 +835,7 @@
 }
 
 .v3Tokens .proofGrid strong {
+  font-size: clamp(15px, 1.6vw, 21.5px);
   font-weight: 400;
 }
 
@@ -924,36 +925,36 @@
 
 .v3Tokens .heroCopy h1 {
   max-width: 16ch;
-  font-size: clamp(42px, 4.6vw, 60px);
+  font-size: var(--v3-h1);
 }
 
 .v3Tokens .choiceHeading h2,
 .v3Tokens .finalCta h2,
 .v3Tokens .flowGrid h2,
 .v3Tokens .installCopy h2 {
-  font-size: clamp(30px, 3vw, 38px);
-  letter-spacing: -0.015em;
-  line-height: 1.12;
+  font-size: var(--v3-h2);
+  letter-spacing: var(--v3-h2-ls);
+  line-height: var(--v3-h2-lh);
 }
 
 .v3Tokens .choiceGrid h3,
 .v3Tokens .flowSteps h3 {
-  font-size: 23px;
+  font-size: var(--v3-h3);
   letter-spacing: 0;
-  line-height: 1.2;
+  line-height: var(--v3-h3-lh);
 }
 
 .v3Tokens .eyebrow {
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: var(--v3-eyebrow);
   font-weight: 400;
-  letter-spacing: 0.16em;
+  letter-spacing: var(--v3-eyebrow-ls);
   text-transform: uppercase;
 }
 
 .v3Tokens .heroSupport {
-  font-size: 16.5px;
-  line-height: 1.65;
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
 }
 
 .v3Tokens .primaryButton,
@@ -1009,4 +1010,22 @@
 .v3Tokens .finalCta {
   padding-top: 64px;
   padding-bottom: 64px;
+}
+
+/* ---------- v3 type scale ---------- */
+
+.v3Tokens .eyebrow {
+  line-height: 1.5;
+}
+
+.v3Tokens .installCodeDescription {
+  font-size: var(--v3-body);
+  line-height: var(--v3-body-lh);
+}
+
+.v3Tokens .flowSteps p,
+.v3Tokens .choiceGrid p,
+.v3Tokens .heroProof {
+  font-size: var(--v3-small);
+  line-height: var(--v3-small-lh);
 }

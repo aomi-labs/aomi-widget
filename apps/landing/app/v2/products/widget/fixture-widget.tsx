@@ -19,6 +19,7 @@ const themeClass: Record<WidgetFixtureScenario, string> = {
   somm: styles.fixtureSomm,
   trading: styles.fixtureTrading,
   prediction: styles.fixturePrediction,
+  wallet: styles.fixtureSomm,
 };
 
 const LEAVE_MS = 180;

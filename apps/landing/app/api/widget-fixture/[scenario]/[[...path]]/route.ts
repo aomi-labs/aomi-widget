@@ -27,7 +27,9 @@ function fixtureMessages(fixture: WidgetFixture) {
         string,
       ],
     })),
-    { sender: "agent", content: fixture.answer, timestamp },
+    ...(fixture.answer
+      ? [{ sender: "agent", content: fixture.answer, timestamp }]
+      : []),
   ];
 }
 
@@ -37,7 +39,7 @@ function fixtureState(key: WidgetFixtureKey, fixture: WidgetFixture) {
     title: fixture.title,
     messages: fixtureMessages(fixture),
     system_events: [],
-    is_processing: false,
+    is_processing: fixture.processing ?? false,
     thread_id: threadId,
     session_id: threadId,
     fixture: key,

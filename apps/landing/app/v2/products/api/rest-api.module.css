@@ -661,7 +661,7 @@
 
 .bestFor strong {
   font-family: var(--v2-font-sans), sans-serif;
-  font-size: 13px;
+  font-size: var(--v3-small);
   font-weight: 550;
   line-height: 1.5;
 }
@@ -1685,6 +1685,7 @@
 }
 
 .v3Tokens .proofRail strong {
+  font-size: clamp(15px, 1.6vw, 21.5px);
   font-weight: 400;
 }
 
@@ -2148,7 +2149,7 @@
 
 .v3Tokens .heroCopy h1 {
   max-width: 16ch;
-  font-size: clamp(42px, 4.6vw, 60px);
+  font-size: var(--v3-h1);
 }
 
 .v3Tokens .contractCopy h2,
@@ -2157,9 +2158,9 @@
 .v3Tokens .lifecycleHeading h2,
 .v3Tokens .sdkCopy h2,
 .v3Tokens .sectionHeading h2 {
-  font-size: clamp(30px, 3vw, 38px);
-  letter-spacing: -0.015em;
-  line-height: 1.12;
+  font-size: var(--v3-h2);
+  letter-spacing: var(--v3-h2-ls);
+  line-height: var(--v3-h2-lh);
 }
 
 .v3Tokens .actionCard h3,
@@ -2167,22 +2168,22 @@
 .v3Tokens .guaranteeGrid h3,
 .v3Tokens .lifecycleGrid h3,
 .v3Tokens .summaryCard h3 {
-  font-size: 23px;
+  font-size: var(--v3-h3);
   letter-spacing: 0;
-  line-height: 1.2;
+  line-height: var(--v3-h3-lh);
 }
 
 .v3Tokens .eyebrow {
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: var(--v3-eyebrow);
   font-weight: 400;
-  letter-spacing: 0.16em;
+  letter-spacing: var(--v3-eyebrow-ls);
   text-transform: uppercase;
 }
 
 .v3Tokens .heroSupport {
-  font-size: 16.5px;
-  line-height: 1.65;
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
 }
 
 .v3Tokens .primaryButton,
@@ -2423,7 +2424,7 @@
   color: #71717c;
 }
 
-.showcaseTabs button:hover {
+.showcaseTabs button:hover:not(.showcaseTabActive) {
   color: #e8e8ee;
 }
 
@@ -2560,7 +2561,7 @@
 
 .confirmSheet h3 {
   font-family: var(--v2-font-sans), sans-serif;
-  font-size: 23px;
+  font-size: var(--v3-h3, 23px);
   font-weight: 620;
   letter-spacing: -0.025em;
   line-height: 1.25;
@@ -2687,7 +2688,7 @@
   margin-top: 30px;
   font-family: var(--v2-font-sans), sans-serif;
   font-size: 14px;
-  line-height: 1.65;
+  line-height: var(--v3-lead-lh);
   color: #a3a3af;
 }
 
@@ -2710,4 +2711,68 @@
   .showcaseFoot {
     text-align: left;
   }
+}
+
+/* ---------- v3 type scale ---------- */
+
+.v3Tokens .eyebrow {
+  line-height: 1.5;
+}
+
+.v3Tokens .sharedPipelineHeading h2 {
+  font-size: var(--v3-h2);
+  letter-spacing: var(--v3-h2-ls);
+  line-height: var(--v3-h2-lh);
+}
+
+.v3Tokens .pipelineEntries h3 {
+  font-size: var(--v3-h3);
+  letter-spacing: 0;
+  line-height: var(--v3-h3-lh);
+}
+
+.v3Tokens .apiCardBody,
+.v3Tokens .finalBridge {
+  font-size: var(--v3-body);
+  line-height: var(--v3-body-lh);
+}
+
+.v3Tokens .showcaseCaption,
+.v3Tokens .ledger dd,
+.v3Tokens .proofLine {
+  font-size: var(--v3-small);
+  line-height: var(--v3-small-lh);
+}
+
+.v3Tokens .sharedPipelineGrid li > p,
+.v3Tokens .resumeGuarantee p {
+  font-size: var(--v3-small);
+  line-height: var(--v3-small-lh);
+}
+
+.v3Tokens .sharedPipelineGrid h3 {
+  font-size: var(--v3-h3);
+  line-height: var(--v3-h3-lh);
+}
+
+.v3Tokens .resumeGuarantee strong {
+  font-size: var(--v3-h4);
+  line-height: var(--v3-h4-lh);
+}
+
+.v3Tokens .apiIndex,
+.v3Tokens .ledger dt {
+  font-size: var(--v3-eyebrow);
+  letter-spacing: var(--v3-eyebrow-ls);
+  line-height: 1.5;
+}
+
+.v3Tokens .primaryButton,
+.v3Tokens .secondaryButton,
+.v3Tokens .finalPrimary,
+.v3Tokens .finalSecondary {
+  min-height: var(--v3-btn-h);
+  padding: var(--v3-btn-pad);
+  font-size: var(--v3-btn);
+  font-weight: 600;
 }

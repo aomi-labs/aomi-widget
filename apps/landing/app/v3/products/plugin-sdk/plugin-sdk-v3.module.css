@@ -19,9 +19,9 @@
   margin: 0;
   color: var(--v3-blue);
   font-family: var(--v3-mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  line-height: 1.4;
+  font-size: var(--v3-eyebrow);
+  letter-spacing: var(--v3-eyebrow-ls);
+  line-height: 1.5;
   text-transform: uppercase;
 }
 
@@ -45,18 +45,18 @@
 .sectionHead h2 {
   margin: 0;
   font-family: var(--v3-serif);
-  font-size: clamp(30px, 3vw, 38px);
+  font-size: var(--v3-h2);
   font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1.12;
+  letter-spacing: var(--v3-h2-ls);
+  line-height: var(--v3-h2-lh);
   text-wrap: balance;
 }
 
-.sectionHead > p {
+.sectionHead > p:not(.eyebrow) {
   margin: 0;
   color: var(--v3-copy);
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: var(--v3-body);
+  line-height: var(--v3-body-lh);
 }
 
 /* ---------- hero ---------- */
@@ -82,10 +82,10 @@
   max-width: 17ch;
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(42px, 4.6vw, 60px);
+  font-size: var(--v3-h1);
   font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.05;
+  letter-spacing: var(--v3-h1-ls);
+  line-height: var(--v3-h1-lh);
   text-wrap: balance;
 }
 
@@ -93,8 +93,8 @@
   max-width: 690px;
   margin: 24px 0 0;
   color: var(--v3-copy);
-  font-size: 16.5px;
-  line-height: 1.65;
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
 }
 
 .heroLede strong {
@@ -105,8 +105,8 @@
 .heroAside > p {
   margin: 0;
   color: var(--v3-copy);
-  font-size: 14.5px;
-  line-height: 1.65;
+  font-size: var(--v3-body);
+  line-height: var(--v3-body-lh);
 }
 
 .heroAside > p strong {
@@ -124,13 +124,13 @@
 .btnPrimary,
 .btnSecondary {
   display: inline-flex;
-  min-height: 40px;
+  min-height: var(--v3-btn-h);
   align-items: center;
   gap: 8px;
   border-radius: 999px;
-  padding: 0 22px;
-  font-size: 14px;
-  font-weight: 500;
+  padding: var(--v3-btn-pad);
+  font-size: var(--v3-btn);
+  font-weight: 600;
   line-height: 1;
 }
 
@@ -147,7 +147,7 @@
   border: 1px solid var(--v3-border);
   color: var(--v3-ink);
   background: #fff;
-  font-weight: 400;
+  font-weight: 600;
 }
 
 .btnSecondary:hover {
@@ -725,8 +725,8 @@
   padding: 20px 28px;
   border-bottom: 1px solid var(--v3-border);
   color: var(--v3-muted);
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: var(--v3-small);
+  line-height: var(--v3-small-lh);
 }
 
 .filePreview pre {
@@ -822,16 +822,16 @@
 .pipelineStage h3 {
   margin: 36px 0 0;
   font-family: var(--v3-serif);
-  font-size: 26px;
+  font-size: var(--v3-h3);
   font-weight: 700;
-  line-height: 1.15;
+  line-height: var(--v3-h3-lh);
 }
 
 .pipelineStage p {
   margin: 12px 0 0;
   color: var(--v3-copy);
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--v3-small);
+  line-height: var(--v3-small-lh);
 }
 
 .pipelineStage strong {
@@ -886,7 +886,7 @@
   color: #fff;
 }
 
-.operate .sectionHead > p {
+.operate .sectionHead > p:not(.eyebrow) {
   color: rgba(255, 255, 255, 0.62);
 }
 
@@ -1532,7 +1532,7 @@
   max-width: 75ch;
   margin: 5px 0 0;
   color: rgba(255, 255, 255, 0.58);
-  font-size: 12.5px;
+  font-size: var(--v3-small);
   line-height: 1.5;
 }
 

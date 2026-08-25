@@ -15,11 +15,11 @@
 
 .eyebrow {
   margin: 0;
-  color: var(--v3-blue-dark);
+  color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  line-height: 1.4;
+  font-size: var(--v3-eyebrow);
+  letter-spacing: var(--v3-eyebrow-ls);
+  line-height: 1.5;
   text-transform: uppercase;
 }
 
@@ -27,33 +27,34 @@
   max-width: 11ch;
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(48px, 4.8vw, 72px);
+  font-size: var(--v3-h1);
   font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.04;
+  letter-spacing: var(--v3-h1-ls);
+  line-height: var(--v3-h1-lh);
   text-wrap: balance;
 }
 
 .heroIntro {
   max-width: 580px;
   margin: 28px 0 0;
-  color: var(--v3-muted);
+  color: var(--v3-copy);
   font-family: var(--v3-sans);
-  font-size: 17px;
-  line-height: 1.65;
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
 }
 
 .hero .heroCta {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 52px;
+  min-height: var(--v3-btn-h);
   margin-top: 32px;
-  padding: 0 24px;
+  padding: var(--v3-btn-pad);
+  border-radius: 999px;
   background: var(--v3-ink);
   color: #fff;
   font-family: var(--v3-sans);
-  font-size: 14px;
+  font-size: var(--v3-btn);
   font-weight: 600;
   transition:
     background 180ms ease,
@@ -83,19 +84,19 @@
 }
 
 .heroProof dt {
-  color: var(--v3-blue-dark);
+  color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
+  font-size: var(--v3-eyebrow);
+  letter-spacing: var(--v3-eyebrow-ls);
 }
 
 .heroProof dd {
   max-width: 14ch;
   margin: 8px 0 0;
   font-family: var(--v3-sans);
-  font-size: 12px;
+  font-size: var(--v3-micro);
   font-weight: 600;
-  line-height: 1.4;
+  line-height: var(--v3-micro-lh);
 }
 
 .productStack {
@@ -178,14 +179,6 @@
   .hero {
     gap: 46px;
     padding: 118px 0 76px;
-  }
-
-  .heroCopy h1 {
-    font-size: 48px;
-  }
-
-  .heroIntro {
-    font-size: 16px;
   }
 
   .heroProof {

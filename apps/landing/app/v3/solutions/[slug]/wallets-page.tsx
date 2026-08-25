@@ -1,35 +1,37 @@
 import {
   ArrowRight,
+  BadgeCheck,
+  Bot,
+  Braces,
   Check,
+  FlaskConical,
   KeyRound,
-  ScanEye,
   ShieldCheck,
-  WalletCards,
+  Waypoints,
 } from "lucide-react";
 import Link from "next/link";
-import type { SolutionConfig } from "../../../v2/solutions/solution-data";
 import { V3 } from "../../site";
-import { WalletJourney } from "./sector-visuals";
+import { MetaMaskWalletFixture } from "./metamask-wallet-fixture";
 import styles from "./sector-pages.module.css";
 
-const walletControls = [
+const stopBuilding = [
   {
-    icon: WalletCards,
-    label: "Account",
-    title: "Use the account the user already recognizes.",
-    body: "The wallet keeps authentication, account selection, chain state, navigation, and customer relationship.",
+    icon: Braces,
+    label: "Coverage",
+    title: "Skip the protocol integration desk.",
+    body: "Uniswap, Aave, Morpho, Lido, and 40+ protocols across EVM and Solana sit behind one JSON contract. New venues arrive without a new integration.",
   },
   {
-    icon: ScanEye,
-    label: "Preview",
-    title: "Explain exactly what changes.",
-    body: "Assets out, assets in, destination, approvals, fees, slippage, warnings, and application are shown together.",
+    icon: FlaskConical,
+    label: "Rehearsal",
+    title: "Every action is simulated before signature.",
+    body: "The kernel builds exact calldata, runs the whole batch on a forked copy of the chain, then enforces slippage and policy guards. Failures surface at plan time, not inside your user's flow.",
   },
   {
-    icon: KeyRound,
-    label: "Authority",
-    title: "Ask the existing signer—once.",
-    body: "Aomi prepares the action, but the wallet’s current signer remains the final approval boundary.",
+    icon: BadgeCheck,
+    label: "Proof",
+    title: "A hash is not proof.",
+    body: "A watcher checks signer, chain, calldata, and ordering against the sealed Action before your product reports success. Receipts reconcile without your own indexing stack.",
   },
 ] as const;
 
@@ -41,22 +43,31 @@ const receiptRows = [
   ["Network fee", "$0.06"],
 ] as const;
 
-export function V3WalletsPage({ solution }: { solution: SolutionConfig }) {
+export function V3WalletsPage() {
   return (
     <main className={styles.walletsPage}>
       <section className={`${styles.sectorHero} ${styles.walletsHero}`}>
         <div className={styles.walletsHeroCopy}>
-          <p className={styles.eyebrow}>{solution.eyebrow}</p>
-          <h1>{solution.headline}</h1>
-          <p className={styles.sectorLede}>{solution.lede}</p>
+          <p className={styles.eyebrow}>AOMI FOR WALLETS</p>
+          <h1>Your agent plans. Aomi executes.</h1>
+          <p className={styles.sectorLede}>
+            Wallet teams are already building their own assistants. Aomi is the
+            execution layer underneath: send the action your agent selected, or
+            the raw intent, and get back a fork-simulated, policy-checked Action
+            for the signer you already run.
+          </p>
           <div className={styles.heroActions}>
-            <a href="#wallet-journey">
-              Walk through the handoff <ArrowRight aria-hidden />
-            </a>
-            <Link href={`${V3}/contact`}>Design your wallet flow</Link>
+            <Link href={`${V3}/products/rest-apis`}>
+              Compare the two APIs <ArrowRight aria-hidden />
+            </Link>
+            <Link href={`${V3}/contact`}>Design your integration</Link>
           </div>
           <div className={styles.walletHeroProof}>
-            {solution.proof.map((item) => (
+            {[
+              "Your model stays yours",
+              "Your signer remains",
+              "No Aomi custody",
+            ].map((item) => (
               <span key={item}>
                 <Check aria-hidden /> {item}
               </span>
@@ -64,19 +75,94 @@ export function V3WalletsPage({ solution }: { solution: SolutionConfig }) {
           </div>
         </div>
 
-        <div id="wallet-journey" className={styles.walletHeroArtifact}>
-          <WalletJourney />
+        <div className={styles.walletHeroArtifact}>
+          <MetaMaskWalletFixture />
         </div>
       </section>
 
       <section className={styles.walletPromise}>
-        <p className={styles.eyebrow}>The trust promise</p>
-        <h2>More capability without inventing another wallet.</h2>
-        <p>{solution.valueIntro}</p>
+        <p className={styles.eyebrow}>The pitch</p>
+        <h2>Keep the assistant. Stop building the execution stack.</h2>
+        <p>
+          The agent is your product surface and your differentiation. The
+          protocol integrations, simulation infrastructure, guard policies, and
+          receipt verification underneath it are not. Consume them as an API
+          instead.
+        </p>
+      </section>
+
+      <section className={styles.apiLanes}>
+        <div className={styles.laneHeading}>
+          <p className={styles.eyebrow}>TWO WAYS TO CONSUME</p>
+          <h2>Bring your agent, or borrow ours.</h2>
+        </div>
+        <div className={styles.laneGrid}>
+          <article className={styles.laneCard}>
+            <div className={styles.laneBadge}>
+              <Waypoints aria-hidden />
+              <span>PIPELINE API · YOUR AGENT PLANS</span>
+              <small>preview</small>
+            </div>
+            <h3>Your model picks the action.</h3>
+            <p>
+              Keep your planner, routing logic, and product voice. Submit one
+              catalog action or an ordered batch. Receive the simulation
+              verdict, typed guard checks, and an unsigned signable, with no
+              Aomi inference in the loop.
+            </p>
+            <div className={styles.laneEndpoints}>
+              <span>
+                <b>POST</b> /v1/pipeline/evm/build
+              </span>
+              <span>
+                <b>POST</b> /v1/pipeline/svm/build
+              </span>
+            </div>
+            <p className={styles.laneBest}>
+              <span>BEST FOR</span> wallets with an in-house agent or strategy
+              engine
+            </p>
+          </article>
+
+          <article className={styles.laneCard}>
+            <div className={styles.laneBadge}>
+              <Bot aria-hidden />
+              <span>AGENT API · AOMI PLANS</span>
+              <small>v1</small>
+            </div>
+            <h3>Ship an assistant without building the planner.</h3>
+            <p>
+              Send a customer&apos;s sentence and wallet capabilities. Aomi runs
+              the agent loop, selects tools, and returns messages, activity, and
+              a durable Action your product renders and your signer approves.
+            </p>
+            <div className={styles.laneEndpoints}>
+              <span>
+                <b>POST</b> /v1/agent/chat
+              </span>
+              <span>
+                <b>GET</b> /v1/agent/chat/{"{session}"}
+              </span>
+            </div>
+            <p className={styles.laneBest}>
+              <span>BEST FOR</span> wallets adding conversational execution this
+              quarter
+            </p>
+          </article>
+        </div>
+        <div className={styles.laneBand}>
+          <ShieldCheck aria-hidden />
+          <strong>Both lanes resolve to the same sealed Action.</strong>
+          <span>
+            One confirm sheet, one signer binding. Start on the Agent API, drop
+            to the Pipeline API when your own agent is ready, and nothing
+            re-integrates.
+          </span>
+        </div>
       </section>
 
       <section className={styles.walletControls}>
-        {walletControls.map(({ icon: Icon, label, title, body }, index) => (
+        {stopBuilding.map(({ icon: Icon, label, title, body }, index) => (
           <article key={label}>
             <div>
               <Icon aria-hidden />
@@ -92,21 +178,22 @@ export function V3WalletsPage({ solution }: { solution: SolutionConfig }) {
       <section className={styles.walletReview}>
         <div className={styles.reviewCopy}>
           <p className={styles.eyebrow}>One review surface</p>
-          <h2>The user sees consequences, not transaction choreography.</h2>
+          <h2>The Action lands in the confirm sheet you already built.</h2>
           <p>
-            Routes, approvals, and protocol calls can stay underneath the
-            interaction. The wallet presents the exact bounded outcome its
-            customer is about to authorize.
+            Every Action carries a typed, kernel-sealed summary: title, ordered
+            steps, cost, and warnings. Your existing review UI renders it
+            directly, so what the user approves is exactly what the kernel
+            verifies onchain.
           </p>
           <div>
             <span>
-              <Check aria-hidden /> Minimum enforced
+              <Check aria-hidden /> Typed summary
             </span>
             <span>
-              <Check aria-hidden /> Token verified
+              <Check aria-hidden /> Sealed with the payload
             </span>
             <span>
-              <Check aria-hidden /> One-time approval
+              <Check aria-hidden /> Renders in your UI
             </span>
           </div>
         </div>
@@ -140,21 +227,26 @@ export function V3WalletsPage({ solution }: { solution: SolutionConfig }) {
 
       <section className={styles.walletFit}>
         <div>
-          <span>Your wallet retains</span>
-          <strong>Brand · accounts · authentication · signing</strong>
+          <span>Your wallet keeps</span>
+          <strong>Brand · accounts · your agent · the signer</strong>
         </div>
         <div>
-          <span>Aomi contributes</span>
-          <strong>Intent · routes · simulation · verified outcome</strong>
+          <span>Aomi adds</span>
+          <strong>
+            Protocol tools · simulation · guards · verified receipts
+          </strong>
         </div>
       </section>
 
       <section className={`${styles.sectorCta} ${styles.walletCta}`}>
         <p className={styles.eyebrow}>Keep the wallet yours</p>
-        <h2>{solution.finalTitle}</h2>
-        <p>{solution.finalBody}</p>
+        <h2>Plug execution rails under your agent.</h2>
+        <p>
+          Bring your model&apos;s output. We will map it onto the Pipeline API,
+          bind your signer stack once, and leave custody exactly where it is.
+        </p>
         <Link href={`${V3}/contact`}>
-          Map the signer handoff <ArrowRight aria-hidden />
+          Map the integration <ArrowRight aria-hidden />
         </Link>
       </section>
     </main>

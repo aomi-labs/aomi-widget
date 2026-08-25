@@ -2,6 +2,27 @@
 
 ## Last Updated
 
+2026-08-24 — REST-APIs "shared contract" section rebuilt + /v3/solutions/wallets
+repositioned (Cecilia). (1) /v3/products/rest-apis: the "One Action crosses both
+APIs" section no longer renders the ApiWorkbench curl walls in v3 layout; new
+`action-summary-showcase.tsx` (v2/products/api) mirrors the Aomi x Para
+proposal artifact's showpiece — typed `ActionSummary`/`Step` interface on the
+left, a live confirm sheet on the right rendered purely from data, with three
+tabs (Agent API swap / Pipeline API batch / Safe signer deferred) proving one
+renderer covers every source. Sheet styled to the artifact's proportions with
+v3 tokens (green Approve, terracotta out-amounts, amber deferred pill).
+ApiWorkbench still renders in the v2 hero; the `.v3Tokens .contractSection
+.workbench*` CSS overrides are now dead (left in place, additive diff).
+(2) /v3/solutions/wallets rebuilt around "wallets bring their own agent":
+hero "Your agent plans. Aomi executes." with a 3-layer rail artifact (your
+assistant -> POST /v1/pipeline/evm/build -> kernel checks -> your confirm
+sheet), a two-lane section (Pipeline API = your agent plans, Agent API = Aomi
+plans, band: both resolve to the same sealed Action), a stop-building trio
+(coverage / rehearsal / proof), and reworked review/fit/CTA copy.
+V3WalletsPage no longer takes the solution prop; wallets metadata now has its
+own branch in [slug]/page.tsx. tsc clean; both pages screenshot-verified via
+Playwright script.
+
 2026-08-24 — /v3/pricing rebuilt as an audience-first pricing page (Cecilia:
 "the point of pricing page is for audience to understand how we charge, not a
 technical explainer"). New `pricing-switch.tsx` client component: a

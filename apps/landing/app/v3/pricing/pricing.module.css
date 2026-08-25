@@ -5,10 +5,11 @@
 
 .eyebrow {
   margin: 0;
-  color: var(--v3-blue-dark);
+  color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-size: var(--v3-eyebrow);
+  line-height: 1.5;
+  letter-spacing: var(--v3-eyebrow-ls);
   text-transform: uppercase;
 }
 
@@ -30,18 +31,18 @@
   max-width: 16ch;
   margin: 18px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(40px, 5vw, 64px);
+  font-size: var(--v3-h1);
   font-weight: 700;
-  letter-spacing: -0.025em;
-  line-height: 1.04;
+  letter-spacing: var(--v3-h1-ls);
+  line-height: var(--v3-h1-lh);
 }
 
 .heroCopy {
   max-width: 56ch;
   margin: 24px 0 0;
   color: var(--v3-copy);
-  font-size: 17px;
-  line-height: 1.65;
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
 }
 
 /* ---------- audience switch ---------- */
@@ -71,7 +72,7 @@
   color: var(--v3-copy);
   font-family: var(--v3-sans);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
 }
 
@@ -87,7 +88,8 @@
 .switchNote {
   margin: 0;
   color: var(--v3-muted);
-  font-size: 14px;
+  font-size: var(--v3-small);
+  line-height: var(--v3-small-lh);
 }
 
 /* ---------- plans ---------- */
@@ -116,8 +118,9 @@
   margin: 0;
   color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-size: var(--v3-eyebrow);
+  line-height: 1.5;
+  letter-spacing: var(--v3-eyebrow-ls);
   text-transform: uppercase;
 }
 
@@ -136,7 +139,7 @@
 
 .planPrice span {
   font-family: var(--v3-sans);
-  font-size: 13px;
+  font-size: var(--v3-small);
   font-weight: 400;
   letter-spacing: 0;
   color: var(--v3-muted);
@@ -147,13 +150,14 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 44px;
+  min-height: var(--v3-btn-h);
   margin-top: 24px;
+  padding: var(--v3-btn-pad);
   border: 1px solid var(--v3-border);
   border-radius: 999px;
   background: var(--v3-paper);
   color: var(--v3-ink);
-  font-size: 14px;
+  font-size: var(--v3-btn);
   font-weight: 600;
   text-decoration: none;
 }
@@ -183,8 +187,8 @@
 .planBody {
   margin: 24px 0 0;
   color: var(--v3-copy);
-  font-size: 14px;
-  line-height: 1.65;
+  font-size: var(--v3-small);
+  line-height: var(--v3-small-lh);
 }
 
 .planPoints {
@@ -202,8 +206,8 @@
   gap: 10px;
   align-items: start;
   color: var(--v3-copy);
-  font-size: 13.5px;
-  line-height: 1.5;
+  font-size: var(--v3-small);
+  line-height: var(--v3-small-lh);
 }
 
 .planPoints svg {
@@ -228,18 +232,18 @@
   max-width: 22ch;
   margin: 16px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(24px, 2.4vw, 30px);
+  font-size: var(--v3-h3);
   font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.12;
+  letter-spacing: 0;
+  line-height: var(--v3-h3-lh);
 }
 
 .addOn > div > p:last-child {
   max-width: 52ch;
   margin: 16px 0 0;
   color: var(--v3-copy);
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: var(--v3-body);
+  line-height: var(--v3-body-lh);
 }
 
 .neverList {
@@ -252,8 +256,9 @@
   margin: 0 0 14px;
   color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-size: var(--v3-eyebrow);
+  line-height: 1.5;
+  letter-spacing: var(--v3-eyebrow-ls);
   text-transform: uppercase;
 }
 
@@ -265,8 +270,8 @@
   padding: 11px 0;
   border-top: 1px solid var(--v3-border);
   color: var(--v3-copy);
-  font-size: 13.5px;
-  line-height: 1.5;
+  font-size: var(--v3-small);
+  line-height: var(--v3-small-lh);
 }
 
 .neverList svg {
@@ -295,17 +300,17 @@
   max-width: 16ch;
   margin: 16px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(28px, 3vw, 38px);
+  font-size: var(--v3-h2);
   font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
+  letter-spacing: var(--v3-h2-ls);
+  line-height: var(--v3-h2-lh);
 }
 
 .sectionIntro > p {
   margin: 0;
   color: var(--v3-muted);
-  font-size: 14.5px;
-  line-height: 1.7;
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
 }
 
 .exampleList {
@@ -325,19 +330,19 @@
 }
 
 .exampleList strong {
-  font-size: 15px;
+  font-size: var(--v3-body);
   font-weight: 600;
 }
 
 .exampleList span {
   color: var(--v3-muted);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--v3-small);
+  line-height: var(--v3-small-lh);
 }
 
 .exampleList b {
   font-family: var(--v3-mono);
-  font-size: 15px;
+  font-size: var(--v3-body);
   font-weight: 500;
   text-align: right;
 }
@@ -355,8 +360,9 @@
   display: block;
   color: var(--v3-muted);
   font-family: var(--v3-mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-size: var(--v3-eyebrow);
+  line-height: 1.5;
+  letter-spacing: var(--v3-eyebrow-ls);
   text-transform: uppercase;
 }
 
@@ -364,7 +370,7 @@
   display: block;
   margin-top: 8px;
   font-family: var(--v3-serif);
-  font-size: 40px;
+  font-size: clamp(38px, 4vw, 50px);
   font-weight: 700;
   letter-spacing: -0.03em;
 }
@@ -372,8 +378,8 @@
 .exampleTotal p {
   margin: 0;
   color: var(--v3-copy);
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: var(--v3-body);
+  line-height: var(--v3-body-lh);
 }
 
 /* ---------- FAQ ---------- */
@@ -392,7 +398,7 @@
 }
 
 .faq dt {
-  font-size: 15.5px;
+  font-size: var(--v3-body);
   font-weight: 600;
 }
 
@@ -400,8 +406,8 @@
   max-width: 44ch;
   margin: 10px 0 0;
   color: var(--v3-copy);
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: var(--v3-small);
+  line-height: var(--v3-small-lh);
 }
 
 /* ---------- CTA ---------- */
@@ -428,10 +434,10 @@
   max-width: 18ch;
   margin: 16px 0 0;
   font-family: var(--v3-serif);
-  font-size: clamp(30px, 3.4vw, 44px);
+  font-size: var(--v3-h2);
   font-weight: 700;
-  letter-spacing: -0.025em;
-  line-height: 1.08;
+  letter-spacing: var(--v3-h2-ls);
+  line-height: var(--v3-h2-lh);
 }
 
 .ctaActions {
@@ -445,10 +451,10 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 46px;
-  padding-inline: 22px;
+  min-height: var(--v3-btn-h);
+  padding: var(--v3-btn-pad);
   border-radius: 999px;
-  font-size: 14px;
+  font-size: var(--v3-btn);
   font-weight: 600;
   text-decoration: none;
 }

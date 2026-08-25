@@ -93,7 +93,8 @@ function InterfaceCode() {
   return (
     <pre>
       <code>
-        <span className={kw}>interface</span> <span className={ty}>ActionSummary</span> {"{"}
+        <span className={kw}>interface</span>{" "}
+        <span className={ty}>ActionSummary</span> {"{"}
         {"\n  title: "}
         <span className={ty}>string</span>
         {"\n  steps: "}
@@ -113,7 +114,8 @@ function InterfaceCode() {
         <span className={kw}>null</span>
         {"\n}"}
         {"\n\n"}
-        <span className={kw}>interface</span> <span className={ty}>Step</span> {"{"}
+        <span className={kw}>interface</span> <span className={ty}>Step</span>{" "}
+        {"{"}
         {"\n  label: "}
         <span className={ty}>string</span>
         {"\n  detail?: "}
@@ -121,7 +123,8 @@ function InterfaceCode() {
         {"\n  asset?: {            "}
         <span className={cm}>{"// present when value moves"}</span>
         {"\n    direction: "}
-        <span className={str}>&apos;out&apos;</span> <span className={kw}>|</span>{" "}
+        <span className={str}>&apos;out&apos;</span>{" "}
+        <span className={kw}>|</span>{" "}
         <span className={str}>&apos;in&apos;</span>
         {"\n    amount: "}
         <span className={ty}>string</span>

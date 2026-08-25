@@ -1,4 +1,8 @@
-export type WidgetFixtureScenario = "somm" | "trading" | "prediction";
+export type WidgetFixtureScenario =
+  | "somm"
+  | "trading"
+  | "prediction"
+  | "wallet";
 
 export type WidgetFixtureKey =
   | "somm-aave"
@@ -10,7 +14,8 @@ export type WidgetFixtureKey =
   | "trading-eth"
   | "trading-btc"
   | "prediction-yes"
-  | "prediction-no";
+  | "prediction-no"
+  | "wallet-compound-borrow";
 
 export type WidgetFixtureStep = {
   name: string;
@@ -25,9 +30,70 @@ export type WidgetFixture = {
   prompt: string;
   steps: WidgetFixtureStep[];
   answer: string;
+  processing?: boolean;
 };
 
 export const widgetFixtureCatalog: Record<WidgetFixtureKey, WidgetFixture> = {
+  "wallet-compound-borrow": {
+    scenario: "wallet",
+    title: "Compare, collateralize, borrow",
+    prompt:
+      "I need 2,000 USDC but I don't want to sell my ETH. Compare Aave and Compound, pick the cheaper borrow, and prepare the position.",
+    answer: "",
+    processing: true,
+    steps: [
+      {
+        name: "compare_borrow_markets",
+        topic: "Compare Aave and Compound",
+        arguments: { asset: "USDC", amount: "2,000", collateral: "ETH" },
+        result: {
+          compound_apr: "13.34%",
+          aave_apr: "15.65%",
+          annual_savings: "$46.20",
+          winner: "Compound V3",
+        },
+      },
+      {
+        name: "check_collateral_capacity",
+        topic: "Check collateral capacity",
+        arguments: { protocol: "Compound V3", collateral: "ETH" },
+        result: {
+          available: "10 ETH",
+          required: "10 ETH",
+          borrow: "2,000 USDC",
+        },
+      },
+      {
+        name: "wrap_eth",
+        topic: "Wrap ETH to WETH",
+        arguments: { amount: "10 ETH" },
+        result: { output: "10 WETH", status: "staged" },
+      },
+      {
+        name: "approve_collateral",
+        topic: "Approve WETH collateral",
+        arguments: { protocol: "Compound V3", amount: "10 WETH" },
+        result: { allowance: "10 WETH", status: "staged" },
+      },
+      {
+        name: "supply_collateral",
+        topic: "Supply WETH to Compound V3",
+        arguments: { amount: "10 WETH", market: "cUSDCv3" },
+        result: { collateral: "10 WETH", status: "staged" },
+      },
+      {
+        name: "simulate_borrow_batch",
+        topic: "Simulate the four-transaction batch",
+        arguments: { borrow: "2,000 USDC", mode: "stateful" },
+        result: {
+          steps: 4,
+          passed: 4,
+          estimated_gas: "368,673",
+          ready_for_wallet: true,
+        },
+      },
+    ],
+  },
   "somm-aave": {
     scenario: "somm",
     title: "Idle USDC allocation",

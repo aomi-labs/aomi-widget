@@ -1273,7 +1273,7 @@
 
 .v3Tokens .heroCopy h1 {
   max-width: 16ch;
-  font-size: clamp(42px, 4.6vw, 60px);
+  font-size: var(--v3-h1);
 }
 
 .v3Tokens .finalCta h2,
@@ -1281,30 +1281,30 @@
 .v3Tokens .labHeading h2,
 .v3Tokens .sectionHeading h2,
 .v3Tokens .taskHeading h2 {
-  font-size: clamp(30px, 3vw, 38px);
-  letter-spacing: -0.015em;
-  line-height: 1.12;
+  font-size: var(--v3-h2);
+  letter-spacing: var(--v3-h2-ls);
+  line-height: var(--v3-h2-lh);
 }
 
 .v3Tokens .setupCopy h3,
 .v3Tokens .surfaceCard h3,
 .v3Tokens .togetherGrid h3 {
-  font-size: 23px;
+  font-size: var(--v3-h3);
   letter-spacing: 0;
-  line-height: 1.2;
+  line-height: var(--v3-h3-lh);
 }
 
 .v3Tokens .eyebrow {
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: var(--v3-eyebrow);
   font-weight: 400;
-  letter-spacing: 0.16em;
+  letter-spacing: var(--v3-eyebrow-ls);
   text-transform: uppercase;
 }
 
 .v3Tokens .heroSupport {
-  font-size: 16.5px;
-  line-height: 1.65;
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
 }
 
 .v3Tokens .primaryButton,
@@ -1534,7 +1534,7 @@
 .setupLead {
   font-family: var(--v2-font-sans), sans-serif;
   font-size: 15px;
-  line-height: 1.65;
+  line-height: var(--v3-lead-lh);
   color: var(--v2-fg);
 }
 
@@ -1723,7 +1723,7 @@
 
 .flowBestFor strong {
   font-family: var(--v2-font-sans), sans-serif;
-  font-size: 13px;
+  font-size: var(--v3-small);
   font-weight: 600;
   color: var(--v2-heading);
 }
@@ -1957,8 +1957,8 @@
 .v3Tokens .flowNode > p,
 .v3Tokens .taskResult,
 .v3Tokens .togetherGrid p {
-  font-size: 16.5px;
-  line-height: 1.65;
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
 }
 
 .v3Tokens .setupLead {
@@ -2220,7 +2220,7 @@
   margin: 20px 0 0;
   font-family: var(--v2-font-sans), sans-serif;
   font-size: 15px;
-  line-height: 1.65;
+  line-height: var(--v3-lead-lh);
   color: var(--v2-fg);
 }
 
@@ -2231,4 +2231,45 @@
   margin: 54px 0 0;
   font-size: 18px;
   line-height: 1.6;
+}
+
+/* ---------- v3 type scale ---------- */
+
+.v3Tokens .eyebrow {
+  line-height: 1.5;
+}
+
+.v3Tokens .flowNodeTop h3 {
+  font-size: var(--v3-h3);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: var(--v3-h3-lh);
+}
+
+.v3Tokens .setupLead,
+.v3Tokens .taskIntro {
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
+}
+
+.v3Tokens .taskPrompt p {
+  font-size: var(--v3-body);
+  line-height: var(--v3-body-lh);
+}
+
+.v3Tokens .primaryButton,
+.v3Tokens .secondaryButton,
+.v3Tokens .finalPrimary,
+.v3Tokens .finalSecondary {
+  min-height: var(--v3-btn-h);
+  padding: var(--v3-btn-pad);
+  font-size: var(--v3-btn);
+  font-weight: 600;
+}
+.v3Tokens .flowNode a,
+.v3Tokens .finalActions a {
+  min-height: var(--v3-btn-h);
+  padding: var(--v3-btn-pad);
+  font-size: var(--v3-btn);
+  font-weight: 600;
 }
