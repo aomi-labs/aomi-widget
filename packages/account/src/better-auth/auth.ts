@@ -82,21 +82,17 @@ function snakeCasedSiwe(plugin: ReturnType<typeof siwe>) {
 }
 
 // Same ba_ + snake_case treatment for the MCP plugin's OAuth-provider models
-// (client registrations, access tokens, consents). Tables live in
-// supabase/migrations/*_better_auth_mcp_oauth_tables.sql (product-mono);
-// keep names in lockstep.
+// (client registrations, tokens, consents). Tables live in
+// supabase/migrations/*_better_auth_17_oauth.sql (product-mono); keep names
+// in lockstep.
 function snakeCasedOAuth(plugin: ReturnType<typeof mcp>) {
   const modelNames: Record<string, string> = {
-    oauthApplication: "ba_oauth_applications",
     oauthClient: "ba_oauth_clients",
     oauthResource: "ba_oauth_resources",
     oauthClientResource: "ba_oauth_client_resources",
     oauthRefreshToken: "ba_oauth_refresh_tokens",
-    // Keep the pre-1.7 opaque-token tables intact for the bounded legacy
-    // validation window. OAuth Provider 1.7 owns fresh, non-overlapping token
-    // and consent stores with its generated schema.
-    oauthAccessToken: "ba_oauth_17_access_tokens",
-    oauthConsent: "ba_oauth_17_consents",
+    oauthAccessToken: "ba_oauth_access_tokens",
+    oauthConsent: "ba_oauth_consents",
     oauthClientAssertion: "ba_oauth_client_assertions",
   };
   const snake = (name: string) =>
