@@ -2,8 +2,8 @@
 
 ## TypeScript SDK and developer surfaces
 
-Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED; STACKED PR/CI IN
-PROGRESS 2026-08-25** — ship the final frontend/client API package on the
+Current session goal: **IMPLEMENTED AND CI VERIFIED 2026-08-25** — ship the
+final frontend/client API package on the
 unified public Agent/Pipeline transport. `AomiClient` now exposes stateless,
 chain-specific EVM/SVM Build lifecycles plus filesystem discovery and
 runtime-schema-driven app/skill operations. The new high-level `Aomi` facade
@@ -13,7 +13,9 @@ presentation, and the `raw` escape hatch. Deprecated flat Pipeline methods
 remain only for migration parity; arbitrary Catalog operation generation stays
 an explicit later capability. The publishable client is patch-bumped to
 `@aomi-labs/client@0.6.6`; focused negative type checks, all 271 client tests,
-client lint/build, and packed-tarball inspection pass locally.
+client lint/build, and packed-tarball inspection pass locally. Stacked PR #531
+passed package CI, the complete deployed-app matrix, aggregate Frontend CI,
+workflow security, and all five Vercel previews.
 
 ## Canonical Agent/Pipeline ownership cleanup
 
