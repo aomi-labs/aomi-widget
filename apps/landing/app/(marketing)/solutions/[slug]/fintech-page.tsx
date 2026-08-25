@@ -7,6 +7,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
+import { Fragment } from "react";
 import type { SolutionConfig } from "../../../_v3-shared/solutions/solution-data";
 import { MARKETING_ROOT } from "../../site";
 import { FintechMandate } from "./sector-visuals";
@@ -64,9 +65,9 @@ const caseSteps = [
     code: [
       "GET  /idle-assets",
       "GET  /risk-snapshot",
-      "POST /assess-position",
+      "POST  /assess-position",
       "GET  /credit-balance",
-      "POST /propose-intent",
+      "POST  /propose-intent",
     ],
   },
   {
@@ -170,7 +171,6 @@ export function V3FintechPage({ solution }: { solution: SolutionConfig }) {
   return (
     <main className={styles.fintechPage}>
       <section className={`${styles.sectorHero} ${styles.fintechHero}`}>
-        <div className={styles.sectorHeroGrid} aria-hidden />
         <div className={styles.sectorHeroCopy}>
           <p className={styles.eyebrow}>{solution.eyebrow}</p>
           <h1>{solution.headline}</h1>
@@ -194,21 +194,19 @@ export function V3FintechPage({ solution }: { solution: SolutionConfig }) {
       </section>
 
       <section
-        className={`${styles.proofRail} ${styles.fintechStats}`}
+        className={styles.factRailFrame}
         aria-label="Fintech execution facts"
       >
-        <div>
-          <span>Operating model</span>
-          <strong>Governed asset operations</strong>
+        <div className={`${styles.proofRail} ${styles.fintechStats}`}>
+          {proofStats.map(({ value, unit, label }) => (
+            <div key={label}>
+              <strong>
+                {value} <em>{unit}</em>
+              </strong>
+              <span>{label}</span>
+            </div>
+          ))}
         </div>
-        {proofStats.map(({ value, unit, label }) => (
-          <div key={label}>
-            <strong>
-              {value} <em>{unit}</em>
-            </strong>
-            <span>{label}</span>
-          </div>
-        ))}
       </section>
 
       <section className={styles.fintechOperating}>
@@ -255,9 +253,22 @@ export function V3FintechPage({ solution }: { solution: SolutionConfig }) {
             <article key={label}>
               <p className={styles.caseStepLabel}>{label}</p>
               <pre className={styles.caseCode}>
-                {code.map((line) => (
-                  <span key={line}>{line}</span>
-                ))}
+                {code.map((line) => {
+                  // Alignment in the source strings is padding spaces. Split on
+                  // it so label and value become real grid tracks that stay
+                  // aligned and wrap instead of overflowing a narrow column.
+                  const [label, value] = line.split(/\s{2,}/);
+                  return value === undefined ? (
+                    <span className={styles.caseCodeLine} key={line}>
+                      {line}
+                    </span>
+                  ) : (
+                    <Fragment key={line}>
+                      <span>{label}</span>
+                      <span>{value}</span>
+                    </Fragment>
+                  );
+                })}
               </pre>
               <h3>{title}</h3>
               <p>{body}</p>

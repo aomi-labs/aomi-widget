@@ -91,7 +91,7 @@ export function AgentToolingsPageContent({
           <div className={`${styles.heroGrid} ${styles.heroCentered}`}>
             <div className={styles.heroCopy}>
               <p className={styles.eyebrow}>{productName}</p>
-              <h1>Bring transaction capability to wherever your agents work</h1>
+              <h1>Bring transaction capability to your existing agent stack</h1>
               <p className={styles.heroSupport}>
                 Connect coding agents through Skills, hosted MCP, or the CLI.
                 Three surfaces, one account-owned execution harness.
@@ -121,7 +121,7 @@ export function AgentToolingsPageContent({
           <div className={styles.sectionHeading}>
             <div>
               <p className={styles.eyebrow}>CHOOSE YOUR SURFACE</p>
-              <h2>Start with the interface your agent already understands.</h2>
+              <h2>Start with a compatible interface with flexibility.</h2>
             </div>
             <p>
               These entry points share execution infrastructure, but they solve
@@ -129,6 +129,33 @@ export function AgentToolingsPageContent({
             </p>
           </div>
           <SurfaceFlow surfaces={surfaces} />
+        </div>
+      </section>
+
+      <section className={styles.benchBand} aria-label="AomiBench results">
+        <div className={styles.shell}>
+          <span className={styles.benchBandLabel}>
+            Benchmarked on AomiBench
+          </span>
+          <div className={styles.benchBandStats}>
+            <div>
+              <strong>700</strong>
+              <span>runs · 7 frontier models</span>
+            </div>
+            <div>
+              <strong>90.6%</strong>
+              <span>task success, verified onchain</span>
+            </div>
+            <div>
+              <strong>94.8–99%</strong>
+              <span>frontier-cluster success rate</span>
+            </div>
+            <div>
+              <strong>9</strong>
+              <span>safety pauses correctly taken</span>
+            </div>
+          </div>
+          <Link href="/research/aomibench-v0-1">Read the research</Link>
         </div>
       </section>
 

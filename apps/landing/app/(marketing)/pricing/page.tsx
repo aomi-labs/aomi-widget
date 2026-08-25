@@ -120,12 +120,20 @@ export default function PricingPage() {
           <div className={styles.sectionIntro}>
             <div>
               <p className={styles.eyebrow}>The details</p>
-              <h2>Questions people ask.</h2>
+              <h2>FAQ</h2>
             </div>
-            <p>
-              The full schedule — per-model rates, payment rails, and how the
-              builder statement is calculated — is in the documentation.
-            </p>
+            <div>
+              <p>
+                The full schedule — per-model rates, payment rails, and how the
+                builder statement is calculated — is in the documentation.
+              </p>
+              <Link
+                href={`${MARKETING_ROOT}/pricing/payment-rails`}
+                className={styles.railsLink}
+              >
+                Explore payment rails <ArrowRight aria-hidden />
+              </Link>
+            </div>
           </div>
 
           <dl className={styles.faq}>

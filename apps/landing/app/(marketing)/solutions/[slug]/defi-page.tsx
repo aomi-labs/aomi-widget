@@ -14,58 +14,58 @@ import { MARKETING_ROOT } from "../../site";
 import { ExecutionArchitecture } from "./execution-architecture";
 import styles from "./defi.module.css";
 
-const reconciliationEvidence = [
+const venueVerdicts = [
   {
-    label: "Reported NAV",
-    value: "100.00",
-    detail: "Operator book at the latest published checkpoint",
-    outcome: "reported",
-    status: "REPORTED",
-  },
-  {
-    label: "Shadow NAV",
-    value: "99.03",
-    detail: "Reconstructed from assets, debt, rewards, and receivables",
-    outcome: "reconstructed",
-    status: "REBUILT",
-  },
-  {
-    label: "Unexplained drift",
-    value: "−0.97%",
-    detail: "One offchain receivable lacks fresh supporting evidence",
+    label: "Morpho Blue · Base",
+    value: "4.47%",
+    detail: "Highest net yield, but risk band B exceeds the mandate ceiling",
     outcome: "drift",
-    status: "INVESTIGATE",
+    status: "BLOCKED",
+  },
+  {
+    label: "Aave v3 · Base",
+    value: "4.11%",
+    detail: "Band A, deposits open, 98M liquidity, no bridge required",
+    outcome: "reconstructed",
+    status: "SELECTED",
+  },
+  {
+    label: "Sky Lending · Ethereum",
+    value: "3.52%",
+    detail: "Band A, but this cycle it would require a bridge",
+    outcome: "reported",
+    status: "ELIGIBLE",
   },
 ] as const;
 
 const preparedSteps = [
-  ["01", "Reprice", "Exclude the stale receivable from the shadow book"],
-  ["02", "Contain", "Disable new allocation to the affected strategy"],
-  ["03", "Deallocate", "Return exposure to the approved idle venue"],
-  ["04", "Reconcile", "Verify receipts and measure residual exposure"],
+  ["01", "Route", "Select Aave v3 on Base inside the band A allowlist"],
+  ["02", "Build", "Batch approve and supply into one atomic operation"],
+  ["03", "Simulate", "Rehearse the exact calls against forked live state"],
+  ["04", "Verify", "Reconcile receipts against the resulting position"],
 ] as const;
 
 const proofFacts = [
-  ["Shadow NAV", "independently reconstructed"],
-  ["Role-aware", "permissions and timelocks checked"],
-  ["Exact batch", "decoded and simulated before signing"],
-  ["Reconciled", "receipts through residual exposure"],
+  ["Policy-bound", "every action checked before it is built"],
+  ["Simulated", "exact calls rehearsed on forked live state"],
+  ["Your signer", "keys and approval authority never move"],
+  ["Reconciled", "receipts checked against the intended position"],
 ] as const;
 
 const evidenceInputs = [
-  "assets",
-  "debts",
-  "rewards",
-  "receivables",
-  "exchange rates",
-  "oracle snapshots",
+  "balances",
+  "open positions",
+  "routes",
+  "quotes",
+  "prices",
+  "venue liquidity",
 ] as const;
 
 const controlInputs = [
-  "roles",
+  "allowlists",
   "caps",
-  "queues",
-  "timelocks",
+  "slippage",
+  "risk bands",
   "call ordering",
   "postconditions",
 ] as const;
@@ -73,13 +73,13 @@ const controlInputs = [
 const catalogStages = [
   {
     icon: Blocks,
-    title: "NAV Sentinel",
-    body: "Reconstruct assets, debt, rewards, and receivables independently; surface unexplained drift before it becomes a disclosure problem.",
+    title: "Liquidity Router",
+    body: "Resolve a swap, bridge, or entry across venues, then hold the route inside slippage, allowlist, and value limits before anything is built.",
   },
   {
     icon: ShieldCheck,
-    title: "Vault ChangeSet",
-    body: "Turn an approved current-to-target diff into decoded calls, role checks, simulations, and one reviewable signer packet.",
+    title: "Yield Manager",
+    body: "Turn an approved current-to-target allocation into decoded calls, permission checks, simulations, and one reviewable signer packet.",
   },
   {
     icon: Layers3,
@@ -89,8 +89,18 @@ const catalogStages = [
   {
     icon: Waypoints,
     title: "Settlement Copilot",
-    body: "Correlate signatures, receipts, final balances, and residual exposure into evidence an operator can explain and export.",
+    body: "Correlate signatures, receipts, final balances, and residual exposure into evidence a desk can explain and export, including shadow NAV for managed vaults.",
   },
+] as const;
+
+const benchResults = [
+  { model: "opus-4.6", rate: 99.0, trailing: false },
+  { model: "opus-4.8", rate: 98.0, trailing: false },
+  { model: "sonnet-4.6", rate: 96.0, trailing: false },
+  { model: "gpt-5.5", rate: 96.0, trailing: false },
+  { model: "opus-4.7", rate: 94.8, trailing: false },
+  { model: "minimax-m2.5", rate: 76.8, trailing: true },
+  { model: "haiku-4.5", rate: 74.0, trailing: true },
 ] as const;
 
 export function V3DefiPage() {
@@ -101,37 +111,40 @@ export function V3DefiPage() {
       <section className={styles.hero}>
         <div className={styles.heroGrid} aria-hidden />
         <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>AOMI FOR VAULT OPERATIONS</p>
-          <h1>Independent books. Policy-bounded exits.</h1>
+          <p className={styles.eyebrow}>AOMI FOR DEFI</p>
+          <h1>
+            DeFi with controlled agent action. AI-driven liquidity management
+            with security.
+          </h1>
           <p className={styles.lede}>
-            Aomi reconstructs what a vault owns and owes, detects drift between
-            reported and live state, and turns an approved response runbook into
-            decoded, simulated, signer-ready actions—with post-execution
-            evidence.
+            Let an agent route swaps, move idle capital, rebalance positions,
+            and respond to risk. Every action it proposes is checked against
+            your policy, built as exact calls, simulated on forked live state,
+            and signed by the wallet you already run.
           </p>
           <div className={styles.heroActions}>
             <a href="#operator-paths">
-              Review the control plane <ArrowRight aria-hidden />
+              See how control works <ArrowRight aria-hidden />
             </a>
-            <a href="#operator-systems">See the operator systems</a>
+            <a href="#operator-systems">What the agent runs</a>
           </div>
         </div>
 
-        <div className={styles.seqCard} aria-label="Vault incident replay demo">
+        <div className={styles.seqCard} aria-label="Agent proposal demo">
           <header className={styles.demoMeta}>
-            <span>ILLUSTRATIVE INCIDENT REPLAY</span>
-            <strong>EXTERNALLY MANAGED VAULT</strong>
+            <span>ILLUSTRATIVE AGENT PROPOSAL</span>
+            <strong>250,000 IDLE USDC</strong>
           </header>
           <div className={styles.demoPrompt}>
-            Reported exchange rate no longer reconciles with the independently
-            reconstructed vault state.
+            Move the idle USDC into the best net yield. Risk band A only, and do
+            not bridge this cycle.
           </div>
           <div className={styles.demoAnswer}>
-            <span>NAV DRIFT DETECTED</span>
-            <h3>Prove the gap. Then compile the approved response.</h3>
+            <span>POLICY CHECKED BEFORE ANYTHING IS BUILT</span>
+            <h3>The best yield is not always the allowed one.</h3>
           </div>
           <ol className={styles.marketList}>
-            {reconciliationEvidence.map((item) => (
+            {venueVerdicts.map((item) => (
               <li key={item.label} data-outcome={item.outcome}>
                 <div>
                   <strong>{item.label}</strong>
@@ -144,10 +157,10 @@ export function V3DefiPage() {
           </ol>
           <p className={styles.demoConclusion}>
             <strong>
-              The operator&apos;s runbook—not the model—defines the response.
+              The mandate, not the model, decides what is allowed.
             </strong>{" "}
-            This fixture reprices the book, stops new exposure, deallocates, and
-            verifies the resulting state.
+            This fixture routes to Aave v3, batches approve and supply,
+            simulates the exact calls, and reconciles the resulting position.
           </p>
           <button
             className={styles.demoToggle}
@@ -156,8 +169,8 @@ export function V3DefiPage() {
             onClick={() => setShowPreparedAction((current) => !current)}
           >
             {showPreparedAction
-              ? "Hide Vault ChangeSet"
-              : "Inspect Vault ChangeSet"}
+              ? "Hide the action packet"
+              : "Inspect the action packet"}
             <span aria-hidden>{showPreparedAction ? "−" : "+"}</span>
           </button>
           {showPreparedAction ? (
@@ -172,73 +185,108 @@ export function V3DefiPage() {
             </ol>
           ) : null}
           <footer>
-            <Check aria-hidden /> No strategy selected · no keys held · signer
-            approval required
+            <Check aria-hidden /> Nothing moves without policy · no keys held ·
+            signer approval required
           </footer>
         </div>
       </section>
 
-      <section className={styles.proof} aria-label="DeFi execution facts">
-        {proofFacts.map(([value, label]) => (
-          <div key={label}>
-            <strong>{value}</strong>
-            <span>{label}</span>
+      <section
+        className={styles.factRailFrame}
+        aria-label="DeFi execution facts"
+      >
+        <div className={styles.proof}>
+          {proofFacts.map(([value, label]) => (
+            <div key={label}>
+              <strong>{value}</strong>
+              <span>{label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.benchSection} aria-label="AomiBench results">
+        <header className={styles.sectionHeading}>
+          <div>
+            <p className={styles.eyebrow}>Benchmarked, not asserted</p>
+            <h2>Frontier models, measured through this harness.</h2>
           </div>
-        ))}
+          <p>
+            AomiBench scores each model on executable onchain tasks — real
+            transactions, simulations, and chain-state evidence — with a
+            deterministic verifier reading the chain, not a model reading a
+            transcript.
+          </p>
+        </header>
+
+        <div
+          className={styles.benchChart}
+          role="img"
+          aria-label="Task success rate per model across 50 AomiBench specs: opus-4.6 99.0%, opus-4.8 98.0%, sonnet-4.6 96.0%, gpt-5.5 96.0%, opus-4.7 94.8%, minimax-m2.5 76.8%, haiku-4.5 74.0%"
+        >
+          {benchResults.map(({ model, rate, trailing }) => (
+            <div className={styles.benchRow} key={model}>
+              <span>{model}</span>
+              <div>
+                <i
+                  className={trailing ? styles.benchBarMuted : styles.benchBar}
+                  style={{ width: `${rate}%` }}
+                />
+              </div>
+              <strong>{rate.toFixed(1)}</strong>
+            </div>
+          ))}
+        </div>
+
+        <p className={styles.benchNote}>
+          Task success rate (%) · 50 specs · 2 passes · fixed scaffold · 694
+          scorable runs, 90.6% overall — crediting 9 correct safety pauses
+          raises it to 91.9%. From{" "}
+          <Link href="/research/aomibench-v0-1">
+            AomiBench: benchmarking frontier models on onchain execution
+          </Link>
+          .
+        </p>
       </section>
 
       <section id="operator-paths" className={styles.paths}>
         <header className={styles.sectionHeading}>
           <div>
-            <p className={styles.eyebrow}>START WITH THE CONTROL GAP</p>
-            <h2>Run in shadow mode before anything can move.</h2>
+            <p className={styles.eyebrow}>TWO WAYS IN</p>
+            <h2>Keep the strategy. Bound the execution.</h2>
           </div>
           <p>
-            Keep the mandate, valuation models, protocol tooling, and signer.
-            Aomi begins as an independent evidence and rehearsal layer, then
-            earns the right to prepare execution packets.
+            Use the agent to decide, or keep your own model and use Aomi only to
+            execute. Either way the same policy, simulation, and signer boundary
+            sits between the decision and the chain.
           </p>
         </header>
         <div className={styles.pathGrid}>
           <article>
-            <span>NEED INDEPENDENT FINANCIAL TRUTH?</span>
-            <h3>Run a shadow-NAV engagement.</h3>
+            <span>WANT THE AGENT TO DECIDE?</span>
+            <h3>Let it manage the position.</h3>
             <p>
-              Reconstruct current assets, liabilities, rewards, and receivables
-              beside the operator&apos;s existing books. Trace every variance to
-              evidence, ownership, and a review state.
+              State the outcome and the limits. The agent compares venues,
+              routes the move, rebalances on a cadence, and proposes every
+              action inside the risk bands and allowlists you set.
             </p>
             <a href="#operator-systems">
-              See the NAV control loop <ArrowRight aria-hidden />
+              See the control loops <ArrowRight aria-hidden />
             </a>
           </article>
           <article>
-            <span>NEED FASTER RISK-OFF RESPONSE?</span>
-            <h3>Compile one approved runbook.</h3>
+            <span>ALREADY HAVE A STRATEGY?</span>
+            <h3>Bring your own model.</h3>
             <p>
-              Start with a real alert. Resolve affected exposure, permissions,
-              caps, queues, and timelocks; then produce the exact ordered calls
-              for the operator&apos;s Safe, MPC, or wallet.
+              Submit the exact action or ordered batch your system selected.
+              Aomi builds the calls, simulates them, runs the guards, and hands
+              a sealed packet to your Safe, MPC, or wallet.
             </p>
             <a href="#architecture">
-              Follow alert to evidence <ArrowRight aria-hidden />
+              Follow one action end to end <ArrowRight aria-hidden />
             </a>
           </article>
         </div>
-      </section>
-
-      <section className={styles.coverage}>
-        <header className={styles.sectionHeading}>
-          <div>
-            <p className={styles.eyebrow}>THE VAULT CHANGESET</p>
-            <h2>One review object from desired state to evidence.</h2>
-          </div>
-          <p>
-            Operators review a financial diff—not blind calldata. The packet
-            carries its inputs, required authority, exact calls, simulation,
-            signer handoff, and postconditions together.
-          </p>
-        </header>
         <div className={styles.coverageWall}>
           <div className={styles.coverageRow}>
             <span>Evidence</span>
@@ -257,7 +305,7 @@ export function V3DefiPage() {
             </div>
           </div>
           <p className={styles.coverageNote}>
-            Output: current-to-target diff · decoded ordered calls · full-batch
+            Output: intent-to-target diff · decoded ordered calls · full-batch
             simulation · approval packet · receipts · final-state reconciliation
           </p>
         </div>
@@ -268,11 +316,14 @@ export function V3DefiPage() {
       <section id="operator-systems" className={styles.catalog}>
         <header className={styles.sectionHeading}>
           <div>
-            <p className={styles.eyebrow}>OPERATOR SYSTEMS</p>
-            <h2>Four control loops. One evidence model.</h2>
+            <p className={styles.eyebrow}>WHAT THE AGENT RUNS</p>
+            <h2>
+              Accelerate risk-on and risk-off operations by adding AI to your
+              control plane
+            </h2>
           </div>
           <p>
-            These systems complement the operator&apos;s models, protocol UIs,
+            These loops complement your own models, protocol interfaces,
             monitors, and signer. They do not replace the strategy or assume
             investment authority.
           </p>
@@ -297,19 +348,19 @@ export function V3DefiPage() {
       </section>
 
       <section className={styles.cta}>
-        <p className={styles.eyebrow}>START WITH EVIDENCE</p>
-        <h2>Bring one vault and one approved risk-off runbook.</h2>
+        <p className={styles.eyebrow}>START WITH ONE WORKFLOW</p>
+        <h2>Bring one liquidity workflow and the limits it must respect.</h2>
         <p>
-          Run in shadow mode first. Keep the mandate, models, and keys. Aomi
-          proves current state, rehearses the response, and packages the exact
-          actions for the signer you already trust.
+          Run it in rehearsal first. Keep the strategy, the models, and the
+          keys. Aomi proves the current position, simulates the move, and
+          packages the exact actions for the signer you already trust.
         </p>
         <div className={styles.ctaActions}>
-          <a href="mailto:hello@aomi.dev?subject=Shadow%20NAV%20review">
-            Start a shadow-NAV review <ArrowRight aria-hidden />
+          <a href="mailto:hello@aomi.dev?subject=DeFi%20workflow%20review">
+            Map your first workflow <ArrowRight aria-hidden />
           </a>
-          <a href="mailto:hello@aomi.dev?subject=Risk-off%20runbook%20review">
-            Test a risk-off runbook
+          <a href="mailto:hello@aomi.dev?subject=Bring%20your%20own%20strategy">
+            Bring your own strategy
           </a>
         </div>
       </section>

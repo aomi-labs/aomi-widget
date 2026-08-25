@@ -125,7 +125,7 @@ export function WidgetProductPageContent({
           <div className={pageStyles.heroGrid}>
             <div className={pageStyles.heroCopy}>
               <p className={pageStyles.eyebrow}>{productName}</p>
-              <h1>Onchain execution, inside your product.</h1>
+              <h1>Zero cost integration at all product surfaces</h1>
               <p className={pageStyles.heroSupport}>
                 Put the same chat-to-transaction experience used by Aomi Portal
                 where your users already are: embedded in your product, or in a
@@ -207,7 +207,7 @@ export function WidgetProductPageContent({
                 ID, and choose the authentication and wallets that already
                 belong in your product.
               </p>
-              <div className={pageStyles.commandBox}>
+              <div className={pageStyles.commandBox} data-liquid-glass>
                 <Code2 aria-hidden className="size-4" />
                 <code>{INSTALL_COMMAND}</code>
               </div>

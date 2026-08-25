@@ -1,11 +1,139 @@
 # Canonical V3 Landing Cutover
 
-Current session goal: **NAV-MATCHED THEME SWITCHER VERIFIED 2026-08-25** — the
-fixed light/dark switcher diameter now exactly matches the navigation height:
-54px on desktop and 48px on compact mobile, on the homepage and React subpages.
-Browser measurements confirm equal width, height, and top alignment with zero
-overflow; theme switching still works. TypeScript, Prettier, route/asset
-checks, and `git diff --check` pass.
+Current session goal: **PRICING FAQ HEADING VERIFIED 2026-08-25** — rename the
+pricing FAQ section heading from “Questions people ask.” to “FAQ”.
+
+Current session goal: **WALLETS EXECUTION POSITIONING VERIFIED 2026-08-25** —
+position the Wallets solution around protocol-agnostic execution, hosted or API
+access for existing and new agentic stacks, reusable transaction harnesses, and
+an access-control model with full permission guardrails, plus the component
+library that renders each action.
+
+Current session goal: **WIDGET ZERO-COST HEADLINE VERIFIED 2026-08-25** — change
+the Human Interface product headline to “Zero cost integration at all product
+surfaces.”
+
+Current session goal: **PLUGIN SDK PIPELINE COPY VERIFIED 2026-08-25** — rename
+the Plugin SDK build-to-deploy and managed-platform headings to “Integration
+toolings & deployment pipeline” and “Developer console just like Vercel.”
+
+Current session goal: **CONTAINED SOLUTION FACT RAILS VERIFIED 2026-08-25** —
+align the Fintech and DeFi four-cell fact rails with the REST API reference:
+full-width divider rules around a centered 1220px bar, consistent 120px cell
+height and inset spacing, and responsive two-column and single-column states.
+
+Current session goal: **SITE-WIDE TYPOGRAPHY GUARDRAILS VERIFIED 2026-08-25** —
+replace legacy per-card 9–13px marketing copy with one semantic V3 scale:
+23px card headings, 16.5px body/card copy, and 14px metadata, eyebrows, and
+actions. The homepage reference, product pages, solution pages, editorial
+routes, legal pages, agent guides, and research shell inherit those CSS-level
+roles; dense terminal, code, chart, and embedded-dashboard fixtures keep their
+compact UI scale. Desktop and 360px browser audits find no undersized marketing
+card headings or horizontal overflow. Scoped Prettier, landing TypeScript,
+ESLint, and `git diff --check` pass; the production build reaches compilation
+but cannot download Google Fonts in the current network environment. The dev
+page remains available at `http://localhost:3001`.
+
+Current session goal: **TRADING HERO PRODUCT PROOF VERIFIED 2026-08-25** —
+scale the Aomi Build dashboard and Integrations screenshots into a dominant
+background-and-foreground composition inspired by the supplied landing-page
+reference. The proof now fills and intentionally bleeds through the right side
+on desktop; its foreground screen sits lower and farther right so the Build
+prompt remains visible beneath it. The composition stays clear of the editorial
+copy and returns to an overflow-safe stack on mobile.
+
+Current session goal: **TRADING UX POSITIONING VERIFIED 2026-08-25** — lead
+the Trading page with ready-to-go product integrations and expanded action
+space, then carry that positioning through the hero proof, metadata, World
+Markets flow, and validation language while preserving “Working example” as
+the explicit framing for World Markets × Aomi. The longer lead receives a
+wider desktop column and headline measure; scoped Prettier, landing TypeScript,
+route, and `git diff --check` pass.
+
+Current session goal: **WALLET CHAT TYPE SCALE VERIFIED 2026-08-25** — reduce
+the embedded wallet-chat fixture's oversized welcome title, prompt,
+suggestions, header, and footer typography with fixture-scoped overrides, so
+the published widget remains unchanged elsewhere. Browser checks confirm the
+smaller 11px composer type and zero horizontal overflow; landing TypeScript,
+scoped Prettier, route, and `git diff --check` pass.
+
+Current session goal: **SITE-WIDE FLAT SLIDERS VERIFIED 2026-08-25** — the
+static V3 homepage and React marketing routes now use one interaction model for
+segmented sliders: a single shadowless `--v3-blue` indicator moves beneath
+transparent buttons, while hover leaves both active and inactive buttons
+visually unchanged. The shared liquid-glass layer can no longer reintroduce a
+second hover or selected pill. Browser checks confirm the Fintech mandate,
+Trading Product flow/Authority, Widget UI/Terminal, homepage UI/Terminal, and
+Agent Toolings Skills/MCP/CLI controls have flat tracks, identical idle/hover
+button styles, and working indicator travel; Pricing uses the same CSS model.
+Landing TypeScript, scoped Prettier, all affected route checks, and
+`git diff --check` pass.
+
+Current session goal: **DEFI CALLOUT PANELS VERIFIED 2026-08-25** — apply the
+reference pale-blue panel, blue left rule, dark text, and inset spacing to the
+DeFi control-gap and vault-ChangeSet supporting copy without changing either
+message or the styling of other DeFi section headings. Desktop and mobile
+browser checks confirm both callouts render correctly with no horizontal
+overflow; landing TypeScript, scoped Prettier, route, and `git diff --check`
+pass.
+
+Current session goal: **DEFI HERO FINTECH STYLE VERIFIED 2026-08-25** — align
+the DeFi hero with the Fintech reference using the same quiet paper canvas,
+desktop column proportions, spacing, headline measure, responsive stacking,
+and rounded blue-tinted artifact border while preserving the DeFi content and
+controls. Browser checks confirm the desktop composition, a 16px artifact
+radius, zero 390px horizontal overflow, and no console errors; landing
+TypeScript, scoped Prettier, route, and `git diff --check` pass.
+
+Current session goal: **MANAGED BUILD DESTINATION VERIFIED 2026-08-25** — add
+an end-of-pipeline section to the Plugin SDK page that positions Aomi Build as
+the managed destination for deployed Apps. The supplied platform overview and
+project-home screenshots are anonymized with a neutral demo identity, layered
+in the requested editorial stack on desktop, and become a readable vertical
+stack on mobile. The Operate headline now reads “Monitoring transactions, tool
+calls, and fees with
+institution-grade provision.” Browser checks confirm both images load, the CTA
+targets Build, desktop overlap is intentional, and mobile has zero horizontal
+overflow; TypeScript, scoped ESLint and Prettier, route and asset checks, and
+`git diff --check` pass.
+
+Current session goal: **FLAT V3 INTERACTIONS VERIFIED 2026-08-25** — the Agent
+Toolings Skills/MCP/CLI selector now uses one shadowless blue pill whose only
+animation is horizontal sliding, its setup facts use regular weight, and the
+REST API execution-boundary copy uses the pale-blue note-panel treatment. The
+REST API source selector, homepage integration and UI/Terminal selectors,
+primary navbar labels, and Plugin SDK file tree and Usage/Logs tabs no longer
+change on hover; their active states remain plain and explicit. Browser checks
+confirm identical idle/hover computed styles, working navigation, tab, and file
+selection, and the retained selected states. TypeScript, scoped ESLint, scoped
+Prettier, route checks, and `git diff --check` pass.
+
+Current session goal: **SEGMENTED-CONTROL HOVER REMOVAL VERIFIED 2026-08-25** —
+removed the hover-only color change from the Agent Toolings Skills/MCP/CLI
+segmented control while preserving its selected state and tab behavior. Browser
+checks confirm the unselected color stays identical before and during hover and
+that MCP still selects correctly; TypeScript, scoped ESLint, Prettier, and
+`git diff --check` pass.
+
+Current session goal: **SYSTEM-ONLY THEME VERIFIED 2026-08-25** — removed the
+manual light/dark control, its unused component/styles, and the layout space it
+reserved from the homepage and React subpages. Theme selection now follows only
+the system `prefers-color-scheme` setting, including live light/dark changes,
+with no saved manual override. Browser checks confirm zero manual controls and
+zero horizontal overflow on both surfaces; TypeScript, scoped ESLint, Prettier,
+JavaScript syntax, route/asset checks, and `git diff --check` pass.
+
+## Marketing dark-theme contrast
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-25** — keep
+World Markets flow copy, mandate values, DeFi CTA labels, and the Pricing CTA
+primary action readable when the system selects dark mode. The same components
+remain readable in light mode; scoped Prettier, browser console, and
+`git diff --check` pass.
+
+Previous session goal: **NAV-MATCHED THEME SWITCHER VERIFIED 2026-08-25** —
+the fixed light/dark switcher diameter exactly matched the navigation height on
+desktop and mobile before the manual control was removed.
 
 Previous session goal: **FIXED AND COMPACT MOBILE NAVIGATION VERIFIED
 2026-08-25** — the static V3 homepage navigation now remains fixed at its

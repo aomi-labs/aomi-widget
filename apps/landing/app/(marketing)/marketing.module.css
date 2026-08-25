@@ -1,3 +1,53 @@
+/*
+ * Keep the marketing typography deterministic. The V3 reference already
+ * ships these font files, so the main routes do not fall back when next/font
+ * cannot refresh Google Fonts during a local or production build.
+ */
+@font-face {
+  font-family: "Aomi V3 Geist";
+  src: url("/assets/v3/reference/assets/9c806f79-e26f-4864-91d8-e883f415bab7.woff2")
+    format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Aomi V3 Geist Mono";
+  src: url("/assets/v3/reference/assets/12717e66-0183-43e5-b005-b6768045d1b2.woff2")
+    format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Aomi V3 PT Serif";
+  src: url("/assets/v3/reference/assets/f17f9cc9-137d-4b8e-b5c5-cf8502feb0ab.woff2")
+    format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Aomi V3 PT Serif";
+  src: url("/assets/v3/reference/assets/ec49af07-698b-4897-9b3b-4195683dd573.woff2")
+    format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Aomi V3 PT Serif";
+  src: url("/assets/v3/reference/assets/1711f36d-00bc-4a8a-a389-d2c96af29630.woff2")
+    format("woff2");
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+}
+
 .root {
   --v3-ink: var(--aomi-landing-text);
   --v3-copy: var(--aomi-landing-text-secondary);
@@ -24,12 +74,21 @@
   --v3-on-ink: var(--aomi-text-on-brand-ink);
   --v3-on-accent: var(--aomi-landing-on-accent);
   --v3-shadow: var(--aomi-landing-shadow);
-  --v3-sans: var(--font-v3-sans), ui-sans-serif, system-ui, sans-serif;
+  --v3-glass-fill: var(--aomi-glass-fill);
+  --v3-glass-fill-strong: var(--aomi-glass-fill-strong);
+  --v3-glass-fill-hover: var(--aomi-glass-fill-hover);
+  --v3-glass-border: var(--aomi-glass-border);
+  --v3-glass-highlight: var(--aomi-glass-highlight);
+  --v3-glass-shadow: var(--aomi-glass-shadow);
+  --v3-sans: "Aomi V3 Geist", ui-sans-serif, system-ui, sans-serif;
   --v3-mono:
-    var(--font-v3-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-  --v3-serif: var(--font-v3-display), "PT Serif", Georgia, serif;
-  --v3-display: var(--font-v3-display), "PT Serif", Georgia, serif;
-  /* --- type scale (canonical; see GOAL.md) --- */
+    "Aomi V3 Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --v3-serif: "Aomi V3 PT Serif", Georgia, serif;
+  --v3-display: "Aomi V3 PT Serif", Georgia, serif;
+  /* --- type scale (canonical; see GOAL.md) ---
+   * Editorial copy and card content intentionally share readable floors.
+   * Dense product-demo UI may opt into smaller local values, but page copy
+   * should only consume these semantic roles. */
   --v3-h1: clamp(42px, 4.6vw, 60px);
   --v3-h1-lh: 1.1;
   --v3-h1-ls: -0.02em;
@@ -38,19 +97,25 @@
   --v3-h2-ls: -0.015em;
   --v3-h3: 23px;
   --v3-h3-lh: 1.2;
-  --v3-h4: 18px;
-  --v3-h4-lh: 1.35;
-  --v3-lead: 16.5px;
+  --v3-card-title: var(--v3-h3);
+  --v3-card-title-lh: var(--v3-h3-lh);
+  --v3-h4: var(--v3-card-title);
+  --v3-h4-lh: var(--v3-card-title-lh);
+  --v3-lead: 17px;
   --v3-lead-lh: 1.65;
-  --v3-body: 16px;
+  --v3-card-copy: 16.5px;
+  --v3-card-copy-lh: 1.65;
+  --v3-body: 16.5px;
   --v3-body-lh: 1.7;
-  --v3-small: 13.5px;
-  --v3-small-lh: 1.6;
-  --v3-micro: 12px;
-  --v3-micro-lh: 1.5;
-  --v3-eyebrow: 11px;
+  --v3-small: var(--v3-card-copy);
+  --v3-small-lh: var(--v3-card-copy-lh);
+  --v3-meta: 14px;
+  --v3-meta-lh: 1.55;
+  --v3-micro: var(--v3-meta);
+  --v3-micro-lh: var(--v3-meta-lh);
+  --v3-eyebrow: 14px;
   --v3-eyebrow-ls: 0.16em;
-  --v3-btn: 13px;
+  --v3-btn: 14px;
   --v3-btn-h: 46px;
   --v3-btn-pad: 0 20px;
   --v3-page-width: min(1220px, calc(100% - 128px));
@@ -106,6 +171,13 @@
   font: inherit;
 }
 
+/* Safari paints the native macOS push-button bezel on hover unless the
+   native appearance is switched off. */
+.root button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .navDock {
   position: fixed;
   z-index: 100;
@@ -114,15 +186,6 @@
   width: max-content;
   max-width: calc(100vw - 32px);
   transform: translateX(-50%);
-}
-
-.themeCorner {
-  position: fixed;
-  z-index: 110;
-  top: 22px;
-  right: 28px;
-  display: grid;
-  place-items: center;
 }
 
 .navPill {
@@ -255,9 +318,22 @@
   min-height: 72px;
   flex-direction: column;
   gap: 6px;
-  border-radius: 12px;
+  /* concentric with .navPopover: its 30px radius minus its 12px padding, so the
+     inner and outer curves stay parallel */
+  border-radius: 18px;
   padding: 13px;
   animation: v3NavPopoverItemIn 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.navPopoverItem:hover,
+.navPopoverItem:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
 }
 
 .navPopoverItem:nth-child(1) {
@@ -339,7 +415,7 @@
   justify-content: center;
   border-radius: 999px;
   padding: 0 22px;
-  font-size: 13.5px;
+  font-size: var(--v3-btn);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -392,8 +468,8 @@
 .footerLead > p {
   margin-top: 22px;
   color: var(--v3-muted);
-  font-size: 14px;
-  line-height: 1.7;
+  font-size: var(--v3-body);
+  line-height: var(--v3-body-lh);
 }
 
 .footerContact {
@@ -403,7 +479,7 @@
   margin-top: 24px;
   color: var(--v3-blue) !important;
   font-family: var(--v3-mono);
-  font-size: 12px;
+  font-size: var(--v3-meta);
 }
 
 .footerContact svg {
@@ -427,14 +503,14 @@
   margin-bottom: 7px;
   color: var(--v3-ink);
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: var(--v3-eyebrow);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .footerColumns a {
   color: var(--v3-muted);
-  font-size: 13px;
+  font-size: var(--v3-meta);
 }
 
 .footerColumns a:hover {
@@ -450,7 +526,7 @@
   padding-top: 22px;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: var(--v3-meta);
 }
 
 .footerBar > div {
@@ -472,7 +548,7 @@
 .heroEyebrow {
   margin: 0;
   font-family: var(--v3-mono);
-  font-size: 12px;
+  font-size: var(--v3-eyebrow);
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -550,8 +626,8 @@
   max-width: 650px;
   margin: 28px 0 0;
   color: rgba(255, 255, 255, 0.88);
-  font-size: 16px;
-  line-height: 1.65;
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
   text-shadow: 0 2px 18px rgba(9, 9, 11, 0.45);
 }
 
@@ -600,8 +676,18 @@
   border: 1px solid rgba(255, 255, 255, 0.32);
   border-radius: 14px;
   padding: 7px 8px 7px 16px;
-  background: rgba(9, 9, 11, 0.45);
-  backdrop-filter: blur(16px);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.13),
+      rgba(255, 255, 255, 0.025)
+    ),
+    rgba(9, 9, 11, 0.44);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 18px 44px rgba(9, 9, 11, 0.2);
+  backdrop-filter: blur(20px) saturate(1.35);
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
 }
 
 .heroCommandRow > span {
@@ -676,12 +762,18 @@
   top: calc(100% + 12px);
   right: 0;
   width: 180px;
-  border: 1px solid var(--v3-border);
+  border: 1px solid var(--v3-glass-border);
   border-radius: 14px;
   padding: 6px;
   color: var(--v3-ink);
-  background: #fff;
-  box-shadow: 0 20px 40px rgba(9, 9, 11, 0.25);
+  background:
+    linear-gradient(135deg, var(--v3-glass-highlight), transparent 58%),
+    var(--v3-glass-fill-strong);
+  box-shadow:
+    inset 0 1px 0 var(--v3-glass-highlight),
+    0 20px 48px var(--v3-glass-shadow);
+  backdrop-filter: blur(24px) saturate(1.45);
+  -webkit-backdrop-filter: blur(24px) saturate(1.45);
 }
 
 .heroInstallSelect > div button {
@@ -1382,6 +1474,14 @@
   display: flex;
   gap: 6px;
   margin-bottom: 12px;
+  width: fit-content;
+  border: 1px solid var(--v3-border);
+  border-radius: 999px;
+  padding: 4px;
+  background: var(--v3-wash);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 .runtimeTabs button,
@@ -1395,14 +1495,12 @@
   cursor: pointer;
 }
 
-.runtimeTabs button:hover,
 .runtimeTabs .runtimeTabActive,
-.walletTabs button:hover,
 .walletTabs .walletTabActive {
-  border-color: var(--v3-border);
-  color: var(--v3-ink);
-  background: #fff;
-  box-shadow: 0 5px 15px rgba(9, 9, 11, 0.06);
+  border-color: transparent;
+  color: #fff;
+  background: var(--v3-blue);
+  box-shadow: none;
 }
 
 .runtimeWindow {
@@ -1559,6 +1657,7 @@
 }
 
 .walletTabs {
+  width: 100%;
   justify-content: space-between;
   margin: 0;
 }
@@ -1738,7 +1837,14 @@
   border: 1px solid var(--v3-border);
   border-radius: 14px;
   padding: 8px 8px 8px 14px;
-  background: #fafafa;
+  background:
+    linear-gradient(135deg, var(--v3-glass-highlight), transparent 62%),
+    var(--v3-glass-fill);
+  box-shadow:
+    inset 0 1px 0 var(--v3-glass-highlight),
+    0 12px 32px var(--v3-glass-shadow);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
 }
 
 .installCommand > span {
@@ -1782,6 +1888,16 @@
   border-color: var(--v3-blue);
   color: var(--v3-blue-dark);
   background: var(--v3-blue-soft);
+  background-image: linear-gradient(
+    135deg,
+    var(--v3-glass-highlight),
+    transparent 62%
+  );
+  box-shadow:
+    inset 0 1px 0 var(--v3-glass-highlight),
+    0 12px 30px var(--v3-glass-shadow);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
 }
 
 .installTools svg {
@@ -1861,6 +1977,19 @@
   font-weight: 550;
   text-align: left;
   cursor: pointer;
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.faqItem > button:hover,
+.faqItem > button[aria-expanded="true"] {
+  background-image: linear-gradient(
+    135deg,
+    var(--v3-glass-highlight),
+    transparent 62%
+  );
+  box-shadow: inset 0 1px 0 var(--v3-glass-highlight);
 }
 
 .faqItem > button svg {
@@ -3503,11 +3632,6 @@
 }
 
 @media (max-width: 860px) {
-  .themeCorner {
-    top: 18px;
-    right: 12px;
-  }
-
   .navDock {
     top: 18px;
     width: calc(100vw - 24px);
@@ -3515,8 +3639,7 @@
 
   .navPill {
     height: 48px;
-    margin-right: 60px;
-    margin-left: 8px;
+    margin-inline: 8px;
     padding-left: 14px;
   }
 
@@ -3560,11 +3683,17 @@
     width: 100%;
     height: calc(100dvh - 88px);
     overflow: hidden;
-    border: 1px solid var(--v3-border);
+    border: 1px solid var(--v3-glass-border);
     border-radius: 22px;
     color: var(--v3-ink);
-    background: rgba(255, 255, 255, 0.98);
-    box-shadow: 0 30px 80px rgba(9, 9, 11, 0.25);
+    background:
+      linear-gradient(135deg, var(--v3-glass-highlight), transparent 62%),
+      var(--v3-glass-fill-strong);
+    box-shadow:
+      inset 0 1px 0 var(--v3-glass-highlight),
+      0 30px 80px var(--v3-glass-shadow);
+    backdrop-filter: blur(30px) saturate(1.45);
+    -webkit-backdrop-filter: blur(30px) saturate(1.45);
   }
   .navMobileScroll {
     height: 100%;
@@ -3588,6 +3717,15 @@
     flex-direction: column;
     gap: 3px;
     padding: 10px 0;
+    border-radius: 12px;
+    transition:
+      background 160ms ease,
+      padding 160ms ease;
+  }
+  .navMobileGroup a:hover,
+  .navMobileGroup a:focus-visible {
+    padding-inline: 10px;
+    background: var(--v3-glass-fill-hover);
   }
   .navMobileGroup a span {
     font-size: 14px;
@@ -4308,7 +4446,6 @@
 /* ---------- semantic dark surfaces ---------- */
 
 :global(html[data-theme="dark"]) .footer,
-:global(html[data-theme="dark"]) .installCommand,
 :global(html[data-theme="dark"]) .researchList > div:last-child > a:hover {
   background: var(--v3-wash);
 }
@@ -4336,12 +4473,149 @@
   background: var(--v3-raised);
 }
 
-:global(html[data-theme="dark"]) .heroInstallSelect > div,
-:global(html[data-theme="dark"]) .runtimeTabs button:hover,
 :global(html[data-theme="dark"]) .runtimeTabs .runtimeTabActive,
-:global(html[data-theme="dark"]) .walletTabs button:hover,
 :global(html[data-theme="dark"]) .walletTabs .walletTabActive {
-  background: var(--v3-raised);
+  background: var(--v3-blue);
+}
+
+/* ---------- shared liquid-glass interactions ---------- */
+
+.root :global([data-liquid-glass]) {
+  border-color: var(--v3-glass-border) !important;
+  background-color: var(--v3-glass-fill) !important;
+  background-image: linear-gradient(
+    135deg,
+    var(--v3-glass-highlight),
+    transparent 62%
+  ) !important;
+  box-shadow:
+    inset 0 1px 0 var(--v3-glass-highlight),
+    0 16px 40px var(--v3-glass-shadow);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+
+.root :global([data-liquid-glass="ink"]) {
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  background-color: rgba(9, 9, 11, 0.44) !important;
+  background-image: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.14),
+    transparent 62%
+  ) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 18px 46px rgba(9, 9, 11, 0.24);
+}
+
+.root :global(button[aria-selected]),
+.root :global(button[aria-pressed]),
+.root :global(button[aria-expanded]) {
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.root :global(button[aria-selected]:hover),
+.root :global(button[aria-pressed]:hover),
+.root :global(button[aria-expanded]:hover),
+.root :global(button[aria-selected="true"]),
+.root :global(button[aria-pressed="true"]),
+.root :global(button[aria-expanded="true"]) {
+  background-image: linear-gradient(
+    135deg,
+    var(--v3-glass-highlight),
+    transparent 62%
+  );
+  box-shadow:
+    inset 0 1px 0 var(--v3-glass-highlight),
+    0 10px 28px var(--v3-glass-shadow);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+}
+
+/* Segmented controls own their selected indicator. Keep the shared glass
+   interaction layer from adding a second hover/selected pill on top of it. */
+.root :global([role="tablist"] button[role="tab"]),
+.root :global([role="tablist"] button[role="tab"]:hover),
+.root :global([role="tablist"] button[role="tab"][aria-selected="true"]) {
+  background-image: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transform: none;
+  transition: none;
+}
+
+/* Primary nav labels stay visually still while retaining their popovers. */
+.root .navDock .navTrigger,
+.root .navDock .navTrigger:hover,
+.root .navDock .navTrigger[aria-expanded="true"],
+.root .navDock .navTextLink,
+.root .navDock .navTextLink:hover {
+  color: rgba(255, 255, 255, 0.83);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transform: none;
+  transition: none;
+}
+
+.root :global([data-liquid-tooltip]) {
+  position: relative;
+}
+
+.root :global([data-liquid-tooltip])::after {
+  position: absolute;
+  z-index: 20;
+  right: 50%;
+  bottom: calc(100% + 9px);
+  width: max-content;
+  max-width: 180px;
+  transform: translate(50%, 5px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 6px 9px;
+  color: #fff;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.15), transparent 62%),
+    rgba(30, 28, 32, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 10px 28px rgba(9, 9, 11, 0.26);
+  backdrop-filter: blur(18px) saturate(1.35);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  content: attr(data-liquid-tooltip);
+  font-family: var(--v3-sans);
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.root :global([data-liquid-tooltip]:hover)::after,
+.root :global([data-liquid-tooltip]:focus-visible)::after {
+  transform: translate(50%, 0);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navPopoverItem,
+  .faqItem > button,
+  .navMobileGroup a,
+  .root :global(button[aria-selected]),
+  .root :global(button[aria-pressed]),
+  .root :global(button[aria-expanded]),
+  .root :global([data-liquid-tooltip])::after {
+    transition: none;
+  }
 }
 
 :global(html[data-theme="dark"]) .detailHeroBlue,
@@ -4365,4 +4639,114 @@
   transition:
     color 180ms ease,
     background 180ms ease;
+}
+
+/* The homepage surface and wallet pickers follow the same flat state model. */
+.root .runtimeTabs button[aria-pressed],
+.root .runtimeTabs button[aria-pressed]:hover,
+.root .walletTabs button[aria-pressed],
+.root .walletTabs button[aria-pressed]:hover {
+  border-color: transparent;
+  color: var(--v3-muted);
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transform: none;
+  transition: none;
+}
+
+.root .runtimeTabs button.runtimeTabActive[aria-pressed="true"],
+.root .runtimeTabs button.runtimeTabActive[aria-pressed="true"]:hover,
+.root .walletTabs button.walletTabActive[aria-pressed="true"],
+.root .walletTabs button.walletTabActive[aria-pressed="true"]:hover {
+  border-color: transparent;
+  color: #ffffff;
+  background: var(--v3-blue);
+  background-image: none;
+  box-shadow: none;
+}
+
+/* ---------- editorial typography guardrails ----------
+
+   Legacy marketing layouts used local 9-13px values for labels, card copy,
+   and even card headings. Keep the visual compositions, but route every
+   semantic text role through the V3 scale so new cards cannot silently
+   reintroduce unreadable type. Dense code, terminal, chart, and dashboard
+   fixtures retain their own compact UI scale. */
+
+.detailHeroSignal > span,
+.detailHeroSignalMap > span small,
+.detailHeroSignal small,
+.detailContext span,
+.detailCapabilityGrid article > div span,
+.detailFlowSteps article span,
+.detailFlowReceipt,
+.relatedGrid span,
+.solutionProof span,
+.solutionNeedGrid article > div span,
+.solutionPathGrid > a > div span,
+.solutionFlow li > span,
+.pricingTop span,
+.pricingPrinciples article span,
+.aboutStatement > div,
+.researchNumber,
+.researchList a small,
+.newsGrid a > div span,
+.newsGrid a > div small,
+.contactPaths article > div span,
+.contactPaths article > small,
+.contactDirect li span {
+  font-size: var(--v3-meta);
+  line-height: var(--v3-meta-lh);
+}
+
+.detailCapabilityGrid h3,
+.detailFlowSteps h3,
+.relatedGrid h3,
+.solutionNeedGrid h3,
+.solutionPathGrid h3,
+.solutionFlow li h3,
+.pricingPrinciples article h3,
+.aboutPrinciples article h3,
+.researchFocus span {
+  font-size: var(--v3-card-title);
+  line-height: var(--v3-card-title-lh);
+}
+
+.detailContext p,
+.detailSectionLead > p:last-child,
+.detailCapabilityGrid p,
+.detailFlowSteps p,
+.relatedGrid p,
+.solutionProofAudience p,
+.solutionSectionHeader > p,
+.solutionFlowHeader > p:last-child,
+.solutionNeedGrid p,
+.solutionPathGrid p,
+.solutionFlow li p,
+.solutionCta > p:not(.eyebrow),
+.pricingGrid article > p,
+.pricingGrid ul,
+.pricingPrinciples article p,
+.aboutPrinciples article p,
+.researchFocus p,
+.researchList a p,
+.newsGrid a > p,
+.contactPaths article > p,
+.contactDirect ul {
+  font-size: var(--v3-card-copy);
+  line-height: var(--v3-card-copy-lh);
+}
+
+.detailHeroActions a,
+.detailCta a,
+.editorialCta a,
+.solutionCta a,
+.pricingGrid article > a,
+.newsGrid a > strong,
+.newsSignal > a,
+.contactDirect > a {
+  font-size: var(--v3-btn);
 }

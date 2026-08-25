@@ -30,6 +30,11 @@
   border-top: 1px solid var(--v3-border);
 }
 
+.capabilitySection {
+  padding-top: 96px;
+  padding-bottom: 112px;
+}
+
 .sectionHead {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
@@ -63,10 +68,7 @@
 
 .hero {
   padding: 150px 0 72px;
-  background:
-    linear-gradient(var(--v3-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--v3-grid) 1px, transparent 1px), var(--v3-paper);
-  background-size: 54px 54px;
+  background: var(--v3-paper);
 }
 
 .heroGrid {
@@ -133,13 +135,19 @@
   line-height: 1;
 }
 
-.btnPrimary {
+/* Doubled class to outrank `.root a { color: inherit }` in
+   marketing.module.css, which otherwise repaints this label with the page text
+   colour: black on blue in light, near-white on pale blue in dark. The other
+   product pages fix the same clash with a `.v3Tokens`-scoped rule; this module
+   has no such scope. The fill is pinned to the brand sky because --v3-blue
+   lightens to #7facd6 in dark, where white text loses contrast. */
+.btnPrimary.btnPrimary {
   color: #fff;
-  background: var(--v3-blue);
+  background: var(--aomi-sky-500);
 }
 
-.btnPrimary:hover {
-  background: var(--v3-blue-dark);
+.btnPrimary.btnPrimary:hover {
+  background: var(--aomi-sky-600);
 }
 
 .btnSecondary {
@@ -667,25 +675,35 @@
   font-family: var(--v3-mono);
   font-size: 12px;
   text-align: left;
-  transition:
-    color 160ms ease,
-    background 160ms ease;
+  transition: none;
 }
 
 .fileRootFiles button {
   padding-left: 42px;
 }
 
-.fileFolder button:hover,
-.fileRootFiles button:hover {
-  color: var(--v3-ink);
-  background: #f1f1f3;
+.page .fileExplorer .fileFolder button[aria-pressed],
+.page .fileExplorer .fileFolder button[aria-pressed]:hover,
+.page .fileExplorer .fileRootFiles button[aria-pressed],
+.page .fileExplorer .fileRootFiles button[aria-pressed]:hover {
+  color: var(--v3-copy);
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  outline: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transform: none;
+  transition: none;
 }
 
-.fileFolder .fileSelected,
-.fileRootFiles .fileSelected {
+.page .fileExplorer .fileFolder .fileSelected[aria-pressed="true"],
+.page .fileExplorer .fileFolder .fileSelected[aria-pressed="true"]:hover,
+.page .fileExplorer .fileRootFiles .fileSelected[aria-pressed="true"],
+.page .fileExplorer .fileRootFiles .fileSelected[aria-pressed="true"]:hover {
   color: var(--v3-blue-dark);
   background: #e8f1f8;
+  background-image: none;
   box-shadow: inset 2px 0 0 var(--v3-blue);
 }
 
@@ -865,6 +883,116 @@
   height: 16px;
   flex: none;
   stroke-width: 1.5;
+}
+
+/* ---------- managed platform destination ---------- */
+
+.managedPlatformSection {
+  overflow: hidden;
+  padding-block: 88px 104px;
+  background: var(--v3-wash);
+}
+
+.managedPlatformLayout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.62fr) minmax(0, 1.38fr);
+  gap: 48px;
+  align-items: start;
+}
+
+.managedPlatformFrame {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--v3-border);
+  border-radius: 0;
+  background: #fff;
+  box-shadow: 0 28px 70px rgba(9, 9, 11, 0.11);
+}
+
+.managedPlatformFrame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.managedPlatformCopy {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  padding-top: 34px;
+}
+
+.managedPlatformCopy h2 {
+  margin: 28px 0 0;
+  font-family: var(--v3-serif);
+  font-size: var(--v3-h2);
+  font-weight: 700;
+  letter-spacing: var(--v3-h2-ls);
+  line-height: var(--v3-h2-lh);
+  text-wrap: balance;
+}
+
+.managedPlatformCopy > p:not(.eyebrow) {
+  margin: 28px 0 30px;
+  color: var(--v3-copy);
+  font-size: var(--v3-body);
+  line-height: var(--v3-body-lh);
+}
+
+.managedPlatformCopy .btnPrimary {
+  margin-top: 0;
+}
+
+.managedPlatformSteps {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+  margin: 54px 0 0;
+  border-top: 1px solid var(--v3-border);
+  padding: 22px 0 0;
+  list-style: none;
+}
+
+.managedPlatformSteps li {
+  display: grid;
+  gap: 8px;
+}
+
+.managedPlatformSteps span {
+  color: var(--v3-faint);
+  font-family: var(--v3-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+}
+
+.managedPlatformSteps strong {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.managedPlatformStack {
+  position: relative;
+  min-height: 780px;
+}
+
+.managedPlatformOverview,
+.managedPlatformProject {
+  position: absolute;
+}
+
+.managedPlatformOverview {
+  top: 0;
+  left: 0;
+  width: 94%;
+}
+
+.managedPlatformProject {
+  z-index: 1;
+  top: 310px;
+  right: 0;
+  width: 78%;
 }
 
 /* ---------- operate band ---------- */
@@ -1201,14 +1329,7 @@
   font-family: var(--v3-sans);
   font-size: 13px;
   cursor: pointer;
-  transition:
-    color 160ms ease,
-    background 160ms ease;
-}
-
-.operateTabs button:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
+  transition: none;
 }
 
 .operateTabs button svg {
@@ -1220,6 +1341,31 @@
   border-color: rgba(255, 255, 255, 0.2);
   color: var(--v3-ink);
   background: #fff;
+}
+
+.page .operateWorkbench .operateTabs button[aria-selected],
+.page .operateWorkbench .operateTabs button[aria-selected]:hover {
+  color: rgba(255, 255, 255, 0.48);
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  outline: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transform: none;
+  transition: none;
+}
+
+.page .operateWorkbench .operateTabs .operateTabActive[aria-selected="true"],
+.page
+  .operateWorkbench
+  .operateTabs
+  .operateTabActive[aria-selected="true"]:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--v3-ink);
+  background: #fff;
+  background-image: none;
+  box-shadow: none;
 }
 
 .operateView {
@@ -2217,6 +2363,28 @@
     transform: rotate(90deg);
   }
 
+  .managedPlatformLayout {
+    grid-template-columns: 1fr;
+    gap: 44px;
+  }
+
+  .managedPlatformCopy {
+    max-width: 680px;
+    padding-top: 0;
+  }
+
+  .managedPlatformStack {
+    display: grid;
+    min-height: 0;
+    gap: 18px;
+  }
+
+  .managedPlatformOverview,
+  .managedPlatformProject {
+    position: static;
+    width: 100%;
+  }
+
   .payStrip {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -2310,6 +2478,22 @@
 
   .section {
     padding: 56px 0;
+  }
+
+  .managedPlatformSection {
+    padding-block: 64px 72px;
+  }
+
+  .managedPlatformSteps {
+    gap: 12px;
+  }
+
+  .managedPlatformSteps strong {
+    font-size: 11px;
+  }
+
+  .managedPlatformFrame {
+    box-shadow: 0 18px 46px rgba(9, 9, 11, 0.1);
   }
 
   .healthGrid {

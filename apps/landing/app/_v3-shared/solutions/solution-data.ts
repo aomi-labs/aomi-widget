@@ -43,7 +43,7 @@ export type SolutionConfig = {
 export const fintechSolution: SolutionConfig = {
   id: "fintech",
   eyebrow: "AOMI FOR FINTECH",
-  headline: "Put tokenized assets to work—without building an execution desk.",
+  headline: "Put tokenized assets to work on agentic execution desk.",
   lede: "Launch governed treasury, vault, and RWA workflows inside the product your customers already trust. Aomi turns policy-bound intent into simulated, signable transactions.",
   audience:
     "For asset managers, treasury platforms, tokenized funds, and fintech teams",

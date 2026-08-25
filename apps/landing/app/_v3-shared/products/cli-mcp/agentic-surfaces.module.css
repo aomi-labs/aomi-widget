@@ -543,7 +543,15 @@
   position: relative;
   min-width: 0;
   padding: 22px;
+  /* Dot-grid texture lifted from .showcaseType on the REST API page, so every
+     code surface across the product pages reads as the same material. */
   background:
+    radial-gradient(
+        circle at 1px 1px,
+        rgba(255, 255, 255, 0.05) 1px,
+        transparent 0
+      )
+      0 0 / 15px 15px,
     linear-gradient(
       color-mix(in srgb, #fff 3%, transparent),
       color-mix(in srgb, #fff 1%, transparent)
@@ -1152,7 +1160,8 @@
 @media (prefers-reduced-motion: reduce) {
   .primaryButton,
   .surfaceCard,
-  .finalActions a {
+  .finalActions a,
+  .mainTabs::before {
     transition: none;
   }
 }
@@ -1182,35 +1191,78 @@
   width: var(--v3-page-width);
 }
 
+/* Grid ground, matching .fintechHero / .tradingHero and /products/rest-apis
+   so every hero in the system stands on the same paper. */
 .v3Tokens .hero {
-  background: var(--v3-paper);
+  background:
+    linear-gradient(var(--v3-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--v3-grid) 1px, transparent 1px), var(--v3-paper);
+  background-size: 54px 54px;
+}
+
+.v3Tokens .surfaceSection {
+  background:
+    linear-gradient(var(--v3-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--v3-grid) 1px, transparent 1px), var(--v3-paper);
+  background-size: 54px 54px;
 }
 
 .v3Tokens .mainTabs {
+  position: relative;
   gap: 0;
   padding: 4px;
+  overflow: hidden;
   border: 1px solid var(--v3-border);
   border-radius: 999px;
   background: var(--v3-wash);
 }
 
-.v3Tokens .mainTabs button {
+.v3Tokens .mainTabs::before {
+  position: absolute;
+  inset: 4px auto 4px 4px;
+  width: calc((100% - 8px) / 3);
+  border-radius: 999px;
+  background: var(--v3-blue);
+  box-shadow: none;
+  content: "";
+  pointer-events: none;
+  transform: translateX(0);
+  transition: transform 180ms ease;
+}
+
+.v3Tokens .mainTabs:has(button:nth-child(2)[aria-selected="true"])::before {
+  transform: translateX(100%);
+}
+
+.v3Tokens .mainTabs:has(button:nth-child(3)[aria-selected="true"])::before {
+  transform: translateX(200%);
+}
+
+.v3Tokens .mainTabs[role="tablist"] button,
+.v3Tokens .mainTabs[role="tablist"] button:hover,
+.v3Tokens .mainTabs[role="tablist"] button[aria-selected="true"] {
+  position: relative;
+  z-index: 1;
   min-height: 40px;
   padding-inline: 22px;
   border-radius: 999px;
   background: transparent;
+  background-image: none;
+  box-shadow: none;
+  outline: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   font-family: var(--v3-sans);
   font-size: 14px;
   font-weight: 500;
   color: var(--v3-copy);
+  transform: none;
+  transition: none;
 }
 
-.v3Tokens .mainTabs button:hover {
-  color: var(--v3-ink);
-}
-
-.v3Tokens .mainTabs .activeTab {
-  background: var(--v3-blue);
+.v3Tokens .mainTabs[role="tablist"] button.activeTab {
+  background: transparent;
+  box-shadow: none;
   color: #ffffff;
 }
 
@@ -1572,7 +1624,7 @@
   gap: 7px;
   font-family: var(--v2-font-sans), sans-serif;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.35;
   color: var(--v2-heading);
 }
@@ -1972,11 +2024,36 @@
 
 .v3Tokens .setupLead .panelEyebrow,
 .v3Tokens .stepRow li > span {
-  font-size: 12px;
+  font-size: var(--v3-eyebrow);
 }
 
 .v3Tokens .stepRow strong {
-  font-size: 17px;
+  font-size: var(--v3-body);
+}
+
+.v3Tokens .bestFor span,
+.v3Tokens .flowBestFor span,
+.v3Tokens .flowIndex,
+.v3Tokens .taskPrompt span,
+.v3Tokens .togetherGrid article > div > span {
+  font-size: var(--v3-eyebrow);
+}
+
+.v3Tokens .flowHarness h3 {
+  font-family: var(--v3-serif);
+  font-size: var(--v3-card-title);
+  font-weight: 700;
+  line-height: var(--v3-card-title-lh);
+}
+
+.v3Tokens .flowHarness ul,
+.v3Tokens .flowStage small {
+  font-size: var(--v3-meta);
+  line-height: var(--v3-meta-lh);
+}
+
+.v3Tokens .flowStage strong {
+  font-size: var(--v3-body);
 }
 
 /* v3: keep step labels top-aligned regardless of sibling height */
@@ -2144,15 +2221,15 @@
 
 .v3Tokens .matrixRow > span {
   font-family: var(--v3-sans);
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: var(--v3-card-copy);
+  line-height: var(--v3-card-copy-lh);
   color: var(--v3-muted);
 }
 
 .v3Tokens .matrixHead > span {
   padding: 22px 20px;
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: var(--v3-eyebrow);
   font-weight: 700;
   letter-spacing: 0.14em;
   color: var(--v3-ink);
@@ -2160,14 +2237,15 @@
 
 .v3Tokens .matrixName strong {
   font-family: var(--v3-serif);
-  font-size: 18.5px;
+  font-size: var(--v3-card-title);
   font-weight: 700;
   letter-spacing: -0.015em;
+  line-height: var(--v3-card-title-lh);
 }
 
 .v3Tokens .matrixName span {
   margin-top: 6px;
-  font-size: 10.5px;
+  font-size: var(--v3-meta);
 }
 
 .v3Tokens .matrixTrace {
@@ -2176,7 +2254,7 @@
   margin: 0;
   padding: 0 20px 22px;
   border: 0;
-  font-size: 11.5px;
+  font-size: var(--v3-meta);
   color: var(--v3-muted);
 }
 
@@ -2272,4 +2350,86 @@
   padding: var(--v3-btn-pad);
   font-size: var(--v3-btn);
   font-weight: 600;
+}
+
+/* ---- AomiBench proof band: quantified evidence for the guarantees the page
+   asserts, linking into the research. ---- */
+.benchBand {
+  padding: 56px 0;
+  border-top: 1px solid var(--v2-border);
+}
+
+.benchBand .shell {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: clamp(24px, 4vw, 56px);
+  align-items: center;
+}
+
+.benchBandLabel {
+  max-width: 13ch;
+  color: var(--v2-fg-subtle);
+  font-family: var(--v2-font-mono), monospace;
+  font-size: var(--v3-eyebrow);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  line-height: 1.6;
+}
+
+.benchBandStats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(16px, 3vw, 40px);
+}
+
+.benchBandStats strong {
+  display: block;
+  font-family: var(--v2-font-display), Georgia, serif;
+  font-size: clamp(24px, 2.4vw, 34px);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.benchBandStats span {
+  display: block;
+  margin-top: 6px;
+  color: var(--v2-fg);
+  font-family: var(--v2-font-sans), sans-serif;
+  font-size: var(--v3-meta);
+  line-height: var(--v3-meta-lh);
+}
+
+.benchBand > .shell > a {
+  justify-self: end;
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border: 1px solid var(--v2-border);
+  border-radius: 999px;
+  padding: 0 18px;
+  color: var(--v2-heading);
+  font-family: var(--v2-font-sans), sans-serif;
+  font-size: var(--v3-btn);
+  font-weight: 600;
+}
+
+.benchBand > .shell > a:hover {
+  border-color: var(--v2-fg-subtle);
+  background: var(--v2-bg-muted);
+}
+
+@media (max-width: 960px) {
+  .benchBand .shell {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .benchBandStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .benchBand > .shell > a {
+    justify-self: start;
+  }
 }

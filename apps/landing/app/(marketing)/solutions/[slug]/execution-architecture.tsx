@@ -10,19 +10,19 @@ const pipeline = [
   {
     step: "02",
     name: "Reconcile",
-    body: "Rebuild NAV and exposure independently, then compare reported state with reconstructable state.",
+    body: "Rebuild balances and exposure independently, then compare the intended position with the live one.",
     tag: "financial diff",
   },
   {
     step: "03",
     name: "Compile",
-    body: "Translate the operator's approved runbook into typed, decoded, ordered state changes.",
-    tag: "Vault ChangeSet",
+    body: "Translate the approved intent into typed, decoded, ordered state changes.",
+    tag: "action packet",
   },
   {
     step: "04",
     name: "Simulate",
-    body: "Resolve permissions, caps, queues, and timelocks; execute the exact batch against current state.",
+    body: "Resolve permissions, caps, slippage, and timelocks; execute the exact batch against current state.",
     tag: "pre-sign evidence",
   },
   {
@@ -41,8 +41,8 @@ const pipeline = [
 
 const ownership = [
   {
-    owner: "Vault operator",
-    owns: "Mandate, valuation policy, strategy models, approved runbooks, escalation rules, and operating decisions.",
+    owner: "Protocol or desk",
+    owns: "Mandate, risk policy, strategy models, approved runbooks, escalation rules, and operating decisions.",
   },
   {
     owner: "Aomi",
@@ -60,10 +60,10 @@ export function ExecutionArchitecture() {
       <header className={styles.sectionHeading}>
         <div>
           <p className={styles.eyebrow}>ONE GUARDED PIPELINE</p>
-          <h2>From financial truth to a verifiable state transition.</h2>
+          <h2>From intent to a verifiable state transition.</h2>
         </div>
         <p>
-          AI may retrieve evidence and explain the ChangeSet. Financial math,
+          AI may retrieve evidence and explain the packet. Financial math,
           addresses, permissions, calldata, simulation, signing, and
           postconditions remain typed, deterministic, and auditable.
         </p>

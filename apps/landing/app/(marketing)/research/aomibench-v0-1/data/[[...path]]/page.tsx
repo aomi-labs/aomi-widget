@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import nodePath from "node:path";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AomiLogo } from "../../../../components/aomi-logo";
+import { AomiLogo } from "../../../../../components/aomi-logo";
 import { notFound } from "next/navigation";
 
 const DATA_ROOT = nodePath.join(

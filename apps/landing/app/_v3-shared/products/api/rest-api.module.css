@@ -13,6 +13,12 @@
 
 .hero {
   padding: clamp(74px, 8vw, 120px) 0 76px;
+  /* Grid ground, matching .fintechHero / .tradingHero and the editorial
+     routes, so every hero in the system stands on the same paper. */
+  background:
+    linear-gradient(var(--v3-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--v3-grid) 1px, transparent 1px), var(--v2-bg);
+  background-size: 54px 54px;
 }
 
 .hero .shell {
@@ -155,10 +161,6 @@
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #777784;
-}
-
-.surfaceTabs button:hover {
-  color: white;
 }
 
 .surfaceTabs .surfaceTabActive {
@@ -505,6 +507,12 @@
   font-size: 16px;
   line-height: 1.68;
   color: var(--v2-fg);
+}
+
+.apiSection .sectionHeading > p {
+  padding: 22px 24px;
+  border-left: 3px solid var(--v3-blue);
+  background: var(--v3-blue-soft);
 }
 
 .apiCards {
@@ -1033,26 +1041,79 @@
   line-height: 1.68;
 }
 
+/* ---- Inside-the-harness figure, reused from the AomiBench research post.
+   The heading row reuses .sharedPipelineHeading so type and layout stay in
+   step with the section above it. ---- */
+.harnessLoopSection {
+  padding: clamp(96px, 10vw, 150px) 0;
+  border-top: 1px solid var(--v3-border);
+  background: var(--v3-paper);
+}
+
+/* This heading runs longer than the pipeline section's, so the shared 16ch
+   measure sets it in six cramped lines; widen it to breathe in three. */
+.harnessLoopSection .sharedPipelineHeading h2 {
+  max-width: 24ch;
+}
+
+/* The figure is authored on a white ground, so it keeps an explicit white
+   plate in both themes — same treatment as research-article figures. */
+.harnessLoopFigure {
+  margin: 56px 0 0;
+}
+
+.harnessLoopFigure img {
+  display: block;
+  width: 100%;
+  max-width: 1040px;
+  height: auto;
+  margin-inline: auto;
+  border: 1px solid var(--v3-border);
+  border-radius: 18px;
+  padding: clamp(12px, 2vw, 28px);
+  background: #fff;
+}
+
+.harnessLoopFigure figcaption {
+  margin-top: 14px;
+  color: var(--v3-muted);
+  font-family: var(--v3-mono), monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.harnessLoopFigure figcaption a {
+  color: var(--v3-blue-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Both entry cards sit on one blue surface. The blue is pinned to the brand
+   sky rather than --v3-blue, which lightens to #7facd6 in dark mode and would
+   drop the white copy below contrast. The container colour shows through the
+   1px gap as the divider. */
 .pipelineEntries {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 64px;
-  border: 1px solid var(--v3-border);
-  background: var(--v3-border);
+  border: 1px solid var(--aomi-sky-500);
+  background: rgba(255, 255, 255, 0.3);
   gap: 1px;
 }
 
 .pipelineEntries article {
   min-height: 240px;
   padding: 30px;
-  background: var(--v3-paper);
+  color: #fff;
+  background: var(--aomi-sky-500);
 }
 
 .pipelineEntries article > div {
   display: flex;
   align-items: center;
   gap: 9px;
-  color: var(--v3-blue-dark);
+  color: rgba(255, 255, 255, 0.85);
   font-family: var(--v3-mono), monospace;
   font-size: 10px;
   letter-spacing: 0.1em;
@@ -1065,6 +1126,7 @@
 
 .pipelineEntries h3 {
   margin-top: 32px;
+  color: #fff;
   font-family: var(--v3-serif);
   font-size: 27px;
   font-weight: 700;
@@ -1074,7 +1136,7 @@
 .pipelineEntries p {
   max-width: 54ch;
   margin-top: 12px;
-  color: var(--v3-copy);
+  color: rgba(255, 255, 255, 0.88);
   font-family: var(--v3-sans), sans-serif;
   font-size: 13.5px;
   line-height: 1.62;
@@ -1083,7 +1145,7 @@
 .pipelineEntries code {
   display: block;
   margin-top: 24px;
-  color: var(--v3-muted);
+  color: rgba(255, 255, 255, 0.72);
   font-family: var(--v3-mono), monospace;
   font-size: 10px;
 }
@@ -1826,7 +1888,7 @@
 }
 
 .v3Tokens .contractSection .contractCopy li {
-  font-size: 12px;
+  font-size: var(--v3-meta);
 }
 
 .v3Tokens .contractSection .workbench {
@@ -1935,6 +1997,58 @@
 .v3Tokens .contractSection .actionCard h3,
 .v3Tokens .contractSection .actionStep strong {
   color: var(--v3-ink);
+}
+
+.v3Tokens .contractSection .actionCard h3,
+.v3Tokens .summaryCard h3,
+.v3Tokens .lifecycleGrid h3,
+.v3Tokens .sharedPipelineGrid h3,
+.v3Tokens .resumeGuarantee strong {
+  font-family: var(--v3-serif);
+  font-size: var(--v3-card-title);
+  font-weight: 700;
+  line-height: var(--v3-card-title-lh);
+}
+
+.v3Tokens .apiCardBody,
+.v3Tokens .lifecycleGrid p,
+.v3Tokens .sharedPipelineGrid li > p,
+.v3Tokens .resumeGuarantee p {
+  font-size: var(--v3-card-copy);
+  line-height: var(--v3-card-copy-lh);
+}
+
+.v3Tokens .contractSection .actionCard > p,
+.v3Tokens .contractSection .actionStep small,
+.v3Tokens .summarySteps small,
+.v3Tokens .sharedPipelineGrid small {
+  font-size: var(--v3-meta);
+  line-height: var(--v3-meta-lh);
+}
+
+.v3Tokens .contractSection .actionStep strong,
+.v3Tokens .summarySteps strong,
+.v3Tokens .sharedPipelineGrid strong {
+  font-size: var(--v3-body);
+  line-height: var(--v3-body-lh);
+}
+
+.v3Tokens .contractSection .actionStep > span,
+.v3Tokens .contractSection .actionFlow span,
+.v3Tokens .summarySteps > div > span,
+.v3Tokens .lifecycleGrid li > span,
+.v3Tokens .sharedPipelineGrid li > span,
+.v3Tokens .resumeGuarantee span {
+  font-size: var(--v3-eyebrow);
+}
+
+.v3Tokens .contractSection .actionFlow strong {
+  font-size: var(--v3-body);
+}
+
+.v3Tokens .contractSection .actionFlow small {
+  font-size: var(--v3-meta);
+  line-height: var(--v3-meta-lh);
 }
 
 .v3Tokens .contractSection .actionCardTop {
@@ -2424,8 +2538,15 @@
   color: #71717c;
 }
 
-.showcaseTabs button:hover:not(.showcaseTabActive) {
-  color: #e8e8ee;
+.v3Tokens .showcaseTabs button[aria-selected],
+.v3Tokens .showcaseTabs button[aria-selected]:hover {
+  background-image: none;
+  box-shadow: none;
+  outline: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transform: none;
+  transition: none;
 }
 
 .showcaseTabs .showcaseTabActive {
@@ -2504,6 +2625,90 @@
   color: #c7c7d1;
 }
 
+/* Raw HTTP request for the active tab, above the type and the sheet. */
+.showcaseRequest {
+  margin-bottom: 24px;
+  padding: 26px 30px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background:
+    radial-gradient(
+        circle at 1px 1px,
+        rgba(255, 255, 255, 0.05) 1px,
+        transparent 0
+      )
+      0 0 / 15px 15px,
+    rgba(255, 255, 255, 0.028);
+  animation: showcaseIn 340ms ease both;
+}
+
+.showcaseRequest pre {
+  margin: 20px 0 0;
+  overflow-x: auto;
+}
+
+.showcaseRequest code {
+  font-family: var(--v2-font-mono), monospace;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: #c7c7d1;
+}
+
+.showcaseMethod {
+  color: #6ee7ad;
+  font-weight: 600;
+}
+
+/* One contract, three sources: the type never changes, but the fields the
+   active example actually fills stay lit while the rest recede. */
+.showcaseLine {
+  display: block;
+  transition:
+    opacity 220ms ease,
+    filter 220ms ease;
+}
+
+.showcaseLineDim {
+  opacity: 0.3;
+  filter: grayscale(0.7);
+}
+
+.showcaseTypeFoot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  margin: 26px 0 0;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: var(--v2-font-mono), monospace;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.showcaseTypeFoot > span {
+  margin-right: 4px;
+  text-transform: uppercase;
+  color: #63636e;
+}
+
+.showcaseTypeFoot em {
+  font-style: normal;
+  border: 1px solid rgba(141, 181, 220, 0.34);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: #8db5dc;
+  transition:
+    opacity 220ms ease,
+    border-color 220ms ease,
+    color 220ms ease;
+}
+
+.showcaseTypeFoot em[data-dim] {
+  border-color: rgba(255, 255, 255, 0.09);
+  color: #5b5b66;
+}
+
 .showcaseKw {
   color: #7facd6;
 }
@@ -2547,7 +2752,6 @@
 .confirmSheet {
   display: flex;
   width: 100%;
-  aspect-ratio: 1.24 / 1;
   flex-direction: column;
   gap: 22px;
   margin-top: 16px;
@@ -2629,7 +2833,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: auto;
+  padding-top: 2px;
 }
 
 .confirmReject,
@@ -2657,7 +2861,7 @@
   display: flex;
   align-items: center;
   gap: 9px;
-  margin-top: auto;
+  margin-top: 2px;
   border: 1px solid #f0dcbc;
   border-radius: 12px;
   padding: 11px 14px;
@@ -2771,6 +2975,41 @@
   font-size: var(--v3-eyebrow);
   letter-spacing: var(--v3-eyebrow-ls);
   line-height: 1.5;
+}
+
+.v3Tokens .proofRail span,
+.v3Tokens .bestFor span,
+.v3Tokens .proofLine span,
+.v3Tokens .pipelineEntries article > div,
+.v3Tokens .sharedActionBand span {
+  font-size: var(--v3-eyebrow);
+  line-height: 1.5;
+}
+
+.v3Tokens .contractBadge,
+.v3Tokens .previewBadge {
+  font-size: var(--v3-meta);
+  line-height: var(--v3-meta-lh);
+}
+
+.v3Tokens .bestFor strong {
+  font-size: var(--v3-body);
+  line-height: var(--v3-body-lh);
+}
+
+.v3Tokens .heroNote {
+  font-size: var(--v3-meta);
+  line-height: var(--v3-meta-lh);
+}
+
+.v3Tokens .pipelineEntries p {
+  font-size: var(--v3-card-copy);
+  line-height: var(--v3-card-copy-lh);
+}
+
+.v3Tokens .sharedActionBand strong {
+  font-size: var(--v3-body);
+  line-height: var(--v3-body-lh);
 }
 
 .v3Tokens .primaryButton,

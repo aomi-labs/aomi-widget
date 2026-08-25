@@ -1,14 +1,15 @@
 .page {
   background: var(--v3-paper);
+  overflow-x: clip;
 }
 
 .hero {
-  width: var(--v3-page-width);
+  width: min(1440px, calc(100% - 64px));
   min-height: min(860px, 94vh);
   margin-inline: auto;
   display: grid;
-  grid-template-columns: minmax(340px, 0.72fr) minmax(520px, 1.28fr);
-  gap: clamp(48px, 5vw, 86px);
+  grid-template-columns: minmax(470px, 0.84fr) minmax(0, 1.16fr);
+  gap: clamp(24px, 2vw, 36px);
   align-items: center;
   padding: 136px 0 88px;
 }
@@ -24,7 +25,7 @@
 }
 
 .heroCopy h1 {
-  max-width: 11ch;
+  max-width: 22ch;
   margin: 18px 0 0;
   font-family: var(--v3-serif);
   font-size: var(--v3-h1);
@@ -101,9 +102,9 @@
 
 .productStack {
   position: relative;
-  width: calc(100% + clamp(30px, 4vw, 72px));
+  width: calc(100% + clamp(48px, 5vw, 88px));
   min-height: clamp(560px, 52vw, 720px);
-  margin: 0 clamp(-72px, -4vw, -30px) 0 0;
+  margin: 0 clamp(-88px, -5vw, -48px) 0 0;
 }
 
 .buildScreen,
@@ -113,23 +114,6 @@
   border: 1px solid rgba(23, 31, 43, 0.15);
   background: #fff;
   box-shadow: 0 30px 90px rgba(37, 51, 67, 0.18);
-}
-
-.buildScreen > span,
-.integrationScreen > span {
-  position: absolute;
-  z-index: 2;
-  top: 14px;
-  left: 14px;
-  padding: 7px 10px;
-  border: 1px solid rgba(23, 31, 43, 0.12);
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--v3-ink);
-  backdrop-filter: blur(12px);
-  font-family: var(--v3-mono);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
 }
 
 .buildScreen img,
@@ -142,15 +126,16 @@
 .buildScreen {
   z-index: 1;
   top: 4%;
-  right: 0;
-  width: 92%;
+  right: -3%;
+  width: 104%;
 }
 
 .integrationScreen {
   z-index: 2;
-  right: 4%;
-  bottom: 0;
-  width: 67%;
+  right: auto;
+  bottom: -14%;
+  left: 8%;
+  width: 74%;
 }
 
 :global(html[data-theme="dark"]) .buildScreen,
@@ -160,19 +145,12 @@
   box-shadow: 0 30px 90px var(--v3-shadow);
 }
 
-:global(html[data-theme="dark"]) .buildScreen > span,
-:global(html[data-theme="dark"]) .integrationScreen > span {
-  border-color: var(--v3-border);
-  background: color-mix(in srgb, var(--v3-raised) 90%, transparent);
-  color: var(--v3-ink);
-}
-
 :global(html[data-theme="dark"]) .buildScreen img,
 :global(html[data-theme="dark"]) .integrationScreen img {
   filter: invert(0.9) hue-rotate(180deg) brightness(0.96) contrast(0.92);
 }
 
-@media (max-width: 1050px) {
+@media (max-width: 1120px) {
   .hero {
     grid-template-columns: 1fr;
     gap: 58px;
@@ -180,7 +158,7 @@
   }
 
   .heroCopy h1 {
-    max-width: 14ch;
+    max-width: 17ch;
   }
 
   .heroIntro {
@@ -191,6 +169,17 @@
     width: 100%;
     min-height: min(74vw, 720px);
     margin: 0;
+  }
+
+  .buildScreen {
+    right: 0;
+    width: 100%;
+  }
+
+  .integrationScreen {
+    bottom: -10%;
+    left: 10%;
+    width: 78%;
   }
 }
 
@@ -219,15 +208,13 @@
   }
 
   .productStack {
-    min-height: 114vw;
-  }
-
-  .buildScreen {
-    width: 100%;
+    min-height: 102vw;
   }
 
   .integrationScreen {
-    right: 0;
+    right: auto;
+    bottom: 0;
+    left: 8%;
     width: 84%;
   }
 }

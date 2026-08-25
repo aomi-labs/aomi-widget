@@ -544,6 +544,43 @@ export default function RestApiProductPage({
         </section>
       )}
 
+      <section className={styles.harnessLoopSection}>
+        <div className={styles.shell}>
+          <div className={styles.sharedPipelineHeading}>
+            <div>
+              <p className={styles.eyebrow}>INSIDE THE HARNESS</p>
+              <h2>
+                An API-exposed transaction pipeline, on a harness that mutates
+                world state.
+              </h2>
+            </div>
+            <p>
+              Fundamentally, every harness that takes actions is mutating the
+              state of the world its agent lives in — whether that world is a
+              codebase, a file system, or a financial ledger. Aomi exposes that
+              loop as an API: a typed action over a mutable world, judged by the
+              world&apos;s end-state. Onchain, the world diverges at five points
+              — a typed, gated action space, simulation as the only rehearsal,
+              no unilateral write authority, irreversibility, and a shared,
+              adversarial world.
+            </p>
+          </div>
+          <figure className={styles.harnessLoopFigure}>
+            <img
+              src="/research/aomibench-v0.1/figures/f02_coding_vs_aomi.svg"
+              alt="Diagram comparing a coding harness loop with the Aomi harness loop. Both run intent, read, stage, verify, commit, and verify-result steps; the Aomi side marks five divergences: a typed gated tool surface, dry-run simulation as the only safe rehearsal, no harness write authority, irreversibility, and a shared adversarial world."
+              loading="lazy"
+            />
+            <figcaption>
+              From{" "}
+              <Link href="/research/aomibench-v0-1">
+                AomiBench: benchmarking frontier models on onchain execution
+              </Link>
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
       {!useV3Layout && (
         <section className={styles.sdkSection}>
           <div className={styles.shell}>

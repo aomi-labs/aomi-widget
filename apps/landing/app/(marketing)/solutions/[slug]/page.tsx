@@ -23,7 +23,7 @@ export async function generateMetadata({
     return {
       title: "Trading | Aomi",
       description:
-        "World Markets and Aomi bring account-aware trading to Telegram while keeping authority and portfolio-risk enforcement onchain.",
+        "Aomi gives trading products ready-to-go integrations and a broader action space while keeping authority, policy, and signing explicit.",
       robots: { index: false, follow: false },
     };
   }

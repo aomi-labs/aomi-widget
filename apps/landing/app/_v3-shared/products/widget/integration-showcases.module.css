@@ -11,7 +11,7 @@
 .eyebrow,
 .caseEyebrow {
   font-family: var(--v2-font-sans), sans-serif;
-  font-size: 11px;
+  font-size: var(--v3-eyebrow, 14px);
   font-weight: 600;
   letter-spacing: 0.17em;
   text-transform: uppercase;
@@ -121,7 +121,7 @@
   padding-bottom: 20px;
   border-bottom: 1px solid var(--v2-border);
   font-family: var(--v2-font-mono), monospace;
-  font-size: 10px;
+  font-size: var(--v3-meta, 14px);
   letter-spacing: 0.09em;
 }
 
@@ -188,8 +188,8 @@
   align-items: flex-start;
   gap: 10px;
   font-family: var(--v2-font-sans), sans-serif;
-  font-size: var(--v2-case-point-size, 13px);
-  line-height: 1.45;
+  font-size: var(--v2-case-point-size, var(--v3-card-copy, 16.5px));
+  line-height: var(--v3-card-copy-lh, 1.65);
   color: var(--v2-heading);
 }
 
@@ -216,7 +216,7 @@
 .predictionDemo > figcaption {
   margin-top: 12px;
   font-family: var(--v2-font-mono), monospace;
-  font-size: 9px;
+  font-size: var(--v3-meta, 14px);
   letter-spacing: 0.08em;
   text-align: right;
   text-transform: uppercase;
@@ -941,7 +941,7 @@
 
 .tradeHeader {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 20px;
   padding: 15px 18px;
@@ -976,30 +976,38 @@
 .tickers {
   display: flex;
   min-width: 0;
-  gap: 18px;
-  overflow: hidden;
-  font-size: 8px;
+  gap: 8px;
+  overflow-x: auto;
+  font-size: 10px;
   white-space: nowrap;
-  color: #7f9098;
+  color: #aebbc0;
 }
 
 .tickers button {
   appearance: none;
-  border: 0;
-  border-radius: 6px;
-  padding: 5px 7px;
-  background: transparent;
+  border: 1px solid #34434a;
+  border-radius: 9px;
+  padding: 9px 12px;
+  background: #151d22;
+  background-image: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   color: inherit;
   cursor: pointer;
   transition:
+    border-color 160ms ease,
     background 160ms ease,
     color 160ms ease;
 }
 
 .tickers button:hover,
 .tickerSelected {
-  background: #1b252b !important;
-  color: #d9e5e1 !important;
+  border-color: #38dfa5 !important;
+  background: #20302d !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: #f2faf7 !important;
 }
 
 .tickers button:focus-visible {
@@ -1017,7 +1025,26 @@
   color: #38dfa5;
 }
 
+.tradeMarketBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 18px;
+  border-top: 1px solid #2b373e;
+  background: #11171c;
+}
+
+.tradeMarketBar > span {
+  flex: none;
+  color: #6f828a;
+  font-family: var(--v2-font-mono), monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+}
+
 .tradeWallet {
+  justify-self: end;
   border-color: #2d3a41;
   color: #93a2a9;
 }
@@ -2104,9 +2131,22 @@
   }
 
   .sommBrand span,
-  .tickers,
   .predictionNav {
     display: none;
+  }
+
+  .tradeMarketBar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .tradeMarketBar .tickers {
+    width: 100%;
+  }
+
+  .tradeMarketBar .tickers button {
+    flex: 1;
   }
 
   .sommFloat,

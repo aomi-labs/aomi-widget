@@ -1,9 +1,9 @@
 .eyebrow {
   margin: 0;
   font-family: var(--v3-mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  line-height: 1.4;
+  font-size: var(--v3-eyebrow);
+  letter-spacing: var(--v3-eyebrow-ls);
+  line-height: 1.5;
   text-transform: uppercase;
 }
 
@@ -89,7 +89,7 @@
   margin: 28px 0 0;
   color: color-mix(in srgb, currentColor 55%, transparent);
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: var(--v3-meta);
   letter-spacing: 0.06em;
   line-height: 1.6;
   text-transform: uppercase;
@@ -99,7 +99,7 @@
   margin: 14px 0 0;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: var(--v3-meta);
   letter-spacing: 0.08em;
   text-align: right;
   text-transform: uppercase;
@@ -126,7 +126,7 @@
   display: block;
   color: var(--v3-faint);
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: var(--v3-eyebrow);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -270,27 +270,61 @@
   color: var(--v3-muted);
 }
 
+/* Shared V3 slider pattern: the track stays flat while one blue indicator
+   moves underneath transparent buttons. Hover never introduces another pill. */
 .mandateTabs {
-  display: flex;
-  gap: 6px;
-  padding: 20px 22px 0;
-}
-
-.mandateTabs button {
-  min-height: 34px;
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  isolation: isolate;
+  overflow: hidden;
+  margin: 20px 22px 0;
+  padding: 4px;
   border: 1px solid var(--v3-border);
   border-radius: 999px;
-  padding: 0 13px;
+  background: var(--v3-wash);
+  box-shadow: none;
+}
+
+.mandateTabs::before {
+  position: absolute;
+  z-index: 0;
+  inset: 4px auto 4px 4px;
+  width: calc((100% - 8px) / 2);
+  border-radius: 999px;
+  background: var(--v3-blue);
+  box-shadow: none;
+  content: "";
+  pointer-events: none;
+  transition: transform 180ms ease;
+}
+
+.mandateTabs:has(button:nth-child(2)[aria-selected="true"])::before {
+  transform: translateX(100%);
+}
+
+.mandateTabs button,
+.mandateTabs button:hover,
+.mandateTabs button[aria-selected="true"] {
+  position: relative;
+  z-index: 1;
+  min-height: 34px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 16px;
   color: var(--v3-muted);
-  background: #fff;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
   font-size: 11px;
   cursor: pointer;
+  transform: none;
+  transition: none;
 }
 
 .mandateTabs button[aria-selected="true"] {
-  border-color: var(--v3-ink-surface);
-  color: #fff;
-  background: var(--v3-ink-surface);
+  color: var(--v3-on-accent);
 }
 
 .mandateBody {
@@ -408,9 +442,335 @@
 .walletPromise,
 .walletControls,
 .walletReview,
+.walletBoundary,
 .walletFit {
   width: var(--v3-page-width);
   margin-inline: auto;
+}
+
+/* ---- Wallets: ownership boundary, rebuilt from AomiBench Fig. 4 in the
+   design system rather than embedding the paper's SVG. ---- */
+.walletBoundary {
+  padding: 112px 0;
+  border-top: 1px solid var(--v3-border);
+}
+
+.walletBoundary .boundaryLead {
+  max-width: 720px;
+}
+
+.walletBoundary .boundaryLead h2 {
+  margin: 14px 0 0;
+  font-family: var(--v3-serif);
+  font-size: var(--v3-h2);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.walletBoundary .boundaryLead > p:last-child {
+  max-width: 620px;
+  margin: 20px 0 0;
+  color: var(--v3-muted);
+  line-height: 1.7;
+}
+
+/* The diagram card. Lane colors map the paper's: green = read, blue (our
+   accent) = write, amber = the ownership boundary — amber reuses the exact
+   warning tone already used by .walletReceiptMeta strong. */
+.boundaryDiagram {
+  margin-top: 48px;
+  border: 1px solid var(--v3-border);
+  border-radius: 22px;
+  padding: clamp(22px, 3vw, 40px);
+  background: var(--v3-raised);
+}
+
+.bModelNode {
+  width: max-content;
+  max-width: 100%;
+  margin-inline: auto;
+  color: var(--v3-ink);
+  font-family: var(--v3-mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* stem → crossbar → two arrowed drops, drawn over the lane columns */
+.bFork {
+  position: relative;
+  height: 46px;
+  margin-bottom: 10px;
+}
+
+.bFork i {
+  position: absolute;
+  background: var(--v3-border-strong);
+}
+
+.bFork i:nth-child(1) {
+  top: 4px;
+  left: 50%;
+  width: 1px;
+  height: 14px;
+}
+
+.bFork i:nth-child(2) {
+  top: 18px;
+  right: 25%;
+  left: 25%;
+  height: 1px;
+}
+
+.bFork i:nth-child(3),
+.bFork i:nth-child(4) {
+  top: 18px;
+  width: 1px;
+  height: 22px;
+}
+
+.bFork i:nth-child(3) {
+  left: 25%;
+}
+
+.bFork i:nth-child(4) {
+  right: 25%;
+}
+
+.bFork i:nth-child(3)::after,
+.bFork i:nth-child(4)::after {
+  position: absolute;
+  bottom: -1px;
+  left: -3px;
+  border-top: 5px solid var(--v3-border-strong);
+  border-right: 3.5px solid transparent;
+  border-left: 3.5px solid transparent;
+  content: "";
+}
+
+.bLanes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(24px, 4vw, 64px);
+  align-items: start;
+}
+
+.bLaneRead,
+.bLaneWrite {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.bLaneRead {
+  --lane: var(--v3-green-dark);
+  --lane-soft: var(--v3-green-soft);
+}
+
+.bLaneWrite {
+  --lane: var(--v3-blue-dark);
+  --lane-soft: var(--v3-blue-soft);
+}
+
+.bLaneLabel {
+  margin-bottom: 14px;
+  color: var(--lane);
+  font-family: var(--v3-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.bBox {
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--lane) 38%, var(--v3-border));
+  border-radius: 12px;
+  padding: 16px 18px;
+  background: color-mix(in srgb, var(--lane-soft) 55%, var(--v3-raised));
+}
+
+.bBox p {
+  margin: 0;
+}
+
+.bBox p + ul,
+.bBox ul + p {
+  margin-top: 8px;
+}
+
+.bBox code {
+  color: var(--lane);
+  font-family: var(--v3-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.bBox ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0 0 0 14px;
+  list-style: none;
+}
+
+.bBox li {
+  position: relative;
+  color: var(--v3-copy);
+  font-family: var(--v3-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.bBox li::before {
+  position: absolute;
+  left: -12px;
+  content: "·";
+  color: var(--v3-faint);
+}
+
+.bArrow {
+  position: relative;
+  width: 1px;
+  height: 26px;
+  background: var(--lane);
+}
+
+.bArrow::after {
+  position: absolute;
+  bottom: -1px;
+  left: -3px;
+  border-top: 5px solid var(--lane);
+  border-right: 3.5px solid transparent;
+  border-left: 3.5px solid transparent;
+  content: "";
+}
+
+.bStep {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+}
+
+.bStep code {
+  color: var(--lane);
+  font-family: var(--v3-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.bStep span {
+  color: var(--v3-ink);
+  font-family: var(--v3-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.bStep small {
+  color: var(--v3-muted);
+  font-family: var(--v3-mono);
+  font-size: 11px;
+}
+
+.bPill {
+  border: 1px solid color-mix(in srgb, var(--lane) 45%, var(--v3-border));
+  border-radius: 999px;
+  padding: 8px 18px;
+  color: var(--lane);
+  background: color-mix(in srgb, var(--lane-soft) 55%, var(--v3-raised));
+  font-family: var(--v3-mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.bOwnership {
+  --amber: #a66a1e;
+  display: grid;
+  gap: 8px;
+  margin-top: 34px;
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, var(--v3-border));
+  border-radius: 12px;
+  padding: 18px 22px;
+  background: color-mix(in srgb, var(--amber) 6%, var(--v3-raised));
+}
+
+:global(html[data-theme="dark"]) .bOwnership {
+  --amber: #d29a55;
+}
+
+.bOwnership p {
+  margin: 0 0 4px;
+  color: var(--amber);
+  font-family: var(--v3-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.bOwnership > div {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 16px;
+}
+
+.bOwnership span {
+  color: var(--amber);
+  font-family: var(--v3-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.bOwnership strong {
+  color: var(--v3-copy);
+  font-family: var(--v3-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.bCaches {
+  margin: 22px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--v3-border);
+  color: var(--v3-faint);
+  font-family: var(--v3-mono);
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (max-width: 800px) {
+  .bFork {
+    display: none;
+  }
+
+  .bLanes {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+
+  .bModelNode {
+    margin-bottom: 24px;
+  }
+
+  .bOwnership > div {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+}
+
+.boundarySource {
+  margin: 18px 0 0;
+  color: var(--v3-muted);
+  font-family: var(--v3-mono);
+  font-size: var(--v3-micro);
+}
+
+.boundarySource a {
+  color: var(--v3-blue-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .fintechOperating {
@@ -598,12 +958,41 @@
 
 /* Fintech · stats rail */
 
-.fintechStats {
-  grid-template-columns: 1.25fr repeat(4, 1fr);
+.factRailFrame {
   border-top: 1px solid var(--v3-border);
+  border-bottom: 1px solid var(--v3-border);
+  background: #fff;
 }
 
-.fintechStats > div:not(:first-child) strong {
+.factRailFrame .proofRail {
+  width: min(1220px, calc(100% - 40px));
+  margin-inline: auto;
+  border: 0;
+  background: transparent;
+}
+
+.factRailFrame .proofRail > div {
+  min-height: 120px;
+  padding: 27px 28px;
+}
+
+.factRailFrame .proofRail > div:first-child {
+  border-left: 1px solid var(--v3-border);
+}
+
+.factRailFrame .proofRail > div:last-child {
+  border-right: 1px solid var(--v3-border);
+}
+
+:global(html[data-theme="dark"]) .factRailFrame {
+  background: var(--v3-raised);
+}
+
+.fintechStats {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.fintechStats > div strong {
   margin-top: 0;
   font-size: 30px;
   letter-spacing: -0.03em;
@@ -617,7 +1006,7 @@
   font-weight: 500;
 }
 
-.fintechStats > div:not(:first-child) span {
+.fintechStats > div span {
   margin-top: 14px;
   color: var(--v3-muted);
   font-size: 11px;
@@ -750,7 +1139,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 56px calc(-1 * var(--v3-page-inset)) 0;
-  border-top: 1px solid var(--v3-ink);
+  border-top: 1px solid var(--v3-border);
   border-bottom: 1px solid var(--v3-border);
   background: #fff;
 }
@@ -759,19 +1148,11 @@
   display: flex;
   flex-direction: column;
   min-height: 340px;
-  padding: 26px 30px 30px;
+  padding: 26px clamp(30px, 5vw, 72px) 30px;
 }
 
 .caseGrid article + article {
   border-left: 1px solid var(--v3-border);
-}
-
-.caseGrid article:first-child {
-  padding-left: var(--v3-page-inset);
-}
-
-.caseGrid article:last-child {
-  padding-right: var(--v3-page-inset);
 }
 
 .caseStepLabel {
@@ -785,9 +1166,14 @@
   text-transform: uppercase;
 }
 
+/* Two real tracks rather than padding spaces: labels align across rows and
+   long values wrap inside their own track, so a narrow column no longer
+   clips the text or grows a horizontal scrollbar. */
 .caseCode {
   display: grid;
-  gap: 6px;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-content: start;
+  gap: 6px 12px;
   margin: 22px 0 0;
   border-left: 1px solid var(--v3-border);
   padding: 2px 0 2px 16px;
@@ -796,8 +1182,15 @@
   font-family: var(--v3-mono);
   font-size: 11.5px;
   line-height: 1.55;
-  white-space: pre;
-  overflow-x: auto;
+  /* Overrides the <pre> UA default; the grid tracks carry the alignment now,
+     so text is free to wrap rather than run past the column. */
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* A line with no alignment padding (prose) spans both tracks. */
+.caseCodeLine {
+  grid-column: 1 / -1;
 }
 
 .caseGrid article h3 {
@@ -1482,7 +1875,7 @@
   margin-top: 30px;
   color: rgba(75, 24, 48, 0.56);
   font-family: var(--v3-mono);
-  font-size: 11px;
+  font-size: var(--v3-meta);
   line-height: 1.6;
   text-transform: uppercase;
 }
@@ -2033,11 +2426,13 @@
   width: 11px;
 }
 
+/* Height follows content, matching .confirmSheet on the REST API page. The
+   fixed aspect ratio this used to carry left a large dead gap above the
+   buttons whenever the summary was short. */
 .walletReceipt {
   display: flex;
   width: 100%;
   max-width: 620px;
-  aspect-ratio: 1.24 / 1;
   align-self: start;
   justify-self: end;
   flex-direction: column;
@@ -2088,6 +2483,7 @@
   font-family: var(--v3-mono);
   font-size: var(--v3-small);
   font-weight: 500;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   color: #bb5a41;
 }
@@ -2116,7 +2512,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  margin-top: auto;
+  padding-top: 2px;
 }
 
 .walletReceiptActions span {
@@ -2232,11 +2628,6 @@
     gap: 42px;
   }
 
-  .walletReceipt {
-    aspect-ratio: auto;
-    min-height: 420px;
-  }
-
   .proofRail {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -2272,11 +2663,11 @@
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .fintechStats > div:nth-child(3) {
+  .fintechStats > div:nth-child(even) {
     border-right: 0;
   }
 
-  .fintechStats > div:nth-child(-n + 4) {
+  .fintechStats > div:nth-child(-n + 2) {
     border-bottom: 1px solid var(--v3-border);
   }
 
@@ -2581,7 +2972,6 @@
 :global(html[data-theme="dark"]) .proofRail,
 :global(html[data-theme="dark"]) .caseTag,
 :global(html[data-theme="dark"]) .caseGrid,
-:global(html[data-theme="dark"]) .mandateTabs button,
 :global(html[data-theme="dark"]) .walletAction,
 :global(html[data-theme="dark"]) .railCard {
   background: var(--v3-raised);
@@ -2593,6 +2983,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .mandateTabs::before {
+    transition: none;
+  }
+
   .mandateTrace li {
     animation: none;
   }
@@ -2612,10 +3006,7 @@
 }
 
 .fintechHero {
-  background:
-    linear-gradient(var(--v3-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--v3-grid) 1px, transparent 1px), var(--v3-paper);
-  background-size: 54px 54px;
+  background: var(--v3-paper);
 }
 
 .tradingHero {
@@ -2742,6 +3133,8 @@
   background: var(--v3-ink-surface);
 }
 
+/* Grid ground under the accent glow, matching .fintechHero / .tradingHero so
+   every sector hero stands on the same paper. */
 .walletsHero {
   background:
     radial-gradient(
@@ -2749,15 +3142,21 @@
       rgba(82, 136, 194, 0.13),
       transparent 38%
     ),
-    var(--v3-paper);
+    linear-gradient(var(--v3-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--v3-grid) 1px, transparent 1px), var(--v3-paper);
+  background-size:
+    auto,
+    54px 54px,
+    54px 54px,
+    auto;
 }
 
 /* ---- Wallets: Mywallet fixture + embedded Aomi execution ---- */
 
 .metaMaskFixture {
   display: flex;
-  width: min(520px, 100%);
-  height: 720px;
+  width: min(460px, 100%);
+  height: 760px;
   margin-left: auto;
   overflow: hidden;
   flex-direction: column;
@@ -2792,7 +3191,7 @@
 .metaMaskWalletScreen {
   min-height: 0;
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   background: #fff;
 }
 
@@ -3173,7 +3572,7 @@
 }
 
 .metaMaskChatHeader strong {
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .metaMaskChatHeader small {
@@ -3200,6 +3599,29 @@
   box-shadow: none !important;
 }
 
+.metaMaskAomiFrame :global(.aui-thread-welcome-root) {
+  gap: 20px;
+}
+
+.metaMaskAomiFrame :global(.aui-thread-welcome-message) {
+  gap: 12px;
+}
+
+.metaMaskAomiFrame :global(.aui-thread-welcome-title) {
+  max-width: 320px;
+  font-size: 24px;
+  line-height: 1.22;
+}
+
+.metaMaskAomiFrame :global(.aui-composer-input) {
+  font-size: 11px;
+}
+
+.metaMaskAomiFrame :global(.aui-thread-welcome-suggestion) {
+  padding: 7px 11px;
+  font-size: 10.5px;
+}
+
 .metaMaskAomiComposer {
   min-height: 0;
   background: #fff;
@@ -3221,7 +3643,7 @@
   gap: 6px;
   color: #2867b2;
   font-family: var(--v3-mono);
-  font-size: 9.5px;
+  font-size: 8.5px;
 }
 
 .metaMaskFullChatFooter > a svg {
@@ -3611,12 +4033,353 @@
 
 @media (max-width: 620px) {
   .metaMaskFixture {
-    height: 680px;
+    height: 720px;
     border-radius: 20px;
   }
 
   .metaMaskWalletScreen,
   .metaMaskChatScreen {
     min-height: 0;
+  }
+}
+
+/* ---- Wallets: login / wallet / chain / queue / signer topology ---- */
+
+.topology {
+  --topo-amber: #b07d1c;
+  --topo-amber-soft: #f7edd8;
+  width: var(--v3-page-width);
+  margin-inline: auto;
+  padding: 96px 0 112px;
+  border-top: 1px solid var(--v3-border);
+}
+
+:global(html[data-theme="dark"]) .topology {
+  --topo-amber: #d89a4a;
+  --topo-amber-soft: #33291a;
+}
+
+.topoLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  margin: 44px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.topoLegend li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--v3-muted);
+  font-size: 13px;
+}
+
+.topoLegend i {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--v3-border);
+  background: var(--v3-wash);
+}
+
+.topoLegend li[data-tone="authority"] i {
+  border-color: var(--v3-pink);
+  background: var(--v3-pink-soft);
+}
+
+.topoLegend li[data-tone="wallet"] i {
+  border-color: var(--v3-blue);
+  background: var(--v3-blue-soft);
+}
+
+.topoLegend li[data-tone="chain"] i {
+  border-color: var(--topo-amber);
+  background: var(--topo-amber-soft);
+}
+
+.topoLegend li[data-tone="queue"] i {
+  border-radius: 3px;
+}
+
+.topoCanvas {
+  margin-top: 26px;
+  border: 1px solid var(--v3-border);
+  border-radius: 20px;
+  padding: 26px 20px;
+  background: var(--v3-wash);
+}
+
+.topoCanvas svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* graph primitives */
+
+.topoBox {
+  fill: var(--v3-paper);
+  stroke: var(--v3-border);
+  stroke-width: 1.5;
+}
+
+.topoAuthority {
+  fill: var(--v3-pink-soft);
+  stroke: var(--v3-pink);
+  stroke-width: 2;
+}
+
+.topoWallet {
+  fill: var(--v3-blue-soft);
+  stroke: var(--v3-blue);
+  stroke-width: 2;
+}
+
+.topoChain {
+  fill: var(--topo-amber-soft);
+  stroke: var(--topo-amber);
+  stroke-width: 2;
+}
+
+.topoQueueSlot {
+  fill: var(--v3-paper);
+  stroke: var(--v3-border);
+  stroke-width: 1.5;
+}
+
+.topoCanonical {
+  fill: none;
+  stroke: var(--v3-blue);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 5;
+  opacity: 0.65;
+}
+
+.topoIdentityBand {
+  fill: var(--v3-pink-soft);
+  stroke: none;
+  opacity: 0.55;
+}
+
+/* edges */
+
+.topoEdgeGrey,
+.topoEdgeFaint,
+.topoEdgeSync,
+.topoEdgeAsync {
+  fill: none;
+}
+
+.topoEdgeGrey {
+  stroke: var(--v3-faint);
+  stroke-width: 1.5;
+}
+
+.topoEdgeFaint {
+  stroke: var(--v3-border);
+  stroke-width: 1.5;
+}
+
+.topoEdgeSync {
+  stroke: var(--topo-amber);
+  stroke-width: 2;
+}
+
+.topoEdgeAsync {
+  stroke: var(--v3-green);
+  stroke-width: 2;
+}
+
+.topoHeadGrey {
+  fill: var(--v3-faint);
+}
+
+.topoHeadSync {
+  fill: var(--topo-amber);
+}
+
+.topoHeadAsync {
+  fill: var(--v3-green);
+}
+
+/* graph text */
+
+.topoColTitle,
+.topoColSub,
+.topoCanonicalLabel,
+.topoEdgeLabelSync,
+.topoEdgeLabelAsync {
+  text-anchor: middle;
+}
+
+.topoColTitle {
+  fill: var(--v3-ink);
+  font-family: var(--v3-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.topoColSub {
+  fill: var(--v3-muted);
+  font-family: var(--v3-sans);
+  font-size: 11.5px;
+}
+
+.topoNodeLabelPink,
+.topoNodeLabelBlue,
+.topoNodeLabelChain,
+.topoNodeSub {
+  text-anchor: middle;
+  font-family: var(--v3-mono);
+  font-size: 12px;
+}
+
+.topoNodeLabelPink {
+  fill: var(--v3-pink-dark);
+}
+
+.topoNodeLabelBlue {
+  fill: var(--v3-blue-dark);
+}
+
+.topoNodeLabelChain {
+  fill: var(--topo-amber);
+}
+
+.topoNodeSub {
+  fill: var(--v3-faint);
+  font-size: 10.5px;
+}
+
+.topoCanonicalLabel {
+  fill: var(--v3-blue-dark);
+  font-family: var(--v3-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.topoEdgeLabelSync {
+  fill: var(--topo-amber);
+  font-family: var(--v3-mono);
+  font-size: 11.5px;
+}
+
+.topoEdgeLabelAsync {
+  fill: var(--v3-green-dark);
+  font-family: var(--v3-mono);
+  font-size: 11.5px;
+}
+
+.topoSignerName {
+  fill: var(--v3-pink-dark);
+  font-family: var(--v3-sans);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.topoSignerSub {
+  fill: var(--v3-muted);
+  font-family: var(--v3-sans);
+  font-size: 11.5px;
+}
+
+.topoIdentityName {
+  fill: var(--v3-pink-dark);
+  font-family: var(--v3-mono);
+  font-size: 14px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.topoIdentitySub {
+  fill: var(--v3-muted);
+  font-family: var(--v3-sans);
+  font-size: 11.5px;
+  text-anchor: middle;
+}
+
+/* narrow-screen fallback */
+
+.topoStack {
+  display: none;
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--v3-border);
+}
+
+.topoStack li {
+  padding: 20px 0;
+  border-bottom: 1px solid var(--v3-border);
+}
+
+.topoStack span {
+  color: var(--v3-faint);
+  font-family: var(--v3-mono);
+  font-size: var(--v3-eyebrow);
+}
+
+.topoStack strong {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--v3-serif);
+  font-size: var(--v3-card-title);
+  font-weight: 700;
+}
+
+.topoStack p {
+  margin: 7px 0 0;
+  color: var(--v3-muted);
+  font-size: var(--v3-card-copy);
+  line-height: var(--v3-card-copy-lh);
+}
+
+.topoCallouts {
+  display: grid;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.topoCallouts p {
+  margin: 0;
+  border: 1px solid var(--v3-border);
+  border-left: 3px solid var(--v3-border);
+  border-radius: 0 12px 12px 0;
+  padding: 16px 20px;
+  color: var(--v3-copy);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.topoCallouts p[data-tone="sync"] {
+  border-left-color: var(--topo-amber);
+}
+
+.topoCallouts p[data-tone="async"] {
+  border-left-color: var(--v3-green);
+}
+
+.topoCallouts strong {
+  color: var(--v3-ink);
+  font-weight: 600;
+}
+
+.topoCallouts code {
+  font-family: var(--v3-mono);
+  font-size: 13px;
+  color: var(--v3-blue-dark);
+}
+
+@media (max-width: 900px) {
+  .topoCanvas,
+  .topoLegend {
+    display: none;
+  }
+
+  .topoStack {
+    display: block;
   }
 }

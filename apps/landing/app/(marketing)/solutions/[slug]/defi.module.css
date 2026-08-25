@@ -15,24 +15,17 @@
   position: relative;
   display: grid;
   min-height: 820px;
-  grid-template-columns: minmax(0, 0.92fr) minmax(500px, 1.08fr);
-  gap: 80px;
+  grid-template-columns: minmax(0, 0.86fr) minmax(560px, 1.14fr);
+  gap: 72px;
   align-items: center;
   overflow: hidden;
-  padding: 150px var(--v3-page-inset) 80px;
+  padding: 150px var(--v3-page-inset) 88px;
   color: var(--v3-ink);
-  background: var(--v3-blue-soft);
+  background: var(--v3-paper);
 }
 
 .heroGrid {
-  position: absolute;
-  inset: 0;
-  opacity: 0.72;
-  background-image:
-    linear-gradient(rgba(82, 136, 194, 0.075) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(82, 136, 194, 0.075) 1px, transparent 1px);
-  background-size: 54px 54px;
-  mask-image: linear-gradient(90deg, transparent 4%, #000 60%, #000);
+  display: none;
 }
 
 .heroCopy,
@@ -42,7 +35,7 @@
 }
 
 .heroCopy h1 {
-  max-width: 700px;
+  max-width: 670px;
   margin: 22px 0 0;
   font-family: var(--v3-serif);
   font-size: var(--v3-h1);
@@ -88,21 +81,31 @@
   width: 14px;
 }
 
-.proof {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.factRailFrame {
   border-top: 1px solid var(--v3-border);
   border-bottom: 1px solid var(--v3-border);
+  background: #fff;
+}
+
+.proof {
+  width: min(1220px, calc(100% - 40px));
+  margin-inline: auto;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .proof > div {
   min-height: 120px;
   border-right: 1px solid var(--v3-border);
-  padding: 26px 30px;
+  padding: 27px 28px;
+}
+
+.proof > div:first-child {
+  border-left: 1px solid var(--v3-border);
 }
 
 .proof > div:last-child {
-  border-right: 0;
+  border-right: 1px solid var(--v3-border);
 }
 
 .proof strong {
@@ -120,6 +123,10 @@
   font-family: var(--v3-mono);
   font-size: var(--v3-micro);
   line-height: var(--v3-micro-lh);
+}
+
+:global(html[data-theme="dark"]) .factRailFrame {
+  background: var(--v3-raised);
 }
 
 .paths {
@@ -231,6 +238,13 @@
   line-height: var(--v3-body-lh);
 }
 
+.paths .sectionHeading > p {
+  border-left: 3px solid var(--v3-blue);
+  padding: 22px 24px;
+  color: var(--v3-ink);
+  background: var(--v3-blue-soft);
+}
+
 .worldShowcase {
   margin-top: 64px;
 }
@@ -244,31 +258,64 @@
   grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.28fr);
   gap: 0 80px;
   padding-top: 48px;
-  background: #fff;
+  background: var(--v3-paper);
 }
 
 .worldTabs {
-  display: flex;
+  position: relative;
+  display: inline-grid;
   grid-area: tabs;
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  isolation: isolate;
+  width: fit-content;
+  overflow: hidden;
   margin-bottom: 34px;
-}
-
-.worldTabs button {
-  min-height: 34px;
+  padding: 4px;
   border: 1px solid var(--v3-border);
   border-radius: 999px;
-  padding: 0 13px;
+  background: var(--v3-wash);
+  box-shadow: none;
+}
+
+.worldTabs::before {
+  position: absolute;
+  z-index: 0;
+  inset: 4px auto 4px 4px;
+  width: calc((100% - 8px) / 2);
+  border-radius: 999px;
+  background: var(--v3-blue);
+  box-shadow: none;
+  content: "";
+  pointer-events: none;
+  transition: transform 180ms ease;
+}
+
+.worldTabs:has(button:nth-child(2)[aria-selected="true"])::before {
+  transform: translateX(100%);
+}
+
+.worldTabs button,
+.worldTabs button:hover,
+.worldTabs button[aria-selected="true"] {
+  position: relative;
+  z-index: 1;
+  min-height: 34px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 16px;
   color: var(--v3-muted);
-  background: #fff;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
   font-size: 11px;
   cursor: pointer;
+  transform: none;
+  transition: none;
 }
 
 .worldTabs button[aria-selected="true"] {
-  border-color: var(--v3-ink);
-  color: #fff;
-  background: var(--v3-ink);
+  color: var(--v3-on-accent);
 }
 
 .worldPanelCopy {
@@ -346,7 +393,7 @@
   margin-top: 18px;
   border-radius: 18px;
   padding: 34px;
-  color: #17334c;
+  color: var(--v3-ink);
   background: var(--v3-blue-soft);
 }
 
@@ -373,7 +420,7 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  color: rgba(23, 51, 76, 0.72);
+  color: var(--v3-copy);
   font-size: var(--v3-small);
   line-height: var(--v3-small-lh);
 }
@@ -486,7 +533,7 @@
   border: 1px solid var(--v3-ink);
   border-radius: 999px;
   padding: var(--v3-btn-pad);
-  color: #fff;
+  color: var(--v3-paper);
   background: var(--v3-ink);
   font-size: var(--v3-btn);
   font-weight: 600;
@@ -494,7 +541,7 @@
 
 .ctaActions a:last-child {
   color: var(--v3-ink);
-  background: #fff;
+  background: var(--v3-paper);
 }
 
 .ctaActions a svg {
@@ -602,19 +649,15 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .worldTabs button {
-    scroll-behavior: auto;
+  .worldTabs::before {
+    transition: none;
   }
 }
 
-/* Share the same neutral V3 page canvas while preserving the World flow. */
+/* Match the Fintech hero's quiet paper canvas. */
 .hero {
   color: var(--v3-ink);
-  background:
-    linear-gradient(rgba(82, 136, 194, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(82, 136, 194, 0.055) 1px, transparent 1px),
-    var(--v3-paper);
-  background-size: 54px 54px;
+  background: var(--v3-paper);
 }
 
 .lede {
@@ -642,7 +685,7 @@
 
 .ctaActions a:first-child {
   border: 1px solid var(--v3-ink);
-  color: #fff;
+  color: var(--v3-paper);
   background: var(--v3-ink);
 }
 
@@ -655,8 +698,9 @@
   width: 100%;
   max-width: 610px;
   margin-left: auto;
-  border: 1px solid var(--v3-border);
-  border-radius: 0;
+  overflow: hidden;
+  border: 1px solid rgba(53, 109, 159, 0.24);
+  border-radius: 16px;
   padding: 26px 28px;
   background: var(--v3-paper);
   box-shadow: none;
@@ -987,7 +1031,6 @@
 
 /* ---- Coverage wall ---- */
 
-.coverage,
 .archSection,
 .catalog {
   width: var(--v3-page-width);
@@ -995,13 +1038,10 @@
   padding: 112px 0;
 }
 
-.coverage {
-  border-top: 1px solid var(--v3-border);
-}
-
 .coverageWall {
-  margin-top: 44px;
+  margin-top: 0;
   border: 1px solid var(--v3-border);
+  border-top: 0;
   border-radius: 0;
   padding: 20px 28px;
 }
@@ -1396,7 +1436,7 @@
 
 .archNode span {
   font-family: var(--v3-serif);
-  font-size: 15px;
+  font-size: var(--v3-card-copy);
   font-weight: 700;
   color: #1d3d59;
 }
@@ -1418,14 +1458,15 @@
 .archFeatures h3 {
   margin: 0;
   font-family: var(--v3-serif);
-  font-size: 18px;
+  font-size: var(--v3-card-title);
   font-weight: 700;
+  line-height: var(--v3-card-title-lh);
 }
 
 .archFeatures p {
   margin: 10px 0 0;
-  font-size: 13.5px;
-  line-height: 1.7;
+  font-size: var(--v3-card-copy);
+  line-height: var(--v3-card-copy-lh);
   color: var(--v3-muted);
 }
 
@@ -1540,9 +1581,14 @@
   border-top: 1px solid var(--v3-border);
 }
 
+.catalog .sectionHeading > p {
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
+}
+
 .catalogFlow {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   margin: 52px 0 0;
   padding: 0;
   border: 1px solid var(--v3-border);
@@ -1551,11 +1597,15 @@
 
 .catalogFlow li {
   min-height: 300px;
-  padding: 28px 26px;
+  padding: 28px;
 }
 
-.catalogFlow li + li {
+.catalogFlow li:nth-child(2n) {
   border-left: 1px solid var(--v3-border);
+}
+
+.catalogFlow li:nth-child(n + 3) {
+  border-top: 1px solid var(--v3-border);
 }
 
 .catalogFlow li > div {
@@ -1565,7 +1615,7 @@
 }
 
 .catalogFlow svg {
-  width: 20px;
+  width: 18px;
   color: var(--v3-blue-dark);
 }
 
@@ -1573,20 +1623,24 @@
   color: var(--v3-faint);
   font-family: var(--v3-mono);
   font-size: var(--v3-eyebrow);
+  letter-spacing: var(--v3-eyebrow-ls);
 }
 
 .catalogFlow h3 {
-  margin: 54px 0 0;
+  max-width: 28ch;
+  margin: 68px 0 0;
   font-family: var(--v3-serif);
-  font-size: var(--v3-h4);
-  line-height: var(--v3-h4-lh);
+  font-size: var(--v3-h3);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: var(--v3-h3-lh);
 }
 
 .catalogFlow p {
-  margin: 14px 0 0;
+  margin: 16px 0 0;
   color: var(--v3-muted);
-  font-size: var(--v3-small);
-  line-height: var(--v3-small-lh);
+  font-size: var(--v3-lead);
+  line-height: var(--v3-lead-lh);
 }
 
 .catalogCtaRow {
@@ -1617,6 +1671,19 @@
 }
 
 @media (max-width: 1120px) {
+  .hero {
+    min-height: auto;
+    grid-template-columns: 1fr;
+    gap: 52px;
+    padding: 130px var(--v3-page-inset) 72px;
+  }
+
+  .seqCard {
+    width: min(820px, 100%);
+    max-width: none;
+    margin-inline: auto;
+  }
+
   .pipelineGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1817,5 +1884,92 @@
 
   .ctaActions a {
     justify-content: center;
+  }
+}
+
+/* ---- AomiBench results, rebuilt from the paper's headline chart in system
+   tokens. One measure; the accent carries the frontier cluster and a neutral
+   deliberately recedes the two trailing models. Every bar carries its name
+   and value in text ink, so color never works alone. ---- */
+.benchSection {
+  padding: 112px var(--v3-page-inset);
+  border-top: 1px solid var(--v3-border);
+}
+
+.benchChart {
+  display: grid;
+  gap: 13px;
+  max-width: 880px;
+  margin-top: 52px;
+}
+
+.benchRow {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr) 48px;
+  gap: 16px;
+  align-items: center;
+}
+
+.benchRow > span {
+  color: var(--v3-copy);
+  font-family: var(--v3-mono);
+  font-size: 12px;
+  text-align: right;
+}
+
+/* the 0–100 track; a hairline baseline on the left anchors the bars */
+.benchRow > div {
+  position: relative;
+  height: 14px;
+  border-left: 1px solid var(--v3-border-strong);
+  background: var(--v3-wash);
+}
+
+.benchBar,
+.benchBarMuted {
+  display: block;
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+  background: var(--aomi-sky-500);
+}
+
+.benchBarMuted {
+  background: var(--aomi-cool-400);
+}
+
+.benchRow > strong {
+  color: var(--v3-ink);
+  font-family: var(--v3-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.benchNote {
+  max-width: 720px;
+  margin: 30px 0 0;
+  color: var(--v3-muted);
+  font-size: var(--v3-small);
+  line-height: var(--v3-small-lh);
+}
+
+.benchNote a {
+  color: var(--v3-blue-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+:global(html[data-theme="dark"]) .benchBarMuted {
+  background: var(--aomi-cool-500);
+}
+
+@media (max-width: 720px) {
+  .benchRow {
+    grid-template-columns: 92px minmax(0, 1fr) 44px;
+    gap: 10px;
+  }
+
+  .benchRow > span {
+    font-size: 10.5px;
   }
 }

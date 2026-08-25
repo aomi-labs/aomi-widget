@@ -1,4 +1,5 @@
 import { ArrowRight, ArrowUpRight } from "lucide-react";
+import Image from "next/image";
 import type { Metadata } from "next";
 import { PluginFileExplorer } from "./plugin-file-explorer";
 import { OperateWorkbench } from "./operate-workbench";
@@ -22,10 +23,11 @@ export default function PluginSdkPage() {
               <p className={styles.eyebrow}>AOMI PLUGIN SDK</p>
               <h1>Bring your API. Ship an agent that can transact.</h1>
               <p className={styles.heroLede}>
-                Package the product context and API operations only you own as
-                typed tools. Aomi hosts the agent and connects its selected
-                action to the same transaction pipeline used across every Aomi
-                surface.
+                Package your proprietary product context and API operations as
+                typed tools. Aomi provides the hosting and operational
+                infrastructure for crypto agents—much like Vercel does for web
+                applications—and connects every agent-selected action to the
+                transaction pipeline shared across all Aomi surfaces.
               </p>
             </div>
             <div className={styles.heroAside}>
@@ -59,7 +61,7 @@ export default function PluginSdkPage() {
         </div>
       </section>
 
-      <section className={styles.section}>
+      <section className={`${styles.section} ${styles.capabilitySection}`}>
         <div className={styles.shell}>
           <header className={styles.sectionHead}>
             <p className={styles.eyebrow}>
@@ -69,11 +71,10 @@ export default function PluginSdkPage() {
               Your API supplies the product. Aomi supplies the transaction path.
             </h2>
             <p>
-              The agent rides Aomi&apos;s hosted runtime from intent to trade.
-              Plugin SDK tools add the integrator&apos;s market context and
-              order logic; the selected action then enters Aomi&apos;s
-              transaction pipeline for construction, simulation, policy
-              enforcement, signer handoff, and a verified result.
+              Each Aomi App is a Rust program composed of a role, typed tools,
+              and a workflow. Aomi loads it in the hosted runtime, invokes the
+              appropriate tool, and routes the resulting action into the
+              transaction pipeline.
             </p>
           </header>
 
@@ -85,7 +86,10 @@ export default function PluginSdkPage() {
         <div className={styles.shell}>
           <header className={styles.sectionHead}>
             <p className={styles.eyebrow}>OPERATE · BUILD.AOMI.DEV</p>
-            <h2>Shipping is not the end of the workflow.</h2>
+            <h2>
+              Monitoring transactions, tool calls, and fees with
+              institution-grade provision
+            </h2>
             <p>
               Aomi Build keeps every release tied to its repository,
               compatibility status, runtime lifecycle, tool health, transaction
@@ -123,7 +127,7 @@ export default function PluginSdkPage() {
         <div className={styles.shell}>
           <header className={styles.sectionHead}>
             <p className={styles.eyebrow}>BUILD → TEST → DEPLOY → OPERATE</p>
-            <h2>One path from source to a live App.</h2>
+            <h2>Integration toolings &amp; deployment pipeline</h2>
             <p>
               The same toolchain carries a plugin from a platform-compatible
               build through local model testing, hosted activation, and the
@@ -221,6 +225,77 @@ export default function PluginSdkPage() {
               </p>
               <strong>status · logs · metrics</strong>
             </a>
+          </div>
+        </div>
+      </section>
+
+      <section className={`${styles.section} ${styles.managedPlatformSection}`}>
+        <div className={styles.shell}>
+          <div className={styles.managedPlatformLayout}>
+            <div className={styles.managedPlatformCopy}>
+              <p className={styles.eyebrow}>
+                THE MANAGED DESTINATION · BUILD.AOMI.DEV
+              </p>
+              <h2>Developer console just like Vercel</h2>
+              <p>
+                Build and deploy end at Aomi Build: the managed control plane
+                that keeps the repository, release, hosted runtime, and
+                operating evidence together for every App. It is where teams
+                manage what is live, what ships next, and how each App performs.
+              </p>
+              <a
+                className={styles.btnPrimary}
+                href="https://build.aomi.dev/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Manage your Apps <ArrowUpRight aria-hidden />
+              </a>
+
+              <ol className={styles.managedPlatformSteps}>
+                <li>
+                  <span>01</span>
+                  <strong>Connect the repository</strong>
+                </li>
+                <li>
+                  <span>02</span>
+                  <strong>Manage every release</strong>
+                </li>
+                <li>
+                  <span>03</span>
+                  <strong>Operate the live App</strong>
+                </li>
+              </ol>
+            </div>
+
+            <div
+              className={styles.managedPlatformStack}
+              aria-label="Aomi Build managed platform views"
+            >
+              <figure
+                className={`${styles.managedPlatformFrame} ${styles.managedPlatformOverview}`}
+              >
+                <Image
+                  src="/assets/v3/plugin-sdk/aomi-build-overview-anonymized.png"
+                  alt="Aomi Build overview showing projects, live deployments, recent releases, and operational navigation"
+                  width={1630}
+                  height={965}
+                  sizes="(max-width: 840px) 100vw, 720px"
+                />
+              </figure>
+
+              <figure
+                className={`${styles.managedPlatformFrame} ${styles.managedPlatformProject}`}
+              >
+                <Image
+                  src="/assets/v3/plugin-sdk/aomi-build-project-home-anonymized.png"
+                  alt="Aomi Build project home showing live status, environment readiness, chat access, and project management details"
+                  width={1378}
+                  height={1142}
+                  sizes="(max-width: 840px) 100vw, 580px"
+                />
+              </figure>
+            </div>
           </div>
         </div>
       </section>

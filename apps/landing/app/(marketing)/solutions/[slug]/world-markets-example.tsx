@@ -12,11 +12,10 @@ const views = [
   {
     id: "flow",
     label: "Product flow",
-    eyebrow: "From message to checked action",
-    title:
-      "The conversation stays simple because the authority does not live in chat.",
+    eyebrow: "Ready-to-go integration",
+    title: "Expand the trading experience without moving authority into chat.",
     intro:
-      "Aomi carries the selected World context into Telegram, prepares the structured action, and returns the user to the relevant market or position.",
+      "Aomi carries the selected World context and actions into Telegram, prepares the structured trade, and returns the user to the relevant market or position.",
     steps: [
       {
         label: "01",
@@ -88,13 +87,13 @@ export function WorldMarketsExample({
           <p className={styles.eyebrow}>
             Working example / World Markets × Aomi
           </p>
-          <h2>Trade on World from Telegram. Keep authority onchain.</h2>
+          <h2>Trade on World from Telegram. Expand the UX, keep control.</h2>
         </div>
         <div className={styles.worldIntro}>
           <span>Product integration preview</span>
           <p>
-            Aomi turns the trader&apos;s instruction into a structured World
-            action. World keeps account authority, revocation, and portfolio
+            Aomi adds a ready-to-go Telegram surface and structured World
+            actions. World keeps account authority, revocation, and portfolio
             risk enforceable outside the model.
           </p>
         </div>
@@ -145,14 +144,14 @@ export function WorldMarketsExample({
       <div className={styles.worldValidation}>
         <div>
           <p className={styles.eyebrow}>What this example validates</p>
-          <h3>A useful agent with an externally enforced boundary.</h3>
+          <h3>A broader trading experience with enforced boundaries.</h3>
         </div>
         <ul>
           <li>
-            <Check aria-hidden /> Account-aware Telegram experience
+            <Check aria-hidden /> Ready-to-go Telegram integration
           </li>
           <li>
-            <Check aria-hidden /> Account-scoped trade-only delegation
+            <Check aria-hidden /> Account-aware World action space
           </li>
           <li>
             <Check aria-hidden /> Owner-retained withdrawal authority

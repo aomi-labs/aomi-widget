@@ -5,9 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { AomiLogo } from "../../components/aomi-logo";
-import { navGroups, MARKETING_ROOT } from "../site";
+import { navGroups } from "../site";
 import styles from "../marketing.module.css";
-import { ColorThemeToggle } from "./color-theme-toggle";
 
 export function V3Nav() {
   const pathname = usePathname();
@@ -50,134 +49,115 @@ export function V3Nav() {
   }, [mobileOpen]);
 
   return (
-    <>
-      <div className={styles.themeCorner}>
-        <ColorThemeToggle />
-      </div>
-      <header ref={rootRef} className={styles.navDock}>
-        <nav className={styles.navPill} aria-label="Primary">
-          <Link href="/" className={styles.navBrand} aria-label="Aomi home">
-            <AomiLogo
-              className={styles.navLogo}
-              markClassName={styles.navLogoMark}
-              wordmarkClassName={styles.navLogoWord}
-            />
-          </Link>
+    <header ref={rootRef} className={styles.navDock}>
+      <nav className={styles.navPill} aria-label="Primary">
+        <Link href="/" className={styles.navBrand} aria-label="Aomi home">
+          <AomiLogo
+            className={styles.navLogo}
+            markClassName={styles.navLogoMark}
+            wordmarkClassName={styles.navLogoWord}
+          />
+        </Link>
 
-          <div className={styles.navDesktop}>
-            {navGroups.map((group) => {
-              const open = openMenu === group.label;
-              return (
-                <div className={styles.navGroup} key={group.label}>
-                  <button
-                    type="button"
-                    className={styles.navTrigger}
-                    aria-expanded={open}
-                    onClick={() => setOpenMenu(open ? null : group.label)}
-                  >
-                    {group.label}
-                  </button>
-                  {open ? (
-                    <div className={styles.navPopover}>
-                      <div className={styles.navPopoverGrid}>
-                        {group.items.map((item) => (
-                          <a
-                            key={item.title}
-                            href={item.href}
-                            className={styles.navPopoverItem}
-                            target={
-                              "external" in item && item.external
-                                ? "_blank"
-                                : undefined
-                            }
-                            rel={
-                              "external" in item && item.external
-                                ? "noreferrer"
-                                : undefined
-                            }
-                          >
-                            <span>{item.title}</span>
-                            <small>{item.description}</small>
-                            {"external" in item && item.external ? (
-                              <ArrowUpRight aria-hidden />
-                            ) : null}
-                          </a>
-                        ))}
-                      </div>
+        <div className={styles.navDesktop}>
+          {navGroups.map((group) => {
+            const open = openMenu === group.label;
+            return (
+              <div className={styles.navGroup} key={group.label}>
+                <button
+                  type="button"
+                  className={styles.navTrigger}
+                  aria-expanded={open}
+                  onClick={() => setOpenMenu(open ? null : group.label)}
+                >
+                  {group.label}
+                </button>
+                {open ? (
+                  <div className={styles.navPopover}>
+                    <div className={styles.navPopoverGrid}>
+                      {group.items.map((item) => (
+                        <a
+                          key={item.title}
+                          href={item.href}
+                          className={styles.navPopoverItem}
+                          target={
+                            "external" in item && item.external
+                              ? "_blank"
+                              : undefined
+                          }
+                          rel={
+                            "external" in item && item.external
+                              ? "noreferrer"
+                              : undefined
+                          }
+                        >
+                          <span>{item.title}</span>
+                          <small>{item.description}</small>
+                          {"external" in item && item.external ? (
+                            <ArrowUpRight aria-hidden />
+                          ) : null}
+                        </a>
+                      ))}
                     </div>
-                  ) : null}
-                </div>
-              );
-            })}
-            <Link
-              href={`${MARKETING_ROOT}/pricing`}
-              className={styles.navTextLink}
-            >
-              Pricing
-            </Link>
-          </div>
-
-          <div className={styles.navActions}>
-            <a href="https://build.aomi.dev" className={styles.navConsole}>
-              Console
-            </a>
-            <a href="https://chat.aomi.dev" className={styles.navApp}>
-              App <span aria-hidden>→</span>
-            </a>
-          </div>
-
-          <button
-            type="button"
-            className={styles.navMobileToggle}
-            aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
-            aria-expanded={mobileOpen}
-            onClick={() => setMobileOpen((value) => !value)}
-          >
-            {mobileOpen ? <X aria-hidden /> : <Menu aria-hidden />}
-          </button>
-        </nav>
-
-        {mobileOpen ? (
-          <div className={styles.navMobilePanel}>
-            <div className={styles.navMobileScroll}>
-              {navGroups.map((group) => (
-                <section key={group.label} className={styles.navMobileGroup}>
-                  <p>{group.label}</p>
-                  {group.items.map((item) => (
-                    <a
-                      key={item.title}
-                      href={item.href}
-                      target={
-                        "external" in item && item.external
-                          ? "_blank"
-                          : undefined
-                      }
-                      rel={
-                        "external" in item && item.external
-                          ? "noreferrer"
-                          : undefined
-                      }
-                    >
-                      <span>{item.title}</span>
-                      <small>{item.description}</small>
-                    </a>
-                  ))}
-                </section>
-              ))}
-              <Link
-                href={`${MARKETING_ROOT}/pricing`}
-                className={styles.navMobilePricing}
-              >
-                Pricing
-              </Link>
-              <div className={styles.navMobileActions}>
-                <a href="https://build.aomi.dev">Console</a>
-                <a href="https://chat.aomi.dev">Open app →</a>
+                  </div>
+                ) : null}
               </div>
+            );
+          })}
+        </div>
+
+        <div className={styles.navActions}>
+          <a href="https://build.aomi.dev" className={styles.navConsole}>
+            Console
+          </a>
+          <a href="https://chat.aomi.dev" className={styles.navApp}>
+            App <span aria-hidden>→</span>
+          </a>
+        </div>
+
+        <button
+          type="button"
+          className={styles.navMobileToggle}
+          aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={mobileOpen}
+          onClick={() => setMobileOpen((value) => !value)}
+        >
+          {mobileOpen ? <X aria-hidden /> : <Menu aria-hidden />}
+        </button>
+      </nav>
+
+      {mobileOpen ? (
+        <div className={styles.navMobilePanel}>
+          <div className={styles.navMobileScroll}>
+            {navGroups.map((group) => (
+              <section key={group.label} className={styles.navMobileGroup}>
+                <p>{group.label}</p>
+                {group.items.map((item) => (
+                  <a
+                    key={item.title}
+                    href={item.href}
+                    target={
+                      "external" in item && item.external ? "_blank" : undefined
+                    }
+                    rel={
+                      "external" in item && item.external
+                        ? "noreferrer"
+                        : undefined
+                    }
+                  >
+                    <span>{item.title}</span>
+                    <small>{item.description}</small>
+                  </a>
+                ))}
+              </section>
+            ))}
+            <div className={styles.navMobileActions}>
+              <a href="https://build.aomi.dev">Console</a>
+              <a href="https://chat.aomi.dev">Open app →</a>
             </div>
           </div>
-        ) : null}
-      </header>
-    </>
+        </div>
+      ) : null}
+    </header>
   );
 }

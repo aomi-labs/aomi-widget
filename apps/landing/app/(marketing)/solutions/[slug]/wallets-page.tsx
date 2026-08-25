@@ -1,16 +1,15 @@
 import {
   ArrowRight,
   BadgeCheck,
-  Bot,
   Braces,
   Check,
   FlaskConical,
   ShieldCheck,
-  Waypoints,
 } from "lucide-react";
 import Link from "next/link";
 import { MARKETING_ROOT } from "../../site";
 import { MetaMaskWalletFixture } from "./metamask-wallet-fixture";
+import { WalletTopology } from "./wallet-topology";
 import styles from "./sector-pages.module.css";
 
 const stopBuilding = [
@@ -40,12 +39,12 @@ export function V3WalletsPage() {
       <section className={`${styles.sectorHero} ${styles.walletsHero}`}>
         <div className={styles.walletsHeroCopy}>
           <p className={styles.eyebrow}>AOMI FOR WALLETS</p>
-          <h1>Your agent plans. Aomi executes.</h1>
+          <h1>Next generation wallet UX with protocol-agnostic execution</h1>
           <p className={styles.sectorLede}>
-            Wallet teams are already building their own assistants. Aomi is the
-            execution layer underneath: send the action your agent selected, or
-            the raw intent, and get back a fork-simulated, policy-checked Action
-            for the signer you already run.
+            Whether a wallet team has already built its in-house agentic stack
+            or is starting from scratch, Aomi can be the execution layer
+            underneath—through a hosted integration or API access—returning
+            simulated, policy-checked Actions to the signer it already runs.
           </p>
           <div className={styles.heroActions}>
             <Link href={`${MARKETING_ROOT}/products/rest-apis`}>
@@ -75,7 +74,7 @@ export function V3WalletsPage() {
 
       <section className={styles.walletPromise}>
         <p className={styles.eyebrow}>The pitch</p>
-        <h2>Keep the assistant. Stop building the execution stack.</h2>
+        <h2>Stop reinventing the wheel on transaction harnesses.</h2>
         <p>
           The agent is your product surface and your differentiation. The
           protocol integrations, simulation infrastructure, guard policies, and
@@ -84,72 +83,21 @@ export function V3WalletsPage() {
         </p>
       </section>
 
-      <section className={styles.apiLanes}>
-        <div className={styles.laneHeading}>
-          <p className={styles.eyebrow}>TWO WAYS TO CONSUME</p>
-          <h2>Bring your agent, or borrow ours.</h2>
-        </div>
-        <div className={styles.laneGrid}>
-          <article className={styles.laneCard}>
-            <div className={styles.laneBadge}>
-              <Waypoints aria-hidden />
-              <span>PIPELINE API · YOUR AGENT PLANS</span>
-              <small>preview</small>
-            </div>
-            <h3>Your model picks the action.</h3>
-            <p>
-              Keep your planner, routing logic, and product voice. Submit one
-              catalog action or an ordered batch. Receive the simulation
-              verdict, typed guard checks, and an unsigned signable, with no
-              Aomi inference in the loop.
-            </p>
-            <div className={styles.laneEndpoints}>
-              <span>
-                <b>POST</b> /v1/pipeline/evm/build
-              </span>
-              <span>
-                <b>POST</b> /v1/pipeline/svm/build
-              </span>
-            </div>
-            <p className={styles.laneBest}>
-              <span>BEST FOR</span> wallets with an in-house agent or strategy
-              engine
-            </p>
-          </article>
+      <WalletTopology />
 
-          <article className={styles.laneCard}>
-            <div className={styles.laneBadge}>
-              <Bot aria-hidden />
-              <span>AGENT API · AOMI PLANS</span>
-              <small>v1</small>
-            </div>
-            <h3>Ship an assistant without building the planner.</h3>
-            <p>
-              Send a customer&apos;s sentence and wallet capabilities. Aomi runs
-              the agent loop, selects tools, and returns messages, activity, and
-              a durable Action your product renders and your signer approves.
-            </p>
-            <div className={styles.laneEndpoints}>
-              <span>
-                <b>POST</b> /v1/agent/chat
-              </span>
-              <span>
-                <b>GET</b> /v1/agent/chat/{"{session}"}
-              </span>
-            </div>
-            <p className={styles.laneBest}>
-              <span>BEST FOR</span> wallets adding conversational execution this
-              quarter
-            </p>
-          </article>
-        </div>
+      <section className={styles.apiLanes}>
         <div className={styles.laneBand}>
           <ShieldCheck aria-hidden />
-          <strong>Both lanes resolve to the same sealed Action.</strong>
+          <strong>Both API lanes resolve to the same sealed Action.</strong>
           <span>
-            One confirm sheet, one signer binding. Start on the Agent API, drop
-            to the Pipeline API when your own agent is ready, and nothing
-            re-integrates.
+            Send a customer sentence to the Agent API and let Aomi plan, or
+            submit the exact action your own agent selected to the Pipeline API.
+            One confirm sheet, one signer binding, and nothing re-integrates
+            when you move between them.{" "}
+            <Link href={`${MARKETING_ROOT}/products/rest-apis`}>
+              Compare the two APIs
+            </Link>
+            .
           </span>
         </div>
       </section>
@@ -171,7 +119,7 @@ export function V3WalletsPage() {
       <section className={styles.walletReview}>
         <div className={styles.reviewCopy}>
           <p className={styles.eyebrow}>One review surface</p>
-          <h2>The Action lands in the confirm sheet you already built.</h2>
+          <h2>Component library that renders the action</h2>
           <p>
             Every Action carries a typed, kernel-sealed summary: title, ordered
             steps, cost, and warnings. Your existing review UI renders it
@@ -219,6 +167,144 @@ export function V3WalletsPage() {
             <span>Approve</span>
           </div>
         </div>
+      </section>
+
+      <section className={styles.walletBoundary}>
+        <div className={styles.boundaryLead}>
+          <p className={styles.eyebrow}>The ownership boundary</p>
+          <h2>
+            Zero malformed encoding: the model handles parameters, not bytes.
+          </h2>
+          <p>
+            On reads, the harness fetches, decodes, and formats before the model
+            sees anything. On writes, the model emits high-level intent and the
+            harness assembles every byte of the transaction — your signer stays
+            the only write authority.
+          </p>
+        </div>
+
+        <div
+          className={styles.boundaryDiagram}
+          role="img"
+          aria-label="The read/encode harness: the model emits high-level intent only; the read path fetches, calls, and formats before the model sees data, while the write path assembles calldata and hands a wallet request to your signer. The harness owns every byte; the model owns addresses, signatures, and base-unit amounts."
+        >
+          <div className={styles.bModelNode}>
+            MODEL · high-level intent only
+          </div>
+          <div className={styles.bFork} aria-hidden>
+            <i />
+            <i />
+            <i />
+            <i />
+          </div>
+
+          <div className={styles.bLanes}>
+            <div className={styles.bLaneRead}>
+              <span className={styles.bLaneLabel}>READ path</span>
+              <div className={styles.bBox}>
+                <p>
+                  <code>get_contract(addr, chain)</code>
+                </p>
+                <ul>
+                  <li>DB cache hit → return</li>
+                  <li>miss → explorer fetch</li>
+                  <li>store back + proxy-resolve (EIP-1967)</li>
+                </ul>
+                <p>
+                  <code>get_account_info(addr, chain)</code>
+                </p>
+                <ul>
+                  <li>→ {"{balance, nonce}"} (gateway)</li>
+                </ul>
+                <p>
+                  <code>encode_and_call(sig, args, to)</code>
+                </p>
+              </div>
+              <span className={styles.bArrow} aria-hidden />
+              <div className={styles.bStep}>
+                <code>eth_call(chain, to, calldata)</code>
+                <small>(Anvil fork / gateway)</small>
+              </div>
+              <span className={styles.bArrow} aria-hidden />
+              <div className={styles.bStep}>
+                <span>raw 32-byte result</span>
+              </div>
+              <span className={styles.bArrow} aria-hidden />
+              <div className={styles.bStep}>
+                <code>format_token_units(raw, dec)</code>
+                <code>format_wei_as_eth(wei)</code>
+              </div>
+              <span className={styles.bArrow} aria-hidden />
+              <div className={styles.bPill}>human-readable JSON → model</div>
+            </div>
+
+            <div className={styles.bLaneWrite}>
+              <span className={styles.bLaneLabel}>WRITE path</span>
+              <div className={styles.bBox}>
+                <p>
+                  <code>stage_tx {"{ to, sig, args[] }"}</code>
+                </p>
+                <ul>
+                  <li>args = base units (from model)</li>
+                </ul>
+              </div>
+              <span className={styles.bArrow} aria-hidden />
+              <div className={styles.bBox}>
+                <p>
+                  <code>abi_encoder::execute_call</code>
+                </p>
+                <ul>
+                  <li>parse_function_signature → selector = keccak256[:4]</li>
+                  <li>parse_param_value (str → DynSolValue)</li>
+                  <li>abi_encode_params → 32-byte words</li>
+                </ul>
+              </div>
+              <span className={styles.bArrow} aria-hidden />
+              <div className={styles.bStep}>
+                <span>calldata = 0x⟨selector⟩⟨words⟩</span>
+              </div>
+              <span className={styles.bArrow} aria-hidden />
+              <div className={styles.bStep}>
+                <code>
+                  AssembledEvmTx
+                  {"{ from*, chain*, to, value, data, label, kind }"}
+                </code>
+                <small>(*from / chain injected from wallet ctx)</small>
+              </div>
+              <span className={styles.bArrow} aria-hidden />
+              <div className={styles.bPill}>
+                user_state.pending_txs → commit_txs → sign
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.bOwnership}>
+            <p>OWNERSHIP — why the model never sees a byte</p>
+            <div>
+              <span>HARNESS owns</span>
+              <strong>
+                selector · ABI words · eth_call · result decoding · output
+                unit-format
+              </strong>
+            </div>
+            <div>
+              <span>MODEL owns</span>
+              <strong>addresses · signatures · base-unit amounts</strong>
+            </div>
+          </div>
+
+          <p className={styles.bCaches}>
+            Caches: contract ABI / source (SQLite / Postgres) · proxy-impl
+            resolution
+          </p>
+        </div>
+
+        <p className={styles.boundarySource}>
+          From{" "}
+          <Link href="/research/aomibench-v0-1">
+            AomiBench: benchmarking frontier models on onchain execution
+          </Link>
+        </p>
       </section>
 
       <section className={styles.walletFit}>

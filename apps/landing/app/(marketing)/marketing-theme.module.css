@@ -58,6 +58,12 @@
   --aomi-text-on-brand-ink: var(--aomi-cool-0);
   --aomi-landing-on-accent: var(--aomi-cool-0);
   --aomi-landing-shadow: rgba(9, 9, 11, 0.12);
+  --aomi-glass-fill: rgba(255, 255, 255, 0.68);
+  --aomi-glass-fill-strong: rgba(255, 255, 255, 0.82);
+  --aomi-glass-fill-hover: rgba(255, 255, 255, 0.9);
+  --aomi-glass-border: rgba(255, 255, 255, 0.72);
+  --aomi-glass-highlight: rgba(255, 255, 255, 0.56);
+  --aomi-glass-shadow: rgba(9, 9, 11, 0.14);
 }
 
 :global(html[data-theme="dark"]) .theme {
@@ -79,70 +85,10 @@
   --aomi-landing-accent-subtle: #28354a;
   --aomi-landing-on-accent: var(--aomi-cool-950);
   --aomi-landing-shadow: rgba(0, 0, 0, 0.34);
-}
-
-.toggle {
-  display: inline-grid;
-  width: 54px;
-  height: 54px;
-  flex: none;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 999px;
-  padding: 0;
-  color: rgba(255, 255, 255, 0.82);
-  background: rgba(255, 255, 255, 0.1);
-  cursor: pointer;
-  transition:
-    color 160ms ease,
-    border-color 160ms ease,
-    background 160ms ease,
-    transform 160ms ease;
-}
-
-.toggle:hover {
-  border-color: rgba(255, 255, 255, 0.34);
-  color: #ffffff;
-  background: rgba(255, 255, 255, 0.16);
-  transform: translateY(-1px);
-}
-
-.toggle:focus-visible {
-  outline: 2px solid var(--aomi-sky-300);
-  outline-offset: 2px;
-}
-
-.toggle svg {
-  width: 20px;
-  height: 20px;
-}
-
-.sun {
-  display: none;
-}
-
-:global(html[data-theme="dark"]) .moon {
-  display: none;
-}
-
-:global(html[data-theme="dark"]) .sun {
-  display: block;
-}
-
-@media (max-width: 860px) {
-  .toggle {
-    width: 48px;
-    height: 48px;
-  }
-
-  .toggle svg {
-    width: 18px;
-    height: 18px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .toggle {
-    transition: none;
-  }
+  --aomi-glass-fill: rgba(39, 39, 42, 0.62);
+  --aomi-glass-fill-strong: rgba(39, 39, 42, 0.78);
+  --aomi-glass-fill-hover: rgba(63, 63, 70, 0.82);
+  --aomi-glass-border: rgba(255, 255, 255, 0.15);
+  --aomi-glass-highlight: rgba(255, 255, 255, 0.18);
+  --aomi-glass-shadow: rgba(0, 0, 0, 0.42);
 }

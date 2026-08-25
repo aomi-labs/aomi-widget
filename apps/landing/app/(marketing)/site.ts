@@ -545,11 +545,26 @@ export const developers = [
   },
 ] as const satisfies readonly NavItem[];
 
+export const pricingLinks = [
+  {
+    title: "Pricing",
+    href: `${MARKETING_ROOT}/pricing`,
+    description: "What a turn costs, and when an app takes a cut.",
+  },
+  {
+    title: "Payment rails",
+    href: `${MARKETING_ROOT}/pricing/payment-rails`,
+    description:
+      "The credit balance, the deferred pay gate, and how turns settle.",
+  },
+] as const;
+
 export const navGroups = [
   { label: "Products", items: products },
   { label: "Solutions", items: solutions },
   { label: "Resource", items: resources },
   { label: "Developers", items: developers },
+  { label: "Pricing", items: pricingLinks },
 ] as const;
 
 export const productBySlug = Object.fromEntries(

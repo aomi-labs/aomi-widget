@@ -389,34 +389,60 @@
 }
 
 .installModeSwitch {
-  display: inline-flex;
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: repeat(2, 1fr);
   flex: none;
-  gap: 2px;
+  gap: 0;
+  isolation: isolate;
+  overflow: hidden;
   margin-bottom: 8px;
-  padding: 3px;
+  padding: 4px;
   border: 1px solid var(--v2-border);
   border-radius: 999px;
   background: var(--v2-bg-muted);
+  box-shadow: none;
 }
 
-.installModeSwitch button {
+.installModeSwitch::before {
+  position: absolute;
+  z-index: 0;
+  inset: 4px auto 4px 4px;
+  width: calc((100% - 8px) / 2);
+  border-radius: 999px;
+  background: var(--v3-blue);
+  box-shadow: none;
+  content: "";
+  pointer-events: none;
+  transition: transform 180ms ease;
+}
+
+.installModeSwitch:has(button:nth-child(2)[aria-selected="true"])::before {
+  transform: translateX(100%);
+}
+
+.installModeSwitch button,
+.installModeSwitch button:hover,
+.installModeSwitch button[aria-selected="true"] {
+  position: relative;
+  z-index: 1;
   width: 76px;
   padding: 5px 0;
   border: 0;
   border-radius: 999px;
   background: transparent;
+  background-image: none;
+  box-shadow: none;
   font-family: var(--v2-font-sans), sans-serif;
   font-size: 12px;
   font-weight: 500;
   color: var(--v2-fg-subtle);
   cursor: pointer;
-  transition:
-    color 160ms ease,
-    background 160ms ease;
+  transform: none;
+  transition: none;
 }
 
 .installModeSwitch button[aria-selected="true"] {
-  background: var(--widget-accent);
   color: white;
 }
 
@@ -435,7 +461,13 @@
   overflow: hidden;
   border: 1px solid var(--v2-border);
   border-radius: 16px;
-  background: #fafafa;
+  /* Same 15px dot grid as .showcaseType on the REST API page. That panel is
+     dark and uses white dots; this surface stays #fafafa in both themes, so
+     the dots are ink at the equivalent alpha. */
+  background:
+    radial-gradient(circle at 1px 1px, rgba(9, 9, 11, 0.06) 1px, transparent 0)
+      0 0 / 15px 15px,
+    #fafafa;
 }
 
 .installCodeCopy {
@@ -724,7 +756,8 @@
   .primaryButton,
   .secondaryButton,
   .finalPrimary,
-  .finalSecondary {
+  .finalSecondary,
+  .installModeSwitch::before {
     transition: none;
   }
 }
@@ -955,6 +988,12 @@
 .v3Tokens .heroSupport {
   font-size: var(--v3-lead);
   line-height: var(--v3-lead-lh);
+}
+
+.v3Tokens .heroNote,
+.v3Tokens .proofGrid span {
+  font-size: var(--v3-meta);
+  line-height: var(--v3-meta-lh);
 }
 
 .v3Tokens .primaryButton,

@@ -8,36 +8,39 @@ export function V3TradingPage() {
     <main className={styles.page}>
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>Aomi Build / Telegram</p>
-          <h1>Build the agent once. Put it in every trader&apos;s hands.</h1>
+          <p className={styles.eyebrow}>Aomi for trading UX</p>
+          <h1>
+            Automate trading UX with ready‑to‑go integrations plus expanded
+            action space
+          </h1>
           <p className={styles.heroIntro}>
-            First, turn your product APIs into an Aomi app with governed tools.
-            Then attach that same app to a Telegram bot. Every conversation
-            still resolves to the trader&apos;s own identity, wallet, thread,
-            and signing permission.
+            Connect the trading surfaces your users already rely on to
+            Aomi&apos;s execution infrastructure. Ready-to-go integrations bring
+            account context and a broader set of protocol actions into the
+            experience, while every transaction remains simulated,
+            policy-checked, and explicitly signed.
           </p>
           <a className={styles.heroCta} href="#world-markets-example">
-            See the trading flow <ArrowDown aria-hidden />
+            See an integration example <ArrowDown aria-hidden />
           </a>
           <dl className={styles.heroProof}>
             <div>
               <dt>01</dt>
-              <dd>Build the agent</dd>
+              <dd>Connect the experience</dd>
             </div>
             <div>
               <dt>02</dt>
-              <dd>Connect the channel</dd>
+              <dd>Expand the action space</dd>
             </div>
             <div>
               <dt>03</dt>
-              <dd>Keep signing explicit</dd>
+              <dd>Keep approval explicit</dd>
             </div>
           </dl>
         </div>
 
         <figure className={styles.productStack}>
           <div className={styles.buildScreen}>
-            <span>01 / Build</span>
             <Image
               src="/assets/v3/solutions/trading/aomi-build-create.png"
               alt="Aomi Build screen for creating an agent from a prompt or template"
@@ -47,7 +50,6 @@ export function V3TradingPage() {
             />
           </div>
           <div className={styles.integrationScreen}>
-            <span>02 / Integrate</span>
             <Image
               src="/assets/v3/solutions/trading/aomi-build-integrations.png"
               alt="Aomi Build Integrations screen showing Telegram setup, BotFather commands, and an attached app"

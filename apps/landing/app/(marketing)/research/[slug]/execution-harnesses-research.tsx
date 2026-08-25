@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { AomiLogo } from "../../components/aomi-logo";
+import { AomiLogo } from "../../../components/aomi-logo";
 import type { ResearchPost } from "@/lib/research";
 import styles from "./execution-harnesses-research.module.css";
 
@@ -967,16 +967,9 @@ export function ExecutionHarnessesResearch({ post }: Props) {
   return (
     <main className={styles.page}>
       <article className={styles.paper}>
+        {/* No masthead: the shared marketing nav supplies the logo and home
+            link, and the date already appears in the byline below. */}
         <header className={styles.header}>
-          <div className={styles.masthead}>
-            <Link href="/" aria-label="Aomi Labs home">
-              <AomiLogo
-                className={styles.logo}
-                markClassName={styles.logoMark}
-              />
-            </Link>
-            <span>Aomi Labs Research · {post.date}</span>
-          </div>
           <p className={styles.series}>
             Research paper · Agentic financial infrastructure
           </p>
@@ -988,7 +981,7 @@ export function ExecutionHarnessesResearch({ post }: Props) {
           </p>
           <div className={styles.byline}>
             <span>Aomi Labs Research</span>
-            <span>13 August 2026</span>
+            <span>{post.date}</span>
             <span>Market structure and systems analysis</span>
           </div>
         </header>

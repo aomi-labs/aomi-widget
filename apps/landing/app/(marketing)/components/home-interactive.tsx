@@ -88,13 +88,14 @@ export function V3HeroContent() {
           Install Aomi to Codex, Claude Code, Cursor, OpenCode, or Hermes. Use
           Skills, CLI, hosted MCP, or direct API calls.
         </p>
-        <div className={styles.heroCommandRow}>
+        <div className={styles.heroCommandRow} data-liquid-glass="ink">
           <span aria-hidden>&gt;</span>
           <code>{selected.command}</code>
           <CopyButton value={selected.command} dark />
           <div className={styles.heroInstallSelect}>
             <button
               type="button"
+              aria-expanded={menuOpen}
               onClick={() => setMenuOpen((value) => !value)}
             >
               <selected.icon aria-hidden />
@@ -102,7 +103,7 @@ export function V3HeroContent() {
               <ChevronDown aria-hidden />
             </button>
             {menuOpen ? (
-              <div>
+              <div data-liquid-glass>
                 {installers.map((tool) => (
                   <button
                     type="button"
@@ -126,7 +127,12 @@ export function V3HeroContent() {
         </span>
         <div className={styles.heroToolIcons}>
           {installers.map((tool) => (
-            <span key={tool.id} title={tool.label}>
+            <span
+              key={tool.id}
+              aria-label={tool.label}
+              data-liquid-tooltip={tool.label}
+              tabIndex={0}
+            >
               <tool.icon aria-hidden />
             </span>
           ))}
@@ -196,6 +202,7 @@ export function RuntimeSurfaceDemo() {
           <button
             type="button"
             key={item}
+            aria-pressed={surface === item}
             className={surface === item ? styles.runtimeTabActive : ""}
             onClick={() => setSurface(item)}
           >
@@ -270,6 +277,7 @@ export function WalletCodeDemo() {
               <button
                 type="button"
                 key={item}
+                aria-pressed={wallet === item}
                 className={wallet === item ? styles.walletTabActive : ""}
                 onClick={() => setWallet(item)}
               >
@@ -283,6 +291,7 @@ export function WalletCodeDemo() {
             <button
               type="button"
               key={item}
+              aria-pressed={surface === item}
               className={surface === item ? styles.walletTabActive : ""}
               onClick={() => setSurface(item)}
             >
@@ -316,7 +325,7 @@ export function InstallPanel() {
 
   return (
     <div className={styles.installPanel}>
-      <div className={styles.installCommand}>
+      <div className={styles.installCommand} data-liquid-glass>
         <span aria-hidden>&gt;</span>
         <code>{selected.command}</code>
         <CopyButton value={selected.command} />
@@ -326,6 +335,7 @@ export function InstallPanel() {
           <button
             type="button"
             key={tool.id}
+            aria-pressed={selected.id === tool.id}
             className={selected.id === tool.id ? styles.installToolActive : ""}
             onClick={() => setSelected(tool)}
           >

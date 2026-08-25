@@ -503,19 +503,6 @@ function TradingDemo() {
           <TrendingUp aria-hidden className="size-4" />
           <strong>VERTEX DESK</strong>
         </div>
-        <div className={styles.tickers}>
-          {Object.entries(tradeMarkets).map(([id, item]) => (
-            <button
-              type="button"
-              key={id}
-              className={id === selectedMarket ? styles.tickerSelected : ""}
-              onClick={() => setSelectedMarket(id as keyof typeof tradeMarkets)}
-              aria-pressed={id === selectedMarket}
-            >
-              {item.symbol} <b>{item.price}</b> <i>{item.change}</i>
-            </button>
-          ))}
-        </div>
         <span className={styles.tradeWallet}>
           <Wallet className="size-3.5" /> 0x91…0B
         </span>
@@ -574,6 +561,23 @@ function TradingDemo() {
 
         <div className={styles.tradeFloat}>
           <TelegramChat fixture={market.fixture} symbol={market.symbol} />
+        </div>
+      </div>
+
+      <div className={styles.tradeMarketBar}>
+        <span>SELECT MARKET</span>
+        <div className={styles.tickers}>
+          {Object.entries(tradeMarkets).map(([id, item]) => (
+            <button
+              type="button"
+              key={id}
+              className={id === selectedMarket ? styles.tickerSelected : ""}
+              onClick={() => setSelectedMarket(id as keyof typeof tradeMarkets)}
+              aria-pressed={id === selectedMarket}
+            >
+              {item.symbol} <b>{item.price}</b> <i>{item.change}</i>
+            </button>
+          ))}
         </div>
       </div>
       <figcaption>
