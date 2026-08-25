@@ -3,7 +3,6 @@
 import type { Chain } from "viem";
 import type {
   WalletEip712Payload,
-  WalletAaSignPayload,
   WalletSolanaSignMessagePayload,
   WalletSolanaSignPayload,
   WalletTxPayload,
@@ -53,8 +52,6 @@ export type AomiNetworkTarget =
   | { family: "evm"; chainId: number }
   | { family: "svm" | "solana"; networkId: string };
 export type AomiWalletKind = "eoa" | "smart-account";
-export type AomiAAMode = "none" | "4337" | "7702";
-export type AomiSponsorProvider = "alchemy" | "coinbase" | "self";
 export type SessionProvider = "para" | "privy" | "custom" | (string & {});
 export type EmbeddedProvider = "para" | "privy" | "aomi" | (string & {});
 export type AuthProviderId = SessionProvider | "none" | "baseAccount";
@@ -96,22 +93,6 @@ export type AomiSessionIdentity = {
   address?: string;
   /** Whether the connected account is an EOA or an always-AA smart account. */
   walletKind?: AomiWalletKind;
-  /** Default/current AA mode for the connected wallet context. */
-  aaMode?: AomiAAMode;
-  /** 4337 smart account address, populated after a 4337 tx resolves. */
-  SmartAccount4337?: string;
-  /** 7702 delegation contract address, populated after a 7702 tx resolves. */
-  Delegation7702?: string;
-  /** Whether gas is sponsored by a host-configured paymaster. */
-  sponsored?: boolean;
-  /** Which paymaster service is sponsoring, when `sponsored` is true. */
-  sponsorProvider?: AomiSponsorProvider;
-  /**
-   * Public, safe-to-expose identifier of the sponsor account on the paymaster
-   * platform (e.g. Alchemy gas policy id). Left undefined when the platform's
-   * binding is secret (API key, paymaster URL with embedded credential).
-   */
-  sponsorAccount?: string;
   chainId?: number;
   /**
    * Connected SVM (Solana) wallet pubkey, base58. Independent of
@@ -272,6 +253,11 @@ export type AomiTxResult = {
   Delegation7702?: string;
 };
 
+export type AomiTransactionExecution = {
+  /** Chain the caller already selected before invoking the transaction path. */
+  chainIdAlreadySelected?: number;
+};
+
 /**
  * Upstream wallet-provider credential the portal exchanges for an Aomi bearer.
  * Aliased to the client type (the same inline `@aomi-labs/client` edge already
@@ -371,17 +357,16 @@ export type AomiWalletKit = {
   switchChain?: (chainId: number) => Promise<void>;
   selectNetwork?: (target: AomiNetworkTarget) => Promise<void>;
 
-  sendTransaction?: (payload: WalletTxPayload) => Promise<AomiTxResult>;
+  sendTransaction?: (
+    payload: WalletTxPayload,
+    execution?: AomiTransactionExecution,
+  ) => Promise<AomiTxResult>;
   signTypedData?: (
     payload: WalletEip712Payload,
   ) => Promise<{ signature: string }>;
   signMessage?: (
     payload: WalletEip712Payload,
   ) => Promise<{ signature: string }>;
-  /** Sign a backend-prepared AA handoff without broadcasting from the browser. */
-  signAaRequests?: (
-    payload: WalletAaSignPayload,
-  ) => Promise<{ signatures: string[] }>;
   /**
    * Sign a Solana transaction with the user's wallet. Singular and
    * sign-only — apps submit the returned signed tx through their own

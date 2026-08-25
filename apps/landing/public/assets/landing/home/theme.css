@@ -1,0 +1,419 @@
+/*
+ * Static-home theme bridge derived from aomi-design/src/tokens/tokens.css.
+ * Source commit: 8c6a8b351a4154ad46580f79cff4340ca3253da5
+ * The homepage markup uses inline styles, so exact light-role values are
+ * remapped to the same semantic dark roles used by the React marketing pages.
+ */
+
+:root {
+  --landing-type-card-title: 23px;
+  --landing-type-card-title-line: 1.2;
+  --landing-type-body: 16.5px;
+  --landing-type-body-line: 1.65;
+  --landing-type-meta: 14px;
+  --landing-type-meta-line: 1.55;
+  --landing-theme-bg: #ffffff;
+  --landing-theme-surface: #ffffff;
+  --landing-theme-raised: #ffffff;
+  --landing-theme-subtle: #f4f4f5;
+  --landing-theme-text: #09090b;
+  --landing-theme-copy: #52525b;
+  --landing-theme-muted: #71717a;
+  --landing-theme-faint: #a1a1aa;
+  --landing-theme-border: #e4e4e7;
+  --landing-theme-blue-soft: #e2eef8;
+  --landing-theme-green-soft: #e5f4ed;
+  --landing-theme-pink-soft: #fbe4ef;
+  --landing-theme-glass-fill: rgba(255, 255, 255, 0.68);
+  --landing-theme-glass-strong: rgba(255, 255, 255, 0.82);
+  --landing-theme-glass-hover: rgba(255, 255, 255, 0.9);
+  --landing-theme-glass-border: rgba(255, 255, 255, 0.72);
+  --landing-theme-glass-highlight: rgba(255, 255, 255, 0.56);
+  --landing-theme-glass-shadow: rgba(9, 9, 11, 0.14);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --landing-theme-bg: #09090b;
+  --landing-theme-surface: #18181b;
+  --landing-theme-raised: #27272a;
+  --landing-theme-subtle: #202024;
+  --landing-theme-text: #fafafa;
+  --landing-theme-copy: #d4d4d8;
+  --landing-theme-muted: #a1a1aa;
+  --landing-theme-faint: #71717a;
+  --landing-theme-border: #27272a;
+  --landing-theme-blue-soft: #28354a;
+  --landing-theme-green-soft: #163f2d;
+  --landing-theme-pink-soft: #45202e;
+  --landing-theme-glass-fill: rgba(39, 39, 42, 0.62);
+  --landing-theme-glass-strong: rgba(39, 39, 42, 0.78);
+  --landing-theme-glass-hover: rgba(63, 63, 70, 0.82);
+  --landing-theme-glass-border: rgba(255, 255, 255, 0.15);
+  --landing-theme-glass-highlight: rgba(255, 255, 255, 0.18);
+  --landing-theme-glass-shadow: rgba(0, 0, 0, 0.42);
+}
+
+html[data-theme="dark"] body {
+  color: var(--landing-theme-text);
+  background: var(--landing-theme-bg);
+}
+
+html[data-theme="dark"]
+  [data-screen-label="Validation"]
+  img[src="/assets/logos/para.svg"],
+html[data-theme="dark"]
+  [data-screen-label="Validation"]
+  img[src="/assets/logos/world-markets.png"],
+html[data-theme="dark"]
+  [data-screen-label="Validation"]
+  img[src="/assets/logos/x.svg"] {
+  filter: grayscale(1) invert(1) !important;
+}
+
+html[data-theme="dark"]
+  div[data-screen-label="First page"]
+  > section[data-screen-label="Validation"],
+html[data-theme="dark"]
+  div[data-screen-label="First page"]
+  > section[data-screen-label="Feature matrix"] {
+  background: var(--landing-theme-bg) !important;
+}
+
+html[data-theme="dark"] [data-screen-label="Problem"],
+html[data-theme="dark"] [data-screen-label="Hosted runtime"],
+html[data-theme="dark"] [data-screen-label="Wallet agnostic"] {
+  background-color: var(--landing-theme-bg) !important;
+  background-image:
+    linear-gradient(rgba(82, 136, 194, 0.14) 0.5px, transparent 0.5px),
+    linear-gradient(90deg, rgba(82, 136, 194, 0.14) 0.5px, transparent 0.5px) !important;
+}
+
+html[data-theme="dark"]
+  div[data-screen-label="First page"]
+  > section[data-screen-label]:not([data-screen-label="Validation"]):not(
+    [data-screen-label="Problem"]
+  ):not([data-screen-label="Hosted runtime"]):not(
+    [data-screen-label="Wallet agnostic"]
+  ):not([data-screen-label="Feature matrix"]) {
+  background: linear-gradient(
+    90deg,
+    rgba(9, 9, 11, 0.18) 0%,
+    rgba(9, 9, 11, 0.64) 20%,
+    rgba(9, 9, 11, 0.88) 38%,
+    rgba(9, 9, 11, 0.88) 62%,
+    rgba(9, 9, 11, 0.64) 80%,
+    rgba(9, 9, 11, 0.18) 100%
+  ) !important;
+}
+
+html[data-theme="dark"] [style*="background:#fff"],
+html[data-theme="dark"] [style*="background: #fff"],
+html[data-theme="dark"] [style*="background:#ffffff"],
+html[data-theme="dark"] [style*="background: #ffffff"] {
+  background: var(--landing-theme-raised) !important;
+}
+
+html[data-theme="dark"]
+  :not(a):not(summary)[style*="background: rgb(255, 255, 255)"] {
+  background: var(--landing-theme-raised) !important;
+}
+
+html[data-theme="dark"] [style*="background:#fafafa"],
+html[data-theme="dark"] [style*="background: #fafafa"],
+html[data-theme="dark"] [style*="background:#f4f4f5"],
+html[data-theme="dark"] [style*="background: #f4f4f5"],
+html[data-theme="dark"] [style*="background: rgb(250, 250, 250)"],
+html[data-theme="dark"] [style*="background: rgb(244, 244, 245)"] {
+  background: var(--landing-theme-subtle) !important;
+}
+
+html[data-theme="dark"] [style*="background:#e2eef8"],
+html[data-theme="dark"] [style*="background: #e2eef8"],
+html[data-theme="dark"] [style*="background:#f1f7fc"],
+html[data-theme="dark"] [style*="background: #f1f7fc"],
+html[data-theme="dark"] [style*="background: rgb(226, 238, 248)"],
+html[data-theme="dark"] [style*="background: rgb(241, 247, 252)"] {
+  background: var(--landing-theme-blue-soft) !important;
+}
+
+html[data-theme="dark"] [style*="background:#e9f6f0"],
+html[data-theme="dark"] [style*="background: #e9f6f0"],
+html[data-theme="dark"] [style*="background:#effdde"],
+html[data-theme="dark"] [style*="background: #effdde"],
+html[data-theme="dark"] [style*="background: rgb(233, 246, 240)"],
+html[data-theme="dark"] [style*="background: rgb(239, 253, 222)"] {
+  background: var(--landing-theme-green-soft) !important;
+}
+
+html[data-theme="dark"] [style*="background:#fdf2f7"],
+html[data-theme="dark"] [style*="background: #fdf2f7"],
+html[data-theme="dark"] [style*="background: rgb(253, 242, 247)"] {
+  background: var(--landing-theme-pink-soft) !important;
+}
+
+html[data-theme="dark"] [style*="color:#09090b"],
+html[data-theme="dark"] [style*="color: #09090b"],
+html[data-theme="dark"] [style*="color:#111114"],
+html[data-theme="dark"] [style*="color: #111114"],
+html[data-theme="dark"] :not(a):not(summary)[style*="color: rgb(9, 9, 11)"],
+html[data-theme="dark"] :not(a):not(summary)[style*="color: rgb(17, 17, 20)"] {
+  color: var(--landing-theme-text) !important;
+}
+
+html[data-theme="dark"] [style*="color:#52525b"],
+html[data-theme="dark"] [style*="color: #52525b"],
+html[data-theme="dark"] [style*="color:#3f3f46"],
+html[data-theme="dark"] [style*="color: #3f3f46"],
+html[data-theme="dark"] [style*="color: rgb(82, 82, 91)"],
+html[data-theme="dark"] [style*="color: rgb(63, 63, 70)"] {
+  color: var(--landing-theme-copy) !important;
+}
+
+html[data-theme="dark"] [style*="color:#71717a"],
+html[data-theme="dark"] [style*="color: #71717a"],
+html[data-theme="dark"] [style*="color: rgb(113, 113, 122)"] {
+  color: var(--landing-theme-muted) !important;
+}
+
+html[data-theme="dark"] [style*="color:#a1a1aa"],
+html[data-theme="dark"] [style*="color: #a1a1aa"],
+html[data-theme="dark"] [style*="color: rgb(161, 161, 170)"] {
+  color: var(--landing-theme-faint) !important;
+}
+
+html[data-theme="dark"] [style*="#e4e4e7"],
+html[data-theme="dark"] [style*="#ececec"],
+html[data-theme="dark"] [style*="#dbdee1"],
+html[data-theme="dark"] [style*="rgb(228, 228, 231)"],
+html[data-theme="dark"] [style*="rgb(236, 236, 236)"],
+html[data-theme="dark"] [style*="rgb(219, 222, 225)"] {
+  border-color: var(--landing-theme-border) !important;
+}
+
+html[data-theme="dark"] header a[style*="background: rgb(255, 255, 255)"] {
+  color: #09090b !important;
+}
+
+html[data-theme="dark"] section[data-screen-label="Problem"],
+html[data-theme="dark"] section[data-screen-label="Hosted runtime"],
+html[data-theme="dark"] section[data-screen-label="Wallet agnostic"] {
+  background-color: var(--landing-theme-bg) !important;
+  background-image:
+    linear-gradient(rgba(161, 161, 170, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(161, 161, 170, 0.07) 1px, transparent 1px) !important;
+  background-position: center top !important;
+  background-size: 54px 54px !important;
+}
+
+.landing-nav-actions > a:last-child {
+  color: #09090b !important;
+  background: #ffffff !important;
+}
+
+.landing-liquid-command,
+.landing-liquid-control,
+.landing-liquid-popover {
+  border-color: var(--landing-theme-glass-border) !important;
+  background-color: var(--landing-theme-glass-fill) !important;
+  background-image: linear-gradient(
+    135deg,
+    var(--landing-theme-glass-highlight),
+    transparent 62%
+  ) !important;
+  box-shadow:
+    inset 0 1px 0 var(--landing-theme-glass-highlight),
+    0 16px 40px var(--landing-theme-glass-shadow) !important;
+  backdrop-filter: blur(20px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.4) !important;
+}
+
+.landing-liquid-popover {
+  background-color: var(--landing-theme-glass-strong) !important;
+}
+
+.landing-liquid-command-ink {
+  border-color: rgba(255, 255, 255, 0.28) !important;
+  background-color: rgba(9, 9, 11, 0.44) !important;
+  background-image: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.14),
+    transparent 62%
+  ) !important;
+}
+
+.landing-liquid-selector,
+.landing-liquid-expandable {
+  background-image: linear-gradient(
+    135deg,
+    var(--landing-theme-glass-highlight),
+    transparent 62%
+  ) !important;
+  box-shadow: inset 0 1px 0 var(--landing-theme-glass-highlight);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  transition:
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.landing-liquid-selector:not(.landing-surface-selector):not(
+    .landing-mode-selector
+  ):hover,
+.landing-liquid-expandable:hover {
+  background-color: var(--landing-theme-glass-hover) !important;
+  box-shadow:
+    inset 0 1px 0 var(--landing-theme-glass-highlight),
+    0 10px 28px var(--landing-theme-glass-shadow);
+  transform: translateY(-1px);
+}
+
+.landing-surface-selector {
+  background-image: none !important;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transform: none;
+  transition: none !important;
+}
+
+.landing-liquid-control.landing-mode-control {
+  position: relative;
+  isolation: isolate;
+  gap: 0 !important;
+  overflow: hidden;
+  border-color: #e4e4e7 !important;
+  background-color: #f4f4f5 !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.landing-liquid-control.landing-mode-control::before {
+  position: absolute;
+  z-index: 0;
+  inset: 3px auto 3px 3px;
+  width: 76px;
+  border-radius: 999px;
+  background: #5288c2;
+  box-shadow: none;
+  content: "";
+  pointer-events: none;
+  transition: transform 180ms ease;
+}
+
+.landing-liquid-control.landing-mode-control-terminal::before {
+  transform: translateX(100%);
+}
+
+.landing-liquid-selector.landing-mode-selector,
+.landing-liquid-selector.landing-mode-selector:hover {
+  position: relative;
+  z-index: 1;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-liquid-selector,
+  .landing-liquid-expandable,
+  .landing-liquid-control.landing-mode-control::before {
+    transition: none;
+  }
+}
+
+/* ---------- static-home typography guardrails ----------
+
+   The extracted homepage still contains inline presentation values. These
+   selectors assign semantic minimums to marketing copy while leaving terminal,
+   chart, and embedded-product fixtures at their deliberate UI scale. */
+
+[data-screen-label="First page"]
+  section[data-screen-label]
+  p:not([style*="font-family:'Geist Mono'"]) {
+  font-size: var(--landing-type-body) !important;
+  line-height: var(--landing-type-body-line) !important;
+}
+
+[data-screen-label="First page"] section[data-screen-label] h3,
+[data-screen-label="First page"] section[data-screen-label] h4,
+[data-screen-label="Feature matrix"]
+  .om-fm-cell
+  > div[style*="font-size:17px"] {
+  font-size: var(--landing-type-card-title) !important;
+  line-height: var(--landing-type-card-title-line) !important;
+}
+
+[data-screen-label="First page"]
+  section[data-screen-label]
+  [style*="text-transform:uppercase"][style*="font-size:11px"],
+[data-screen-label="First page"]
+  section[data-screen-label]
+  [style*="text-transform: uppercase"][style*="font-size: 11px"],
+[data-screen-label="First page"]
+  section[data-screen-label]
+  [style*="text-transform:uppercase"][style*="font-size:10.5px"],
+[data-screen-label="First page"]
+  section[data-screen-label]
+  [style*="text-transform: uppercase"][style*="font-size: 10.5px"],
+[data-screen-label="Validation"] [style*="font-size:12.5px"],
+[data-screen-label="Validation"] [style*="font-size: 12.5px"],
+[data-screen-label="Feature matrix"] [style*="font-size:12px"],
+[data-screen-label="Feature matrix"] [style*="font-size: 12px"],
+[data-screen-label="Value propositions"] a > span[style*="font-size:13.5px"],
+[data-screen-label="Value propositions"] a > span[style*="font-size: 13.5px"] {
+  font-size: var(--landing-type-meta) !important;
+  line-height: var(--landing-type-meta-line) !important;
+}
+
+[data-screen-label="Agent trace"]
+  > div
+  > div:first-child
+  [style*="font-size:13px"],
+[data-screen-label="Agent trace"]
+  > div
+  > div:first-child
+  [style*="font-size: 13px"],
+[data-screen-label="Wallet agnostic"]
+  > div
+  > div:last-child
+  [style*="font-size:13px"][style*="line-height:1.55"],
+[data-screen-label="Wallet agnostic"]
+  > div
+  > div:last-child
+  [style*="font-size: 13px"][style*="line-height: 1.55"],
+[data-screen-label="FAQ"] [style*="font-size:13.5px"],
+[data-screen-label="FAQ"] [style*="font-size: 13.5px"] {
+  font-size: var(--landing-type-body) !important;
+  line-height: var(--landing-type-body-line) !important;
+}
+
+[data-screen-label="Problem"] [style*="font-size:10.5px"],
+[data-screen-label="Problem"] [style*="font-size: 10.5px"],
+[data-screen-label="Problem"] [style*="font-size:11.5px"],
+[data-screen-label="Problem"] [style*="font-size: 11.5px"],
+[data-screen-label="Problem"] [style*="font-size:12px"],
+[data-screen-label="Problem"] [style*="font-size: 12px"],
+[data-screen-label="Problem"] [style*="font-size:12.5px"],
+[data-screen-label="Problem"] [style*="font-size: 12.5px"],
+[data-screen-label="Problem"] [style*="font-size:13px"],
+[data-screen-label="Problem"] [style*="font-size: 13px"],
+[data-screen-label="Feature matrix"] .om-fm-link,
+[data-screen-label="One install"]
+  > div[style*="font-size:12px"][style*="margin-top:20px"],
+[data-screen-label="One install"]
+  > div[style*="font-size: 12px"][style*="margin-top: 20px"],
+[data-screen-label="Footer"] p,
+[data-screen-label="Footer"] a,
+[data-screen-label="Footer"] [style*="text-transform:uppercase"],
+[data-screen-label="Footer"] [style*="text-transform: uppercase"] {
+  font-size: var(--landing-type-meta) !important;
+  line-height: var(--landing-type-meta-line) !important;
+}

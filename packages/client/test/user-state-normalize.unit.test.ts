@@ -20,11 +20,6 @@ describe("normalizeUserState null pruning", () => {
       evm: {
         address: "0xC764D92E312195114595cB645f31C38Fad9c14eE",
         chain_id: 1,
-        sponsorship: {
-          sponsored: false,
-          sponsor_provider: "self",
-          sponsor_account: null,
-        },
       },
       svm: {
         address: null,
@@ -41,12 +36,6 @@ describe("normalizeUserState null pruning", () => {
     expect(normalized?.svm?.cluster).toBe("solana:mainnet");
     // `is_connected` is preserved (it was a real boolean, not null).
     expect(normalized?.connection?.is_connected).toBe(true);
-    // Option fields keep their nulls — the backend accepts them (verified
-    // against staging: only `svm.capabilities: null` returned 400).
-    expect(normalized?.evm?.sponsorship).toMatchObject({
-      sponsored: false,
-      sponsor_provider: "self",
-    });
   });
 
   it("strips connection.is_connected when explicitly null (non-Option bool)", () => {
@@ -57,12 +46,19 @@ describe("normalizeUserState null pruning", () => {
     expect(normalized?.connection?.provider).toBe("para");
   });
 
-  it("preserves Option-field null tombstones (AA mode-exclusive clears)", () => {
+  it("strips backend-authority aa/sponsorship from evm", () => {
     const normalized = UserState.normalize({
-      evm: { address: "0xabc", aa: { mode: "4337", delegation_7702: null } },
-    });
-    // `delegation_7702: null` is a meaningful clear-signal; must survive.
-    expect(normalized?.evm?.aa).toHaveProperty("delegation_7702", null);
+      evm: {
+        address: "0xabc",
+        aa: { mode: "4337", delegation_7702: null },
+        sponsorship: { sponsored: true },
+      },
+    } as unknown as Parameters<typeof UserState.normalize>[0]);
+    // AA / sponsorship are resolved by the backend (execution-profile +
+    // per-execution), never carried in user_state.
+    expect(normalized?.evm).not.toHaveProperty("aa");
+    expect(normalized?.evm).not.toHaveProperty("sponsorship");
+    expect(UserState.address(normalized)).toBe("0xabc");
   });
 
   it("preserves an empty capabilities array (valid wire value)", () => {
@@ -72,13 +68,13 @@ describe("normalizeUserState null pruning", () => {
     expect(normalized?.svm?.capabilities).toEqual([]);
   });
 
-  it("keeps falsey-but-meaningful values (is_connected:false, chain_id:0 stays valid)", () => {
+  it("keeps falsey-but-meaningful values (is_connected:false stays valid)", () => {
     const normalized = UserState.normalize({
       connection: { is_connected: false },
-      evm: { address: "0xabc", sponsorship: { sponsored: false } },
+      evm: { address: "0xabc" },
     });
     expect(normalized?.connection).toEqual({ is_connected: false });
-    expect(normalized?.evm?.sponsorship).toEqual({ sponsored: false });
+    expect(normalized?.evm?.address).toBe("0xabc");
   });
 
   it("does not prune nulls inside free-form ext", () => {
@@ -108,6 +104,23 @@ describe("normalizeUserState evm wire shapes", () => {
       "0xC764D92E312195114595cB645f31C38Fad9c14eE",
     );
     expect(UserState.chainId(normalized)).toBe(1);
+  });
+
+  // First-entry-wins mirrors the backend's `EvmWalletState::primary()`
+  // (`self.wallets.first()`). A non-object first entry yields NO evm block:
+  // position zero is still the primary, and the FE must never silently
+  // select a later wallet in its place.
+  it("yields no evm block when the primary entry is not an object", () => {
+    const normalized = UserState.normalize({
+      connection: { is_connected: true },
+      evm: [
+        null,
+        { address: "0xC764D92E312195114595cB645f31C38Fad9c14eE", chain_id: 1 },
+      ],
+    } as unknown as Parameters<typeof UserState.normalize>[0]);
+
+    expect(UserState.address(normalized)).toBeUndefined();
+    expect(UserState.chainId(normalized)).toBeUndefined();
   });
 
   it("still reads the legacy object shape", () => {

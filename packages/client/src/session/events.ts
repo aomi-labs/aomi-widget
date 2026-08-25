@@ -8,12 +8,15 @@ import type {
 } from "../types";
 import type { UserState as UserStateShape } from "../user-state";
 import type { SessionEventMap } from "./types";
-import type { WalletAaSignPayload, WalletAaSignatureRequest } from "./types";
+import type {
+  WalletAaDisplayCall,
+  WalletAaFeeDisclosure,
+  WalletSignablePayload,
+  WalletSigningPayload,
+} from "./types";
 import type { SessionWalletController } from "./wallet";
 import {
   hydrateTxPayloadFromUserState,
-  normalizeEip712Payload,
-  normalizeSolanaSignMessagePayload,
   normalizeSolanaSignPayload,
   normalizeSolanaWalletRequest,
   normalizeTxPayload,
@@ -64,67 +67,173 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function normalizeAaSignatureRequest(
-  value: unknown,
-): WalletAaSignatureRequest | null {
-  if (!isRecord(value) || typeof value.raw_payload !== "string") return null;
-  if (value.kind === "personal_sign" && typeof value.message === "string") {
-    return {
-      kind: value.kind,
-      message: value.message,
-      raw_payload: value.raw_payload,
-    };
-  }
-  if (
-    value.kind === "eip7702_authorization" &&
-    typeof value.contract_address === "string" &&
-    typeof value.chain_id === "number" &&
-    typeof value.nonce === "number"
-  ) {
-    return {
-      kind: value.kind,
-      contract_address: value.contract_address,
-      chain_id: value.chain_id,
-      nonce: value.nonce,
-      raw_payload: value.raw_payload,
-    };
-  }
-  return null;
+/**
+ * A `0x`-prefixed hex string. AA owner/executor addresses, the calls digest,
+ * and the signing messages are all cast to `` `0x${string}` `` downstream and
+ * fed into the owner-equality guard and `signMessage({ message: { raw } })`, so
+ * a malformed value must be rejected here rather than trusted by the dialog.
+ */
+function isHexString(value: unknown): value is `0x${string}` {
+  return typeof value === "string" && /^0x[0-9a-fA-F]*$/.test(value);
 }
 
-function normalizeAaSignPayload(value: unknown): WalletAaSignPayload | null {
-  if (!isRecord(value)) return null;
-  const requests = Array.isArray(value.signature_requests)
-    ? value.signature_requests.map(normalizeAaSignatureRequest)
-    : [];
+function isEvmAddress(value: unknown): value is `0x${string}` {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value);
+}
+
+function normalizeAaCall(value: unknown): WalletAaDisplayCall | null {
   if (
-    value.chain_family !== "evm" ||
-    typeof value.chain_id !== "number" ||
-    typeof value.signer !== "string" ||
-    typeof value.executor !== "string" ||
-    (value.aa_mode !== "4337" && value.aa_mode !== "7702") ||
-    !Array.isArray(value.tx_ids) ||
-    !value.tx_ids.every((id) => typeof id === "number") ||
-    requests.length === 0 ||
-    requests.some((request) => request === null) ||
-    typeof value.description !== "string" ||
-    typeof value.sponsored !== "boolean"
+    !isRecord(value) ||
+    !isEvmAddress(value.to) ||
+    typeof value.value !== "string" ||
+    (value.data !== undefined && !isHexString(value.data))
   ) {
     return null;
   }
   return {
-    chain_family: "evm",
-    chain_id: value.chain_id,
+    to: value.to,
+    value: value.value,
+    ...(value.data !== undefined ? { data: value.data } : {}),
+  };
+}
+
+function normalizeAaFee(value: unknown): WalletAaFeeDisclosure | null {
+  if (
+    !isRecord(value) ||
+    !isRecord(value.asset) ||
+    typeof value.amount !== "string" ||
+    typeof value.recipient !== "string" ||
+    value.recipient.length === 0
+  ) {
+    return null;
+  }
+  const asset =
+    value.asset.kind === "native"
+      ? ({ kind: "native" } as const)
+      : (value.asset.kind === "token" || value.asset.kind === "erc20") &&
+          typeof (value.asset.address ?? value.asset.token) === "string" &&
+          String(value.asset.address ?? value.asset.token).length > 0
+        ? ({
+            kind: "token",
+            address: String(value.asset.address ?? value.asset.token),
+          } as const)
+        : null;
+  return asset
+    ? { asset, amount: value.amount, recipient: value.recipient }
+    : null;
+}
+
+function isOpaqueSigningRequestId(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    /^sign:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value,
+    )
+  );
+}
+
+function normalizeSignablePayload(
+  value: unknown,
+): WalletSignablePayload | null {
+  if (!isRecord(value)) return null;
+  if (value.kind === "evm_personal" && isHexString(value.message)) {
+    return { kind: value.kind, message: value.message };
+  }
+  if (value.kind === "evm_typed_data" && isRecord(value.typed_data)) {
+    return { kind: value.kind, typedData: value.typed_data };
+  }
+  if (
+    value.kind === "svm_message" &&
+    typeof value.message_base64 === "string"
+  ) {
+    return { kind: value.kind, messageBase64: value.message_base64 };
+  }
+  if (
+    value.kind === "svm_transaction" &&
+    typeof value.transaction_base64 === "string"
+  ) {
+    return { kind: value.kind, transactionBase64: value.transaction_base64 };
+  }
+  return null;
+}
+
+function normalizeSigningPayload(value: unknown): WalletSigningPayload | null {
+  if (!isRecord(value)) return null;
+  const payloads = Array.isArray(value.payloads)
+    ? value.payloads.map(normalizeSignablePayload)
+    : [];
+  const calls = Array.isArray(value.calls)
+    ? value.calls.map(normalizeAaCall)
+    : [];
+  const fees = Array.isArray(value.fees) ? value.fees.map(normalizeAaFee) : [];
+  const hasInvalidCalls =
+    (value.calls !== undefined && !Array.isArray(value.calls)) ||
+    calls.some((call) => call === null);
+  const hasInvalidFees =
+    (value.fees !== undefined && !Array.isArray(value.fees)) ||
+    fees.some(
+      (fee) =>
+        fee === null ||
+        !isEvmAddress(fee.recipient) ||
+        (fee.asset.kind === "token" && !isEvmAddress(fee.asset.address)),
+    );
+  const isErc4337 = value.executionKind === "erc4337";
+  if (
+    !isOpaqueSigningRequestId(value.requestId) ||
+    (value.chainFamily !== "evm" && value.chainFamily !== "svm") ||
+    (value.executionKind !== "message" &&
+      value.executionKind !== "transaction" &&
+      value.executionKind !== "erc4337") ||
+    (value.executionKind === "erc4337" && value.chainFamily !== "evm") ||
+    typeof value.signer !== "string" ||
+    typeof value.description !== "string" ||
+    payloads.length === 0 ||
+    payloads.some((payload) => payload === null) ||
+    payloads.some((payload) =>
+      value.chainFamily === "evm"
+        ? !payload?.kind.startsWith("evm_")
+        : !payload?.kind.startsWith("svm_"),
+    ) ||
+    hasInvalidCalls ||
+    hasInvalidFees ||
+    (isErc4337 &&
+      (typeof value.operationId !== "string" ||
+        !isEvmAddress(value.executor) ||
+        typeof value.expiresAt !== "string" ||
+        typeof value.callsDigest !== "string" ||
+        !/^0x[0-9a-fA-F]{64}$/.test(value.callsDigest) ||
+        value.sponsorship !== "required" ||
+        calls.length === 0 ||
+        fees.length === 0))
+  ) {
+    return null;
+  }
+  return {
+    requestId: value.requestId,
+    chainFamily: value.chainFamily,
+    executionKind: value.executionKind,
     signer: value.signer,
-    executor: value.executor,
-    aa_mode: value.aa_mode,
-    tx_ids: [...value.tx_ids],
-    signature_requests: requests as WalletAaSignatureRequest[],
     description: value.description,
-    sponsored: value.sponsored,
-    ...(typeof value.tx_id === "string" ? { tx_id: value.tx_id } : {}),
-    ...(typeof value.timestamp === "string"
-      ? { timestamp: value.timestamp }
+    payloads: payloads as WalletSignablePayload[],
+    ...(typeof value.chainId === "number" ? { chainId: value.chainId } : {}),
+    ...(typeof value.cluster === "string" ? { cluster: value.cluster } : {}),
+    ...(typeof value.broadcaster === "string"
+      ? { broadcaster: value.broadcaster }
+      : {}),
+    ...(typeof value.operationId === "string"
+      ? { operationId: value.operationId }
+      : {}),
+    ...(isHexString(value.executor) ? { executor: value.executor } : {}),
+    ...(typeof value.expiresAt === "string"
+      ? { expiresAt: value.expiresAt }
+      : {}),
+    ...(isHexString(value.callsDigest)
+      ? { callsDigest: value.callsDigest }
+      : {}),
+    ...(calls.length ? { calls: calls as WalletAaDisplayCall[] } : {}),
+    ...(fees.length ? { fees: fees as WalletAaFeeDisclosure[] } : {}),
+    ...(value.sponsorship === "required"
+      ? { sponsorship: "required" as const }
       : {}),
   };
 }
@@ -185,7 +294,7 @@ export function handleSessionSSEEvent(
     }
   } else if (
     event.type === "wallet_tx_request" ||
-    event.type === "wallet_eip712_request" ||
+    event.type === "wallet_signing_request" ||
     event.type.startsWith("wallet::solana_")
   ) {
     dispatchSystemEvents(
@@ -207,13 +316,7 @@ function dispatchSolanaRequest(
   deps: StateDeps,
 ): void {
   let queued: WalletRequest;
-  if (request.kind === "solana_sign_message") {
-    queued = deps.walletController.enqueue(request.kind, request.payload);
-    deps.emit("wallet_solana_sign_message_request", queued);
-  } else if (request.kind === "solana_sign") {
-    queued = deps.walletController.enqueue("solana_sign", request.payload);
-    deps.emit("wallet_solana_sign_request", queued);
-  } else if (request.kind === "solana_send") {
+  if (request.kind === "solana_send") {
     queued = deps.walletController.enqueue("solana_send", request.payload);
     deps.emit("wallet_solana_send_request", queued);
   } else {
@@ -233,11 +336,11 @@ function dispatchSystemEvents(
     const unwrapped = unwrapSystemEvent(event);
     if (!unwrapped) continue;
 
-    if (unwrapped.type === "wallet_aa_sign_request") {
-      const payload = normalizeAaSignPayload(unwrapped.payload);
+    if (unwrapped.type === "wallet_signing_request") {
+      const payload = normalizeSigningPayload(unwrapped.payload);
       if (payload) {
-        const req = deps.walletController.enqueue("aa_sign", payload);
-        deps.emit("wallet_aa_sign_request", req);
+        const req = deps.walletController.enqueue("signing", payload);
+        deps.emit("wallet_signing_request", req);
       }
     } else if (unwrapped.type === "wallet_tx_request") {
       const solanaRequest = normalizeSolanaWalletRequest(
@@ -256,28 +359,6 @@ function dispatchSystemEvents(
         const req = deps.walletController.enqueue("transaction", payload);
         deps.emit("wallet_tx_request", req);
       }
-    } else if (unwrapped.type === "wallet_eip712_request") {
-      const payload = normalizeEip712Payload(unwrapped.payload ?? {});
-      const req = deps.walletController.enqueue("eip712_sign", payload);
-      deps.emit("wallet_eip712_request", req);
-    } else if (unwrapped.type === "wallet::solana_sign_request") {
-      const solanaRequest = normalizeSolanaWalletRequest(
-        unwrapped.payload ?? {},
-      );
-      if (solanaRequest) {
-        dispatchSolanaRequest(solanaRequest, deps);
-        continue;
-      }
-
-      const payload = normalizeSolanaSignPayload(unwrapped.payload ?? {});
-      const req = deps.walletController.enqueue("solana_sign", payload);
-      deps.emit("wallet_solana_sign_request", req);
-    } else if (unwrapped.type === "wallet::solana_sign_message_request") {
-      const payload = normalizeSolanaSignMessagePayload(
-        unwrapped.payload ?? {},
-      );
-      const req = deps.walletController.enqueue("solana_sign_message", payload);
-      deps.emit("wallet_solana_sign_message_request", req);
     } else if (unwrapped.type === "wallet::solana_send_request") {
       const payload = normalizeSolanaSignPayload(unwrapped.payload ?? {});
       const req = deps.walletController.enqueue("solana_send", payload);

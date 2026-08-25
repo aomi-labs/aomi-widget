@@ -7,7 +7,7 @@ description: >
   guess, echo, or log credential values on the skill's own initiative;
   credential values may pass to the CLI only when the user has explicitly
   supplied them for a specific setup step they asked for.
-compatibility: "Requires @aomi-labs/client v0.1.30 or newer. Two invocation paths: (1) install globally — `npm install -g @aomi-labs/client` — and run as `aomi <command>`; (2) run on demand without installing — `npx @aomi-labs/client <command>`. Both accept the same flags and env vars; run `aomi --help` (or `npx @aomi-labs/client --help`) for the full list."
+compatibility: "Requires @aomi-labs/client v0.6.0 or newer. Two invocation paths: (1) install globally — `npm install -g @aomi-labs/client` — and run as `aomi <command>`; (2) run on demand without installing — `npx @aomi-labs/client <command>`. Both accept the same flags and env vars; run `aomi --help` (or `npx @aomi-labs/client --help`) for the full list."
 
 license: MIT
 allowed-tools: Bash(aomi:*), Bash(npx:*)
@@ -22,7 +22,7 @@ Use the CLI as an agent operating procedure, not as a long-running shell. Each `
 
 ## Invocation
 
-The skill targets `@aomi-labs/client` v0.1.30 or newer. Two equivalent ways to invoke it:
+The skill targets `@aomi-labs/client` v0.6.0 or newer. Two equivalent ways to invoke it:
 
 - **Globally installed** (recommended for repeated use): `npm install -g @aomi-labs/client`, then run `aomi <command>`.
 - **On demand via npx** (no install): `npx @aomi-labs/client <command>`. Same flags, same behavior, just longer to type.
@@ -95,7 +95,7 @@ aomi --prompt "hello" --new-session
 aomi session status 2>/dev/null || echo "no session"
 ```
 
-Expected: `aomi --version` prints `0.1.30` (or newer). If it prints something older, `npm install -g @aomi-labs/client@latest` (or `npx @aomi-labs/client@latest …` for one-shot use) before continuing.
+Expected: `aomi --version` prints `0.6.0` (or newer). If it prints something older, `npm install -g @aomi-labs/client@latest` (or `npx @aomi-labs/client@latest …` for one-shot use) before continuing.
 
 If the user is asking for a read-only result, that may be enough. If they want to build or sign a transaction, continue with the workflow below.
 
@@ -384,13 +384,14 @@ These persist state, so they are only run when the user explicitly asks and — 
 
 ```bash
 aomi wallet current             # skill-driven; safe to run freely
-aomi wallet set <key>           # user-directed only; the user supplies <key>
+aomi wallet set <key>           # user-directed only; the user supplies <key> (EVM hex)
+aomi wallet set --solana <key>  # user-directed only; Solana base58 key, --cluster optional
 aomi config current             # skill-driven; safe to run freely
 aomi config set-backend <url>   # user-directed only; changes where the CLI talks to
 ```
 
-- `aomi wallet current` shows the configured wallet address only, no credential.
-- `aomi wallet set` persists a signing key locally under `AOMI_STATE_DIR`. The skill may run it **only** when the user asked to configure a wallet and provided the key in this turn. After running, confirm with the derived address — do not repeat the key value back.
+- `aomi wallet current` shows the configured wallet addresses only, no credential. With `--json`, each entry carries `family: "evm"` or `family: "svm"` (matching the backend wire keys) plus `chainId`/`cluster`.
+- `aomi wallet set` persists a signing key locally under `AOMI_STATE_DIR`. The Solana form also persists the cluster (`solana:mainnet` unless `--cluster` says otherwise). The skill may run it **only** when the user asked to configure a wallet and provided the key in this turn. After running, confirm with the derived address — do not repeat the key value back.
 - `aomi config current` shows the backend URL.
 - `aomi config set-backend` repoints the CLI at a different backend. The skill runs it only when the user explicitly asked for that change.
 

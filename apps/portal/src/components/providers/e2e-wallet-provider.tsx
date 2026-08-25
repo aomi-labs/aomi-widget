@@ -174,7 +174,6 @@ export function E2EWalletProvider({
       isConnected: true,
       address: seed.address,
       walletKind: "eoa",
-      aaMode: "none",
       chainId: seed.chainId,
       svmAddress: seed.svmAddress,
       svmCluster: seed.svmCluster,
@@ -201,8 +200,6 @@ export function E2EWalletProvider({
       authVerifiedAt: Math.floor(Date.now() / 1000),
       primaryLabel: seed.address ? "E2E Wallet" : "E2E Solana Wallet",
       secondaryLabel: seed.address ?? seed.svmAddress,
-      sponsored: false,
-      sponsorProvider: "self",
     };
 
     return {

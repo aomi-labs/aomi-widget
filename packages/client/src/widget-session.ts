@@ -10,6 +10,8 @@ import { buildSiwsMessage, type SiwsChainId } from "./siws";
  * seconds value the refresh math assumes. Mirrors account-session.ts.
  */
 const EXPIRES_AT_MILLISECONDS_THRESHOLD = 100_000_000_000;
+const MAX_WIDGET_CHALLENGE_LIFETIME_MS = 10 * 60 * 1000;
+const MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS = 60 * 1000;
 
 export type WidgetAuthSession = {
   accessToken: string;
@@ -155,6 +157,7 @@ function createSignedChallengeAdapter<
         joinUrl(baseUrl, config.noncePath),
         { wallet_address: signer.address, chain_id: signer.chainId },
       );
+      assertChallengeBinding(challenge);
       const message = config.buildMessage({ signer, challenge });
       const signature = await signer.signMessage(message);
       return exchangeJson(fetchImpl, joinUrl(baseUrl, config.verifyPath), {
@@ -246,6 +249,14 @@ export function createWidgetSessionProvider(input: {
   let latestResolvedFingerprint:
     | { requestId: number; fingerprint: string }
     | null = null;
+  // A generic HTTP 401 does not prove the WST is expired. Both AomiClient and
+  // widget-lib's account client retry 401s with `forceRefresh: true`; without a
+  // generation guard, a persistent authorization/configuration 401 revokes a
+  // perfectly fresh WST and opens another wallet signature prompt on every
+  // request. Remember the token minted by the last forced renewal and reuse it
+  // until natural expiry. This preserves one recovery attempt for a genuinely
+  // revoked token while bounding an unrelated persistent 401 to one prompt.
+  let lastForcedAccessToken: string | null = null;
   const listeners = new Set<() => void>();
 
   const notify = () => {
@@ -290,9 +301,20 @@ export function createWidgetSessionProvider(input: {
       };
     }
     latestFingerprint = fingerprint;
+    if (pending?.fingerprint === fingerprint) {
+      return (await pending.promise).accessToken;
+    }
     const refreshAt = cached
       ? cached.expiresAt * 1000 - refreshBeforeExpiryMs
       : 0;
+    if (
+      forceRefresh &&
+      cached?.fingerprint === fingerprint &&
+      cached.accessToken === lastForcedAccessToken &&
+      now() < refreshAt
+    ) {
+      return cached.accessToken;
+    }
     if (
       !forceRefresh &&
       cached?.fingerprint === fingerprint &&
@@ -300,12 +322,23 @@ export function createWidgetSessionProvider(input: {
     ) {
       return cached.accessToken;
     }
-    if (cached) {
-      const stale = cached;
+    const stale = cached;
+    const retainStaleDuringForcedExchange = Boolean(
+      forceRefresh &&
+        stale?.fingerprint === fingerprint &&
+        now() < refreshAt,
+    );
+    if (retainStaleDuringForcedExchange && stale) {
+      // Mark the attempt before prompting. If signing or verification fails,
+      // the old cache stays in place and another generic 401 cannot immediately
+      // open the same prompt again.
+      lastForcedAccessToken = stale.accessToken;
+    } else if (stale) {
       cached = null;
       void revokeSession(stale);
     }
     if (!pending || pending.fingerprint !== fingerprint) {
+      const forcedExchange = forceRefresh;
       const promise = adapter
         .exchange({ baseUrl: input.baseUrl, fetch: fetchImpl })
         .then(async (session) => {
@@ -322,6 +355,10 @@ export function createWidgetSessionProvider(input: {
             throw new Error("Widget session exchange was superseded");
           }
           cached = { ...session, fingerprint };
+          lastForcedAccessToken = forcedExchange ? session.accessToken : null;
+          if (retainStaleDuringForcedExchange && stale) {
+            void revokeSession(stale);
+          }
           notify();
           return session;
         });
@@ -344,6 +381,7 @@ export function createWidgetSessionProvider(input: {
     cached = null;
     pending = null;
     latestResolvedFingerprint = null;
+    lastForcedAccessToken = null;
     notify();
     if (session) await revokeSession(session);
   };
@@ -361,6 +399,7 @@ export function createWidgetSessionProvider(input: {
       cached = null;
       pending = null;
       latestResolvedFingerprint = null;
+      lastForcedAccessToken = null;
       notify();
       listeners.clear();
     },
@@ -381,6 +420,92 @@ type Challenge = {
   issuedAt: string;
   expirationTime: string;
 };
+
+/**
+ * Never blind-sign an authentication message.
+ *
+ * The message the wallet signs is built entirely from this server-supplied
+ * challenge, so a compromised or misrouted upstream could otherwise hand the
+ * user a signature bound to an attacker's domain, a stale nonce, or an
+ * already-expired session. The Portal mints the challenge from the caller's
+ * exact Origin (domain = host, uri = origin, no rewriting), which makes this
+ * checkable client-side with zero configuration:
+ *
+ * - `uri` must be the origin this page is running on, and `domain` its host.
+ *   In a browser that is `window.location`; in non-browser runtimes (tests,
+ *   node scripts) there is no ambient origin to bind to, so the origin checks
+ *   are skipped and only nonce/expiry hold.
+ * - `nonce` must be present; `issuedAt` / `expirationTime` must describe a
+ *   currently valid, bounded challenge window. Portal issues five-minute
+ *   challenges; ten minutes leaves deployment skew without accepting an
+ *   attacker-controlled long-lived signing request.
+ *
+ * Throwing here means the wallet prompt never appears — strictly better than
+ * a signed-then-rejected round trip, and it restores default-on the guard
+ * partner hosts (agentic-somm's deleted `assertSiweMessage`) used to carry
+ * one-per-host.
+ */
+export class WidgetChallengeBindingError extends Error {
+  constructor(message: string) {
+    super(`Widget challenge rejected before signing: ${message}`);
+    this.name = "WidgetChallengeBindingError";
+  }
+}
+
+function assertChallengeBinding(challenge: Challenge): void {
+  if (!challenge.nonce?.trim()) {
+    throw new WidgetChallengeBindingError("challenge has no nonce");
+  }
+  const now = Date.now();
+  const issued = Date.parse(challenge.issuedAt);
+  if (Number.isNaN(issued)) {
+    throw new WidgetChallengeBindingError(
+      "challenge has no parseable issuedAt",
+    );
+  }
+  if (issued > now + MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS) {
+    throw new WidgetChallengeBindingError("challenge was issued in the future");
+  }
+  const expires = Date.parse(challenge.expirationTime);
+  if (Number.isNaN(expires)) {
+    throw new WidgetChallengeBindingError(
+      "challenge has no parseable expirationTime",
+    );
+  }
+  if (expires <= now) {
+    throw new WidgetChallengeBindingError("challenge is already expired");
+  }
+  if (
+    expires <= issued ||
+    expires - issued > MAX_WIDGET_CHALLENGE_LIFETIME_MS
+  ) {
+    throw new WidgetChallengeBindingError(
+      "challenge validity window is not bounded",
+    );
+  }
+
+  const pageOrigin =
+    typeof window !== "undefined" && window.location?.origin
+      ? window.location.origin
+      : null;
+  if (!pageOrigin) return; // no ambient origin to bind to (non-browser runtime)
+
+  // Same-origin transports (baseUrl "" or a path) serve the page's own origin;
+  // an absolute cross-origin baseUrl (a host talking to the Portal directly)
+  // is CORS-gated to this page's origin, and the Portal echoes the caller's
+  // Origin — so in BOTH shapes the challenge must name this page.
+  if (challenge.uri !== pageOrigin) {
+    throw new WidgetChallengeBindingError(
+      `challenge uri "${challenge.uri}" is not this page's origin "${pageOrigin}"`,
+    );
+  }
+  const pageHost = new URL(pageOrigin).host;
+  if (challenge.domain !== pageHost) {
+    throw new WidgetChallengeBindingError(
+      `challenge domain "${challenge.domain}" is not this page's host "${pageHost}"`,
+    );
+  }
+}
 
 async function challengeJson(
   fetchImpl: typeof fetch,

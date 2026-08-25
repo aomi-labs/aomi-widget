@@ -2,6 +2,7 @@ import "server-only";
 
 import { execRun, resourceGet, toolCall } from "@portal/server/mcp/backend";
 import { mcpThreadId } from "@portal/server/mcp/thread";
+import type { McpToolDef, ToolOutcome } from "@portal/server/mcp/rpc";
 
 /**
  * The resident Aomi MCP tool surface — same seven tools and broad→narrow
@@ -11,12 +12,6 @@ import { mcpThreadId } from "@portal/server/mcp/thread";
  * thread-scoped kernel syscall. No per-session server state; callers pass
  * `app` explicitly (select_app returns context, it does not mutate).
  */
-export type McpToolDef = {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-};
-
 const APP_PROPERTY = {
   type: "string",
   description:
@@ -207,8 +202,6 @@ export const MCP_TOOLS: McpToolDef[] = [
 ];
 
 type ToolArgs = Record<string, unknown>;
-
-export type ToolOutcome = { result: unknown; isError: boolean };
 
 export async function dispatchTool(
   canonicalUserId: string,

@@ -1,4 +1,10 @@
-import type { AomiAppDescriptor } from "./types";
+import type { AomiAppDescriptor, AomiArtifactStatus } from "./types";
+
+const ARTIFACT_STATUSES = new Set<AomiArtifactStatus>([
+  "ready",
+  "pending",
+  "fetch_backoff",
+]);
 
 /**
  * Canonical home for app-descriptor identity logic. The backend speaks
@@ -56,6 +62,13 @@ export function normalizeAppDescriptor(
   } else if (typeof raw.artifact_ready === "boolean") {
     descriptor.artifactReady = raw.artifact_ready;
   }
+  const artifactStatus = raw.artifactStatus ?? raw.artifact_status;
+  if (
+    typeof artifactStatus === "string" &&
+    ARTIFACT_STATUSES.has(artifactStatus as AomiArtifactStatus)
+  ) {
+    descriptor.artifactStatus = artifactStatus as AomiArtifactStatus;
+  }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
   const rawChainIds = raw.chainIds ?? raw.chain_ids;
   if (Array.isArray(rawChainIds)) {
@@ -80,6 +93,7 @@ export function normalizeAppDescriptor(
     "is_active",
     "is_public",
     "artifact_ready",
+    "artifact_status",
     "chain_ids",
   ]) {
     delete (descriptor as unknown as Record<string, unknown>)[key];

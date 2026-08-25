@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { UserState, useUser } from "@aomi-labs/react";
+import { useUser } from "@aomi-labs/react";
 import { AomiWalletKitContextProvider } from "../context";
 import type { AomiAccount, AomiWalletKit } from "../types";
 import { EVM_IDENTITY_GRACE_MS, REGISTRY_STORAGE_KEY } from "../registry/types";
@@ -27,9 +27,6 @@ export function AomiWalletKitComposer({
   supportedChains,
 }: AomiWalletKitComposerProps) {
   const { user } = useUser();
-  const userAAMode = UserState.aaMode(user);
-  const userSmartAccount4337 = UserState.SmartAccount4337(user);
-  const userDelegation7702 = UserState.Delegation7702(user);
   const [evmIdentityGraceVersion, bumpEvmIdentityGrace] = useState(0);
   const { registryStore, registryState } = evm;
 
@@ -148,16 +145,6 @@ export function AomiWalletKitComposer({
       isBooting,
       isConnected,
       svm,
-      aa: {
-        aaMode: userAAMode ?? "none",
-        SmartAccount4337: userSmartAccount4337 ?? undefined,
-        Delegation7702: userDelegation7702 ?? undefined,
-      },
-      sponsorship: {
-        sponsored: execution.sponsorship.sponsored,
-        sponsorProvider: execution.sponsorship.sponsorProvider,
-        sponsorAccount: execution.sponsorship.sponsorAccount,
-      },
       walletName: gracefulEvmIdentity.identity.walletName,
       walletSource: gracefulEvmIdentity.identity.walletSource,
     });
@@ -211,7 +198,6 @@ export function AomiWalletKitComposer({
       sendTransaction: execution.evm.sendTransaction,
       signTypedData: execution.evm.signTypedData,
       signMessage: execution.evm.signMessage,
-      signAaRequests: execution.evm.signAaRequests,
       getAccountCredential:
         auth.status === "authenticated" ? auth.getCredential : undefined,
       getAccountBearer: account.getAccountBearer,
@@ -248,9 +234,6 @@ export function AomiWalletKitComposer({
     svm,
     supportedChains,
     transformAccounts,
-    userAAMode,
-    userDelegation7702,
-    userSmartAccount4337,
   ]);
 
   return (

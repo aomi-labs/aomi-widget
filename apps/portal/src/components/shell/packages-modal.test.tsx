@@ -254,4 +254,26 @@ describe("chain-scoped package rows", () => {
     );
     expect(button).toBeDisabled();
   });
+
+  it("keeps chain-scoped installation disabled while the wallet chain is unknown", () => {
+    const app = toCatalogPackage({
+      name: "stablefx",
+      chainIds: [5_042_002],
+    });
+
+    render(
+      <PackageRow
+        app={app}
+        installed={false}
+        busy={false}
+        disabled={false}
+        onInstall={() => undefined}
+        onUninstall={() => undefined}
+      />,
+    );
+
+    expect(
+      screen.getByLabelText("Switch to Arc Testnet to install Circle StableFX"),
+    ).toBeDisabled();
+  });
 });

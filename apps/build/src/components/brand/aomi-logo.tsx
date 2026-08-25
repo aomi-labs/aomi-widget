@@ -14,18 +14,18 @@ type AomiLogoProps = {
 export function AomiMark({ className }: { className?: string }) {
   return (
     <svg
-      viewBox="0 0 208 208"
+      viewBox="0 0 362 362"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
       className={cn("text-foreground shrink-0", className)}
     >
       <path
-        d="M184.214 54.146C184.214 37.0059 170.37 23.1111 153.293 23.1111C136.215 23.1111 122.371 37.0059 122.371 54.146C122.371 71.2861 136.215 85.1809 153.293 85.1809C170.37 85.1809 184.214 71.2861 184.214 54.146ZM207.241 54.146C207.241 84.0501 183.088 108.292 153.293 108.292C123.498 108.292 99.3442 84.0501 99.3442 54.146C99.3442 24.242 123.498 7.65756e-07 153.293 0C183.088 0 207.241 24.242 207.241 54.146Z"
+        d="M321.778 94.2349C321.778 64.4045 297.595 40.2222 267.765 40.2222C237.935 40.2222 213.752 64.4045 213.752 94.2349C213.752 124.065 237.935 148.248 267.765 148.248C297.595 148.248 321.778 124.065 321.778 94.2349ZM362 94.2349C362 146.279 319.81 188.47 267.765 188.47C215.721 188.47 173.53 146.279 173.53 94.2349C173.53 42.1904 215.721 1.33271e-06 267.765 0C319.81 0 362 42.1904 362 94.2349Z"
         fill="currentColor"
       />
       <path
-        d="M103.621 0C105.791 0 107.946 0.0668813 110.084 0.198934C108.49 1.57713 106.96 3.02745 105.499 4.54484C97.8939 11.9278 91.9814 21.0558 88.4036 31.2867C54.8263 38.3294 29.6059 68.2082 29.6059 104C29.6059 145.027 62.7434 178.286 103.621 178.286C139.282 178.286 169.051 152.973 176.068 119.272C186.268 115.679 195.367 109.74 202.726 102.101C204.233 100.638 205.674 99.1078 207.042 97.5132C207.174 99.6585 207.241 101.821 207.241 104C207.241 161.438 160.849 208 103.621 208C46.3925 208 0 161.438 0 104C0 46.5624 46.3925 0 103.621 0Z"
+        d="M181 0C184.792 0 188.556 0.116399 192.289 0.346221C189.506 2.74481 186.833 5.26892 184.28 7.90977C170.997 20.759 160.669 36.6452 154.42 54.4509C95.7682 66.7078 51.7143 118.709 51.7143 181C51.7143 252.403 109.597 310.286 181 310.286C243.292 310.286 295.291 266.231 307.547 207.58C325.364 201.327 341.259 190.99 354.113 177.695C356.745 175.149 359.261 172.486 361.653 169.71C361.883 173.444 362 177.208 362 181C362 280.964 280.964 362 181 362C81.0365 362 0 280.964 0 181C0 81.0365 81.0365 0 181 0Z"
         fill="currentColor"
       />
     </svg>
@@ -43,19 +43,22 @@ export function AomiLogo({
   const content = (
     <div
       className={cn(
-        "flex min-w-0 items-center",
-        markOnly ? "justify-center" : "gap-2.5",
+        "flex min-w-0 items-center text-[11px]",
+        markOnly ? "justify-center" : "gap-[0.34em]",
         className,
       )}
     >
-      <AomiMark className={cn("h-5 w-5", markClassName)} />
+      <AomiMark className={cn("size-[1em]", markClassName)} />
       {!markOnly && (
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className="text-foreground truncate text-[13px] font-semibold leading-none">
-            Aomi
+          <span
+            className="text-foreground truncate text-[1em] font-semibold leading-none tracking-[-0.025em]"
+            style={{ fontFamily: "var(--aomi-font-wordmark)" }}
+          >
+            aomi
           </span>
           {showBuildLabel ? (
-            <span className="bg-surface-2 text-subtle shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
+            <span className="bg-surface-2 text-subtle flex h-[11px] shrink-0 items-center rounded-sm px-1 text-[7px] font-medium uppercase leading-none tracking-wide">
               Build
             </span>
           ) : null}

@@ -6,8 +6,8 @@ import {
   walletSnapshotFromUserState,
 } from "../../src/cli/user-state";
 
-describe("CLI user state AA fields", () => {
-  it("builds explicit null AA state by default", () => {
+describe("buildCliUserState", () => {
+  it("builds an EVM-only block from an explicit address", () => {
     expect(buildCliUserState("0xabc", 8453)).toMatchObject({
       connection: {
         is_connected: true,
@@ -20,30 +20,27 @@ describe("CLI user state AA fields", () => {
     });
   });
 
-  it("builds Solana user state when the active app is svm", () => {
+  it("builds a Solana-only block from an explicit svm address", () => {
     expect(
-      buildCliUserState(
-        "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
-        undefined,
-        {
-          app: "svm",
-        },
-      ),
+      buildCliUserState(undefined, undefined, {
+        svmAddress: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
+        svmCluster: "solana:mainnet",
+      }),
     ).toMatchObject({
       connection: {
         is_connected: true,
       },
       svm: {
         address: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
+        cluster: "solana:mainnet",
       },
       ext: { client_type: "ts_cli" },
     });
   });
 
-  it("builds both wallet contexts for the chain-inclusive default app", () => {
+  it("builds both wallet blocks when both addresses are configured", () => {
     expect(
       buildCliUserState("0xabc", 8453, {
-        app: "default",
         svmAddress: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
         svmCluster: "solana:devnet",
       }),
@@ -57,21 +54,35 @@ describe("CLI user state AA fields", () => {
     });
   });
 
-  it("round-trips 4337 smart-account context", () => {
+  it("never injects a cluster the caller did not resolve", () => {
+    const state = buildCliUserState(undefined, undefined, {
+      svmAddress: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
+    });
+    expect(state.svm).toEqual({
+      address: "6ihjJiFMrn8VM1HLX8EMqAt8Ym8JxZCqxBai2bYHviZG",
+    });
+  });
+
+  it("emits no wallet blocks and no connection without addresses", () => {
+    expect(buildCliUserState()).toEqual({
+      ext: { client_type: "ts_cli" },
+    });
+  });
+
+  it("snapshots owner/chain only and ignores backend-authority aa", () => {
     const snapshot = walletSnapshotFromUserState({
       connection: { is_connected: true },
       evm: {
         address: "0xabc",
         chain_id: 8453,
+        // aa is backend authority; even if present it must not surface here.
         aa: { mode: "4337", smart_account: "0xabc" },
       },
-    });
+    } as unknown as Parameters<typeof walletSnapshotFromUserState>[0]);
 
     expect(snapshot).toEqual({
       publicKey: "0xabc",
       chainId: 8453,
-      aaMode: "4337",
-      smartAccount: "0xabc",
     });
   });
 });
@@ -112,6 +123,31 @@ describe("pendingTxsFromBackendUserState", () => {
     expect(result[0].data).toBe("0xa9059cbb0000000000000000000000001234");
     expect(result[0].payload).toMatchObject({
       data: "0xa9059cbb0000000000000000000000001234",
+    });
+  });
+
+  it("retains the authoritative staged sender", () => {
+    const result = pendingTxsFromBackendUserState({
+      pending: {
+        evm_txs: {
+          4: {
+            from: "0x1234567890abcdef1234567890abcdef12345678",
+            to: "0x742d35Cc6634C0532925a3b844Bc9e7595f33749",
+            value: "0",
+            data: "0x",
+            kind: "contract_call",
+            chain_id: 4326,
+          },
+        },
+      },
+    });
+
+    expect(result[0]).toMatchObject({
+      from: "0x1234567890AbcdEF1234567890aBcdef12345678",
+      chainId: 4326,
+    });
+    expect(result[0].payload).toMatchObject({
+      from: "0x1234567890AbcdEF1234567890aBcdef12345678",
     });
   });
 

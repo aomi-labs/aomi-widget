@@ -124,7 +124,7 @@
 
 - [x] Delete dead `packages/auth/src/service/siwe-mirror.ts` (1-line re-export, no importers).
 - [x] Delete scratch files: `tmp-v2-report.md`, `memory/2026-04-01.md`. Add `tmp*.md` to `.gitignore`.
-- [x] `tmp.md`: keep but rename to [`docs/generated/userstate-shape-reference.md`](../docs/generated/userstate-shape-reference.md) and update the test comment that cites it (`packages/client/test/cli/cli-e2e-user-state.unit.test.ts`).
+- [x] `tmp.md`: renamed to `docs/generated/userstate-shape-reference.md` and later deleted once its generated shape reference became stale; the test comment that cited it was removed too.
 - [x] Delete vestigial [`apps/portal/service.portal.toml`](../apps/portal/service.portal.toml) (NOT loaded — `topology-data.ts` is the live source) or add a header noting it is documentation-only.
 - [x] Gate `/dev/widget-auth-e2e` behind `NODE_ENV !== "production"` (Hardhat test keys ship to a prod route otherwise).
 - [x] Gate the unconditional `console.debug("[RuntimeTxHandler] … solana_sign_message …")` behind `walletDebug()` like the portal-fetch path.
@@ -231,7 +231,7 @@ this pass did not exercise a browser wallet/widget login.
 
 ### Rename
 
-- [x] `tmp.md` → [`docs/generated/userstate-shape-reference.md`](../docs/generated/userstate-shape-reference.md) (3 referrers incl. a test — update `packages/client/test/cli/cli-e2e-user-state.unit.test.ts`). _(also §5)_
+- [x] `tmp.md` → `docs/generated/userstate-shape-reference.md`, later deleted as stale after its remaining referrers were updated. _(also §5)_
 
 ### Consolidate (genuine overlap)
 

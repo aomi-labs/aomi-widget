@@ -11,7 +11,7 @@ describe("AomiClient route manifest", () => {
         `${endpoint.method} ${endpoint.path} [${endpoint.auth.join(", ")}]`,
     );
 
-    expect(routeKeys).toHaveLength(139);
+    expect(routeKeys).toHaveLength(155);
     expect(new Set(routeKeys).size).toBe(routeKeys.length);
     expect(routeKeys).toContain("GET /api/account/statement [account]");
     // Public placement probe. Kept distinct from GET /health, which stays a
@@ -62,6 +62,18 @@ describe("AomiClient route manifest", () => {
     );
     expect(routeKeys).toContain(
       "POST /api/platforms/:name/telegram/handover/:bot/:id/revoke [activation]",
+    );
+    // Routes production still serves that the candidate backend no longer
+    // exports. The promotion gate requires the manifest to cover every live
+    // route, so these stay until prod stops serving them.
+    expect(routeKeys).toContain("GET /api/secrets [thread]");
+    expect(routeKeys).toContain("POST /api/secrets [thread]");
+    expect(routeKeys).toContain("DELETE /api/secrets/:name [thread]");
+    expect(routeKeys).toContain(
+      "GET /api/widget/v1/execution-profile [account, thread]",
+    );
+    expect(routeKeys).toContain(
+      "PUT /api/widget/v1/aa-accounts/:chain_id [account, thread]",
     );
     expect(routeKeys).not.toContain("GET /api/control/apps [session]");
     expect(routeKeys.some((route) => route.includes("/api/control/"))).toBe(
@@ -447,7 +459,7 @@ describe("AomiClient app catalog", () => {
     vi.restoreAllMocks();
   });
 
-  it("passes platform filters and normalizes artifact readiness", async () => {
+  it("passes application and platform filters and normalizes artifact availability", async () => {
     const response = {
       ok: true,
       status: 200,
@@ -457,7 +469,9 @@ describe("AomiClient app catalog", () => {
           name: "somm-agent",
           application_id: 42,
           platform: "somm.finance",
-          artifact_ready: true,
+          artifact_ready: false,
+          artifact_status: "fetch_backoff",
+          chain_ids: [5_042_002, 1, 5_042_002, 0, -1, "8453"],
         },
       ]),
     } as unknown as Response;
@@ -469,21 +483,60 @@ describe("AomiClient app catalog", () => {
       const client = new AomiClient({ baseUrl: "http://unit.test" });
 
       const apps = await client.getApps("session-1", {
+        applicationId: 42,
         platforms: ["somm.finance", "community"],
       });
 
       expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
-        "http://unit.test/api/thread/apps?platform=somm.finance&platform=community",
+        "http://unit.test/api/thread/apps?platform=somm.finance&platform=community&application_id=42",
       );
       expect(apps).toEqual([
         {
           name: "somm-agent",
           applicationId: 42,
           platform: "somm.finance",
-          artifactReady: true,
+          artifactReady: false,
+          artifactStatus: "fetch_backoff",
+          chainIds: [1, 5_042_002],
           secrets: [],
         },
       ]);
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("routes models and system events by application id", async () => {
+    const responses = [
+      {
+        ok: true,
+        status: 200,
+        json: vi.fn(async () => ["gpt-5"]),
+      },
+      {
+        ok: true,
+        status: 200,
+        json: vi.fn(async () => []),
+      },
+    ] as unknown as Response[];
+    const nativeFetch = vi.fn(async () => responses.shift() as Response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await client.getModels("session-1", { applicationId: 2936606 });
+      await client.getSystemEvents("session-1", 25, {
+        applicationId: 2936606,
+      });
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/thread/models?application_id=2936606",
+      );
+      expect(String(nativeFetch.mock.calls[1]?.[0])).toBe(
+        "http://unit.test/api/thread/events?count=25&application_id=2936606",
+      );
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
@@ -902,7 +955,7 @@ describe("AomiClient transport selection", () => {
     }
   });
 
-  it("canonicalizes legacy solana_sigs into svm_sigs and strips bulky svm sign payloads during fetchState", async () => {
+  it("forwards the owned user_state on fetchState without a backend-authority pending block", async () => {
     const nativeResponse = {
       ok: true,
       status: 200,
@@ -918,18 +971,7 @@ describe("AomiClient transport selection", () => {
 
       await client.fetchState("session-1", {
         connection: { is_connected: true },
-        solana: { address: "Bv9abc", cluster: "solana:mainnet" },
-        pending: {
-          solana_sigs: {
-            1: {
-              signer: "Bv9abc",
-              description: "swap",
-              unsignedTx: "AQID",
-              pendingSvmSigId: 1,
-              kind: "solana_sign",
-            },
-          },
-        },
+        svm: { address: "Bv9abc", cluster: "solana:mainnet" },
       });
 
       const url = String(nativeFetch.mock.calls[0]?.[0]);
@@ -937,19 +979,17 @@ describe("AomiClient transport selection", () => {
       const userState = JSON.parse(
         parsed.searchParams.get("user_state") ?? "{}",
       );
-      // Legacy `solana_sigs` is canonicalized into `svm_sigs`; the bulky
-      // `unsignedTx` is stripped while correlation ids are preserved.
-      expect(userState.pending.solana_sigs).toBeUndefined();
-      // Bucket entries are snake-cased to match the backend input contract.
-      expect(userState.pending.svm_sigs["1"].unsigned_tx).toBeUndefined();
-      expect(userState.pending.svm_sigs["1"].unsignedTx).toBeUndefined();
-      expect(userState.pending.svm_sigs["1"].pending_svm_sig_id).toBe(1);
+      // `pending` is backend-authority in-flight state; the outbound payload
+      // (OwnedUserState) never carries it back.
+      expect(userState).not.toHaveProperty("pending");
+      expect(userState.connection.is_connected).toBe(true);
+      expect(userState.svm.address).toBe("Bv9abc");
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
   });
 
-  it("strips bulky pending payloads from sendMessage user_state URLs", async () => {
+  it("forwards the owned user_state on sendMessage without a backend-authority pending block", async () => {
     const chatResponse = {
       ok: true,
       status: 200,
@@ -966,29 +1006,14 @@ describe("AomiClient transport selection", () => {
       userState: {
         connection: { is_connected: true },
         evm: { address: "0xabc", chain_id: 1 },
-        pending: {
-          evm_sigs: {
-            7: {
-              signer: "0xabc",
-              description: "permit",
-              typed_data: {
-                primaryType: "Permit",
-                message: { nonce: "large-payload" },
-              },
-              pendingEip712Id: 7,
-            },
-          },
-        },
       },
     });
 
     const url = String(customFetch.mock.calls[0]?.[0]);
-    expect(url).not.toContain("large-payload");
-
     const parsed = new URL(url);
     const userState = JSON.parse(parsed.searchParams.get("user_state") ?? "{}");
-    expect(userState.pending.evm_sigs["7"].typed_data).toBeUndefined();
-    expect(userState.pending.evm_sigs["7"].pending_eip712_id).toBe(7);
+    expect(userState).not.toHaveProperty("pending");
+    expect(userState.evm.address).toBe("0xabc");
   });
 
   it("reuses one SSE connection for multiple listeners on the same session", async () => {
@@ -1284,4 +1309,72 @@ describe("createAccountBearerProvider", () => {
       vi.useRealTimers();
     }
   });
+});
+
+describe("AomiClient.createThread cold-app retry", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Run `work` with timers faked, draining backoff waits as they are set. */
+  const withoutWaiting = async <T>(work: () => Promise<T>): Promise<T> => {
+    vi.useFakeTimers();
+    const promise = work();
+    // Mark a rejection handled up front: the assertion only awaits after the
+    // timers below have run, and an unattended rejection in between surfaces
+    // as an unhandled-rejection error.
+    promise.catch(() => {});
+    // Each retry schedules one timer; advancing repeatedly drains the chain
+    // without the test paying the real backoff.
+    for (let tick = 0; tick < 8; tick += 1) {
+      await vi.advanceTimersByTimeAsync(5_000);
+    }
+    return promise;
+  };
+
+  it("retries a cold-app 503 and resolves once the app is warm", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(
+        Response.json({ thread_id: "thread-1", title: null }),
+      );
+    const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+
+    await expect(
+      withoutWaiting(() => client.createThread("thread-1")),
+    ).resolves.toMatchObject({ session_id: "thread-1" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws a status-parseable error once retries are exhausted", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response(null, { status: 503 }));
+    const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+
+    // The message shape matters: getHttpStatus() parses `HTTP <code>` out of
+    // it to route failures downstream.
+    await expect(
+      withoutWaiting(() => client.createThread("thread-1")),
+    ).rejects.toThrow("Failed to create thread: HTTP 503");
+    expect(fetch).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([400, 402, 404])(
+    "surfaces %i immediately without retrying",
+    async (status) => {
+      const fetch = vi
+        .fn<typeof globalThis.fetch>()
+        .mockResolvedValue(new Response(null, { status }));
+      const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+
+      // 402 especially: a quota failure is a decision the payment gate must
+      // see at once, not something to sit behind seconds of backoff.
+      await expect(client.createThread("thread-1")).rejects.toThrow(
+        `Failed to create thread: HTTP ${status}`,
+      );
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
 });

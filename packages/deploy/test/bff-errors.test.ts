@@ -43,6 +43,21 @@ describe("launch error responses", () => {
     expect(unavailable.status).toBe(503);
     await expect(unavailable.json()).resolves.toEqual({
       error: "Unable to verify required secrets. Try again.",
+      code: "required_secrets_github_unavailable",
+      retryable: true,
+    });
+
+    // The operator-side case is NOT retryable, and says so in the body rather
+    // than only in a message a browser would have to pattern-match.
+    const misconfigured = launchErrorResponse(
+      new RequiredSecretsCheckError({ reason: "bff_misconfigured" }),
+    );
+    expect(misconfigured.status).toBe(503);
+    await expect(misconfigured.json()).resolves.toEqual({
+      error:
+        "Required secrets cannot be verified: this deployment is missing its GitHub token.",
+      code: "required_secrets_bff_misconfigured",
+      retryable: false,
     });
   });
 

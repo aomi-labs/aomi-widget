@@ -19,7 +19,7 @@ vi.mock("@build/features/launch/client", () => ({
         installationId: 5,
         repositoryLink: "a/b",
         platformName: "community",
-        apps: [{ name: "my-bot" }],
+        apps: [{ id: 17, name: "my-bot" }],
         latestDeployment: null,
       },
     ],
@@ -48,6 +48,7 @@ vi.mock("@build/features/launch/client", () => ({
   launchDeploy: vi.fn(),
   launchStatus: vi.fn(),
   launchActivate: vi.fn(),
+  deploymentSetSecrets: vi.fn(async () => ({ ok: true, keys: [] })),
   deploymentRecords: vi.fn(async () => ({
     app: "my-bot",
     currentReleaseTag: "tag-b",
@@ -78,10 +79,13 @@ import {
   deploymentRecords,
   deploymentHistory,
   deploymentSecrets,
+  deploymentSetSecrets,
   deploymentRequiredSecrets,
   deploymentProjects,
   launchDeploy,
   launchPreflight,
+  launchActivate,
+  launchStatus,
 } from "@build/features/launch/client";
 
 // Fresh QueryClient per test so react-query cache never leaks across tests.
@@ -323,5 +327,114 @@ describe("useProjectDetail", () => {
     await waitFor(() =>
       expect(result.current.requiredSecretsError).toBe("manifest unavailable"),
     );
+  });
+
+  it("keeps the CI run link when the first poll already reports failure", async () => {
+    vi.mocked(launchPreflight).mockResolvedValue({
+      projectId: 7,
+      sourceRef: "abc1234",
+      apps: ["my-bot"],
+    } as never);
+    vi.mocked(deploymentRequiredSecrets).mockResolvedValue({ byApp: {} });
+    vi.mocked(launchDeploy).mockResolvedValue({
+      deployment: { id: "dep_1" },
+      releaseTags: ["my-bot-r1"],
+      apps: ["my-bot"],
+    } as never);
+    // `waitForDeploymentReady` throws on a terminal status *before* it reports
+    // progress, so the url has to be captured at the poll, not in onProgress.
+    vi.mocked(launchStatus).mockResolvedValue({
+      state: "failed",
+      releaseTags: [],
+      message: "Deploy CI failed.",
+      ci: { url: "https://github.com/a/b/actions/runs/1" },
+    } as never);
+
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.source?.id).toBe(7));
+
+    await act(async () => {
+      await result.current.redeploySource();
+    });
+
+    await waitFor(() =>
+      expect(result.current.deployFlow).toMatchObject({
+        phase: "error",
+        message: "Deploy CI failed.",
+        progress: { ciUrl: "https://github.com/a/b/actions/runs/1" },
+      }),
+    );
+  });
+
+  it("keeps a candidate release's 409 requirements visible and editable", async () => {
+    vi.mocked(launchPreflight).mockResolvedValue({
+      projectId: 7,
+      sourceRef: "abc1234",
+      apps: ["my-bot"],
+    } as never);
+    vi.mocked(deploymentRequiredSecrets).mockResolvedValue({ byApp: {} });
+    vi.mocked(launchDeploy).mockResolvedValue({
+      deployment: { id: "dep_1" },
+      releaseTags: ["my-bot-r1"],
+      apps: ["my-bot"],
+    } as never);
+    vi.mocked(launchStatus).mockResolvedValue({
+      state: "ready",
+      releaseTags: ["my-bot-r1"],
+    } as never);
+    vi.mocked(launchActivate).mockRejectedValue(
+      Object.assign(new Error("missing required secrets"), {
+        status: 409,
+        body: { missing: { "my-bot": ["PROVIDER_API_KEY"] } },
+      }),
+    );
+
+    const { result } = renderHook(() => useProjectDetail(7), {
+      wrapper: wrapper(),
+    });
+    await waitFor(() => expect(result.current.source?.id).toBe(7));
+
+    await act(async () => {
+      await result.current.redeploySource();
+    });
+
+    await waitFor(() =>
+      expect(result.current.deployFlow).toMatchObject({
+        phase: "error",
+        message: expect.stringContaining("Set them in Environment"),
+      }),
+    );
+    expect(result.current.requiredSecrets?.["my-bot"]).toMatchObject({
+      applicationId: 17,
+      missing: ["PROVIDER_API_KEY"],
+      slots: [
+        {
+          name: "PROVIDER_API_KEY",
+          required: true,
+          description: "Required by the deployment that was blocked.",
+        },
+      ],
+    });
+
+    vi.mocked(deploymentSetSecrets).mockResolvedValue({
+      ok: true,
+      keys: ["PROVIDER_API_KEY"],
+    });
+    vi.mocked(deploymentSecrets).mockResolvedValue({
+      byApp: { "my-bot": ["$SECRET:APP:my-bot::PROVIDER_API_KEY"] },
+    });
+    await act(async () => {
+      await result.current.setEnvVars(17, { PROVIDER_API_KEY: "secret" });
+    });
+    await waitFor(() =>
+      expect(result.current.hasMissingSecrets("my-bot")).toBe(false),
+    );
+    expect(
+      window.sessionStorage.getItem(
+        "aomi-build:project:7:candidate-required-secrets",
+      ),
+    ).toBeNull();
   });
 });

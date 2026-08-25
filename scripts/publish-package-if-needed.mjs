@@ -35,7 +35,7 @@ export async function publishPackageIfNeeded(
 
   console.log(`${packageSpec} is not published; publishing now.`);
   try {
-    await publishImpl(manifest.name);
+    await publishImpl(packageDirectory);
   } catch (error) {
     // A concurrent run may publish after our initial 404, or npm may accept a
     // PUT but return a transient error. Treat the package's durable registry
@@ -71,20 +71,37 @@ async function checkPublishedVersion({ fetchImpl, packageSpec, versionUrl }) {
   );
 }
 
-function publishWithPnpm(packageName) {
+/**
+ * Publish through pnpm, NOT `npm publish`.
+ *
+ * Every publishable manifest here declares its siblings with pnpm's
+ * `workspace:*` protocol. `pnpm publish` replaces that with the sibling's
+ * concrete version in the PUBLISHED manifest; `npm publish` uploads the
+ * manifest verbatim, and `workspace:*` is meaningless to an npm/yarn consumer
+ * — the install fails to resolve it.
+ *
+ * This is not hypothetical. Publishing moved to `npm publish` in the release
+ * hardening (fdbea398), and the first release after it shipped broken:
+ *   @aomi-labs/widget-lib@1.4.29 (pnpm) -> react 0.5.13, client 0.4.5   ✅
+ *   @aomi-labs/widget-lib@2.0.0  (npm)  -> react workspace:*, client workspace:*  ❌
+ *   @aomi-labs/react@0.6.0       (npm)  -> client workspace:*                     ❌
+ * The publish job went green both times; only the registry metadata differs,
+ * so nothing caught it until a consumer tried to install. See the guard test
+ * in packages/client/test/publish-package-if-needed.test.mjs.
+ *
+ * `--no-git-checks` is required because the release workflow publishes from a
+ * detached checkout of the candidate SHA. `--tag` is kept so NPM_DIST_TAG
+ * still works for prereleases.
+ */
+function publishWithPnpm(packageDirectory) {
   return new Promise((resolve, reject) => {
-    const child = spawn(
-      "pnpm",
-      [
-        "--filter",
-        packageName,
-        "publish",
-        "--access",
-        "public",
-        "--no-git-checks",
-      ],
-      { stdio: "inherit" },
-    );
+    const args = ["publish", "--access", "public", "--no-git-checks"];
+    const distTag = process.env.NPM_DIST_TAG?.trim();
+    if (distTag) args.push("--tag", distTag);
+    const child = spawn("pnpm", args, {
+      cwd: path.resolve(packageDirectory),
+      stdio: "inherit",
+    });
     child.once("error", reject);
     child.once("exit", (code, signal) => {
       if (code === 0) {
@@ -93,7 +110,7 @@ function publishWithPnpm(packageName) {
       }
       reject(
         new Error(
-          `pnpm publish for ${packageName} failed${signal ? ` with signal ${signal}` : ` with exit code ${code}`}`,
+          `pnpm publish for ${packageDirectory} failed${signal ? ` with signal ${signal}` : ` with exit code ${code}`}`,
         ),
       );
     });

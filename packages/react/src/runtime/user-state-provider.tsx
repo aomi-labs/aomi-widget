@@ -143,15 +143,15 @@ function useWalletStateSync(
   const walletSnapshot = useCallback(
     (nextUser: ReturnType<typeof getUserState>) => ({
       connection: {
+        // Serialize exactly the backend ProviderState. FE-local and account
+        // identity fields are deliberately not forwarded here.
         is_connected: UserStateHelpers.isConnected(nextUser) ?? false,
-        primary_family: nextUser.connection?.primary_family,
         provider: UserStateHelpers.walletProvider(nextUser) ?? undefined,
-        wallet_provider_subject:
-          UserStateHelpers.walletProviderSubject(nextUser) ?? undefined,
+        provider_label:
+          typeof nextUser.connection?.provider_label === "string"
+            ? nextUser.connection.provider_label
+            : undefined,
         auth_method: UserStateHelpers.authMethod(nextUser) ?? undefined,
-        auth_value: UserStateHelpers.authValue(nextUser) ?? undefined,
-        auth_verified_at:
-          UserStateHelpers.authVerifiedAt(nextUser) ?? undefined,
       },
       evm: {
         address: UserStateHelpers.address(nextUser),
@@ -160,20 +160,6 @@ function useWalletStateSync(
           typeof nextUser.evm?.ens_name === "string"
             ? nextUser.evm.ens_name
             : undefined,
-        aa: {
-          mode: UserStateHelpers.aaMode(nextUser) ?? undefined,
-          smart_account:
-            UserStateHelpers.SmartAccount4337(nextUser) ?? undefined,
-          delegation_7702:
-            UserStateHelpers.Delegation7702(nextUser) ?? undefined,
-        },
-        sponsorship: {
-          sponsored: UserStateHelpers.sponsored(nextUser) ?? undefined,
-          sponsor_provider:
-            UserStateHelpers.sponsorProvider(nextUser) ?? undefined,
-          sponsor_account:
-            UserStateHelpers.sponsorAccount(nextUser) ?? undefined,
-        },
       },
       svm: {
         address: UserStateHelpers.svmAddress(nextUser),
@@ -191,7 +177,7 @@ function useWalletStateSync(
   useEffect(() => {
     lastWalletStateRef.current = walletSnapshot(getUserState());
 
-    const unsubscribe = onUserStateChange(async (newUser) => {
+    const unsubscribe = onUserStateChange((newUser) => {
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
       const previousAddress = normalizeWalletId(prevWalletState.evm?.address);
@@ -229,9 +215,13 @@ function useWalletStateSync(
         type: "wallet:state_changed",
         payload: nextWalletState,
       });
-      await aomiClientRef.current.sendSystemMessage(sessionId, message, {
-        app: getCurrentThreadApp(),
-      });
+      void aomiClientRef.current
+        .sendSystemMessage(sessionId, message, {
+          app: getCurrentThreadApp(),
+        })
+        .catch((error) => {
+          console.warn("Failed to sync wallet state:", error);
+        });
     });
 
     return unsubscribe;

@@ -1,5 +1,5 @@
-import { AomiPlatformFilter, AomiClientOptions, AomiClient, SessionOptions, Session, UserState, AomiTaskEvent, WalletRequest, WalletRequestResult, AomiSimulateResponse, ChainInfo, AomiAppDescriptor } from '@aomi-labs/client';
-export { AOMI_TASK_EVENT_TYPES, AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiPlatformFilter, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiTaskActivityEvent, AomiTaskActivityKind, AomiTaskCompletedEvent, AomiTaskEvent, AomiTaskEventType, AomiTaskStartedEvent, AomiTaskStatus, AomiThread, ChainInfo, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletAaSignPayload, WalletAaSignatureRequest, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, isAomiTaskEventType, normalizeAppDescriptor, normalizeSimulatedFee, parseAomiTaskEvent, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
+import { AomiPlatformFilter, AomiClientOptions, AomiClient, SessionOptions, Session, UserState, AomiTaskEvent, WalletRequest, WalletRequestResult, AomiSimulateResponse, ChainInfo, AomiAppDescriptor, ApplicationId } from '@aomi-labs/client';
+export { AOMI_TASK_EVENT_TYPES, AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiPlatformFilter, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiTaskActivityEvent, AomiTaskActivityKind, AomiTaskCompletedEvent, AomiTaskEvent, AomiTaskEventType, AomiTaskStartedEvent, AomiTaskStatus, AomiThread, ChainInfo, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSignablePayload, WalletSigningPayload, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, isAomiTaskEventType, normalizeAppDescriptor, normalizeSimulatedFee, parseAomiTaskEvent, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import * as react from 'react';
 import { ReactNode, SetStateAction } from 'react';
@@ -255,8 +255,8 @@ type WalletHandlerConfig = {
 type WalletHandlerApi = {
     /**
      * All queued wallet requests across every supported kind: EVM txs
-     * (`kind: "transaction"`), EIP-712 signs (`kind: "eip712_sign"`), and
-     * Solana signs (`kind: "solana_sign"`). Consumers should narrow on
+     * (`kind: "transaction"`), opaque sign-only handoffs (`kind: "signing"`),
+     * and Solana send requests. Consumers should narrow on
      * `request.kind` before reading `request.payload` — the discriminated
      * union auto-narrows the payload type.
      */
@@ -267,11 +267,13 @@ type WalletHandlerApi = {
     setRequests: (requests: WalletRequest[]) => void;
     /** Mark a request as in-flight so it is not replayed while awaiting backend ack. */
     startRequest: (id: string) => void;
+    /** Remove a request after an operation-specific API acknowledged it. */
+    dismissRequest: (id: string) => void;
     /**
      * Complete a request successfully — sends the response wire event to
      * the backend via ClientSession. The `result.kind` discriminator must
-     * match the originating request's kind (e.g. `{ kind: "solana_sign",
-     * signedTx: "..." }` for a Solana request); ClientSession runtime-checks
+     * match the originating request's kind (e.g. `{ kind: "signing",
+     * signatures: ["..."] }` for a sign-only request); ClientSession runtime-checks
      * this and throws on mismatch.
      */
     resolveRequest: (id: string, result: WalletRequestResult) => Promise<void>;
@@ -329,12 +331,14 @@ type AomiRuntimeApi = {
     dismissNotification: (id: string) => void;
     /** Clear all notifications */
     clearAllNotifications: () => void;
-    /** All queued wallet requests (tx + eip712 signing) */
+    /** All queued wallet requests (broadcast transactions + generic signing) */
     pendingWalletRequests: WalletRequest[];
     /** True while switching wallets or networks could lose an unresolved request. */
     hasBlockingWalletRequests: boolean;
     /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
     startWalletRequest: (id: string) => void;
+    /** Locally dismiss an externally acknowledged request. */
+    dismissWalletRequest: (id: string) => void;
     /** Complete a wallet request after the backend acknowledges the response */
     resolveWalletRequest: (id: string, result: WalletRequestResult) => Promise<void>;
     /** Fail a wallet request after the backend acknowledges the error */
@@ -501,10 +505,11 @@ type ByokState = {
     byokKeys: Record<string, StoredByokKey>;
 };
 type SecretsActions = {
-    ingestSecrets: (secrets: Record<string, string>, app?: string) => Promise<Record<string, string>>;
-    clearSecrets: (app?: string) => Promise<void>;
-    deleteSecret: (name: string, app?: string) => Promise<void>;
-    listSecrets: () => Promise<Record<string, string[]>>;
+    ingestSecrets: (secrets: Record<string, string>) => Promise<Record<string, string>>;
+    clearSecrets: () => Promise<void>;
+    deleteSecret: (name: string) => Promise<void>;
+    /** Stored handle names for this client. Never values. */
+    listSecrets: () => Promise<string[]>;
 };
 type ByokActions = SecretsActions & {
     setByok: (provider: string, apiKey: string, label?: string) => Promise<void>;
@@ -527,7 +532,6 @@ type AuthEndpointsActions = {
     getAuthorizedApps: () => Promise<string[]>;
 };
 
-type ApplicationId = number | string | null;
 type AppSelectionOptions = {
     applicationId?: ApplicationId;
 };
@@ -587,7 +591,8 @@ type ControlContextProviderProps = {
     getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
     updateThreadMetadata: (threadId: string, partial: Partial<ThreadMetadata>) => void;
     appPlatforms?: AomiPlatformFilter;
+    applicationId?: ApplicationId;
 };
-declare function ControlContextProvider({ children, aomiClient, sessionId, getThreadMetadata, updateThreadMetadata, appPlatforms, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
+declare function ControlContextProvider({ children, aomiClient, sessionId, getThreadMetadata, updateThreadMetadata, appPlatforms, applicationId, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
 export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type AomiTaskPartMetadata, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, EMPTY_TASK_RUNS, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type TaskRunState, type TaskRunStatus, type TaskRunStep, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type ThreadTaskRuns, type ThreadTurnPhase, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, readTaskPartAgentId, reduceTaskRuns, resolveAutoModel, useAomiRuntime, useApiKey, useAuthEndpoints, useByok, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, usePerThreadControl, useTaskRun, useThreadContext, useThreadTaskRuns, useUser, useWalletHandler };

@@ -84,27 +84,10 @@ function deriveSvmAddress(
 }
 
 export function resolveSvmAddressForChat(
-  config: Pick<CliConfig, "app" | "svmCluster">,
-  publicKey: string | undefined,
   persistedSvmAddress: string | undefined,
   solanaPrivateKey: string | undefined,
 ): string | undefined {
-  const derived = deriveSvmAddress(solanaPrivateKey);
-  if (derived || persistedSvmAddress) {
-    return derived ?? persistedSvmAddress;
-  }
-  const app = config.app?.trim().toLowerCase();
-  const acceptsSvmPublicKey =
-    !app ||
-    app === "default" ||
-    config.svmCluster !== undefined ||
-    app === "sol" ||
-    app === "solana" ||
-    app === "svm" ||
-    app === "byreal";
-  return acceptsSvmPublicKey && publicKey && !publicKey.startsWith("0x")
-    ? publicKey
-    : undefined;
+  return deriveSvmAddress(solanaPrivateKey) ?? persistedSvmAddress;
 }
 
 export function shouldBroadcastWalletStateChange(
@@ -156,7 +139,7 @@ export async function syncWalletStateForChat(
 ): Promise<void> {
   if (
     !shouldBroadcastWalletStateChange(config, previous, next) ||
-    !next.publicKey
+    (!next.publicKey && !next.svmAddress)
   ) {
     return;
   }
@@ -166,14 +149,11 @@ export async function syncWalletStateForChat(
   // ({ address, isConnected, chainId }) is NOT parsed by the backend and
   // would silently overwrite the correctly-set user state with an empty one.
   const userState = buildCliUserState(next.publicKey, next.chainId, {
-    app: config.app,
-    aaProvider: next.aaProvider ?? config.aaProvider ?? null,
-    aaMode: next.aaMode ?? null,
-    smartAccount: next.smartAccount ?? null,
     svmAddress: next.svmAddress,
-    // An EVM-only command must not silently reset a persisted devnet/testnet
-    // Solana wallet to mainnet in the shared default-runtime context.
-    svmCluster: config.svmCluster ?? cli.svmCluster,
+    // --cluster wins, then the persisted choice, then mainnet — so an
+    // EVM-only command cannot silently reset a persisted devnet/testnet
+    // Solana wallet in the shared default-runtime context.
+    svmCluster: cli.resolvedSvmCluster(config.svmCluster),
   });
 
   session.resolveUserState(userState);
@@ -223,8 +203,6 @@ export async function chatCommand(
   // (the key is seeded from the previous session into the new one in create()).
   const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
   const svmAddress = resolveSvmAddressForChat(
-    config,
-    cli.publicKey,
     cli.svmPublicKey,
     resolvedSolanaKey,
   );

@@ -33,9 +33,8 @@ export function isPackageAvailableOnChain(
   chainId: number | undefined,
 ): boolean {
   return (
-    chainId === undefined ||
     app.chainIds.length === 0 ||
-    app.chainIds.includes(chainId)
+    (chainId !== undefined && app.chainIds.includes(chainId))
   );
 }
 

@@ -14,7 +14,11 @@ import { useEventContext } from "../contexts/event-context";
 import { useUser } from "../contexts/ext-user-context";
 import { useThreadContext } from "../contexts/thread-context";
 import { useNotification } from "../contexts/notification-context";
-import { useRuntimeOrchestrator } from "./orchestrator";
+import {
+  appendNoticeMessage,
+  buildTurnErrorMessage,
+  useRuntimeOrchestrator,
+} from "./orchestrator";
 import { buildThreadListAdapter } from "./threadlist-adapter";
 import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
 import { useWalletHandler } from "../handlers/wallet-handler";
@@ -482,6 +486,21 @@ export function AomiRuntimeCore({
         title: "Error",
         message,
       });
+      // The toast alone is the wrong lifetime for a turn that produced
+      // nothing: it auto-dismisses, and the backend drains `system_events`, so
+      // the reason for the silence disappears. Backends that persist a
+      // `notice` message deliver the durable copy through the projection; this
+      // covers the window before it arrives, and older backends entirely.
+      // `appendNoticeMessage` dedupes on notice kind, so the two never stack.
+      //
+      // Keyed to the event's own session: an error can arrive from a warmed or
+      // background session, and attaching it to whatever thread is on screen
+      // would file it against the wrong conversation.
+      appendNoticeMessage(
+        threadContextRef.current,
+        event.sessionId,
+        buildTurnErrorMessage(),
+      );
     });
 
     return () => {
@@ -665,6 +684,7 @@ export function AomiRuntimeCore({
       pendingWalletRequests: walletHandler.pendingRequests,
       hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
       startWalletRequest: walletHandler.startRequest,
+      dismissWalletRequest: walletHandler.dismissRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
       simulateBatchTransactions,

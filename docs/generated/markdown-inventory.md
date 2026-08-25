@@ -9,19 +9,20 @@ review_after_days: 7
 
 # Markdown Inventory
 
-- Indexed markdown files: 36
+- Indexed markdown files: 35
 - Excluded markdown files: 301
 
 ## Reasons
-- `indexed`: 36
+
+- `indexed`: 35
 - `not-included`: 301
 
 ## Indexed Files
+
 - `AGENTS.md` via `root-guidance`
 - `README.md` via `root-readme`
 - `docs/generated/markdown-inventory.md` via `generated`
 - `docs/generated/repo-inventory.md` via `generated`
-- `docs/generated/userstate-shape-reference.md` via `generated`
 - `docs/index.md` via `docs-index`
 - `docs/local-dev-stack.md` via `local-dev-stack`
 - `docs/topics/apps/facts/app-surfaces.md` via `topics`
@@ -55,6 +56,7 @@ review_after_days: 7
 - `specs/portal-widget-lib-unification.md` via `specs`
 
 ## Excluded Files
+
 - `.claude/commands/cleanup-md.md` (not-included)
 - `.claude/commands/read-specs.md` (not-included)
 - `.claude/commands/sync-today.md` (not-included)

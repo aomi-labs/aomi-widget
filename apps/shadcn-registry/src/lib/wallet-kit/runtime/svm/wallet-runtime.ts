@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWallet as useSolanaWallet } from "@solana/wallet-adapter-react";
 import {
   Connection as SolanaConnection,
@@ -81,6 +81,8 @@ export const DEFAULT_SVM_ENDPOINT =
   DEFAULT_SVM_RPC_HTTP_URLS[DEFAULT_SVM_CLUSTER];
 const SVM_AUTOCONNECT_GRACE_MS = 400;
 
+type SvmWalletSource = "external" | "embedded";
+
 type SvmWalletReadyState =
   | "Installed"
   | "NotDetected"
@@ -90,9 +92,27 @@ type SvmWalletName = Parameters<
   ReturnType<typeof useSolanaWallet>["select"]
 >[0];
 
+/**
+ * Outside a `WalletProvider`, `useWallet()` does not throw — it returns the
+ * adapter library's DEFAULT_CONTEXT, whose `publicKey`/`wallet`/`wallets` are
+ * accessor properties that `console.error` a missing-provider message on every
+ * read. A provider-supplied context value is a plain object with data
+ * properties, so an accessor on `publicKey` identifies the default context
+ * without invoking the getter (descriptor lookups do not run getters).
+ */
+function isMissingSvmProviderContext(
+  wallet: ReturnType<typeof useSolanaWallet>,
+): boolean {
+  return Boolean(Object.getOwnPropertyDescriptor(wallet, "publicKey")?.get);
+}
+
 export function useSafeSvmWallet(): SafeSvmWalletState {
+  const context = useSolanaWallet();
+  if (isMissingSvmProviderContext(context)) {
+    return DISCONNECTED_SVM_WALLET;
+  }
   try {
-    const wallet = useSolanaWallet();
+    const wallet = context;
     return {
       publicKey: wallet.publicKey?.toBase58(),
       connected: wallet.connected,
@@ -111,6 +131,84 @@ export function useSafeSvmWallet(): SafeSvmWalletState {
   } catch {
     return DISCONNECTED_SVM_WALLET;
   }
+}
+
+function hasSelectedSvmWallet(wallet: SafeSvmWalletState): boolean {
+  return Boolean(
+    wallet.publicKey ||
+    wallet.connected ||
+    wallet.connecting ||
+    wallet.walletName,
+  );
+}
+
+/**
+ * Keep the standard Solana wallet-adapter source available when an auth
+ * provider also contributes embedded Solana wallets. Provider plugins augment
+ * the generic source; they never replace it.
+ */
+export function useMergedSvmWallet(
+  external: SafeSvmWalletState,
+  embedded: SafeSvmWalletState,
+): SafeSvmWalletState {
+  const preferredSource = hasSelectedSvmWallet(external)
+    ? "external"
+    : hasSelectedSvmWallet(embedded)
+      ? "embedded"
+      : "external";
+  const [selectedSource, setSelectedSource] =
+    useState<SvmWalletSource>(preferredSource);
+  const sourceSelectedByUser = useRef(false);
+
+  useEffect(() => {
+    if (sourceSelectedByUser.current) return;
+    setSelectedSource(preferredSource);
+  }, [preferredSource]);
+
+  const active = selectedSource === "external" ? external : embedded;
+  const externalNames = useMemo(
+    () => new Set(external.wallets.map((entry) => entry.adapter.name)),
+    [external.wallets],
+  );
+  const embeddedNames = useMemo(
+    () => new Set(embedded.wallets.map((entry) => entry.adapter.name)),
+    [embedded.wallets],
+  );
+  const wallets = useMemo(() => {
+    const seen = new Set<string>();
+    return [...external.wallets, ...embedded.wallets].filter((entry) => {
+      const name = String(entry.adapter.name);
+      if (seen.has(name)) return false;
+      seen.add(name);
+      return true;
+    });
+  }, [embedded.wallets, external.wallets]);
+  const select = useCallback(
+    (walletName: SvmWalletName) => {
+      const name = String(walletName);
+      if (externalNames.has(name)) {
+        sourceSelectedByUser.current = true;
+        setSelectedSource("external");
+        external.select?.(walletName);
+        return;
+      }
+      if (embeddedNames.has(name)) {
+        sourceSelectedByUser.current = true;
+        setSelectedSource("embedded");
+        embedded.select?.(walletName);
+      }
+    },
+    [embedded, embeddedNames, external, externalNames],
+  );
+
+  return useMemo(
+    () => ({
+      ...active,
+      wallets,
+      select,
+    }),
+    [active, select, wallets],
+  );
 }
 
 export function detectSvmTransport(
@@ -187,6 +285,37 @@ export async function connectPreferredSvmWallet(
 
   wallet.select(selectedWallet.adapter.name as SvmWalletName);
   return { status: "selecting", walletName: selectedWallet.adapter.name };
+}
+
+export async function executeSvmWalletConnect({
+  getCurrent,
+  walletName,
+  waitForAutoConnect = () =>
+    new Promise<void>((resolve) =>
+      setTimeout(resolve, SVM_AUTOCONNECT_GRACE_MS),
+    ),
+}: {
+  getCurrent: () => SafeSvmWalletState;
+  walletName: string;
+  waitForAutoConnect?: () => Promise<void>;
+}): Promise<void> {
+  const current = getCurrent();
+  if (current.publicKey && current.walletName === walletName) return;
+  if (current.walletName !== walletName) {
+    current.select?.(walletName as SvmWalletName);
+  }
+  if (!current.connect) return;
+
+  // WalletProvider's autoConnect reacts to select(). Give it the first chance
+  // to connect, then invoke connect() only when no automatic attempt started.
+  // Calling both concurrently makes Phantom reject with WalletConnectionError.
+  await waitForAutoConnect();
+  const selected = getCurrent();
+  if (selected.publicKey || selected.connected || selected.connecting) return;
+  // A newer picker action owns a different adapter now. Let that request
+  // connect it instead of allowing this stale grace timer to race it.
+  if (selected.walletName && selected.walletName !== walletName) return;
+  await selected.connect?.();
 }
 
 export function getSvmCapabilitySnapshot(
@@ -276,19 +405,11 @@ export function useSvmWalletRuntime({
 
   const executeConnect = useCallback(
     async (walletName: string) => {
-      const current = walletRef.current;
       try {
-        if (current.publicKey && current.walletName === walletName) {
-          return;
-        }
-        if (current.walletName !== walletName) {
-          current.select?.(walletName as SvmWalletName);
-        }
-        if (!current.connect) return;
-        await new Promise((resolve) =>
-          setTimeout(resolve, SVM_AUTOCONNECT_GRACE_MS),
-        );
-        await walletRef.current.connect?.();
+        await executeSvmWalletConnect({
+          getCurrent: () => walletRef.current,
+          walletName,
+        });
       } finally {
         settleConnect(walletName);
       }
@@ -311,7 +432,12 @@ export function useSvmWalletRuntime({
 
   const connect = useCallback(
     async (optionId?: string) => {
-      if (wallet.publicKey || wallet.connected) return;
+      if (
+        (wallet.publicKey || wallet.connected) &&
+        (!optionId || optionId === wallet.walletName)
+      ) {
+        return;
+      }
       const walletName =
         optionId ?? pickPreferredSvmWallet(wallet)?.adapter.name;
       if (!walletName) return;
@@ -403,7 +529,8 @@ export function useSvmWalletRuntime({
             : ("injected" as const)
           : undefined,
         transport: registryIdentity.address
-          ? (wallet.transport ?? detectSvmTransport(registryIdentity.walletName))
+          ? (wallet.transport ??
+            detectSvmTransport(registryIdentity.walletName))
           : undefined,
         capabilities: getSvmCapabilitySnapshot(wallet),
       };

@@ -8,6 +8,9 @@ const listApps = vi.fn();
 const launchConfigMock = vi.hoisted(() => ({
   catalogPlatforms: [] as string[],
 }));
+const canonicalSessionMock = vi.hoisted(() => ({
+  userId: null as string | null,
+}));
 const telemetry = vi.hoisted(() => ({
   capture: vi.fn(),
   log: vi.fn(),
@@ -47,19 +50,20 @@ vi.mock("@portal/server/bff/failures", async () => {
   };
 });
 
-// Keep the real `createBackendProxy`; only stub the mint. Requests in these
-// tests are unauthenticated, so the portal resolver returns null and the proxy
-// forwards anonymous.
-vi.mock("@aomi-labs/account", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@aomi-labs/account")>();
-  return {
-    ...actual,
-    mintAccountBearer: vi.fn(async () => ({
-      bearer: "test-bearer",
-      expiresAt: 0,
-    })),
-  };
-});
+vi.mock("@portal/server/canonical-session", () => ({
+  resolveCanonicalUserId: vi.fn(async () => canonicalSessionMock.userId),
+}));
+
+// `createBackendProxy` imports the mint from the account package's internal
+// module, so mock that dependency directly. Mocking only the package barrel
+// leaves the proxy's lexical import real and makes this test depend on a local
+// PORTAL_SERVICE_PRIVATE_KEY that CI intentionally does not provide.
+vi.mock("../../../../../../packages/account/src/bearer", () => ({
+  mintAccountBearer: vi.fn(async () => ({
+    bearer: "test-bearer",
+    expiresAt: 0,
+  })),
+}));
 
 vi.mock("@portal/server/backend-url", () => ({
   configuredBackendUrl: () => "https://api-staging.aomi.dev",
@@ -133,6 +137,7 @@ describe("portal API proxy", () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     launchConfigMock.catalogPlatforms = [];
+    canonicalSessionMock.userId = null;
     listApps.mockReset();
     telemetry.capture.mockReset();
     telemetry.log.mockReset();
@@ -229,6 +234,32 @@ describe("portal API proxy", () => {
 
     expect(res.status).toBe(404);
     expect(body).toEqual({ error: "Unsupported API route" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("forwards opaque generic signing completions and rejects deleted AA-specific routes", async () => {
+    canonicalSessionMock.userId = "widget-user-1";
+    const fetchMock = vi.fn(async () => Response.json({ state: "signed" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const requestId = "sign%3A11111111-2222-4333-8444-555555555555";
+
+    const response = await POST(
+      ...apiRequest(`/api/widget/v1/signing-requests/${requestId}`, "POST"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(proxiedUrl(fetchMock.mock.calls[0]).pathname).toBe(
+      `/api/widget/v1/signing-requests/${requestId}`,
+    );
+
+    fetchMock.mockClear();
+    const stale = await POST(
+      ...apiRequest(
+        "/api/widget/v1/aa-operations/operation-7/signatures",
+        "POST",
+      ),
+    );
+    expect(stale.status).toBe(404);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

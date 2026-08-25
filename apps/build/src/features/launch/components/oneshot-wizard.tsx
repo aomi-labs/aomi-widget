@@ -156,7 +156,11 @@ export function OneshotWizard({
   platform?: string;
   actor?: string;
   onRestart?: () => void;
-  beginInstall: () => void;
+  /**
+   * Send the browser to GitHub. `authorize` skips the install ceremony for an
+   * account that already has the App — see the Install step below.
+   */
+  beginInstall: (mode?: "install" | "authorize") => void;
   installing?: boolean;
   installError?: string | null;
   patch: (patch: Partial<LaunchProgress>) => void;
@@ -252,11 +256,26 @@ export function OneshotWizard({
             </p>
             <div className="flex flex-wrap gap-2">
               <Button
-                onClick={beginInstall}
+                onClick={() => beginInstall("install")}
                 disabled={installing}
                 className="h-9 rounded-md px-3 text-sm font-medium"
               >
                 {installing ? "Waiting for GitHub..." : "Install on GitHub"}
+                <ExternalLink className="ml-1 h-4 w-4" />
+              </Button>
+              {/*
+                GitHub does not re-run an install for an account that already
+                has one — it renders the App's configure page, which never
+                redirects back here, so "Install on GitHub" is a dead end for
+                anyone already installed. This asks for the OAuth consent leg
+                instead, which does return with an installation id.
+              */}
+              <Button
+                onClick={() => beginInstall("authorize")}
+                disabled={installing}
+                className="bg-surface-2 text-foreground h-9 rounded-md px-3 text-sm font-medium"
+              >
+                Already installed — continue
                 <ExternalLink className="ml-1 h-4 w-4" />
               </Button>
             </div>

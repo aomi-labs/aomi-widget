@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 /**
  * Deterministic MCP thread id — byte-for-byte the derivation the Rust MCP
@@ -17,6 +17,10 @@ export function mcpThreadId(
 ): string {
   const seed = `aomi:mcp:${canonicalUserId}:${sessionId?.trim() || "default"}`;
   return `mcp-${uuidV5(seed, UUID_NAMESPACE_URL)}`;
+}
+
+export function newMcpThreadId(): string {
+  return `mcp-${randomUUID()}`;
 }
 
 function uuidV5(name: string, namespace: string): string {

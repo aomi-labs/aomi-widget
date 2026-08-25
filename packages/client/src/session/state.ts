@@ -1,8 +1,6 @@
 import {
   UserState,
   type UserState as UserStateShape,
-  type UserStateAAMode,
-  type UserStateEvmAa,
 } from "../user-state";
 import { isSubsetMatch, sortJson } from "./json";
 
@@ -47,29 +45,10 @@ export function resolveWalletState(
   userState: UserStateShape | undefined,
   address: string,
   chainId: number | undefined,
-  aa?: {
-    aaMode?: UserStateAAMode | null;
-    smartAccount?: string | null;
-    smartAccount4337?: string | null;
-    delegation7702?: string | null;
-  },
 ): UserStateShape {
-  const resolvedAAMode =
-    aa?.aaMode ?? (aa?.smartAccount === address ? "4337" : "none");
-  const aaBlock: UserStateEvmAa = { mode: resolvedAAMode };
-
-  // Browser AA uses the same Alchemy backend lane as the CLI.
-  if (resolvedAAMode === "4337" || resolvedAAMode === "7702") {
-    aaBlock.provider = "alchemy";
-  }
-
-  if (aa?.smartAccount4337 !== undefined || aa?.delegation7702 !== undefined) {
-    aaBlock.smart_account =
-      resolvedAAMode === "4337" ? (aa?.smartAccount4337 ?? null) : null;
-    aaBlock.delegation_7702 =
-      resolvedAAMode === "7702" ? (aa?.delegation7702 ?? null) : null;
-  }
-
+  // Account-abstraction / sponsorship are backend authority and are resolved by
+  // the execution-profile endpoint, not carried in user_state. This only records
+  // the connected owner and chain.
   const prevEvm = isRecord(userState?.evm) ? userState?.evm : {};
   const prevConn = isRecord(userState?.connection) ? userState?.connection : {};
 
@@ -79,7 +58,6 @@ export function resolveWalletState(
       ...prevEvm,
       address,
       chain_id: chainId ?? 1,
-      aa: aaBlock,
     },
     connection: {
       ...prevConn,

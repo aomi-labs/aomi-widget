@@ -1,9 +1,7 @@
 import {
   CLIENT_TYPE_TS_CLI,
   UserState,
-  type UserStateAAMode,
   type UserStateEvm,
-  type UserStateEvmAa,
 } from "../user-state";
 import { getAddress } from "viem";
 import type { PendingSolTx, PendingTx } from "./state";
@@ -69,81 +67,38 @@ function txTimestamp(
 }
 
 export function buildCliUserState(
-  publicKey?: string,
+  evmAddress?: string,
   chainId?: number,
   options?: {
-    app?: string;
-    aaProvider?: string | null;
-    aaMode?: UserStateAAMode | null;
-    smartAccount?: string | null;
     /** Solana public key (base58). When present, sets svm.address. */
     svmAddress?: string;
-    /** Solana cluster. Defaults to "solana:mainnet" when svmAddress is present. */
+    /** Solana cluster. Callers resolve it via `CliSession.resolvedSvmCluster`;
+     * this builder never defaults it. */
     svmCluster?: "solana:mainnet" | "solana:devnet" | "solana:testnet";
   },
 ): UserState {
-  const app = options?.app?.trim().toLowerCase();
-  const evm: UserStateEvm = {};
-  const publicKeyIsSolana =
-    publicKey !== undefined && !publicKey.trim().startsWith("0x");
-  const publicKeyIsEvm =
-    publicKey !== undefined && publicKey.trim().startsWith("0x");
-  const svmAddress =
-    options?.svmAddress ?? (publicKeyIsSolana ? publicKey : undefined);
-  const hasBoth = publicKeyIsEvm && svmAddress !== undefined;
-  const isSolanaApp =
-    !hasBoth &&
-    !publicKeyIsEvm &&
-    (app === "sol" ||
-      app === "solana" ||
-      app === "svm" ||
-      app === "byreal" ||
-      publicKeyIsSolana ||
-      svmAddress !== undefined);
-  const hasEvm = hasBoth || (!isSolanaApp && publicKeyIsEvm);
-  const hasSvm = hasBoth || isSolanaApp;
+  // Each wallet family is emitted iff its address is explicitly configured.
+  // Account-abstraction is backend authority and no longer carried in
+  // user_state. The CLI's `--aa` preference is applied per-transaction via the
+  // execution payload, not persisted here.
   const userState: UserState = {};
 
-  if (hasEvm && publicKey !== undefined) {
-    evm.address = publicKey;
-  }
-
-  if (hasEvm && chainId !== undefined) {
-    evm.chain_id = chainId;
-  }
-
-  if (hasEvm) {
-    if (options?.aaMode === "4337" || options?.aaMode === "7702") {
-      const aaState: UserStateEvmAa = { mode: options.aaMode };
-      if (options.aaProvider != null) {
-        aaState.provider = options.aaProvider;
-      }
-      if (options.smartAccount != null) {
-        aaState.smart_account = options.smartAccount;
-      }
-      evm.aa = aaState;
-    } else if (options?.aaMode === null) {
-      evm.aa = { mode: "none" };
+  if (evmAddress !== undefined) {
+    const evm: UserStateEvm = { address: evmAddress };
+    if (chainId !== undefined) {
+      evm.chain_id = chainId;
     }
-  }
-
-  if (Object.keys(evm).length > 0) {
     userState.evm = evm;
   }
 
-  if (hasSvm) {
-    userState.svm = {
-      address: svmAddress ?? publicKey,
-      cluster:
-        options?.svmCluster ??
-        (svmAddress !== undefined ? "solana:mainnet" : undefined),
-    };
+  if (options?.svmAddress !== undefined) {
+    userState.svm = { address: options.svmAddress };
+    if (options.svmCluster !== undefined) {
+      userState.svm.cluster = options.svmCluster;
+    }
   }
-  const anyConnected = Boolean(
-    (hasEvm && publicKey !== undefined) ||
-    (hasSvm && (svmAddress ?? publicKey) !== undefined),
-  );
-  if (anyConnected) {
+
+  if (userState.evm || userState.svm) {
     userState.connection = {
       is_connected: true,
     };
@@ -181,10 +136,12 @@ export function pendingTxsFromBackendUserState(
     }
 
     const data = normalizePendingTxData(tx);
+    const from = normalizeMaybeAddress(tx.from);
     nextPendingTxs.push({
       id,
       kind: "transaction",
       txId: pendingId,
+      from,
       to,
       value: parseOptionalString(tx.value),
       data,
@@ -194,6 +151,7 @@ export function pendingTxsFromBackendUserState(
       payload: {
         pending_tx_id: pendingId,
         txId: pendingId,
+        from,
         to,
         value: parseOptionalString(tx.value),
         data,
@@ -418,28 +376,12 @@ export function walletSnapshotFromUserState(
 ): {
   publicKey?: string;
   chainId?: number;
-  aaMode?: UserStateAAMode | null;
-  smartAccount?: string | null;
 } {
   const address = UserState.address(userState);
   const isConnected = UserState.isConnected(userState);
-  const sessionAAMode = UserState.aaMode(userState);
-  const walletKind = UserState.walletKind(userState);
-
-  const aaMode: UserStateAAMode | null | undefined =
-    sessionAAMode === "4337" || sessionAAMode === "7702"
-      ? sessionAAMode
-      : sessionAAMode === "none"
-        ? null
-        : undefined;
-
-  const smartAccount: string | null | undefined =
-    walletKind === "smart-account" ? (address ?? null) : null;
 
   return {
     publicKey: isConnected === false ? undefined : address,
     chainId: UserState.chainId(userState),
-    aaMode,
-    smartAccount,
   };
 }

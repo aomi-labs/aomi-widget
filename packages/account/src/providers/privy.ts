@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { VerifiedPrivyToken, WalletFamily } from "../types";
 import type { WidgetProviderDescriptor } from "./descriptor";
 import { validWalletAddress, type AttestedWallet } from "./wallet-attestation";
+import { readAccountAuthEnv } from "../better-auth/env";
 
 type PrivyClaims = {
   sub?: string;
@@ -29,10 +30,42 @@ export const privyWidgetDescriptor: WidgetProviderDescriptor = {
   }),
   policy: {
     subjectIsEnvironmentGlobal: false,
-    widgetEnabled: false,
+    widgetEnabled: true,
   },
-  verifyWidgetCredential: async () => {
-    throw new Error("provider_not_enabled");
+  verifyWidgetCredential: async ({ environment, providerToken }) => {
+    const normalizedEnvironment = environment.trim().toLowerCase();
+    if (
+      normalizedEnvironment !== "prod" &&
+      normalizedEnvironment !== "privy:prod"
+    ) {
+      throw new Error("invalid_provider_environment");
+    }
+    const env = readAccountAuthEnv();
+    if (!env.privyAppId) throw new Error("Privy app id is not configured");
+    const token = await verifyPrivyToken({
+      token: providerToken,
+      tokenKind: "identity_token",
+      appId: env.privyAppId,
+      accessTokenVerificationKey: env.privyAccessTokenVerificationKey,
+      identityTokenVerificationKey: env.privyIdentityTokenVerificationKey,
+    });
+    return {
+      provider: "privy",
+      issuerEnvironment: "privy:prod",
+      tenantId: token.audience,
+      subject: token.subject,
+      expiresAt: token.expiresAt,
+      email: token.email
+        ? { value: token.email, verified: Boolean(token.emailVerified) }
+        : undefined,
+      // Provider login authenticates the human only. The common EIP-712
+      // binding flow is the sole ownership proof for browser/Para/Privy.
+      walletAttestations: [],
+      metadata: {
+        sessionId: token.sessionId,
+        displayLabel: token.displayLabel,
+      },
+    };
   },
 };
 

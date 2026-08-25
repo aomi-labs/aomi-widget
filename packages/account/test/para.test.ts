@@ -143,13 +143,15 @@ describe("Para widget credentials", () => {
       widgetEnabled: true,
     });
     expect(getWidgetProvider("missing-provider")).toBeNull();
-    expect(getWidgetProvider("privy")?.policy.widgetEnabled).toBe(false);
+    expect(getWidgetProvider("privy")?.policy.widgetEnabled).toBe(true);
+    // Privy is widget-enabled but only in prod; a non-prod environment is
+    // rejected before any token or network work.
     await expect(
       getWidgetProvider("privy")?.verifyWidgetCredential({
-        environment: "PROD",
+        environment: "BETA",
         providerToken: "unused",
       }),
-    ).rejects.toThrow("provider_not_enabled");
+    ).rejects.toThrow("invalid_provider_environment");
   });
 
   it("rejects missing claims, malformed wallet claims, and invalid environments", async () => {

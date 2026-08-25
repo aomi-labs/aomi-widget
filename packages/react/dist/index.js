@@ -126,6 +126,7 @@ function useApiKeyImpl() {
 
 // src/control/byok.ts
 import { useCallback as useCallback2, useEffect as useEffect2, useState as useState2 } from "react";
+import { secretNamesFrom } from "@aomi-labs/client";
 var BYOK_KEYS_STORAGE_KEY = "aomi_byok_keys";
 var BYOK_SECRET_PREFIX = "PROVIDER_KEY:";
 function useByokImpl({
@@ -172,53 +173,50 @@ function useByokImpl({
     });
   }, [aomiClientRef, byokKeys, getControlSessionId2]);
   const ingestSecrets = useCallback2(
-    async (secrets, app) => {
+    async (secrets) => {
       const clientId = clientIdRef.current;
       if (!clientId) throw new Error("clientId not initialized");
       const { handles } = await aomiClientRef.current.ingestSecrets(
         getControlSessionId2(),
         clientId,
-        secrets,
-        app
+        secrets
       );
       return handles;
     },
     [aomiClientRef, clientIdRef, getControlSessionId2]
   );
   const clearSecrets = useCallback2(
-    async (app) => {
+    async () => {
       var _a, _b;
       const clientId = clientIdRef.current;
       if (!clientId) return;
       await ((_b = (_a = aomiClientRef.current).clearSecrets) == null ? void 0 : _b.call(
         _a,
         getControlSessionId2(),
-        clientId,
-        app
+        clientId
       ));
     },
     [aomiClientRef, clientIdRef, getControlSessionId2]
   );
   const deleteSecret = useCallback2(
-    async (name, app) => {
+    async (name) => {
       const clientId = clientIdRef.current;
       if (!clientId) return;
       await aomiClientRef.current.deleteSecret(
         getControlSessionId2(),
         clientId,
-        name,
-        app
+        name
       );
     },
     [aomiClientRef, clientIdRef, getControlSessionId2]
   );
   const listSecrets = useCallback2(async () => {
     var _a;
-    const { by_app } = await aomiClientRef.current.listSecrets(
+    const response = await aomiClientRef.current.listSecrets(
       getControlSessionId2(),
       (_a = clientIdRef.current) != null ? _a : void 0
     );
-    return by_app;
+    return secretNamesFrom(response);
   }, [aomiClientRef, clientIdRef, getControlSessionId2]);
   const setByok = useCallback2(
     async (provider, apiKey, label) => {
@@ -326,56 +324,22 @@ function useAuthEndpointsImpl({
   apiKeyRef,
   getControlSessionId: getControlSessionId2,
   apiKey,
-  appPlatforms
+  appPlatforms,
+  applicationId
 }) {
+  var _a;
   const appPlatformsKey = Array.isArray(appPlatforms) ? appPlatforms.join("\0") : appPlatforms != null ? appPlatforms : "";
+  const appId = (_a = applicationId == null ? void 0 : applicationId.toString()) != null ? _a : "";
   const [availableModels, setAvailableModels] = useState3([]);
   const [defaultModel, setDefaultModel] = useState3(null);
   const [authorizedApps, setAuthorizedApps] = useState3([]);
   const [appDescriptors, setAppDescriptors] = useState3([]);
   const [defaultApp, setDefaultApp] = useState3(null);
-  useEffect3(() => {
-    const fetchApps = async () => {
-      var _a;
-      try {
-        const descriptors = await aomiClientRef.current.getApps(
-          getControlSessionId2(),
-          {
-            apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
-            platforms: appPlatforms
-          }
-        );
-        const names = namesFromDescriptors(descriptors);
-        setAuthorizedApps(names);
-        setAppDescriptors(descriptors);
-        setDefaultApp(getDefaultApp(names));
-      } catch (error) {
-        console.error("Failed to fetch apps:", error);
-        setAuthorizedApps(["default"]);
-        setAppDescriptors([{ name: "default" }]);
-        setDefaultApp("default");
-      }
-    };
-    void fetchApps();
-  }, [aomiClientRef, getControlSessionId2, apiKey, appPlatformsKey]);
-  useEffect3(() => {
-    const fetchModels = async () => {
-      try {
-        const models = await aomiClientRef.current.getModels(
-          getControlSessionId2()
-        );
-        setAvailableModels(models);
-        setDefaultModel(resolveAutoModel(models));
-      } catch (error) {
-        console.error("Failed to fetch models:", error);
-      }
-    };
-    void fetchModels();
-  }, [aomiClientRef, getControlSessionId2]);
   const getAvailableModels = useCallback3(async () => {
     try {
       const models = await aomiClientRef.current.getModels(
-        getControlSessionId2()
+        getControlSessionId2(),
+        { applicationId: appId }
       );
       setAvailableModels(models);
       setDefaultModel(resolveAutoModel(models));
@@ -384,15 +348,16 @@ function useAuthEndpointsImpl({
       console.error("Failed to fetch models:", error);
       return [];
     }
-  }, [aomiClientRef, getControlSessionId2]);
+  }, [aomiClientRef, getControlSessionId2, appId]);
   const getAuthorizedApps = useCallback3(async () => {
-    var _a;
+    var _a2;
     try {
       const descriptors = await aomiClientRef.current.getApps(
         getControlSessionId2(),
         {
-          apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
-          platforms: appPlatforms
+          apiKey: (_a2 = apiKeyRef.current) != null ? _a2 : void 0,
+          platforms: appPlatforms,
+          applicationId: appId
         }
       );
       const names = namesFromDescriptors(descriptors);
@@ -407,7 +372,13 @@ function useAuthEndpointsImpl({
       setDefaultApp("default");
       return ["default"];
     }
-  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appPlatformsKey]);
+  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appPlatformsKey, appId]);
+  useEffect3(() => {
+    void getAvailableModels();
+  }, [getAvailableModels]);
+  useEffect3(() => {
+    void getAuthorizedApps();
+  }, [getAuthorizedApps, apiKey]);
   return {
     state: {
       availableModels,
@@ -1156,7 +1127,8 @@ function ControlContextProvider({
   sessionId,
   getThreadMetadata,
   updateThreadMetadata,
-  appPlatforms
+  appPlatforms,
+  applicationId
 }) {
   const aomiClientRef = useRef(aomiClient);
   aomiClientRef.current = aomiClient;
@@ -1199,7 +1171,8 @@ function ControlContextProvider({
     apiKeyRef,
     getControlSessionId: getCurrentControlSessionId,
     apiKey: apiKey.state.apiKey,
-    appPlatforms
+    appPlatforms,
+    applicationId
   });
   const availableModelsRef = useRef(authEndpoints.state.availableModels);
   availableModelsRef.current = authEndpoints.state.availableModels;
@@ -1795,11 +1768,30 @@ function collectTxOutcomes(messages) {
     svmByTx: svmByTx != null ? svmByTx : /* @__PURE__ */ new Map()
   };
 }
-function toInboundMessage(msg, txOutcomes) {
+function toInboundMessage(msg, txOutcomes, rawIndex = 0) {
+  var _a;
   if (msg.sender === "system") {
     return null;
   }
+  if (msg.sender === "notice") {
+    return {
+      id: noticeMessageId(msg, rawIndex),
+      role: "assistant",
+      content: [{ type: "text", text: (_a = msg.content) != null ? _a : "" }],
+      createdAt: /* @__PURE__ */ new Date(),
+      metadata: {
+        custom: {
+          aomiNoticeKind: "error",
+          aomiNoticeTitle: "Error"
+        }
+      }
+    };
+  }
   return buildInboundMessage(msg, txOutcomes);
+}
+function noticeMessageId(msg, index) {
+  var _a;
+  return `aomi-notice-${(_a = msg.message_key) != null ? _a : `idx-${index}`}`;
 }
 var TASK_TOOL_NAME = "task";
 function readTaskPartAgentId(part) {
@@ -2050,11 +2042,11 @@ var selectProjectedMessageEntries = (messages, projection) => {
 var projectInboundMessages = (messages, projection) => {
   const txOutcomes = collectTxOutcomes(messages);
   const projectedMessages = [];
-  for (const { message } of selectProjectedMessageEntries(
+  for (const { message, rawIndex } of selectProjectedMessageEntries(
     messages,
     projection
   )) {
-    const converted = toInboundMessage(message, txOutcomes);
+    const converted = toInboundMessage(message, txOutcomes, rawIndex);
     if (converted) projectedMessages.push(converted);
   }
   return mergeAssistantTurns(projectedMessages);
@@ -2089,23 +2081,24 @@ var getHttpStatus = (error) => {
 };
 var isPaymentRequiredError = (error) => getHttpStatus(error) === 402;
 var PAYMENT_REQUIRED_MESSAGE = "You're out of funds, please set up a payment method.";
-var buildPaymentRequiredMessage = () => ({
-  id: `aomi-payment-required-${Date.now()}`,
+var TURN_ERROR_MESSAGE = "This app hit an error and couldn't respond.";
+var buildNoticeMessage = (kind, title, text) => ({
+  id: `aomi-${kind}-${Date.now()}`,
   role: "assistant",
-  content: [
-    {
-      type: "text",
-      text: PAYMENT_REQUIRED_MESSAGE
-    }
-  ],
+  content: [{ type: "text", text }],
   createdAt: /* @__PURE__ */ new Date(),
   metadata: {
     custom: {
-      aomiNoticeKind: "payment_required",
-      aomiNoticeTitle: "Credits needed"
+      aomiNoticeKind: kind,
+      aomiNoticeTitle: title
     }
   }
 });
+var buildPaymentRequiredMessage = () => buildNoticeMessage(
+  "payment_required",
+  "Credits needed",
+  PAYMENT_REQUIRED_MESSAGE
+);
 var previewText = (value, max = 80) => {
   const singleLine = value.replace(/\s+/g, " ").trim();
   if (singleLine.length <= max) return singleLine;
@@ -2174,22 +2167,22 @@ var updateTurnPhase = (threadContext, threadId, turnPhase) => {
     })
   });
 };
-var appendPaymentRequiredMessage = (threadContext, threadId) => {
-  var _a, _b;
+var appendNoticeMessage = (threadContext, threadId, message) => {
+  var _a, _b, _c, _d;
+  const kind = (_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind;
   const messages = threadContext.getThreadMessages(threadId);
-  let hasPaymentNotice = false;
+  let hasNotice = false;
   for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message.role !== "assistant") continue;
-    hasPaymentNotice = ((_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind) === "payment_required";
+    const existing = messages[i];
+    if (existing.role !== "assistant") continue;
+    hasNotice = ((_d = (_c = existing.metadata) == null ? void 0 : _c.custom) == null ? void 0 : _d.aomiNoticeKind) === kind;
     break;
   }
-  if (hasPaymentNotice) return;
-  threadContext.setThreadMessages(threadId, [
-    ...messages,
-    buildPaymentRequiredMessage()
-  ]);
+  if (hasNotice) return;
+  threadContext.setThreadMessages(threadId, [...messages, message]);
 };
+var buildTurnErrorMessage = () => buildNoticeMessage("error", "Error", TURN_ERROR_MESSAGE);
+var appendPaymentRequiredMessage = (threadContext, threadId) => appendNoticeMessage(threadContext, threadId, buildPaymentRequiredMessage());
 function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef6(threadContext);
@@ -2881,6 +2874,19 @@ function useWalletHandler({
     },
     [getSession, startRequest, syncVisibleRequests]
   );
+  const dismissRequest = useCallback10(
+    (id) => {
+      var _a;
+      (_a = getSession()) == null ? void 0 : _a.dismiss(id);
+      requestsRef.current = requestsRef.current.filter(
+        (request) => request.id !== id
+      );
+      inFlightRequestSetRef.current.delete(id);
+      suppressedRequestSetRef.current.add(id);
+      syncVisibleRequests();
+    },
+    [getSession, syncVisibleRequests]
+  );
   const rejectRequest = useCallback10(
     async (id, error) => {
       const session = getSession();
@@ -2910,6 +2916,7 @@ function useWalletHandler({
     hasBlockingWalletRequests,
     setRequests,
     startRequest,
+    dismissRequest,
     resolveRequest,
     rejectRequest
   };
@@ -2979,38 +2986,27 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = useCallback11(
     (nextUser) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i;
       return {
         connection: {
+          // Serialize exactly the backend ProviderState. FE-local and account
+          // identity fields are deliberately not forwarded here.
           is_connected: (_a = UserStateHelpers.isConnected(nextUser)) != null ? _a : false,
-          primary_family: (_b = nextUser.connection) == null ? void 0 : _b.primary_family,
-          provider: (_c = UserStateHelpers.walletProvider(nextUser)) != null ? _c : void 0,
-          wallet_provider_subject: (_d = UserStateHelpers.walletProviderSubject(nextUser)) != null ? _d : void 0,
-          auth_method: (_e = UserStateHelpers.authMethod(nextUser)) != null ? _e : void 0,
-          auth_value: (_f = UserStateHelpers.authValue(nextUser)) != null ? _f : void 0,
-          auth_verified_at: (_g = UserStateHelpers.authVerifiedAt(nextUser)) != null ? _g : void 0
+          provider: (_b = UserStateHelpers.walletProvider(nextUser)) != null ? _b : void 0,
+          provider_label: typeof ((_c = nextUser.connection) == null ? void 0 : _c.provider_label) === "string" ? nextUser.connection.provider_label : void 0,
+          auth_method: (_d = UserStateHelpers.authMethod(nextUser)) != null ? _d : void 0
         },
         evm: {
           address: UserStateHelpers.address(nextUser),
           chain_id: UserStateHelpers.chainId(nextUser),
-          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0,
-          aa: {
-            mode: (_i = UserStateHelpers.aaMode(nextUser)) != null ? _i : void 0,
-            smart_account: (_j = UserStateHelpers.SmartAccount4337(nextUser)) != null ? _j : void 0,
-            delegation_7702: (_k = UserStateHelpers.Delegation7702(nextUser)) != null ? _k : void 0
-          },
-          sponsorship: {
-            sponsored: (_l = UserStateHelpers.sponsored(nextUser)) != null ? _l : void 0,
-            sponsor_provider: (_m = UserStateHelpers.sponsorProvider(nextUser)) != null ? _m : void 0,
-            sponsor_account: (_n = UserStateHelpers.sponsorAccount(nextUser)) != null ? _n : void 0
-          }
+          ens_name: typeof ((_e = nextUser.evm) == null ? void 0 : _e.ens_name) === "string" ? nextUser.evm.ens_name : void 0
         },
         svm: {
           address: UserStateHelpers.svmAddress(nextUser),
-          cluster: (_o = nextUser.svm) == null ? void 0 : _o.cluster,
-          wallet_name: (_p = nextUser.svm) == null ? void 0 : _p.wallet_name,
-          transport: (_q = nextUser.svm) == null ? void 0 : _q.transport,
-          capabilities: (_r = nextUser.svm) == null ? void 0 : _r.capabilities
+          cluster: (_f = nextUser.svm) == null ? void 0 : _f.cluster,
+          wallet_name: (_g = nextUser.svm) == null ? void 0 : _g.wallet_name,
+          transport: (_h = nextUser.svm) == null ? void 0 : _h.transport,
+          capabilities: (_i = nextUser.svm) == null ? void 0 : _i.capabilities
         }
       };
     },
@@ -3019,7 +3015,7 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const lastWalletStateRef = useRef8(walletSnapshot(getUserState()));
   useEffect7(() => {
     lastWalletStateRef.current = walletSnapshot(getUserState());
-    const unsubscribe = onUserStateChange(async (newUser) => {
+    const unsubscribe = onUserStateChange((newUser) => {
       var _a, _b;
       const nextWalletState = walletSnapshot(newUser);
       const prevWalletState = lastWalletStateRef.current;
@@ -3048,8 +3044,10 @@ function useWalletStateSync(context, sessions, remoteThreads) {
         type: "wallet:state_changed",
         payload: nextWalletState
       });
-      await aomiClientRef.current.sendSystemMessage(sessionId, message, {
+      void aomiClientRef.current.sendSystemMessage(sessionId, message, {
         app: getCurrentThreadApp()
+      }).catch((error) => {
+        console.warn("Failed to sync wallet state:", error);
       });
     });
     return unsubscribe;
@@ -3798,6 +3796,11 @@ function AomiRuntimeCore({
         title: "Error",
         message
       });
+      appendNoticeMessage(
+        threadContextRef.current,
+        event.sessionId,
+        buildTurnErrorMessage()
+      );
     });
     return () => {
       unsubscribeNotice();
@@ -3948,6 +3951,7 @@ function AomiRuntimeCore({
       pendingWalletRequests: walletHandler.pendingRequests,
       hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
       startWalletRequest: walletHandler.startRequest,
+      dismissWalletRequest: walletHandler.dismissRequest,
       resolveWalletRequest: walletHandler.resolveRequest,
       rejectWalletRequest: walletHandler.rejectRequest,
       simulateBatchTransactions,
@@ -4073,6 +4077,7 @@ function AomiRuntimeInner({
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       appPlatforms,
+      applicationId,
       children: /* @__PURE__ */ jsx8(
         EventContextProvider,
         {

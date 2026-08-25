@@ -60,8 +60,18 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "DELETE",
+    path: "/api/secrets",
+    auth: ["thread"],
+  },
+  {
+    method: "DELETE",
+    path: "/api/secrets/:name",
+    auth: ["thread"],
+  },
+  {
+    method: "DELETE",
     path: "/api/threads/:thread_id",
-    auth: ["account", "thread"],
+    auth: ["account","thread"],
   },
   {
     method: "GET",
@@ -136,6 +146,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/admin/apps/public",
+    auth: ["admin"],
+  },
+  {
+    method: "GET",
+    path: "/api/admin/release",
     auth: ["admin"],
   },
   {
@@ -236,6 +251,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/integrations/github-app/user/projects/:id/deployments",
+    auth: ["service"],
+  },
+  {
+    method: "GET",
+    path: "/api/integrations/github-app/user/projects/:id/deployments/:deployment",
     auth: ["service"],
   },
   {
@@ -380,6 +400,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
+    path: "/api/secrets",
+    auth: ["thread"],
+  },
+  {
+    method: "GET",
     path: "/api/skills",
     auth: [],
   },
@@ -416,12 +441,27 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/threads",
-    auth: ["account", "thread"],
+    auth: ["account","thread"],
   },
   {
     method: "GET",
     path: "/api/threads/:thread_id",
-    auth: ["account", "thread"],
+    auth: ["account","thread"],
+  },
+  {
+    method: "GET",
+    path: "/api/widget/v1/aa-operations/:operation_id",
+    auth: ["account","thread"],
+  },
+  {
+    method: "GET",
+    path: "/api/widget/v1/execution-profile",
+    auth: ["account","thread"],
+  },
+  {
+    method: "GET",
+    path: "/api/widget/v1/signing-requests",
+    auth: ["account","thread"],
   },
   {
     method: "GET",
@@ -446,7 +486,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "PATCH",
     path: "/api/threads/:thread_id",
-    auth: ["account", "thread"],
+    auth: ["account","thread"],
   },
   {
     method: "POST",
@@ -500,6 +540,11 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "POST",
+    path: "/api/admin/release/sentry-smoke",
+    auth: ["admin"],
+  },
+  {
+    method: "POST",
     path: "/api/admin/skills/batch",
     auth: ["admin"],
   },
@@ -536,7 +581,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/exec/run",
-    auth: ["account", "thread"],
+    auth: ["account","thread"],
   },
   {
     method: "POST",
@@ -546,7 +591,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/exec/tool-call",
-    auth: ["account", "thread"],
+    auth: ["account","thread"],
   },
   {
     method: "POST",
@@ -566,6 +611,26 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/integrations/github-app/user/projects/:id/bots",
+    auth: ["service"],
+  },
+  {
+    method: "POST",
+    path: "/api/integrations/github-app/user/projects/:id/deployments/:deployment/promote",
+    auth: ["service"],
+  },
+  {
+    method: "POST",
+    path: "/api/integrations/github-app/user/projects/:id/deployments/:deployment/refresh",
+    auth: ["service"],
+  },
+  {
+    method: "POST",
+    path: "/api/integrations/github-app/user/projects/:id/deployments/import",
+    auth: ["service"],
+  },
+  {
+    method: "POST",
+    path: "/api/integrations/github-app/user/projects/:id/releases/activate",
     auth: ["service"],
   },
   {
@@ -635,13 +700,18 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "POST",
+    path: "/api/secrets",
+    auth: ["thread"],
+  },
+  {
+    method: "POST",
     path: "/api/system",
-    auth: ["account", "thread"],
+    auth: ["account","thread"],
   },
   {
     method: "POST",
     path: "/api/thread/chat",
-    auth: ["thread", "app_gate"],
+    auth: ["thread","app_gate"],
   },
   {
     method: "POST",
@@ -666,12 +736,17 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/threads/:thread_id/archive",
-    auth: ["account", "thread"],
+    auth: ["account","thread"],
   },
   {
     method: "POST",
     path: "/api/threads/:thread_id/unarchive",
-    auth: ["account", "thread"],
+    auth: ["account","thread"],
+  },
+  {
+    method: "POST",
+    path: "/api/widget/v1/signing-requests/:request_id",
+    auth: ["account","thread"],
   },
   {
     method: "PUT",
@@ -697,5 +772,10 @@ export const AOMI_BACKEND_ENDPOINTS = [
     method: "PUT",
     path: "/api/integrations/github-app/user/model-keys/:key_id/grants",
     auth: ["service"],
+  },
+  {
+    method: "PUT",
+    path: "/api/widget/v1/aa-accounts/:chain_id",
+    auth: ["account","thread"],
   },
 ] as const satisfies readonly AomiEndpointSpec[];

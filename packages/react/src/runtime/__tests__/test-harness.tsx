@@ -58,9 +58,19 @@ export type AomiClientConfig = {
   // Control API
   getApps?: (
     sessionId: string,
-    options?: { apiKey?: string; platforms?: AomiPlatformFilter },
+    options?: {
+      apiKey?: string;
+      platforms?: AomiPlatformFilter;
+      applicationId?: number | string | null;
+    },
   ) => Promise<AomiAppDescriptor[]>;
-  getModels?: (sessionId: string) => Promise<string[]>;
+  getModels?: (
+    sessionId: string,
+    options?: {
+      apiKey?: string;
+      applicationId?: number | string | null;
+    },
+  ) => Promise<string[]>;
   setModel?: (
     sessionId: string,
     rig: string,
@@ -258,7 +268,11 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
     getApps = vi.fn(
       async (
         sessionId: string,
-        options?: { apiKey?: string; platforms?: AomiPlatformFilter },
+        options?: {
+          apiKey?: string;
+          platforms?: AomiPlatformFilter;
+          applicationId?: number | string | null;
+        },
       ) => {
         return mockState.config.getApps
           ? await mockState.config.getApps(sessionId, options)
@@ -266,11 +280,19 @@ vi.mock("@aomi-labs/client", async (importOriginal) => {
       },
     );
 
-    getModels = vi.fn(async (sessionId: string) => {
-      return mockState.config.getModels
-        ? await mockState.config.getModels(sessionId)
-        : [];
-    });
+    getModels = vi.fn(
+      async (
+        sessionId: string,
+        options?: {
+          apiKey?: string;
+          applicationId?: number | string | null;
+        },
+      ) => {
+        return mockState.config.getModels
+          ? await mockState.config.getModels(sessionId, options)
+          : [];
+      },
+    );
 
     setModel = vi.fn(
       async (

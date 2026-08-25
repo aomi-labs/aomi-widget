@@ -10,11 +10,14 @@ import { projectDeploymentStatus } from "../project-deployment-status";
 import { TimelineDeploymentRow } from "../ui/timeline-deployment-row";
 import { ConfirmDialog } from "../ui/confirm-dialog";
 import { DeploymentDetail } from "../ui/deployment-detail";
+import { RequiredSecretsPanel } from "@build/features/launch/components/required-secrets-panel";
 import { UpgradeConfirmDialog, UpgradeRail } from "../ui/upgrade-rail";
 import { LoadingPanel, EmptyPanel } from "../ui/state-panels";
+import { DeployProgressBar } from "../ui/deploy-progress-bar";
 import {
   buildActivityList,
   buildDeploymentList,
+  promoteBlockedReason,
   sortDeploymentsForTimeline,
 } from "../deployment-timeline";
 import { formatRelativeTime } from "../format-relative-time";
@@ -44,7 +47,6 @@ export function DeploymentsTab({
   const [pending, setPending] = useState<Pending>(null);
   const [view, setView] = useState<View>("deployments");
   const [expandedDetail, setExpandedDetail] = useState<string | null>(null);
-  const [retryingSecrets, setRetryingSecrets] = useState(false);
   const { loadHistory, loadRecords, loadRequiredSecrets } = detail;
 
   useEffect(() => {
@@ -195,17 +197,27 @@ export function DeploymentsTab({
       0,
     ) || missingRequiredApps.length;
 
-  const retryRequiredSecrets = async () => {
-    if (!detail.refreshRequiredSecrets) return;
-    setRetryingSecrets(true);
-    try {
-      await detail.refreshRequiredSecrets();
-    } catch {
-      // The hook keeps the verification error visible and the gate remains
-      // closed. The user can retry again without refreshing the page.
-    } finally {
-      setRetryingSecrets(false);
-    }
+  const missingSecretSlots = missingRequiredApps.flatMap((app) =>
+    (detail.requiredSecrets?.[app]?.slots ?? [])
+      .filter((slot) =>
+        detail.requiredSecrets?.[app]?.missing.includes(slot.name),
+      )
+      .map((slot) => ({
+        app,
+        slot,
+        applicationId: detail.requiredSecrets?.[app]?.applicationId,
+      })),
+  );
+
+  const saveRequiredSecrets = async (
+    valuesByApplication: Map<number, Record<string, string>>,
+  ) => {
+    await Promise.all(
+      Array.from(valuesByApplication, ([applicationId, values]) =>
+        detail.setEnvVars?.(applicationId, values),
+      ),
+    );
+    await detail.ensureRequiredSecrets?.(missingRequiredApps);
   };
 
   if (!source) {
@@ -246,11 +258,18 @@ export function DeploymentsTab({
       detail.reload();
       detail.refreshRecords();
     } catch (err) {
+      const missing = (err as { body?: { missing?: Record<string, string[]> } })
+        .body?.missing;
+      if (missing) detail.noteMissingRequiredSecrets(missing);
       setOp({
         kind: "promote",
         deploymentId,
         status: "error",
-        message: err instanceof Error ? err.message : "Promote failed",
+        message: missing
+          ? "Required secrets are missing. Set them below before promoting."
+          : err instanceof Error
+            ? err.message
+            : "Promote failed",
       });
       toast({ title: "Failed. Retry", tone: "error" });
     }
@@ -395,17 +414,10 @@ export function DeploymentsTab({
         onDismiss={upgrade.dismiss}
       />
 
-      {detail.deployFlow.phase !== "idle" && (
-        <div
-          className={`border-border border-b px-4 py-2 text-xs ${
-            detail.deployFlow.phase === "error"
-              ? "text-destructive"
-              : "text-dim"
-          }`}
-        >
-          {detail.deployFlow.message}
-        </div>
-      )}
+      <DeployProgressBar
+        deployFlow={detail.deployFlow}
+        startedAt={detail.deployStartedAt ?? null}
+      />
 
       {deactivated && (
         <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-2 border-b px-4 py-2 text-xs">
@@ -426,37 +438,31 @@ export function DeploymentsTab({
       )}
 
       {secretsGateBlocked && (
-        <div
-          className="border-warning/40 bg-warning/10 text-warning flex items-center justify-between gap-3 border-b px-4 py-3 text-xs"
-          role="alert"
-        >
-          <span>
-            {secretsCheckPending
-              ? "Checking required secrets before deployment…"
-              : detail.requiredSecretsError
-                ? "Required secrets could not be verified. Refresh before deploying."
-                : `${missingRequiredCount} required secret${missingRequiredCount === 1 ? "" : "s"} missing for ${missingRequiredApps.join(", ")}.`}
-          </span>
-          {secretsCheckFailed ? (
+        <div className="border-b px-4 py-3">
+          <RequiredSecretsPanel
+            slots={missingSecretSlots}
+            missingCount={missingRequiredCount}
+            verificationError={
+              detail.requiredSecretsError
+                ? `${detail.requiredSecretsError}.`
+                : null
+            }
+            verificationRetryable={detail.requiredSecretsRetryable ?? true}
+            pending={secretsCheckPending}
+            onRetryVerification={detail.refreshRequiredSecrets}
+            onSave={saveRequiredSecrets}
+            actionLabel="Promote"
+          />
+          {onOpenEnvironment && !secretsCheckPending && (
+            // The panel fixes what is missing; this still goes to the full
+            // Environment tab for everything else the project has set.
             <button
               type="button"
-              onClick={() => void retryRequiredSecrets()}
-              disabled={retryingSecrets}
-              className="shrink-0 font-medium underline underline-offset-2 disabled:opacity-60"
+              onClick={onOpenEnvironment}
+              className="text-warning mt-2 text-xs font-medium underline underline-offset-2"
             >
-              {retryingSecrets ? "Retrying…" : "Retry required secrets"}
+              Set required secrets
             </button>
-          ) : (
-            onOpenEnvironment &&
-            !secretsCheckPending && (
-              <button
-                type="button"
-                onClick={onOpenEnvironment}
-                className="shrink-0 font-medium underline underline-offset-2"
-              >
-                Set required secrets
-              </button>
-            )
           )}
         </div>
       )}
@@ -486,9 +492,10 @@ export function DeploymentsTab({
         />
       ) : view === "deployments" && deployments.length > 0 ? (
         deployments.map((deployment) => {
-          const running =
-            op?.deploymentId === deployment.deploymentId &&
-            op.status === "running";
+          // Any running operation in this project blocks promotion, not only
+          // one on this row: two promotions in the same project dispatch two
+          // CI runs that queue behind each other just the same.
+          const running = op?.status === "running";
           const message =
             op?.deploymentId === deployment.deploymentId ? op.message : null;
           const hasUnloadedCurrentApp =
@@ -505,11 +512,16 @@ export function DeploymentsTab({
           const secretsBlocked = deployment.apps.some((app) =>
             detail.hasMissingSecrets(app),
           );
+          const promoteBlocked = promoteBlockedReason(deployment, {
+            busy: running,
+            secretsBlocked,
+          });
           return (
             <div key={deployment.deploymentId}>
               <TimelineDeploymentRow
                 deployment={deployment}
                 busy={running}
+                promoteBlocked={promoteBlocked}
                 message={message}
                 runtimeState={hasUnloadedCurrentApp ? "not-loaded" : "loaded"}
                 requiredSdk={requiredSdk}

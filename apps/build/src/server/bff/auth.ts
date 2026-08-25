@@ -9,10 +9,23 @@ import {
   getGitHubSession,
 } from "@build/server/cookies/github";
 
-type AuthResult = { session: GitHubSession } | { response: NextResponse };
+type AuthResult =
+  | { session: GitHubSession; visibilityGrant: string | null }
+  | { response: NextResponse };
 type AnonymousAuthResult =
   | { session: GitHubSession | null }
   | { response: NextResponse };
+
+function visibilityGrantFromRequest(req: Request): string | null {
+  const cookie = req.headers.get("cookie") ?? "";
+  const value = cookie
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("aomi_github_visibility="))
+    ?.slice("aomi_github_visibility=".length)
+    ?.trim();
+  return value || null;
+}
 
 export function authorize(
   req: Request,
@@ -32,7 +45,7 @@ export async function authorize(
 ): Promise<AuthResult | AnonymousAuthResult> {
   if (options.cliScope) {
     const cli = await getGitHubCliSessionFromRequest(req, options.cliScope);
-    if (cli) return { session: cli };
+    if (cli) return { session: cli, visibilityGrant: null };
   }
   if (options.write && !validateOrigin(req)) {
     return {
@@ -49,7 +62,7 @@ export async function authorize(
     return { session: null };
   }
   return session
-    ? { session }
+    ? { session, visibilityGrant: visibilityGrantFromRequest(req) }
     : {
         response: NextResponse.json(
           { error: "not signed in with GitHub" },

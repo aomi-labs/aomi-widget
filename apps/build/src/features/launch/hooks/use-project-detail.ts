@@ -40,7 +40,13 @@ import type {
   DeploymentRecord,
   DeploymentProjectsResult,
 } from "@build/features/launch/contracts";
+import { isRetryableLaunchError } from "@aomi-labs/deploy/launch";
 import { useGitHubSession } from "@build/components/control-plane/github-session-context";
+import {
+  ciProgress,
+  stageProgress,
+  type DeployFlowProgress,
+} from "@build/features/launch/components/deployments/deploy-flow-progress";
 import {
   buildQueryKeys,
   buildQueryStaleTime,
@@ -50,15 +56,124 @@ import {
 /** Progress of an in-flight linked-source redeploy (deploy → CI → activate). */
 export type DeployFlowState =
   | { phase: "idle" }
-  | { phase: "deploying"; message: string }
-  | { phase: "building"; message: string }
-  | { phase: "activating"; message: string }
-  | { phase: "done"; message: string }
-  | { phase: "error"; message: string };
+  | { phase: "deploying"; message: string; progress?: DeployFlowProgress }
+  | { phase: "building"; message: string; progress?: DeployFlowProgress }
+  | { phase: "activating"; message: string; progress?: DeployFlowProgress }
+  | { phase: "done"; message: string; progress?: DeployFlowProgress }
+  | { phase: "error"; message: string; progress?: DeployFlowProgress };
 
 const DEPLOY_POLL_MS = 4000;
 const DEPLOYMENT_READY_TIMEOUT_MS = 8 * 60 * 1000;
 const RUNTIME_READY_TIMEOUT_MS = 8 * 60 * 1000;
+
+type MissingSecrets = Record<string, string[]>;
+
+function missingSecretsFromLaunchError(error: unknown): MissingSecrets | null {
+  if (
+    !error ||
+    typeof error !== "object" ||
+    (error as { status?: unknown }).status !== 409
+  ) {
+    return null;
+  }
+  const body = (error as { body?: unknown }).body;
+  if (!body || typeof body !== "object") return null;
+  const missing = (body as { missing?: unknown }).missing;
+  if (!missing || typeof missing !== "object") return null;
+  const entries = Object.entries(missing).flatMap(([app, keys]) =>
+    Array.isArray(keys) && keys.every((key) => typeof key === "string")
+      ? [[app, keys] as const]
+      : [],
+  );
+  return entries.length > 0 ? Object.fromEntries(entries) : null;
+}
+
+/**
+ * The read endpoint reports the Manager's persisted declarations. A deploy or
+ * promote 409 can be newer: it verifies the exact candidate release. Keep
+ * that authoritative write-time result visible until the user sets its keys,
+ * instead of collapsing the project back to "No keys required".
+ */
+function mergedRequiredSecrets(
+  declared: RequiredSecretsByApp | null,
+  gateMissing: MissingSecrets,
+  apps: UserProject["apps"] | undefined,
+  configured: Record<string, string[]> | null,
+): RequiredSecretsByApp | null {
+  if (declared === null && Object.keys(gateMissing).length === 0) return null;
+
+  const result: RequiredSecretsByApp = { ...(declared ?? {}) };
+  const appsByName = new Map((apps ?? []).map((app) => [app.name, app]));
+  for (const [app, names] of Object.entries(gateMissing)) {
+    const application = appsByName.get(app);
+    const existing = result[app];
+    // Preflight refreshes the source before a deploy can reach the 409. Keep
+    // this guard nonetheless: inventing an application id would turn a clear
+    // retry/reload problem into a write against the wrong app.
+    if (!existing && !application) continue;
+    const configuredKeys =
+      configured?.[app]?.map((handle) => handle.split("::").pop() ?? handle) ??
+      null;
+    const missing = names.filter(
+      (name) => configuredKeys === null || !configuredKeys.includes(name),
+    );
+    const slots = [...(existing?.slots ?? [])];
+    for (const name of names) {
+      if (!slots.some((slot) => slot.name === name)) {
+        slots.push({
+          name,
+          description: "Required by the deployment that was blocked.",
+          required: true,
+        });
+      }
+    }
+    result[app] = {
+      applicationId: existing?.applicationId ?? application!.id,
+      slots,
+      missing: [...new Set([...(existing?.missing ?? []), ...missing])],
+    };
+  }
+  return result;
+}
+
+function missingSecretsMessage(missing: MissingSecrets) {
+  return Object.entries(missing)
+    .map(([app, keys]) => `${app}: ${keys.join(", ")}`)
+    .join("; ");
+}
+
+function gateSecretsStorageKey(projectId: number) {
+  return `aomi-build:project:${projectId}:candidate-required-secrets`;
+}
+
+function persistGateMissingSecrets(projectId: number, missing: MissingSecrets) {
+  if (typeof window === "undefined") return;
+  const key = gateSecretsStorageKey(projectId);
+  if (Object.keys(missing).length === 0) {
+    window.sessionStorage.removeItem(key);
+  } else {
+    window.sessionStorage.setItem(key, JSON.stringify(missing));
+  }
+}
+
+function storedMissingSecrets(projectId: number): MissingSecrets {
+  if (typeof window === "undefined") return {};
+  try {
+    const parsed: unknown = JSON.parse(
+      window.sessionStorage.getItem(gateSecretsStorageKey(projectId)) ?? "{}",
+    );
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(parsed).flatMap(([app, keys]) =>
+        Array.isArray(keys) && keys.every((key) => typeof key === "string")
+          ? [[app, keys] as const]
+          : [],
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
 
 export function useProjectDetail(projectId: number) {
   const { account } = useGitHubSession();
@@ -125,18 +240,29 @@ export function useProjectDetail(projectId: number) {
     DeploymentRecord[]
   > | null>(null);
   const [recordsError, setRecordsError] = useState<string | null>(null);
-  const [requiredSecrets, setRequiredSecrets] =
+  const [declaredRequiredSecrets, setDeclaredRequiredSecrets] =
     useState<RequiredSecretsByApp | null>(null);
+  const [gateMissingSecrets, setGateMissingSecrets] = useState<MissingSecrets>(
+    {},
+  );
+  // Whether the failure above is worth retrying. A missing deploy-time
+  // GITHUB_TOKEN is not: no amount of clicking Retry will conjure one, and
+  // offering the button implies otherwise.
+  const [requiredSecretsRetryable, setRequiredSecretsRetryable] =
+    useState(true);
   const [requiredSecretsError, setRequiredSecretsError] = useState<
     string | null
   >(null);
   const [deployFlow, setDeployFlow] = useState<DeployFlowState>({
     phase: "idle",
   });
+  /** Epoch ms the current deploy started, for the progress bar's clock. */
+  const [deployStartedAt, setDeployStartedAt] = useState<number | null>(null);
   const historyReq = useRef(false);
   const secretsReq = useRef<Set<number>>(new Set());
   const recordsReq = useRef(false);
   const requiredSecretsReq = useRef(false);
+  const gateMissingSecretsRef = useRef<MissingSecrets>({});
   const projectEpochRef = useRef(0);
   const deployAbortRef = useRef<AbortController | null>(null);
   // Advance the generation after a project navigation commits. Async reads
@@ -180,12 +306,35 @@ export function useProjectDetail(projectId: number) {
     setSecrets(null);
     setSecretsError(null);
     requiredSecretsReq.current = false;
-    setRequiredSecrets(null);
+    setDeclaredRequiredSecrets(null);
+    setGateMissingSecrets({});
+    gateMissingSecretsRef.current = {};
     setRequiredSecretsError(null);
     setDeployFlow({ phase: "idle" });
+    setDeployStartedAt(null);
     deployAbortRef.current?.abort();
     deployAbortRef.current = null;
   }, [projectId]);
+
+  // A 409 describes a candidate release which the Manager cannot expose until
+  // it is activated. Keep its key names (never values) for this browser tab so
+  // a refresh or a hop through Settings still lands on an actionable project.
+  useEffect(() => {
+    const stored = storedMissingSecrets(projectId);
+    gateMissingSecretsRef.current = stored;
+    setGateMissingSecrets(stored);
+  }, [projectId]);
+
+  const requiredSecrets = useMemo(
+    () =>
+      mergedRequiredSecrets(
+        declaredRequiredSecrets,
+        gateMissingSecrets,
+        source?.apps,
+        secretsByApp,
+      ),
+    [declaredRequiredSecrets, gateMissingSecrets, secretsByApp, source?.apps],
+  );
 
   useEffect(
     () => () => {
@@ -237,10 +386,11 @@ export function useProjectDetail(projectId: number) {
     const requestEpoch = projectEpochRef.current;
     requiredSecretsReq.current = true;
     setRequiredSecretsError(null);
+    setRequiredSecretsRetryable(true);
     try {
       const result = await deploymentRequiredSecrets({ projectId });
       if (projectEpochRef.current === requestEpoch) {
-        setRequiredSecrets(result.byApp);
+        setDeclaredRequiredSecrets(result.byApp);
       }
       return result.byApp;
     } catch (err) {
@@ -250,6 +400,7 @@ export function useProjectDetail(projectId: number) {
             ? err.message
             : "Failed to load required secrets",
         );
+        setRequiredSecretsRetryable(isRetryableLaunchError(err));
         requiredSecretsReq.current = false;
       }
       throw err;
@@ -257,9 +408,9 @@ export function useProjectDetail(projectId: number) {
   }, [projectId]);
 
   const loadRequiredSecrets = useCallback(() => {
-    if (requiredSecretsReq.current || requiredSecrets !== null) return;
+    if (requiredSecretsReq.current || declaredRequiredSecrets !== null) return;
     void refreshRequiredSecrets().catch(() => undefined);
-  }, [refreshRequiredSecrets, requiredSecrets]);
+  }, [declaredRequiredSecrets, refreshRequiredSecrets]);
 
   const ensureRequiredSecrets = useCallback(
     async (apps: string[], projectIdOverride?: number) => {
@@ -277,11 +428,19 @@ export function useProjectDetail(projectId: number) {
           projectIdOverride !== undefined &&
           projectEpochRef.current === requestEpoch
         ) {
-          setRequiredSecrets(byApp);
+          setDeclaredRequiredSecrets(byApp);
         }
         if (projectEpochRef.current !== requestEpoch)
           throw new Error("Project changed while checking required secrets.");
-        const missing = missingRequiredSecrets(byApp, apps);
+        const missing = missingRequiredSecrets(
+          mergedRequiredSecrets(
+            byApp,
+            gateMissingSecretsRef.current,
+            source?.apps,
+            secretsByApp,
+          ) ?? byApp,
+          apps,
+        );
         if (Object.keys(missing).length > 0) {
           throw new MissingRequiredSecretsError(missing);
         }
@@ -300,12 +459,30 @@ export function useProjectDetail(projectId: number) {
         throw err;
       }
     },
-    [refreshRequiredSecrets],
+    [refreshRequiredSecrets, secretsByApp, source],
   );
 
   const hasMissingSecrets = useCallback(
     (app: string) => (requiredSecrets?.[app]?.missing.length ?? 0) > 0,
     [requiredSecrets],
+  );
+
+  const noteMissingRequiredSecrets = useCallback(
+    (missing: MissingSecrets) => {
+      const current = gateMissingSecretsRef.current;
+      const next = Object.fromEntries(
+        [...new Set([...Object.keys(current), ...Object.keys(missing)])].map(
+          (app) => [
+            app,
+            [...new Set([...(current[app] ?? []), ...(missing[app] ?? [])])],
+          ],
+        ),
+      );
+      gateMissingSecretsRef.current = next;
+      setGateMissingSecrets(next);
+      persistGateMissingSecrets(projectId, next);
+    },
+    [projectId],
   );
 
   const refreshSecrets = useCallback(async (applicationId: number) => {
@@ -336,12 +513,28 @@ export function useProjectDetail(projectId: number) {
         secrets,
       });
       if (projectEpochRef.current !== requestEpoch) return result;
+      const nextGateMissing = Object.fromEntries(
+        Object.entries(gateMissingSecretsRef.current)
+          .map(([app, missing]) => {
+            const application = source?.apps.find((item) => item.name === app);
+            return [
+              app,
+              application?.id === applicationId
+                ? missing.filter((name) => !(name in secrets))
+                : missing,
+            ] as const;
+          })
+          .filter(([, missing]) => missing.length > 0),
+      );
+      gateMissingSecretsRef.current = nextGateMissing;
+      setGateMissingSecrets(nextGateMissing);
+      persistGateMissingSecrets(projectId, nextGateMissing);
       await refreshSecrets(applicationId);
       if (projectEpochRef.current !== requestEpoch) return result;
       await refreshRequiredSecrets();
       return result;
     },
-    [refreshRequiredSecrets, refreshSecrets],
+    [projectId, refreshRequiredSecrets, refreshSecrets, source?.apps],
   );
 
   const deleteEnvVar = useCallback(
@@ -428,10 +621,17 @@ export function useProjectDetail(projectId: number) {
       deployAbortRef.current = null;
       return;
     }
+    const startedAt = Date.now();
+    setDeployStartedAt(startedAt);
+    // CI progress is monotonic within one deploy: a transient `no_ci`/`failed`
+    // poll reports the last completed step rather than snapping the bar back.
+    let lastCompleted = 0;
+    let ciUrl: string | null = null;
     try {
       setDeployFlow({
         phase: "deploying",
         message: "Resolving latest commit…",
+        progress: stageProgress("deploying", "Resolving commit"),
       });
       const pre = await launchPreflight({
         repo,
@@ -452,7 +652,11 @@ export function useProjectDetail(projectId: number) {
       if (!pre.sourceRef) {
         throw new Error("Preflight did not return an immutable source commit.");
       }
-      setDeployFlow({ phase: "deploying", message: "Deploying new version…" });
+      setDeployFlow({
+        phase: "deploying",
+        message: "Deploying new version…",
+        progress: stageProgress("deploying", "Dispatching build"),
+      });
       const deployed = await launchDeploy({
         projectId: targetProjectId,
         sourceRef: pre.sourceRef,
@@ -463,7 +667,14 @@ export function useProjectDetail(projectId: number) {
       let releaseTags = deployed.releaseTags;
       const apps = deployed.apps;
       const ready = await waitForDeploymentReady(
-        () => launchStatus(deploymentId, projectPlatform),
+        // Read the CI url here, not in `onProgress`: the watcher throws on a
+        // `failed`/`no_ci` status *before* reporting progress, and that poll is
+        // exactly the one whose run link the failure banner needs.
+        async () => {
+          const status = await launchStatus(deploymentId, projectPlatform);
+          ciUrl = status.ci?.url ?? ciUrl;
+          return status;
+        },
         {
           signal: controller.signal,
           intervalMs: DEPLOY_POLL_MS,
@@ -474,10 +685,13 @@ export function useProjectDetail(projectId: number) {
             releaseTags = status.releaseTags?.length
               ? status.releaseTags
               : releaseTags;
+            const { model, progress } = ciProgress(status, lastCompleted);
+            lastCompleted = model.completed;
             if (status.state !== "ready") {
               setDeployFlow({
                 phase: "building",
                 message: `Building… (${status.state})`,
+                progress: { ...progress, ciUrl },
               });
             }
           },
@@ -486,7 +700,11 @@ export function useProjectDetail(projectId: number) {
       releaseTags = ready.releaseTags?.length ? ready.releaseTags : releaseTags;
       if (!isCurrent()) return;
 
-      setDeployFlow({ phase: "activating", message: "Activating release…" });
+      setDeployFlow({
+        phase: "activating",
+        message: "Activating release…",
+        progress: stageProgress("activating", "Activating release", ciUrl),
+      });
       // Activate the SAME project the deploy targeted — `targetProjectId`
       // is preflight-resolved and can differ from the page's `projectId`.
       const activated = await launchActivate({
@@ -504,6 +722,7 @@ export function useProjectDetail(projectId: number) {
         setDeployFlow({
           phase: "error",
           message: failed?.error ?? "Activation was not accepted.",
+          progress: stageProgress("activating", "Activation failed", ciUrl),
         });
         return;
       }
@@ -511,6 +730,7 @@ export function useProjectDetail(projectId: number) {
         setDeployFlow({
           phase: "error",
           message: "Activation returned no application statuses.",
+          progress: stageProgress("activating", "Activation failed", ciUrl),
         });
         return;
       }
@@ -519,6 +739,7 @@ export function useProjectDetail(projectId: number) {
         setDeployFlow({
           phase: "activating",
           message: "Loading app runtime…",
+          progress: stageProgress("activating", "Loading app runtime", ciUrl),
         });
         try {
           await waitForAppsToLoad(
@@ -537,6 +758,11 @@ export function useProjectDetail(projectId: number) {
                   setDeployFlow({
                     phase: "activating",
                     message: `Loading app runtime… (${ready}/${total})`,
+                    progress: stageProgress(
+                      "activating",
+                      `Loading app runtime (${ready}/${total})`,
+                      ciUrl,
+                    ),
                   });
                 }
               },
@@ -548,21 +774,33 @@ export function useProjectDetail(projectId: number) {
         }
         if (!isCurrent()) return;
       }
-      setDeployFlow({ phase: "done", message: "New version is live." });
+      setDeployFlow({
+        phase: "done",
+        message: "New version is live.",
+        progress: stageProgress("done", "Live", ciUrl),
+      });
       await reload();
       if (!isCurrent()) return;
       refreshRecords();
     } catch (err) {
       if (controller.signal.aborted || !isCurrent()) return;
+      const missing = missingSecretsFromLaunchError(err);
+      if (missing) noteMissingRequiredSecrets(missing);
       setDeployFlow({
         phase: "error",
-        message: err instanceof Error ? err.message : "Deploy failed",
+        message: missing
+          ? `Missing required secrets — ${missingSecretsMessage(missing)}. Set them in Environment, then redeploy.`
+          : err instanceof Error
+            ? err.message
+            : "Deploy failed",
+        progress: { percent: 100, label: "Deploy failed", ciUrl },
       });
     } finally {
       if (deployAbortRef.current === controller) deployAbortRef.current = null;
     }
   }, [
     ensureRequiredSecrets,
+    noteMissingRequiredSecrets,
     projectPlatform,
     refreshRecords,
     reload,
@@ -597,13 +835,16 @@ export function useProjectDetail(projectId: number) {
     recordsError,
     requiredSecrets,
     requiredSecretsError,
+    requiredSecretsRetryable,
     deployFlow,
+    deployStartedAt,
     loadHistory,
     loadSecrets,
     loadRequiredSecrets,
     refreshRequiredSecrets,
     ensureRequiredSecrets,
     hasMissingSecrets,
+    noteMissingRequiredSecrets,
     setEnvVars,
     deleteEnvVar,
     loadRecords,

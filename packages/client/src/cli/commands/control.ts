@@ -203,7 +203,9 @@ export function currentWalletCommand(
       : null,
     state.svmPublicKey
       ? {
-          family: "solana",
+          // "svm" is the canonical family name (matches the backend wire key
+          // and the account-graph API); "solana" was the deprecated alias.
+          family: "svm",
           address: state.svmPublicKey,
           cluster: state.svmCluster ?? null,
           hasSavedSigner: Boolean(state.svmPrivateKey),
@@ -227,7 +229,8 @@ export function currentWalletCommand(
   }
   if (state.svmPublicKey) {
     const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
-    console.log(`Solana: ${state.svmPublicKey} (${signerStatus})`);
+    const clusterSuffix = state.svmCluster ? `, ${state.svmCluster}` : "";
+    console.log(`Solana: ${state.svmPublicKey} (${signerStatus}${clusterSuffix})`);
   }
   printDataFileLocation({ verbose: config.verbose });
 }

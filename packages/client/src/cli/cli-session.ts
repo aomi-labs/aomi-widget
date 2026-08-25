@@ -44,7 +44,23 @@ export class CliSession {
   /** Load the active session from disk. Returns null if none exists. */
   static load(): CliSession | null {
     const state = readState();
-    return state ? new CliSession(state) : null;
+    if (!state) return null;
+    const cli = new CliSession(state);
+    if (cli.ensureSvmClusterInvariant()) cli.save();
+    return cli;
+  }
+
+  /**
+   * A persisted Solana address must always carry a persisted cluster so that
+   * display, state file, and wire agree. State files written before
+   * `wallet set --solana` persisted clusters get stamped with mainnet once.
+   */
+  private ensureSvmClusterInvariant(): boolean {
+    if (this.state.svmPublicKey && !this.state.svmCluster) {
+      this.state.svmCluster = "solana:mainnet";
+      return true;
+    }
+    return false;
   }
 
   /** Load existing session or create a fresh one from config. */
@@ -62,7 +78,11 @@ export class CliSession {
   }
 
   /** Create a fresh session and persist it. */
-  static create(config: CliConfig, seed?: CliSessionState): CliSession {
+  static create(
+    config: CliConfig,
+    seed?: CliSessionState,
+    sessionId = crypto.randomUUID(),
+  ): CliSession {
     // Derive Solana public key from private key when provided.
     let svmPublicKey: string | undefined;
     if (config.solanaPrivateKey) {
@@ -76,7 +96,7 @@ export class CliSession {
     }
 
     const state: CliSessionState = {
-      sessionId: crypto.randomUUID(),
+      sessionId,
       clientId: crypto.randomUUID(),
       baseUrl: config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL,
       app: config.app ?? seed?.app,
@@ -101,6 +121,7 @@ export class CliSession {
       auth: seed?.auth,
     };
     const cli = new CliSession(state);
+    cli.ensureSvmClusterInvariant();
     cli.save();
     return cli;
   }
@@ -268,6 +289,7 @@ export class CliSession {
       this.state.clientId = crypto.randomUUID();
       changed = true;
     }
+    if (this.ensureSvmClusterInvariant()) changed = true;
 
     if (changed) this.save();
   }
@@ -299,9 +321,16 @@ export class CliSession {
     this.save();
   }
 
-  setSvmWallet(privateKey: string, publicKey: string): void {
+  setSvmWallet(
+    privateKey: string,
+    publicKey: string,
+    cluster?: NonNullable<CliSessionState["svmCluster"]>,
+  ): void {
     this.state.svmPrivateKey = privateKey;
     this.state.svmPublicKey = publicKey;
+    if (cluster !== undefined) {
+      this.state.svmCluster = cluster;
+    }
     this.save();
   }
 
@@ -312,13 +341,17 @@ export class CliSession {
     return fromConfig ?? this.state.svmPrivateKey;
   }
 
-  setChainId(id: number): void {
-    this.state.chainId = id;
-    this.save();
+  /** The effective runtime Solana cluster: `--cluster` wins, then the
+   * persisted choice, then mainnet. Persistence paths stamp their defaults
+   * before saving so display, state, and this resolver stay aligned. */
+  resolvedSvmCluster(
+    fromConfig?: CliSessionState["svmCluster"],
+  ): NonNullable<CliSessionState["svmCluster"]> {
+    return fromConfig ?? this.state.svmCluster ?? "solana:mainnet";
   }
 
-  setSvmCluster(cluster: NonNullable<CliSessionState["svmCluster"]>): void {
-    this.state.svmCluster = cluster;
+  setChainId(id: number): void {
+    this.state.chainId = id;
     this.save();
   }
 
@@ -401,7 +434,48 @@ export class CliSession {
 
   addSignedTx(tx: SignedTx): void {
     if (!this.state.signedTxs) this.state.signedTxs = [];
-    this.state.signedTxs.push(tx);
+    const index = this.state.signedTxs.findIndex(
+      (existing) =>
+        (tx.pendingTxId !== undefined &&
+          existing.pendingTxId === tx.pendingTxId &&
+          existing.kind === tx.kind) ||
+        (existing.id === tx.id && existing.kind === tx.kind),
+    );
+    if (index === -1) {
+      this.state.signedTxs.push(tx);
+    } else {
+      this.state.signedTxs[index] = {
+        ...this.state.signedTxs[index],
+        ...tx,
+      };
+    }
+    this.state.pendingTxs = (this.state.pendingTxs ?? []).filter(
+      (pending) =>
+        !(
+          pending.kind === tx.kind &&
+          ((tx.pendingTxId !== undefined && pending.txId === tx.pendingTxId) ||
+            pending.id === tx.id)
+        ),
+    );
+    this.save();
+  }
+
+  findSignedTransaction(txId: string): SignedTx | undefined {
+    const id = this.chainSelector(txId, "evm");
+    if (!id) return undefined;
+    return [...(this.state.signedTxs ?? [])]
+      .reverse()
+      .find((tx) => tx.kind === "transaction" && tx.id === id);
+  }
+
+  markSignedTxBackendNotified(pendingTxId: number): void {
+    const record = [...(this.state.signedTxs ?? [])]
+      .reverse()
+      .find(
+        (tx) => tx.kind === "transaction" && tx.pendingTxId === pendingTxId,
+      );
+    if (!record || record.backendNotified === true) return;
+    record.backendNotified = true;
     this.save();
   }
 
@@ -555,12 +629,8 @@ export class CliSession {
     );
     session.resolveUserState(
       buildCliUserState(this.state.publicKey, this.state.chainId, {
-        app: this.state.app,
-        aaProvider: this.state.aaProvider ?? config?.aaProvider ?? null,
-        aaMode: this.state.aaMode ?? null,
-        smartAccount: this.state.smartAccount ?? null,
         svmAddress: this.state.svmPublicKey,
-        svmCluster: config?.svmCluster ?? this.state.svmCluster,
+        svmCluster: this.resolvedSvmCluster(config?.svmCluster),
       }),
     );
     return session;
