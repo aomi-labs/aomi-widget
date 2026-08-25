@@ -2,122 +2,414 @@
 
 ## Last Updated
 
+2026-08-25 — v3 nav: removed the native macOS push-button bezel that Safari
+painted around nav triggers such as Products on hover. Nothing in our CSS drew
+it. `.navTrigger` only changes text color on hover, and no `appearance` reset
+existed anywhere in v3.module.css or globals.css, so the button kept
+`appearance: button` and Safari rendered the native control. Fix is a
+`.root button { -webkit-appearance: none; appearance: none; }` reset near the
+top of v3.module.css, which also covers every other v3 button such as the
+mandate, world, and showcase tabs. Not reproducible in Playwright (headless
+WebKit does not paint macOS native control themes), so verify in Safari.
+
+2026-08-24 — /v3/solutions/defi rebuilt as "The universal DeFi executor"
+(Cecilia's angle: lead with coverage + sequences, then the open catalog; drop
+correctness as a lead because hardcoded execution beats an agent there).
+World Markets content already lives on /v3/solutions/trading; defi no longer
+imports it. New page (defi-page.tsx, no longer takes the solution prop):
+hero with a three-protocol sequence card (Aave withdraw -> CoW swap -> Morpho
+supply, one signature), coverage wall (verbs x venues chips), then
+`execution-architecture.tsx` — a responsive v3-token rebuild of the
+aomi-design deck `deliverables/decks/arch-pipeline-0716.html` (which is a
+fixed 1280x720 JS-scaled stage; the rebuild is CSS grid, no outer frame:
+dispatch-application-runtime-tools stack + chain bubbles / plain Full node
+card on the right, horizontal 4-step pipeline underneath, archPulse
+animation, collapses at 1120/860px), then "Make your
+protocol agent-reachable" (Plugin SDK cards), CTA. defi metadata branch added
+in [slug]/page.tsx. defi.module.css world* classes are still LIVE via
+world-markets-example.tsx which trading-page renders — do not prune them.
+COPY RULE from Cecilia (saved to memory): never use staccato tagline
+fragments like "One harness. Many apps. Every chain, forked."; headings state
+plainly what the thing is, e.g. "Architecture for protocol-agnostic execution
+across chains". eslint clean; route 200; screenshot-verified.
+
+2026-08-24 — REST-APIs "shared contract" section rebuilt + /v3/solutions/wallets
+repositioned (Cecilia). (1) /v3/products/rest-apis: the "One Action crosses both
+APIs" section no longer renders the ApiWorkbench curl walls in v3 layout; new
+`action-summary-showcase.tsx` (v2/products/api) mirrors the Aomi x Para
+proposal artifact's showpiece — typed `ActionSummary`/`Step` interface on the
+left, a live confirm sheet on the right rendered purely from data, with three
+tabs (Agent API swap / Pipeline API batch / Safe signer deferred) proving one
+renderer covers every source. Sheet styled to the artifact's proportions with
+v3 tokens (green Approve, terracotta out-amounts, amber deferred pill).
+ApiWorkbench still renders in the v2 hero; the `.v3Tokens .contractSection
+.workbench*` CSS overrides are now dead (left in place, additive diff).
+(2) /v3/solutions/wallets rebuilt around "wallets bring their own agent":
+hero "Your agent plans. Aomi executes." with a 3-layer rail artifact (your
+assistant -> POST /v1/pipeline/evm/build -> kernel checks -> your confirm
+sheet), a two-lane section (Pipeline API = your agent plans, Agent API = Aomi
+plans, band: both resolve to the same sealed Action), a stop-building trio
+(coverage / rehearsal / proof), and reworked review/fit/CTA copy.
+V3WalletsPage no longer takes the solution prop; wallets metadata now has its
+own branch in [slug]/page.tsx. tsc clean; both pages screenshot-verified via
+Playwright script.
+
+2026-08-24 — /v3/pricing rebuilt as an audience-first pricing page (Cecilia:
+"the point of pricing page is for audience to understand how we charge, not a
+technical explainer"). New `pricing-switch.tsx` client component: a
+For people / For businesses pill switch (V3 segmented-control tokens) driving
+two three-card plan grids — people: Included $0 / Pay as you go $0.01 per
+credit / BYOK $0; businesses: Hosting $10 per app-month / Model usage +10% /
+Revenue share 10-30%. Below each: an "add-on band" (outcome fees explained in
+plain language for people; what-you-can-charge-for + never-charged list for
+businesses). Then one plain-language worked example ($1,000 swap → $1.41
+total) and a six-question FAQ; blue CTA band. The old technical page (two
+arms, rails, statement rates, µUSD, ledger table names) is gone.
+NOTE: the tool take (10%) and outcome take (30%) are schema-reserved with no
+writer per the fee-model doc — the page presents them as the published rate
+card; flag if that should be softened. tsc + eslint clean; both tabs
+screenshot-verified.
+
+2026-08-24 — Fintech solution page: Somm case study restyled to the V3
+editorial language (GOAL.md: "editorial ledgers, contiguous process bands
+... instead of disconnected card collections"). Three rounded white cards
+with nested rounded code boxes → one full-bleed contiguous band (2px ink
+top rule, hairline column dividers, no radius/fills, content aligned to the
+page inset); code samples are hairline-ruled mono ledgers, not boxes;
+titles share a baseline via a 118px code min-height. Outcome slab → a
+full-bleed flat navy band; the three chips became a hairline mono ledger.
+`.mandateWorkspace` drop shadow removed. eslint clean; screenshots verified.
+
+2026-08-24 — REST APIs page re-aimed at fintech integration (per Cecilia:
+API = fintech integration; agents belong on Agent Toolings). Hero: "Onchain
+execution, as a REST API." + integration-oriented subline; CTAs "View the
+API reference" / "Integration checklist" (→ #integration); note line adds
+REST + JSON · OAuth 2.1. Workbench requests now show Authorization +
+Idempotency-Key headers. Proof rail → Contract v1 additive-only /
+Idempotency / Networks / Keys zero. Two-ports "best for" reframed (neobanks;
+trading platforms, treasuries, existing order flow). Client section → "Plain
+HTTP, or the client" with new `ClientExample` curl/TypeScript toggle
+(`v2/products/api/client-example.tsx`). NEW "Integration checklist" ledger
+section (#integration) with 8 rows sourced from the Aomi Developer API v1
+reference artifact (auth, fail-closed, idempotency, concurrency, custody
+models, verification, recovery, errors). Closing bridge reworded. tsc +
+eslint clean; screenshots verified.
+
+2026-08-23 (later) — Agent Toolings: hero diagram removed; hero right column
+is now a "Quick start" card (three install one-liners + signer note).
+"Choose your surface" rebuilt as `SurfaceFlow` (`v2/products/cli-mcp/
+surface-flow.tsx`): three surface nodes (title/body/best-for/CTA) on a rail
+→ SVG bus that lights per hovered/focused node → "Aomi execution harness"
+node with three facts → Simulate → Sign. Node CTAs route to the Setup tab via
+`?surface=`. Redundant "Shared harness" list section removed (content lives
+in the harness node). Collapses to stacked below 1180px. tsc + eslint clean;
+screenshots verified.
+
+2026-08-23 (later) — Agent Toolings Interactive Setup rebuilt per Cecilia's
+sketch: left copy column removed; the code panel spans the whole card and is
+now LIGHT (white bg, brand-blue accents; all purple removed page-wide, V2
+`--surface-accent` now #5288c2); description + steps moved into a horizontal
+band under the card (`.setupSteps` / `.setupLead` / `.stepRow`: lead on the
+left, 01/02/03 steps across). Works for Skills / MCP / CLI; OAuth notice now
+flows in content. Transcript restyled for light bg (`.tl_*`). tsc + eslint
+clean; screenshots verified.
+
+2026-08-23 (later) — Agent Toolings: hero reverted to the original
+`HarnessDiagram` (Cecilia preferred it). The animated session transcript now
+lives INSIDE the Interactive Setup terminal: `SessionTranscript({surface})`
+in `v2/products/cli-mcp/agent-session.tsx` (per-surface Skills/MCP/CLI
+scripts from the concurrent session's `SESSIONS` data, now exported), rendered
+by `agentic-lab.tsx` under the setup command and driven by the lab's
+Skills/MCP/CLI selector; play/pause/replay, stage pills (Build / Simulate /
+Awaiting signature|Signed & broadcast), prefers-reduced-motion honoured.
+Styled to the existing terminal panel (`.transcript*`, `.tl_*`); the earlier
+hero-session CSS block was removed and `.v3Tokens .harnessDiagram` restored.
+tsc + eslint clean; screenshots verified.
+
+2026-08-23 (later) — Human Interface: "The invariant" block extracted from
+`IntegrationShowcases` into exported `IntegrationInvariant` (same module,
+honours the concurrent `flat` prop) and rendered directly under the proof
+rail in `v2/products/widget/page.tsx`. Points rewritten as three titled
+steps in a fintech-professional, no-second-person register: build the Aomi
+app → integrate any customer surface → retain existing wallet infrastructure;
+body text 16px with 18px titles. Phone mock: 1px border, no shadow. Host
+window inner blocks rounded to restore frame corners after un-clipping.
+NOTE: a concurrent session added shiki highlighting + `flat` mode to the
+same files; both sets of edits coexist, tsc + eslint clean.
+
+2026-08-23 (later) — Human Interface showcases: all three floating panels
+(Somm widget, Trading Telegram phone, Prediction inline composer) now hang
+OFF their host window per Cecilia's sketch — `overflow: hidden` removed from
+`.sommFrame/.tradingDemo/.predictionDemo`, floats offset −96/−110px top (or
+−96px bottom for prediction) and −120px right; right-column demos use
+`right: calc(-1 * clamp(0px, (100vw - 1240px)/2 - 12px, 120px))` so they never
+clip at the viewport; `.section { overflow-x: clip }`; figure margins reserve
+the overhang; trading copy gets `padding-left: 72px` so the phone never
+covers it; all drop/box shadows on the floats removed. Mobile (≤760px)
+resets everything back inside. Verified with Playwright at 1440 and 1680
+(scrollWidth == clientWidth).
+
+2026-08-23 (later) — Human Interface showcase 02 (Trading): replaced the
+floating `FixtureWidget` chat with a `TelegramChat` phone mock in
+`v2/products/widget/integration-showcases.tsx` (+ `.tgDevice*` CSS), styled
+after the World Markets × Aomi campaign device (Telegram-light: white top
+bar, green patterned wallpaper, #eaffdc outgoing bubble with ✓✓, white bot
+bubble with bold lead, white inline-keyboard rows in Telegram blue, ☰ Menu
+composer, 7px dark device frame). Driven by the same `trading-eth`/`trading-btc`
+fixtures via `resolveWidgetFixture`, so the ETH/BTC ticker toggle still
+switches the conversation. CaseCopy rewritten to the Telegram story
+(own identity/wallet, policy before signing, `/permission` off by default).
+Verified by Playwright element screenshot; tsc + eslint clean.
+
+2026-08-23 — Product-page sales pass (V2 content components, reused by V3):
+`v2/products/widget/page.tsx` hero/proof rail mention Telegram + Portal, new
+`#telegram` section (4 steps mirroring build.aomi.dev/integrations, link to
+register a bot), Sommelier in-production line; `v2/products/api/page.tsx`
+in-production lines under both API cards, PREVIEW badge title, closing-CTA
+bridge to Human Interface / Plugin SDK (hrefs parametrized — V3 wrapper
+passes `/v3/products/widget` + `/v3/products/plugin-sdk`);
+`v2/products/console/*` "Aomi App" → "hosted plugin", hero analogy + OpenAPI
+start, Telegram added to surfaces list; `v2/products/cli-mcp/page.tsx` one
+bridge sentence to the APIs. CSS additions: `.proofLine`/`.finalBridge`
+(rest-api), `.telegramSection`/`.telegramLead`/`.heroProof` (widget).
+tsc + eslint clean; copy verified via curl on both V2 and V3 routes. Home
+and nav untouched by instruction. NOT done: World Markets example DeFi →
+Trading (Cecilia: "not yet"); DeFi hero retarget deferred with it.
+
+2026-08-23 — Enriched `/v2/products/console` and
+`/v2/solutions/trading` with components and fixture contracts grounded in the
+actual Aomi Build application. Plugin SDK now presents the real
+Describe-to-Ship journey, selectable generated files from Build's seed project,
+compile and smoke-test proof, repository handoff, release lifecycle, and an
+interactive post-deploy view that switches between Build's transactional and
+read-only fixtures. Trading adds only the downstream execution-adapter proof:
+calls, proposed Actions, signer submissions, confirmations, attributable tool
+exceptions, runtime lifecycle, and releases. This preserves the trading
+platform's ownership of models, strategy, venue connectivity, routing, and risk.
+All Build-derived examples are deterministic frontend fixtures and make no live
+repository, runtime, model-provider, signer, or transaction request.
+
+2026-08-23 — Rebuilt `/v2/solutions/trading` as a dedicated page for trading
+platforms that already own the strategy and AI harness. The platform remains
+responsible for market data, models, venue connectors, routing, risk decisions,
+and customer UX; Aomi begins at the selected `ActionSpec[]` and returns a
+simulated, typed-guarded `Plan`, sealed signable, and verified outcome through
+the preview Pipeline API. The page uses an animated integration topology,
+ownership boundary, interactive fixture-only integration lab for one-shot,
+state-echo, and constrained-tool patterns, moving execution rails, and a final
+keep-versus-add composition instead of the shared sector-card layout. No live
+agent, exchange, backend, or signer is invoked.
+
+2026-08-23 — Replaced the `/v2/products/console` skeleton with a dedicated
+Plugin SDK page based on the documented Aomi App and Aomi Build lifecycle. Its
+asymmetric developer-workbench hero is intentionally distinct from the other
+V2 product pages: a deterministic local fixture switches among the Behavior,
+Capabilities, and Delivery layers and can advance through SDK check, preflight,
+release, activation, and runtime-loaded states. The remaining page explains
+the three-file responsibility model, the API-to-App architecture, the complete
+toolchain finish line, team-versus-platform ownership, tool-design guardrails,
+and reuse of one hosted App across Widget, REST APIs, Agentic Toolings, and
+Aomi Portal. No live deployment or chat call is made, and wallet signing
+authority remains outside Aomi.
+
+2026-08-23 — Replaced all five `/v2/solutions/*` skeletons with a shared,
+research-informed solution-page system and differentiated sector content.
+Fintech leads with policy-bound tokenized-asset and treasury operations; DeFi
+with net-outcome comparison and legible protocol risk; Trading with
+venue-aware routing, hard exposure limits, and recoverable execution; NFT with
+verified discovery and transparent checkout; and Wallets with security, ease
+of use, and preservation of the existing signer. Every page includes a local
+two-state interactive fixture, three buyer requirements, a four-step guarded
+execution flow, recommended Aomi product surfaces, and a sector-specific CTA.
+The Solutions navigation labels and descriptions were rewritten to reflect
+these outcomes and non-custodial authority boundaries.
+
+2026-08-23 — Optimized the exact `/v3` reference implementation without
+changing its visual or interactive output. The raw 2.1 MB self-unpacking HTML
+copy was replaced by a reproducible extractor and a 126 KB readable document,
+with the 15 KB interaction state machine, semantic resource map, fonts,
+images, logos, and 69 KB renderer moved into separate cacheable files. `/v3`
+now serves the optimized document directly from a static route, eliminating
+the iframe and duplicate Next client shell. V1 and V2 remain unchanged.
+
+2026-08-22 — Completed and locally verified an isolated V3 marketing route family at `/v3`
+from the supplied V3 prototype. The implementation keeps `/` and `/v2`
+unchanged, translates the prototype's inline desktop composition into scoped
+semantic tokens and responsive React components, and carries the established
+V2 product taxonomy forward. The route family includes the V3 homepage, four
+product pages, five solution pages, pricing, About, Research, News, and
+Contact. The preview passes scoped ESLint, the landing TypeScript check, a
+production Next build, HTTP checks for all 15 routes, and responsive browser
+checks for the homepage, product, solution, pricing, navigation, and interactive
+controls. V1 replacement remains a separate, later cutover after approval.
+
+2026-08-22 — Replaced the `/v2/products/api` skeleton with a dedicated REST
+APIs product page based on the consolidated Agent API, Pipeline API, Action,
+and wallet-adapter contracts. The hero contains an interactive local fixture
+that switches between the v1 Agent API intent request and the preview Pipeline
+API action build without making live API calls. The remaining page distinguishes
+who plans on each surface, visualizes their shared sealed Action contract,
+explains the plan, simulation, guard, sign, and verify lifecycle, presents the
+proposed TypeScript client surface and wallet adapters, and records the
+non-custodial, idempotency, persistence, verification, and fail-closed
+guarantees. Pipeline API is labeled Preview throughout.
+
+2026-08-21 — Replaced the Agentic Surfaces product skeleton at
+`/v2/products/cli-mcp` with a routing and setup page for Agent Skills, hosted
+MCP, and the Client CLI. The page includes a three-entry-point execution
+harness diagram, substantial surface selection cards, interactive setup tabs,
+Codex/Claude Code/Cursor MCP configuration, an explicit browser OAuth step, a
+single task shown across all three execution paths, shared-harness invariants,
+cross-surface handoff guidance, and surface-specific documentation CTAs. The
+Products menu now uses branching iconography and no longer describes the three
+surfaces as one bundle.
+
+2026-08-21 — Expanded `/v2/products/widget` from a technical product page into
+an integration showcase. The live Portal hero now leads into three responsive
+product examples: a shipped Sommelier full-surface experience, a trading
+sidecar concept, and an inline prediction-market concept. Each example exposes
+application context, policy checks, simulation, and signer approval while
+keeping fictional concepts explicitly labeled. The three surfaces use the
+real `AomiFrame` shell with local deterministic fixture transcripts; the
+examples intentionally expose no live composer or chat path. Product controls
+drive the agent fixture itself: Sommelier venue cards update the mandate
+decision, ETH/BTC changes the trading route and order book, and YES/NO changes
+the prediction probability and bounded-position preview. Each fixture
+transcript now hydrates the production `AomiFrame.Composer` from the fixture API,
+so the canonical mark, message layout, expandable `WorkingTrace`, interpreted
+tool rows, final answer, and action bar are all the real widget implementation.
+Only the live composer is hidden. Each fixture has a distinct thread identity,
+and its updates endpoint is intentionally non-streaming. Each host dashboard
+stays visually complete underneath a separately framed, floating Widget. The
+prediction-market example preserves the approved overlapping-card composition,
+and Sommelier and trading follow the same hierarchy rather than wrapping the
+Widget inside the host UI. Install, authentication, and execution-boundary
+material follows the examples.
+
+2026-08-21 — Reframed the `/v2` Portal product entry as Widget. Added a
+dedicated integration page at `/v2/products/widget` with the actual Aomi
+Portal surface, install/configuration examples, wallet and signing boundaries,
+and an execution-stage explainer. The former `/v2/products/portal` route
+redirects to the Widget page.
+
 2026-08-12 — MCP CHAT PARITY IMPLEMENTED. `/api/mcp` now exposes only
-  `aomi_chat`, `aomi_check`, `aomi_interrupt`, and `aomi_list_sessions` over a
-  shared stateless JSON-RPC shell; the unchanged direct discovery/execution
-  funnel moved to `/api/mcp/direct`. Agent turns use the canonical
-  `/api/threads` + `/api/thread/{chat,state,interrupt}` kernel paths with both
-  thread headers and BFF-minted AccountBearer. New sessions are account-bound,
-  headless turns hydrate primary EVM/SVM wallet addresses from `public_keys`
-  without fabricating active mainnet networks. `aomi_chat` accepts an optional
-  authoritative EVM chain id or canonical supported Solana cluster; omission
-  leaves both network fields absent. Message cursors return transcript deltas
-  without dropping the backend's drained system events, and checks compress
-  tool/task activity. Manual wallet requests
-  return `awaiting_user`, redacted request summaries, and a working portal
-  deep-link; armed auto-signing wallets need no MCP signing tool. The existing
-  origin-scoped OAuth protected-resource metadata covers both MCP routes.
-  Local E2E verification covers SIWE, dynamic OAuth registration, explicit
-  consent, PKCE exchange and refresh, both MCP tool inventories, real async
-  reply deltas, account session list/resume/interrupt, a funded local-chain
-  transaction reaching the manual-wallet approval gate, and `agent-browser`
-  opening the exact linked transcript. The message cursor deliberately holds
-  the runtime's mutable streaming tail until it becomes a completed delta.
+`aomi_chat`, `aomi_check`, `aomi_interrupt`, and `aomi_list_sessions` over a
+shared stateless JSON-RPC shell; the unchanged direct discovery/execution
+funnel moved to `/api/mcp/direct`. Agent turns use the canonical
+`/api/threads` + `/api/thread/{chat,state,interrupt}` kernel paths with both
+thread headers and BFF-minted AccountBearer. New sessions are account-bound,
+headless turns hydrate primary EVM/SVM wallet addresses from `public_keys`
+without fabricating active mainnet networks. `aomi_chat` accepts an optional
+authoritative EVM chain id or canonical supported Solana cluster; omission
+leaves both network fields absent. Message cursors return transcript deltas
+without dropping the backend's drained system events, and checks compress
+tool/task activity. Manual wallet requests
+return `awaiting_user`, redacted request summaries, and a working portal
+deep-link; armed auto-signing wallets need no MCP signing tool. The existing
+origin-scoped OAuth protected-resource metadata covers both MCP routes.
+Local E2E verification covers SIWE, dynamic OAuth registration, explicit
+consent, PKCE exchange and refresh, both MCP tool inventories, real async
+reply deltas, account session list/resume/interrupt, a funded local-chain
+transaction reaching the manual-wallet approval gate, and `agent-browser`
+opening the exact linked transcript. The message cursor deliberately holds
+the runtime's mutable streaming tail until it becomes a completed delta.
 
 2026-08-12 — **Cross-chain wallet approvals now switch EVM networks automatically.**
-  `RuntimeTxHandler` compares every staged transaction's chain with the connected
-  wallet before simulation, rejects unsupported chains with actionable copy, and
-  invokes the adapter's network switch before simulating or sending. Wallets that
-  cannot switch get manual-switch guidance; a rejected wallet popup continues
-  through the existing request-rejection path. The approval handler tells the
-  shared executor when it already selected the target chain, preventing a second
-  wallet prompt while direct executor callers still switch when needed. The shared
-  AA executor also keeps an unknown current chain as `undefined`, so it attempts a
-  switch instead of masking the state as already on the target chain. Regression
-  cases cover switch ordering, exactly-once selection, same-chain behavior,
-  unsupported/missing adapters, rejected prompts, and unknown/current AA execution
-  state. The joint backend work merged first in product-mono #973. Publishable
-  versions are `@aomi-labs/client@0.4.7` and `@aomi-labs/widget-lib@1.4.30`.
+`RuntimeTxHandler` compares every staged transaction's chain with the connected
+wallet before simulation, rejects unsupported chains with actionable copy, and
+invokes the adapter's network switch before simulating or sending. Wallets that
+cannot switch get manual-switch guidance; a rejected wallet popup continues
+through the existing request-rejection path. The approval handler tells the
+shared executor when it already selected the target chain, preventing a second
+wallet prompt while direct executor callers still switch when needed. The shared
+AA executor also keeps an unknown current chain as `undefined`, so it attempts a
+switch instead of masking the state as already on the target chain. Regression
+cases cover switch ordering, exactly-once selection, same-chain behavior,
+unsupported/missing adapters, rejected prompts, and unknown/current AA execution
+state. The joint backend work merged first in product-mono #973. Publishable
+versions are `@aomi-labs/client@0.4.7` and `@aomi-labs/widget-lib@1.4.30`.
 
 2026-08-08 — DEPLOY-SURFACE BUGS, BE SIDE (product-mono worktree
-  `~/Code/product-mono-worktrees/deploy-feed-platform-scope`, branch
-  `claude/deploy-feed-platform-scope` off origin/main f5d421933; all changes
-  uncommitted). Root causes established by probing staging directly with a
-  portal-minted service bearer (apps/portal/.env.local).
-  - ENVIRONMENT TAB `list_secrets failed (503)`: the 503 is the Cloudflare
-    Worker's, not the backend's. With APP_AVAILABILITY_ROUTING on, ANY
-    `/api/*?application_id=N` request is availability-probed and hard-503s
-    when no origin has the app's artifact loaded — which is every deactivated
-    app (staging probe: 4 of Cecilia's 5 apps 503'd; only the loaded
-    world-markets passed). `infra/cloudflare/worker/src/index.js` now exempts
-    `/api/_internal/*` (service traffic ABOUT an app, not TO it). Worker tests
-    37/37, new test mutation-checked.
-  - FEED vs PROJECT HISTORY (4 vs 1): on main both reads are projection-only
-    by project_id and CONSISTENT; the data itself is gone — migration
-    `20260806010000_project_model.sql` ran `DELETE FROM deployments;` and the
-    promised import migration never existed. Pre-cutover manifests also fail
-    strict deserialization (no `project_id`) and are silently skipped. Added
-    the explicit recovery door: `SourceRecord.project_id` is `#[serde(default)]`,
-    the projection writer rejects `project_id <= 0`, and new service-only
-    `POST /api/integrations/github-app/user/projects/:id/deployments/import`
-    (`Project::import_deployments`) scans the platform repo's deployment
-    branches + deploy branch, stamps the owning project, and idempotently
-    upserts. Route + route-manifest test + Worker manager-route pattern + test.
-  - REQUIRED-SECRETS 500 ON LEGACY TAGS: staging audit showed
-    `GET /user/projects/:id/required-secrets` 500ing with "invalid platform
-    release tag `latest`" for any project holding a legacy `app_release_tag`
-    DEFAULT-'latest' row — one bad row failed the WHOLE Environment/deploy
-    gate ("Required secrets could not be verified"). `Project::required_secrets`
-    now degrades an unparseable tag to "no release ⇒ no slots" (warn-logged);
-    the "no deployment projection" 500 for parseable tags is kept — that one
-    is real integrity signal and is what the import door repairs.
-  - APP-STATUS 403 (aomi-build CLI): `PlatformHandler::get_app()` authorized
-    `Action::ReadPlatform`, which app-scoped activation tokens are forbidden
-    from. It now resolves the named app row first and authorizes
-    `Action::ReadApps { app_ids: [app.id] }` — the lattice's app-token rules
-    for ReadApps are already unit-tested in activator.rs.
-  - Verified with ALL three fixes (fresh build after the disk-space incident):
-    cargo check -p manager clean; cargo test -p manager 138 passed/19 failed
-    == clean-main baseline (the 19 are the hosted-DB guard refusing an
-    exported hosted DATABASE_URL — pre-existing, environmental); worker tests
-    37/37. PENDING after deploy: re-probe staging (secrets reads should 200),
-    then invoke the import for world-markets (project 1646) to restore its
-    history. NOT a bug: the "0.3.2 vs 3.1.0" report — 3.1.0 is the required
-    aomi-sdk crate version (workspace pins =3.1.0); 0.3.2 is the world-markets
-    app's own DynManifest.version. The stale-descriptor issue behind it is the
-    runtime dlopen hot-reload seam (backend reconcile.rs), owned by another
-    Codex session mid-experiment — deliberately not touched here.
+`~/Code/product-mono-worktrees/deploy-feed-platform-scope`, branch
+`claude/deploy-feed-platform-scope` off origin/main f5d421933; all changes
+uncommitted). Root causes established by probing staging directly with a
+portal-minted service bearer (apps/portal/.env.local).
+
+- ENVIRONMENT TAB `list_secrets failed (503)`: the 503 is the Cloudflare
+  Worker's, not the backend's. With APP_AVAILABILITY_ROUTING on, ANY
+  `/api/*?application_id=N` request is availability-probed and hard-503s
+  when no origin has the app's artifact loaded — which is every deactivated
+  app (staging probe: 4 of Cecilia's 5 apps 503'd; only the loaded
+  world-markets passed). `infra/cloudflare/worker/src/index.js` now exempts
+  `/api/_internal/*` (service traffic ABOUT an app, not TO it). Worker tests
+  37/37, new test mutation-checked.
+- FEED vs PROJECT HISTORY (4 vs 1): on main both reads are projection-only
+  by project_id and CONSISTENT; the data itself is gone — migration
+  `20260806010000_project_model.sql` ran `DELETE FROM deployments;` and the
+  promised import migration never existed. Pre-cutover manifests also fail
+  strict deserialization (no `project_id`) and are silently skipped. Added
+  the explicit recovery door: `SourceRecord.project_id` is `#[serde(default)]`,
+  the projection writer rejects `project_id <= 0`, and new service-only
+  `POST /api/integrations/github-app/user/projects/:id/deployments/import`
+  (`Project::import_deployments`) scans the platform repo's deployment
+  branches + deploy branch, stamps the owning project, and idempotently
+  upserts. Route + route-manifest test + Worker manager-route pattern + test.
+- REQUIRED-SECRETS 500 ON LEGACY TAGS: staging audit showed
+  `GET /user/projects/:id/required-secrets` 500ing with "invalid platform
+  release tag `latest`" for any project holding a legacy `app_release_tag`
+  DEFAULT-'latest' row — one bad row failed the WHOLE Environment/deploy
+  gate ("Required secrets could not be verified"). `Project::required_secrets`
+  now degrades an unparseable tag to "no release ⇒ no slots" (warn-logged);
+  the "no deployment projection" 500 for parseable tags is kept — that one
+  is real integrity signal and is what the import door repairs.
+- APP-STATUS 403 (aomi-build CLI): `PlatformHandler::get_app()` authorized
+  `Action::ReadPlatform`, which app-scoped activation tokens are forbidden
+  from. It now resolves the named app row first and authorizes
+  `Action::ReadApps { app_ids: [app.id] }` — the lattice's app-token rules
+  for ReadApps are already unit-tested in activator.rs.
+- Verified with ALL three fixes (fresh build after the disk-space incident):
+  cargo check -p manager clean; cargo test -p manager 138 passed/19 failed
+  == clean-main baseline (the 19 are the hosted-DB guard refusing an
+  exported hosted DATABASE_URL — pre-existing, environmental); worker tests
+  37/37. PENDING after deploy: re-probe staging (secrets reads should 200),
+  then invoke the import for world-markets (project 1646) to restore its
+  history. NOT a bug: the "0.3.2 vs 3.1.0" report — 3.1.0 is the required
+  aomi-sdk crate version (workspace pins =3.1.0); 0.3.2 is the world-markets
+  app's own DynManifest.version. The stale-descriptor issue behind it is the
+  runtime dlopen hot-reload seam (backend reconcile.rs), owned by another
+  Codex session mid-experiment — deliberately not touched here.
 
 2026-08-08 — OPERATE PAGES IGNORED THE SELECTED PLATFORM (apps/build, working
 
 2026-08-08 — OPERATE PAGES IGNORED THE SELECTED PLATFORM (apps/build, working
-  tree on `claude/deployment-records-mismatch-79b0a0`). Observability listed 5
-  projects across platforms while `/projects` listed the 2 on
-  `world-market-apps`. The account-wide manager batches (observability,
-  transactions, usage, logs, payments) are deliberately unscoped — the
-  per-project read rejects partner-bound projects as not launch-relevant on the
-  default platform — but the BFF read `?platform=` only as a **cache key** and
-  never narrowed the response.
-  - `operateSession` gains `platformProjects()` alongside `projects()`:
-    `listUserProjects({ platform })`, i.e. the exact list `/projects` renders.
-    `projects()` stays account-wide because ownership checks need it.
-  - The five account-wide routes now filter their rows through `onPlatform()`
-    against that id set. The manager call stays account-wide; only the response
-    is scoped, so a partner-bound project is still reachable — on its own
-    platform's page. Rows with no project (shared partner settlements) are kept.
-  - `operatePaymentsRoute` now reads the source list (in `Promise.all`, off the
-    cache the snapshot warmed) where it previously never did.
-  - Settings → Secrets had the same fault one layer up:
-    `settings-secrets-panel.tsx` called `useProjects()` with NO platform (the
-    only such call site left), so it listed all 5 account projects and a row
-    for an off-platform project led to an Environment tab whose secrets read
-    503s. It now takes `usePlatform()` and routes through `platformHref()`, so
-    following a row keeps the platform instead of dropping to Community.
-  - Verified: apps/build vitest 419 passed/1 skipped, tsc/eslint/prettier clean.
-    6 scoping tests mutation-checked (they fail when `onPlatform` is a no-op /
-    when the panel drops its platform argument).
-    The 4 pre-existing failing test FILES (deploy-dashboard, deploy-step,
-    live-panel, oneshot-wizard — collection errors) are unrelated and unchanged.
+tree on `claude/deployment-records-mismatch-79b0a0`). Observability listed 5
+projects across platforms while `/projects` listed the 2 on
+`world-market-apps`. The account-wide manager batches (observability,
+transactions, usage, logs, payments) are deliberately unscoped — the
+per-project read rejects partner-bound projects as not launch-relevant on the
+default platform — but the BFF read `?platform=` only as a **cache key** and
+never narrowed the response.
+
+- `operateSession` gains `platformProjects()` alongside `projects()`:
+  `listUserProjects({ platform })`, i.e. the exact list `/projects` renders.
+  `projects()` stays account-wide because ownership checks need it.
+- The five account-wide routes now filter their rows through `onPlatform()`
+  against that id set. The manager call stays account-wide; only the response
+  is scoped, so a partner-bound project is still reachable — on its own
+  platform's page. Rows with no project (shared partner settlements) are kept.
+- `operatePaymentsRoute` now reads the source list (in `Promise.all`, off the
+  cache the snapshot warmed) where it previously never did.
+- Settings → Secrets had the same fault one layer up:
+  `settings-secrets-panel.tsx` called `useProjects()` with NO platform (the
+  only such call site left), so it listed all 5 account projects and a row
+  for an off-platform project led to an Environment tab whose secrets read
+  503s. It now takes `usePlatform()` and routes through `platformHref()`, so
+  following a row keeps the platform instead of dropping to Community.
+- Verified: apps/build vitest 419 passed/1 skipped, tsc/eslint/prettier clean.
+  6 scoping tests mutation-checked (they fail when `onPlatform` is a no-op /
+  when the panel drops its platform argument).
+  The 4 pre-existing failing test FILES (deploy-dashboard, deploy-step,
+  live-panel, oneshot-wizard — collection errors) are unrelated and unchanged.
   PENDING (backend, product-mono — NOT fixed here): the global deployments feed
   and a project's Deployments tab are structurally different reads, so they
   disagree. `user_source_deployments` (github_app.rs:988-1043) is DB projection
@@ -126,7 +418,7 @@
   `deployments.platform`. Any deployment with no projection row under the
   queried platform shows on the project page and is invisible in the feed —
   which is why world-markets showed 4 deployments and the feed showed 1.
-2026-08-10 — BROWSER RESPONSE LATENCY SIMPLIFICATION. Reduced the earlier TTFT
+  2026-08-10 — BROWSER RESPONSE LATENCY SIMPLIFICATION. Reduced the earlier TTFT
   design to frontend mechanisms that work with the existing backend contract:
   one shared empty-thread prewarm promise, a single-flight visibility-aware
   polling timeout, and removal of the synthetic 500 ms completed-answer stream.
@@ -138,151 +430,154 @@
   publishable tarballs, and client/React/registry builds. Portal typecheck
   remains blocked by the existing mixed Para dependency graph
   (`@getpara/web-sdk` 2.24 vs 2.19), outside these files.
-2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build, committed
+  2026-08-04 — PROJECT HOME "KEYS MISSING" FALSE ALARM (apps/build, committed
   on `feat/build-new-app-two-starts`). The Environment card warned whenever no
   key was set
   (`envReady = secretCount > 0`), so every project that declares no required
   key at all — including a fresh one with no apps — read as broken.
-  - NEW `tabs/environment-card.ts`: pure `environmentCard()` mirroring the gate
-    the rest of Build enforces (a declared required slot with no value), in
-    order error → loading → missing → set → none-required. "No keys required"
-    is `good`, not `warn`.
-  - Warn state now carries concrete detail instead of the glossary line:
-    "2 required keys not set for somm-agent: OPENAI_API_KEY and
-    ALCHEMY_API_KEY. Set them in Environment before deploying." (names capped
-    at 4, then "and N more"). The "Next" block reuses that same sentence.
-  - A failed read is "Unavailable" with the error text, and `blocked: false` —
-    nothing is KNOWN missing, so it must not read as a key fault.
-  - home-tab now calls `loadRequiredSecrets()` (it only loaded `secrets`
-    before) and gates on source apps ∪ apps the check named, same union
-    deployments-tab uses.
-  - Verified: apps/build vitest 452 passed/12 skipped (72 files), tsc/eslint/
-    prettier clean; both states driven in a local dev server against stubbed
-    BFF reads.
+- NEW `tabs/environment-card.ts`: pure `environmentCard()` mirroring the gate
+  the rest of Build enforces (a declared required slot with no value), in
+  order error → loading → missing → set → none-required. "No keys required"
+  is `good`, not `warn`.
+- Warn state now carries concrete detail instead of the glossary line:
+  "2 required keys not set for somm-agent: OPENAI_API_KEY and
+  ALCHEMY_API_KEY. Set them in Environment before deploying." (names capped
+  at 4, then "and N more"). The "Next" block reuses that same sentence.
+- A failed read is "Unavailable" with the error text, and `blocked: false` —
+  nothing is KNOWN missing, so it must not read as a key fault.
+- home-tab now calls `loadRequiredSecrets()` (it only loaded `secrets`
+  before) and gates on source apps ∪ apps the check named, same union
+  deployments-tab uses.
+- Verified: apps/build vitest 452 passed/12 skipped (72 files), tsc/eslint/
+  prettier clean; both states driven in a local dev server against stubbed
+  BFF reads.
 
 2026-08-04 — NEW APP: TWO STARTS (apps/build, committed on
-  `feat/build-new-app-two-starts`). `/operate/
+`feat/build-new-app-two-starts`). `/operate/
   deployments/new` no longer assumes the template. Signed-in users get two
-  cards — "Start from the template" (the existing Onboarding/OneshotWizard) and
-  "Import from GitHub" (the existing `RepositoryConnector`) — then the chosen
-  flow renders in the same framed panel with a "Choose a different start" back
-  button.
-  - `new-project.tsx`: card picker + `?mode=template|import` kept in sync via
-    `history.replaceState`, so reload and back/forward stay on the chosen flow.
-  - `new-project-mode.ts` (NEW, no `"use client"`): `NewProjectMode` +
-    `newProjectMode()` parser. It lives outside the component because the route
-    parses `?mode=` on the server — calling it from the client module threw
-    "Attempted to call newProjectMode() from the server".
-  - Resume guard: `resumingTemplate()` re-opens the template card when the
-    GitHub round-trip returns (`installation_id`/`deployment_id`/
-    `launch=personal_required` on the URL, or a saved `pendingInstall`). A
-    stale stored `installationId` deliberately does NOT count — it would pin
-    every later visit to the template card.
-  - De-duplicated the import entry point: the inline connect form is gone from
-    the Projects index; that page now renders only the extracted
-    `ConnectionResultBanner` (GitHub still returns to `/projects`, so the
-    outcome has to render without the form that started it).
-  - Verified: apps/build vitest 441 passed/12 skipped (71 files, incl. new
-    `new-project.test.tsx`), tsc clean, eslint clean, prettier clean; both
-    flows driven in a local dev server.
+cards — "Start from the template" (the existing Onboarding/OneshotWizard) and
+"Import from GitHub" (the existing `RepositoryConnector`) — then the chosen
+flow renders in the same framed panel with a "Choose a different start" back
+button.
+
+- `new-project.tsx`: card picker + `?mode=template|import` kept in sync via
+  `history.replaceState`, so reload and back/forward stay on the chosen flow.
+- `new-project-mode.ts` (NEW, no `"use client"`): `NewProjectMode` +
+  `newProjectMode()` parser. It lives outside the component because the route
+  parses `?mode=` on the server — calling it from the client module threw
+  "Attempted to call newProjectMode() from the server".
+- Resume guard: `resumingTemplate()` re-opens the template card when the
+  GitHub round-trip returns (`installation_id`/`deployment_id`/
+  `launch=personal_required` on the URL, or a saved `pendingInstall`). A
+  stale stored `installationId` deliberately does NOT count — it would pin
+  every later visit to the template card.
+- De-duplicated the import entry point: the inline connect form is gone from
+  the Projects index; that page now renders only the extracted
+  `ConnectionResultBanner` (GitHub still returns to `/projects`, so the
+  outcome has to render without the form that started it).
+- Verified: apps/build vitest 441 passed/12 skipped (71 files, incl. new
+  `new-project.test.tsx`), tsc clean, eslint clean, prettier clean; both
+  flows driven in a local dev server.
   Codex review follow-up (same day):
-  - resumingTemplate() also resumes on a saved `oneshot.deploymentId` that is
-    not yet `live` — the wizard only mirrors it into the URL while mounted, so
-    leaving Build mid-deploy and returning through the nav used to land on the
-    picker. `live` still falls through to the cards.
-  - `?mode=` now syncs on change (ref-guarded, so it never races the resume
-    effect on mount): the App Router reuses this instance across a soft nav, so
-    a "New app" link carrying no mode has to return the user to the picker.
-  - Both fixes mutation-checked (tests fail when the fix is backed out) and
-    `ConnectionResultBanner` got its own tests.
-  - Review's P1 ("Import depends on unmerged BE") does NOT hold:
-    codex/build-existing-repo-oauth landed on product-mono main as 0b6eb9582
-    (PR #923, 2026-08-03). `github_app_oauth_start` reads `return_to`,
-    `validate_build_return_to` allowlists it, and `redirect_url()` honours it.
-    NOTE for anyone extending returnTo: validation requires the URL's query to
-    be EXACTLY `platform=<signed platform>` and the path to be `/projects` or
-    `/operate/deployments/new` — putting `&mode=` on a returnTo would 400,
-    which is why the resume state is derived instead.
+- resumingTemplate() also resumes on a saved `oneshot.deploymentId` that is
+  not yet `live` — the wizard only mirrors it into the URL while mounted, so
+  leaving Build mid-deploy and returning through the nav used to land on the
+  picker. `live` still falls through to the cards.
+- `?mode=` now syncs on change (ref-guarded, so it never races the resume
+  effect on mount): the App Router reuses this instance across a soft nav, so
+  a "New app" link carrying no mode has to return the user to the picker.
+- Both fixes mutation-checked (tests fail when the fix is backed out) and
+  `ConnectionResultBanner` got its own tests.
+- Review's P1 ("Import depends on unmerged BE") does NOT hold:
+  codex/build-existing-repo-oauth landed on product-mono main as 0b6eb9582
+  (PR #923, 2026-08-03). `github_app_oauth_start` reads `return_to`,
+  `validate_build_return_to` allowlists it, and `redirect_url()` honours it.
+  NOTE for anyone extending returnTo: validation requires the URL's query to
+  be EXACTLY `platform=<signed platform>` and the path to be `/projects` or
+  `/operate/deployments/new` — putting `&mode=` on a returnTo would 400,
+  which is why the resume state is derived instead.
 
 2026-08-04 — **Sidebar wordmark is now a product switcher.** The chat sidebar
-  header (`apps/shadcn-registry/src/components/assistant-ui/threadlist-sidebar.tsx`)
-  no longer links out to `aomi.dev`; the logo · "Aomi" · chevron row is a Popover
-  trigger that also carries a `CHAT` badge (same treatment as Build's wordmark
-  badge in `apps/build/src/components/brand/aomi-logo.tsx`). The menu lists Aomi
-  Chat (current, checkmarked) and Aomi Build → `https://build.aomi.dev` (new tab),
-  styled off the thread-list row menu (`bg-aomi-raised` / `border-aomi-overlay-border`
-  / `hover:bg-aomi-hover`). Entries are data: `DEFAULT_SIDEBAR_PRODUCTS` +
-  `SidebarProduct` are exported from the package index, and `AomiFrame.Root` takes
-  `products` (pass `null` for a plain wordmark) and `currentProductId` so embedders
-  can override or hide the Aomi cross-links. Portal keeps the defaults. Verified in
-  the browser against portal on :3001 in light and dark. Note: `apps/build`'s own
-  header wordmark is still a plain link to `/` — it has no switcher yet.
+header (`apps/shadcn-registry/src/components/assistant-ui/threadlist-sidebar.tsx`)
+no longer links out to `aomi.dev`; the logo · "Aomi" · chevron row is a Popover
+trigger that also carries a `CHAT` badge (same treatment as Build's wordmark
+badge in `apps/build/src/components/brand/aomi-logo.tsx`). The menu lists Aomi
+Chat (current, checkmarked) and Aomi Build → `https://build.aomi.dev` (new tab),
+styled off the thread-list row menu (`bg-aomi-raised` / `border-aomi-overlay-border`
+/ `hover:bg-aomi-hover`). Entries are data: `DEFAULT_SIDEBAR_PRODUCTS` +
+`SidebarProduct` are exported from the package index, and `AomiFrame.Root` takes
+`products` (pass `null` for a plain wordmark) and `currentProductId` so embedders
+can override or hide the Aomi cross-links. Portal keeps the defaults. Verified in
+the browser against portal on :3001 in light and dark. Note: `apps/build`'s own
+header wordmark is still a plain link to `/` — it has no switcher yet.
 
 2026-08-03 — **Para EVM signing fix hardened before commit.** Review of the
-  working diff found the registry build broken: `para-evm-runtime-provider.tsx`
-  was imported by the registered `para-plugin.tsx` but missing from the
-  `aomi-para-provider` file list in `apps/shadcn-registry/src/registry.ts`, and
-  `@getpara/wagmi-v2-connector` was missing from its `dependencies` — a
-  `shadcn add` would have installed a broken component. Both added; build green.
-  Correctness fix in `execution/wallet-execution.ts`: the new sequential
-  receipt-wait only counted a leg as executed after its receipt confirmed, so a
-  non-revert wait failure (RPC timeout) reported an already-broadcast leg as
-  un-run and `runtime-tx-handler` blanket-rejected — re-queuing a mined tx, the
-  exact double-execution the handler guards against. Now tracks broadcast legs
-  and emits a partial for them, excluding a leg that mined `reverted`.
-  Also: failure cooldown on the Para wagmi auto-connect effect (was retryable on
-  every store dispatch with no backoff), shared `PARA_SESSION_UID` constant in
-  `para-brand.ts` replacing the duplicated `"para-session"` literal, dropped an
-  unnecessary `as unknown as CreateConnectorFn` double cast. 295 registry tests
-  + 1287 root tests pass; typecheck, eslint, prettier, registry build clean.
+working diff found the registry build broken: `para-evm-runtime-provider.tsx`
+was imported by the registered `para-plugin.tsx` but missing from the
+`aomi-para-provider` file list in `apps/shadcn-registry/src/registry.ts`, and
+`@getpara/wagmi-v2-connector` was missing from its `dependencies` — a
+`shadcn add` would have installed a broken component. Both added; build green.
+Correctness fix in `execution/wallet-execution.ts`: the new sequential
+receipt-wait only counted a leg as executed after its receipt confirmed, so a
+non-revert wait failure (RPC timeout) reported an already-broadcast leg as
+un-run and `runtime-tx-handler` blanket-rejected — re-queuing a mined tx, the
+exact double-execution the handler guards against. Now tracks broadcast legs
+and emits a partial for them, excluding a leg that mined `reverted`.
+Also: failure cooldown on the Para wagmi auto-connect effect (was retryable on
+every store dispatch with no backoff), shared `PARA_SESSION_UID` constant in
+`para-brand.ts` replacing the duplicated `"para-session"` literal, dropped an
+unnecessary `as unknown as CreateConnectorFn` double cast. 295 registry tests
+
+- 1287 root tests pass; typecheck, eslint, prettier, registry build clean.
   NOTE: the receipt wait applies to **every** sequential wallet send, not just
   embedded/Para — non-Para wallets now pay a block confirmation between legs of
   any non-atomic batch. Intentional (safer default), but call it out in review.
 
 2026-08-02 — PLATFORM-BINDING INVARIANT, E2E (FE worktree platform-switch +
-  BE worktree somm-repo-connect/product-mono branch
-  codex/build-existing-repo-oauth, both uncommitted; BE sits on top of the
-  merged h4n0 PR #907). Design: a source is either DISCOVERED (unowned,
-  unbound, invisible) or CLAIMED (one owner, exactly one platform, visible on
-  that platform's page only); Build has no unscoped view — no `?platform=`
-  means Community.
-  BE (product-mono):
-  - NEW migration 20260803000000_app_source_platform_backfill.sql — bucket 1
-    infers bound_platform_id from apps' platform_id (multi-platform rows
-    skipped for operator repair, verify-SELECT in the header), bucket 2 binds
-    owned-but-unbound to community, then CHECK app_source_owned_implies_bound
-    (owner NULL OR platform NOT NULL). All write paths audited: oneshot
-    insert + claim_user_and_platform set both, webhook upsert sets neither,
-    bind_platform only adds — admin-bound-unowned stays legal.
-  - endpoints/github_app.rs: LaunchSourceKind (oneshot-everywhere +
-    deployed-app grandfathering + Other) DELETED; platform-scoped
-    list/latest-deployment/history/loader now gate on source_on_platform()
-    equality; launch_source_kind dropped from the wire; presenter dissolved
-    into free deployment_json{,_from_row}; app_loaded lost its vestigial
-    platform param (obs monitoring/detail/batch updated).
-  - handler.rs: check_source_deploy_platform is STRICT equality (unbound only
-    passes preflight, mirroring check_source_deploy_owner); grandfathering
-    deleted — cross-platform rows (bound A, serving on B) now 403 redeploys
-    until operator repair; gate tests rewritten (8/8 green).
-  - oauth/start: `mode` param KILLED — with a repo the backend checks
-    repo_has_installation() (new GitHubApp helper, 404→false) and returns the
-    OAuth consent URL when covered, install URL when not; no repo → install.
-  - Verified: cargo check -p manager --tests clean; gate unit tests 8/8.
-    DB-backed tests refuse locally (hosted-DB guard) — CI covers them. No
-    clippy/build run (Cecilia: no memory-heavy ops).
+BE worktree somm-repo-connect/product-mono branch
+codex/build-existing-repo-oauth, both uncommitted; BE sits on top of the
+merged h4n0 PR #907). Design: a source is either DISCOVERED (unowned,
+unbound, invisible) or CLAIMED (one owner, exactly one platform, visible on
+that platform's page only); Build has no unscoped view — no `?platform=`
+means Community.
+BE (product-mono):
+
+- NEW migration 20260803000000_app_source_platform_backfill.sql — bucket 1
+  infers bound_platform_id from apps' platform_id (multi-platform rows
+  skipped for operator repair, verify-SELECT in the header), bucket 2 binds
+  owned-but-unbound to community, then CHECK app_source_owned_implies_bound
+  (owner NULL OR platform NOT NULL). All write paths audited: oneshot
+  insert + claim_user_and_platform set both, webhook upsert sets neither,
+  bind_platform only adds — admin-bound-unowned stays legal.
+- endpoints/github_app.rs: LaunchSourceKind (oneshot-everywhere +
+  deployed-app grandfathering + Other) DELETED; platform-scoped
+  list/latest-deployment/history/loader now gate on source_on_platform()
+  equality; launch_source_kind dropped from the wire; presenter dissolved
+  into free deployment_json{,\_from_row}; app_loaded lost its vestigial
+  platform param (obs monitoring/detail/batch updated).
+- handler.rs: check_source_deploy_platform is STRICT equality (unbound only
+  passes preflight, mirroring check_source_deploy_owner); grandfathering
+  deleted — cross-platform rows (bound A, serving on B) now 403 redeploys
+  until operator repair; gate tests rewritten (8/8 green).
+- oauth/start: `mode` param KILLED — with a repo the backend checks
+  repo_has_installation() (new GitHubApp helper, 404→false) and returns the
+  OAuth consent URL when covered, install URL when not; no repo → install.
+- Verified: cargo check -p manager --tests clean; gate unit tests 8/8.
+  DB-backed tests refuse locally (hosted-DB guard) — CI covers them. No
+  clippy/build run (Cecilia: no memory-heavy ops).
   FE (this repo):
-  - platform.ts: platformParam now DEFAULTS to DEFAULT_DEPLOY_PLATFORM
-    ("community"); usePlatform returns string (defaults too); hardcoded
-    "community" literals in onboarding/platform-switcher/home-redirect
-    replaced with the constant; deployments/new backHref always Projects.
-  - githubAppInstallUrl lost `mode` (packages/deploy client + build client);
-    launchSourceKind deleted from UserSource type + camel mapper.
-  - use-projects.ts: hasApps filter DROPPED — claimed zero-app sources render
-    as "Connected — not deployed yet" (project-deployment-status empty
-    branch), fixing connect-success-banner-over-missing-row.
-  - docs/fe-deploy.md oauth/start rows updated (backend picks the ceremony).
-  - Verified: apps/build vitest 416 passed/12 skipped (69 files),
-    packages/deploy 136/136, tsc clean both, eslint clean on touched files.
+- platform.ts: platformParam now DEFAULTS to DEFAULT_DEPLOY_PLATFORM
+  ("community"); usePlatform returns string (defaults too); hardcoded
+  "community" literals in onboarding/platform-switcher/home-redirect
+  replaced with the constant; deployments/new backHref always Projects.
+- githubAppInstallUrl lost `mode` (packages/deploy client + build client);
+  launchSourceKind deleted from UserSource type + camel mapper.
+- use-projects.ts: hasApps filter DROPPED — claimed zero-app sources render
+  as "Connected — not deployed yet" (project-deployment-status empty
+  branch), fixing connect-success-banner-over-missing-row.
+- docs/fe-deploy.md oauth/start rows updated (backend picks the ceremony).
+- Verified: apps/build vitest 416 passed/12 skipped (69 files),
+  packages/deploy 136/136, tsc clean both, eslint clean on touched files.
   2026-08-03 follow-up — BUILDERS DUPES + REDUNDANT FIELDS (from Cecilia's
   Supabase screenshot): the live DB has DUPLICATE builders.github_user_id rows
   (4738254/h4n0 twice) because 0714's CREATE TABLE IF NOT EXISTS no-opped on a
@@ -290,7 +585,8 @@
   (github_user_id) (claim ceremony, 0802 backfill) would error at runtime.
   Fixed in-place in the 0802 migration: idempotent dedupe (merge onto MIN(id),
   carry github_login, repoint app_source/bot_registrations/builder_model_keys)
-  + guarded ADD CONSTRAINT builders_github_user_id_key. 0803 also now flips
+
+* guarded ADD CONSTRAINT builders_github_user_id_key. 0803 also now flips
   app_source.bound_platform_id FK from SET NULL to RESTRICT (SET NULL would
   collide with the owned-implies-bound CHECK). Redundant-field verdict:
   app_source.github_user_id + its index are the only redundant ones; Rust no
@@ -304,462 +600,463 @@
   Cecilia's (BE branch also has 4 unpushed commits incl. the #907 merge).
 
 2026-08-03 (staging smoke) — **Staging API verified healthy; DOMAIN.md route
-  table found stale.** Live smoke of `api-staging.aomi.dev` (the hostname
-  `api.staging.aomi.dev` does not resolve): health, auth boundaries, OAuth
-  start, direct `/api/thread/chat` round-trip, and browser chat through
-  `chat-staging.aomi.dev` all pass. Finding: the deployed backend serves ONLY
-  the `/api/thread/*` + `/api/threads` surface; legacy `/api/chat`,
-  `/api/state`, `/api/sessions`, `/api/session/*` 404 by design.
-  `packages/client` already uses the new routes, but `specs/DOMAIN.md`'s
-  "Backend Endpoints" table still documents the legacy paths (and claims
-  archive/unarchive routes don't exist — they do now, per staging OpenAPI).
-  **Pending:** refresh DOMAIN.md's endpoint table from
-  `/api/openapi.json` + `packages/client/src/client.ts`.
+table found stale.** Live smoke of `api-staging.aomi.dev` (the hostname
+`api.staging.aomi.dev` does not resolve): health, auth boundaries, OAuth
+start, direct `/api/thread/chat` round-trip, and browser chat through
+`chat-staging.aomi.dev` all pass. Finding: the deployed backend serves ONLY
+the `/api/thread/*` + `/api/threads` surface; legacy `/api/chat`,
+`/api/state`, `/api/sessions`, `/api/session/*` 404 by design.
+`packages/client` already uses the new routes, but `specs/DOMAIN.md`'s
+"Backend Endpoints" table still documents the legacy paths (and claims
+archive/unarchive routes don't exist — they do now, per staging OpenAPI).
+**Pending:** refresh DOMAIN.md's endpoint table from
+`/api/openapi.json` + `packages/client/src/client.ts`.
 
 2026-08-03 (later) — **PR #7: canonical sign-out centralized in widget-lib.**
-  Review follow-up (Codex + Claude review agreed): DualWalletBar's disconnect
-  fallback called only `adapter.disconnect()`, skipping account/widget session
-  teardown — latent, since portal (the only `accountMenu` consumer) supplied
-  its own correct `onDisconnect`, but any future consumer would have leaked
-  live backend sessions behind a "Connect wallet" chip. The
-  signOut→disconnect sequence lived in three places (wallet-picker.tsx:542,
-  portal's `disconnectPortalAccount`, the incomplete fallback); now it is ONE:
-  new `lib/wallet-kit/account/sign-out.ts` exports `signOutAndDisconnect()`
-  (`try { signOutAccount } finally { disconnect({family:"all"}) }`), used by
-  WalletPicker and as DualWalletBar's default; portal's `onDisconnect` +
-  `disconnectPortalAccount` deleted (hook comment documents why). Also fixed
-  in the same path: `handleDisconnectConfirm` now catches (was an unhandled
-  rejection when a host `onDisconnect` rethrew; dialog stays open for retry,
-  `console.warn` per house idiom) and the confirm-dialog backdrop honors
-  `busy` like the Cancel button. New file registered in `registry.ts`
-  (build:registry validates) and exported from `wallet-kit/index.ts`. Tests:
-  registry fallback ordering + sign-out-failure cases added (7 pass), portal
-  onDisconnect tests replaced with an is-undefined assertion (4 pass); full
-  registry suite 296 pass (package-boundary tests need `build:package` first
-  or they ENOENT on dist/ — environmental, not code). Portal `type-check` and
-  registry `tsc --noEmit` clean. Pending from review, NOT done: AccountMenu
-  a11y (no Escape-close, rows not `menuitem`), `networkLabel.slice(0,8)` hard
-  truncation, multi-wallet chip collapses to primary wallet in account-menu
-  mode (verify against mock), portal→registry DOM coupling via
-  `[data-aomi-network-select-trigger]` click.
+Review follow-up (Codex + Claude review agreed): DualWalletBar's disconnect
+fallback called only `adapter.disconnect()`, skipping account/widget session
+teardown — latent, since portal (the only `accountMenu` consumer) supplied
+its own correct `onDisconnect`, but any future consumer would have leaked
+live backend sessions behind a "Connect wallet" chip. The
+signOut→disconnect sequence lived in three places (wallet-picker.tsx:542,
+portal's `disconnectPortalAccount`, the incomplete fallback); now it is ONE:
+new `lib/wallet-kit/account/sign-out.ts` exports `signOutAndDisconnect()`
+(`try { signOutAccount } finally { disconnect({family:"all"}) }`), used by
+WalletPicker and as DualWalletBar's default; portal's `onDisconnect` +
+`disconnectPortalAccount` deleted (hook comment documents why). Also fixed
+in the same path: `handleDisconnectConfirm` now catches (was an unhandled
+rejection when a host `onDisconnect` rethrew; dialog stays open for retry,
+`console.warn` per house idiom) and the confirm-dialog backdrop honors
+`busy` like the Cancel button. New file registered in `registry.ts`
+(build:registry validates) and exported from `wallet-kit/index.ts`. Tests:
+registry fallback ordering + sign-out-failure cases added (7 pass), portal
+onDisconnect tests replaced with an is-undefined assertion (4 pass); full
+registry suite 296 pass (package-boundary tests need `build:package` first
+or they ENOENT on dist/ — environmental, not code). Portal `type-check` and
+registry `tsc --noEmit` clean. Pending from review, NOT done: AccountMenu
+a11y (no Escape-close, rows not `menuitem`), `networkLabel.slice(0,8)` hard
+truncation, multi-wallet chip collapses to primary wallet in account-menu
+mode (verify against mock), portal→registry DOM coupling via
+`[data-aomi-network-select-trigger]` click.
 
 2026-08-03 — **PR #7 (feat/portal-account-menu) sign-in wiring + CI fix.**
-  Green CI blocker found and fixed: `pnpm run build:registry` failed with
-  `Registry item "control-bar" is missing internal files` because
-  `account-menu.tsx`, `account-menu-types.ts` and
-  `disconnect-confirm-dialog.tsx` were added to `components/control-bar/` but
-  never listed in `src/registry.ts` (the build validates every *relative*
-  import in a registry item resolves to a listed file). Also fixed a
-  `tsc --noEmit` error in `dual-wallet-bar.test.tsx` — the `walletModalRows`
-  mock was missing the required `source`/`status`/`actions` fields.
-  **Behaviour fix:** the sidebar AccountMenu "Sign in" and the Settings gate
-  retry both called `openAccountUI()`, which opens Para's *account
-  management* modal (`ACCOUNT_MAIN`) — the email/profile popup — and can
-  never mint the missing Aomi session. Both now call `connect()`
-  (`AUTH_MAIN`), which re-arms the provider credential exchange. Removed a
-  dead `accountStatus === "error"` branch: a failed exchange sets status back
-  to `"ready"` and only populates `accountError` for 409, so the chip now
-  shows `accountError` when present. Session probe no longer burns the full
-  30s budget once the exchange has settled (short settle grace instead), so
-  Settings stops sitting on "Connecting your account…" and reaches the
-  actionable "Finish signing in" gate. `widget-lib` at 1.4.18 (main: 1.4.16).
+Green CI blocker found and fixed: `pnpm run build:registry` failed with
+`Registry item "control-bar" is missing internal files` because
+`account-menu.tsx`, `account-menu-types.ts` and
+`disconnect-confirm-dialog.tsx` were added to `components/control-bar/` but
+never listed in `src/registry.ts` (the build validates every _relative_
+import in a registry item resolves to a listed file). Also fixed a
+`tsc --noEmit` error in `dual-wallet-bar.test.tsx` — the `walletModalRows`
+mock was missing the required `source`/`status`/`actions` fields.
+**Behaviour fix:** the sidebar AccountMenu "Sign in" and the Settings gate
+retry both called `openAccountUI()`, which opens Para's _account
+management_ modal (`ACCOUNT_MAIN`) — the email/profile popup — and can
+never mint the missing Aomi session. Both now call `connect()`
+(`AUTH_MAIN`), which re-arms the provider credential exchange. Removed a
+dead `accountStatus === "error"` branch: a failed exchange sets status back
+to `"ready"` and only populates `accountError` for 409, so the chip now
+shows `accountError` when present. Session probe no longer burns the full
+30s budget once the exchange has settled (short settle grace instead), so
+Settings stops sitting on "Connecting your account…" and reaches the
+actionable "Finish signing in" gate. `widget-lib` at 1.4.18 (main: 1.4.16).
 
-  **Preview QA result — `PARA_JWT_AUDIENCE` is NOT the blocker.** With the
-  error now visible, preview returns the semantic **409
-  `already_linked_to_another_account`**, not a 400. A 409 means the Para JWT
-  verified and the exchange reached identity linkage, so the audience env var
-  is correct on preview. The real condition is data, not config: that Para
-  identity is already linked to a *different* Aomi account (leftover from
-  earlier testing), and the backend refuses to move a login factor silently.
-  Remedy is per the error copy — sign in to the owning account and unlink
-  there, or use a different Para identity. No code fix applies.
+**Preview QA result — `PARA_JWT_AUDIENCE` is NOT the blocker.** With the
+error now visible, preview returns the semantic **409
+`already_linked_to_another_account`**, not a 400. A 409 means the Para JWT
+verified and the exchange reached identity linkage, so the audience env var
+is correct on preview. The real condition is data, not config: that Para
+identity is already linked to a _different_ Aomi account (leftover from
+earlier testing), and the backend refuses to move a login factor silently.
+Remedy is per the error copy — sign in to the owning account and unlink
+there, or use a different Para identity. No code fix applies.
 
-  **Follow-up fix (this change):** `accountError` was being piped into the
-  chip's `secondaryLine`, a single `truncate`d row, so the 409's full sentence
-  rendered as "This wallet or sign-in m…". Split the two surfaces: added
-  `noticeLine` to `WalletAccountMenuOptions` / `AccountMenu` for wrapped
-  full-length copy in the menu header, and the chip now shows the short
-  "Sign-in needs attention". Rule going forward: chip copy stays under ~25
-  chars, backend error strings go to `noticeLine`.
+**Follow-up fix (this change):** `accountError` was being piped into the
+chip's `secondaryLine`, a single `truncate`d row, so the 409's full sentence
+rendered as "This wallet or sign-in m…". Split the two surfaces: added
+`noticeLine` to `WalletAccountMenuOptions` / `AccountMenu` for wrapped
+full-length copy in the menu header, and the chip now shows the short
+"Sign-in needs attention". Rule going forward: chip copy stays under ~25
+chars, backend error strings go to `noticeLine`.
 
-  **Conflict diagnosis (this change).** The 409 has a `signalType` of
-  `identity` | `wallet` | `email` that decides the remedy (unlink a login
-  method vs unlink a wallet), but it never reached the user: the better-auth
-  path threw `APIError("CONFLICT", { message })` with no `signalType`, and the
-  client's `extractErrorCode()` kept only `error`/`message` anyway. Now
-  `provider-plugin.ts` includes `signalType` in the error body (better-call
-  types it as `{message?,code?,cause?} & Record<string,any>`, so extra fields
-  serialize), and `AomiAccountRequestError` carries it into one of three
-  specific messages. `/api/aomi/provider/exchange` already spread it via
-  `...result`. NOTE: this is the first `packages/account` file in PR #7 — one
-  additive error field, but it breaks the "UI-only" property.
+**Conflict diagnosis (this change).** The 409 has a `signalType` of
+`identity` | `wallet` | `email` that decides the remedy (unlink a login
+method vs unlink a wallet), but it never reached the user: the better-auth
+path threw `APIError("CONFLICT", { message })` with no `signalType`, and the
+client's `extractErrorCode()` kept only `error`/`message` anyway. Now
+`provider-plugin.ts` includes `signalType` in the error body (better-call
+types it as `{message?,code?,cause?} & Record<string,any>`, so extra fields
+serialize), and `AomiAccountRequestError` carries it into one of three
+specific messages. `/api/aomi/provider/exchange` already spread it via
+`...result`. NOTE: this is the first `packages/account` file in PR #7 — one
+additive error field, but it breaks the "UI-only" property.
 
-  **CI gap found, NOT fixed here.** Root `vitest.config.ts` only includes
-  `apps/portal/src/{app,server}/mcp`, `lib/widget-auth`, and
-  `app/api/*/route.*`, so ~40 portal test files under `components/`,
-  `features/`, and most of `lib/` never run in CI — including this PR's
-  `use-portal-wallet-account-menu.test.tsx`. Registry tests do run, via
-  `pnpm --dir apps/shadcn-registry exec vitest run`. Widening the include is
-  its own PR; expect pre-existing failures to surface.
+**CI gap found, NOT fixed here.** Root `vitest.config.ts` only includes
+`apps/portal/src/{app,server}/mcp`, `lib/widget-auth`, and
+`app/api/*/route.*`, so ~40 portal test files under `components/`,
+`features/`, and most of `lib/` never run in CI — including this PR's
+`use-portal-wallet-account-menu.test.tsx`. Registry tests do run, via
+`pnpm --dir apps/shadcn-registry exec vitest run`. Widening the include is
+its own PR; expect pre-existing failures to surface.
 
 2026-08-02 (~17:45) — **ds13 RECORDED — catalog COMPLETE.** Post-fixer-session
-  run (their parseTxIds ordering fix + dist rebuild + Aave gateway address
-  correction + my backend rebuild/restack): attempt 3 landed
-  wrap→approve→supply 2 WETH→borrow 2,000 USDC on Compound v3 IN DEPENDENCY
-  ORDER (first production proof of the ordering fix), 5 txs mined, 2,000.0
-  USDC verified on-chain, agent closes with a chain-read health-factor
-  calculation (3.01, math shown). 57s @2x + 30s social delivered.
-  Residual rough edge (cost attempts 1-2, reported to the fixer session):
-  compound_v3 rate-read tools intermittently fail "Argument count
-  mismatch: expected 1 arguments, got 0" — agent recovers but burns turn
-  budget. **Every authored scenario now has a shipped take**: ds2, ds4,
-  stake-shootout, money-legos, ds13, ds14 (EVM, this session) + ds6, ds10,
-  ds11 (SVM, -svm session); eval PASS on the destination leg; full
-  BD/social/docs cut derivation for all.
+run (their parseTxIds ordering fix + dist rebuild + Aave gateway address
+correction + my backend rebuild/restack): attempt 3 landed
+wrap→approve→supply 2 WETH→borrow 2,000 USDC on Compound v3 IN DEPENDENCY
+ORDER (first production proof of the ordering fix), 5 txs mined, 2,000.0
+USDC verified on-chain, agent closes with a chain-read health-factor
+calculation (3.01, math shown). 57s @2x + 30s social delivered.
+Residual rough edge (cost attempts 1-2, reported to the fixer session):
+compound_v3 rate-read tools intermittently fail "Argument count
+mismatch: expected 1 arguments, got 0" — agent recovers but burns turn
+budget. **Every authored scenario now has a shipped take**: ds2, ds4,
+stake-shootout, money-legos, ds13, ds14 (EVM, this session) + ds6, ds10,
+ds11 (SVM, -svm session); eval PASS on the destination leg; full
+BD/social/docs cut derivation for all.
 
 2026-08-02 (~17:25) — **ds14-bridge-round-trip RECORDED** (80s @2x + 43s
-  social, delivered): 4 ETH mainnet→Base (canonical leg in the first pass,
-  Across in the shipped take), agent reads the TRUE arrival off Base,
-  picks Across for the return, bridges ~2 ETH back — journal shows the
-  AcrossFiller filling BOTH directions (1→8453 fill 0xb0bcbf…, 8453→1 fill
-  0xf71af1…), first bidirectional operation. Unblocked by the
-  **multi-chain E2E executor fix** (apps/portal/src/server/e2e-wallet.ts):
-  the old gate rejected any call whose chainId ≠ the SEED chain
-  ("Transaction chain does not match seed"), killing every cross-chain
-  scenario's far leg; now one-chain-per-batch is enforced but the chain is
-  judged by config + fork probe (15/15 executor tests, incl. new
-  non-seed-chain case). GOTCHA: Next dev did NOT hot-reload the server
-  module — a stale portal ran the old gate for a full re-roll; restart the
-  portal after server/*.ts edits.
-  **ds13-cheapest-borrow PARKED** (9 attempts, deterministic): the
-  comparison half works beautifully (live Aave 8.86% vs Compound 3.97%
-  with shown math, picks Compound) but execution dies on the
-  **commit-ordering bug** — batch executes in ascending id order, supply
-  runs before wrap, Comet reverts on zero WETH. Also hit the Aave
-  native-ETH gateway coverage gap en route. Both bugs + the post-callback
-  re-evaluation bug are now owned by Cecilia's fixer session
-  ("Fix post-callback turn re-evaluating completed requests",
-  local_c514f206…) — full evidence briefs sent to it; ds13 is the repro
-  vehicle once its fix lands. Machine-pressure note: daytime takes flaked
-  with "fetch failed" whenever free RAM <500MB (portal balloons to ~1.8GB
-  — restart it between batches; Cursor's rust-analyzer ~1GB).
+social, delivered): 4 ETH mainnet→Base (canonical leg in the first pass,
+Across in the shipped take), agent reads the TRUE arrival off Base,
+picks Across for the return, bridges ~2 ETH back — journal shows the
+AcrossFiller filling BOTH directions (1→8453 fill 0xb0bcbf…, 8453→1 fill
+0xf71af1…), first bidirectional operation. Unblocked by the
+**multi-chain E2E executor fix** (apps/portal/src/server/e2e-wallet.ts):
+the old gate rejected any call whose chainId ≠ the SEED chain
+("Transaction chain does not match seed"), killing every cross-chain
+scenario's far leg; now one-chain-per-batch is enforced but the chain is
+judged by config + fork probe (15/15 executor tests, incl. new
+non-seed-chain case). GOTCHA: Next dev did NOT hot-reload the server
+module — a stale portal ran the old gate for a full re-roll; restart the
+portal after server/\*.ts edits.
+**ds13-cheapest-borrow PARKED** (9 attempts, deterministic): the
+comparison half works beautifully (live Aave 8.86% vs Compound 3.97%
+with shown math, picks Compound) but execution dies on the
+**commit-ordering bug** — batch executes in ascending id order, supply
+runs before wrap, Comet reverts on zero WETH. Also hit the Aave
+native-ETH gateway coverage gap en route. Both bugs + the post-callback
+re-evaluation bug are now owned by Cecilia's fixer session
+("Fix post-callback turn re-evaluating completed requests",
+local_c514f206…) — full evidence briefs sent to it; ds13 is the repro
+vehicle once its fix lands. Machine-pressure note: daytime takes flaked
+with "fetch failed" whenever free RAM <500MB (portal balloons to ~1.8GB
+— restart it between batches; Cursor's rust-analyzer ~1GB).
 
 2026-08-02 16:15 — SVM shooting session CLOSED. Scoreboard: ds10-sol-unstake
-  SHIPPED (attempt 1, 85s; agent quoted real 0.0042 mSOL pool fee, closing
-  numbers match chain). ds11-sol-lst-switch SHIPPED (attempt 1 on a
-  minutes-old fork after 4 stale-fork failures — freshness rule CONFIRMED for
-  LST routes; mSOL 3.5→0, JitoSOL 3.7765, message matches chain). ds9 CHAIN-
-  PERFECT but video unusable: post-callback turn RE-EVALUATED the original
-  request against post-payment balance and refused a payment it had already
-  made (recipient provably holds exactly 150 USDC + fresh ATA) — REAL BACKEND
-  BUG: the wallet-callback follow-up turn should reconcile, never re-plan.
-  ds12 CLOSED AS BLOCKED after 6 attempts x 3 configs: aggregator multi-hop
-  SOL→USDC routes fail simulation on the mirror regardless of freshness
-  (GoonFi V2 / Alpha Q thin routes); agent repair behavior correct but
-  non-convergent; ds6's pass was route luck. Product conversations to have:
-  (1) callback-turn semantics, (2) mirror fidelity vs aggregator routes OR a
-  route-stability hint for fork environments. Authoring rule added to ds12:
-  scripted turn N+1 requires turn N to leave nothing to ask back (slippage
-  question derailed a take). Freshness rule tightened: re-fork every ~30 min
-  while shooting, not 2h. mp4s in demo/out/. Backend 8081 + portal 3500 +
-  mirror LEFT RUNNING for the video-maker session; rig announced free.
+SHIPPED (attempt 1, 85s; agent quoted real 0.0042 mSOL pool fee, closing
+numbers match chain). ds11-sol-lst-switch SHIPPED (attempt 1 on a
+minutes-old fork after 4 stale-fork failures — freshness rule CONFIRMED for
+LST routes; mSOL 3.5→0, JitoSOL 3.7765, message matches chain). ds9 CHAIN-
+PERFECT but video unusable: post-callback turn RE-EVALUATED the original
+request against post-payment balance and refused a payment it had already
+made (recipient provably holds exactly 150 USDC + fresh ATA) — REAL BACKEND
+BUG: the wallet-callback follow-up turn should reconcile, never re-plan.
+ds12 CLOSED AS BLOCKED after 6 attempts x 3 configs: aggregator multi-hop
+SOL→USDC routes fail simulation on the mirror regardless of freshness
+(GoonFi V2 / Alpha Q thin routes); agent repair behavior correct but
+non-convergent; ds6's pass was route luck. Product conversations to have:
+(1) callback-turn semantics, (2) mirror fidelity vs aggregator routes OR a
+route-stability hint for fork environments. Authoring rule added to ds12:
+scripted turn N+1 requires turn N to leave nothing to ask back (slippage
+question derailed a take). Freshness rule tightened: re-fork every ~30 min
+while shooting, not 2h. mp4s in demo/out/. Backend 8081 + portal 3500 +
+mirror LEFT RUNNING for the video-maker session; rig announced free.
 
 2026-08-02 (~16:45) — **Three-cut derivation SHIPPED** (the original
-  one-master-three-cuts vision): demo/capture/to-cuts.sh reads
-  markers.json and emits `<id>-social-2x.mp4` (trailing turns fitted to a
-  90s real-time window — ask + payoff, no setup) and `<id>-turn<N>-2x.mp4`
-  per conversation turn (docs), alongside the existing BD 2x master. Run
-  on all four EVM takes: social cuts 28-45s delivered. Gotcha encoded in
-  the script: ffmpeg inside a while-read loop MUST use -nostdin or it
-  slurps the remaining plan lines (first run silently dropped half the
-  cuts). ALSO: two new queue scenarios authored, load-checked, ready when
-  the rig frees — ds13-cheapest-borrow (Aave vs Compound rate referee,
-  3 turns, chain 1) and ds14-bridge-round-trip (mainnet→Base→back, both
-  actors, first Base-side E2E execution; expects the agent to pick Across
-  for the return leg since canonical L2→L1 has a 7-day window the
-  OpDepositFinalizer deliberately doesn't fake).
+one-master-three-cuts vision): demo/capture/to-cuts.sh reads
+markers.json and emits `<id>-social-2x.mp4` (trailing turns fitted to a
+90s real-time window — ask + payoff, no setup) and `<id>-turn<N>-2x.mp4`
+per conversation turn (docs), alongside the existing BD 2x master. Run
+on all four EVM takes: social cuts 28-45s delivered. Gotcha encoded in
+the script: ffmpeg inside a while-read loop MUST use -nostdin or it
+slurps the remaining plan lines (first run silently dropped half the
+cuts). ALSO: two new queue scenarios authored, load-checked, ready when
+the rig frees — ds13-cheapest-borrow (Aave vs Compound rate referee,
+3 turns, chain 1) and ds14-bridge-round-trip (mainnet→Base→back, both
+actors, first Base-side E2E execution; expects the agent to pick Across
+for the return leg since canonical L2→L1 has a 7-day window the
+OpDepositFinalizer deliberately doesn't fake).
 
 2026-08-02 (~15:30) — **money-legos RECORDED + the staged-tx-loss bug FIXED.**
-  Root cause (from thread cb69aa17 + portal 500s): the E2E executor runs
-  batches sequentially; the Aave borrow leg reverted at estimateGas
-  (0x5b263df7) AFTER earlier legs mined, and the blanket-failed
-  wallet:tx_complete re-queued ALL ids → retry re-ran the 5 ETH stake into
-  an insufficient-funds spiral. FIX (widget worktree, additive, 5 layers):
-  server/e2e-wallet.ts tracks per-call txId + returns E2EPartialExecution
-  {executedTxIds,lastTxHash,failedTxId,remainingTxIds}; provider throws
-  E2EPartialExecutionError; runtime-tx-handler resolves partials instead of
-  blanket-rejecting; packages/client session emits TWO tx_complete events
-  (success for the mined prefix, failed for the tail) via new optional
-  completedTxIds/failedTxIds/failureReason on the transaction result type.
-  VERIFIED: new regression test (leg-2 revert → exact partial shape),
-  portal 14/14, client 297/297, tsc clean ×3. THEN money-legos recorded
-  first try: 7 txs mined, agent close "ids 1–6 all consumed", 1000.0 USDC
-  borrowed VERIFIED on-chain; 259s @2x delivered.
-  Coordination: SVM cases ds9–ds12 are the -svm session's to shoot (per
-  Cecilia); rig handed over after money-legos with merged config — derived
-  providers.toml now carries well-formed [solana.mainnet] mirror pin
-  (kind/cluster/rpc_url=8899/fallback_urls=[]) — NOTE `evm up` regenerates
-  the file and drops this patch; re-apply after any evm up. Their field
-  reports: backend booted without SOLANA_MAINNET_RPC_URL reads PUBLIC
-  mainnet (0 SOL takes); mirrors older than ~2-3h fail Jupiter/Sanctum
-  sims; `test-env svm down/up` broken (wrong pid tracking) — boot surfpool
-  directly.
+Root cause (from thread cb69aa17 + portal 500s): the E2E executor runs
+batches sequentially; the Aave borrow leg reverted at estimateGas
+(0x5b263df7) AFTER earlier legs mined, and the blanket-failed
+wallet:tx_complete re-queued ALL ids → retry re-ran the 5 ETH stake into
+an insufficient-funds spiral. FIX (widget worktree, additive, 5 layers):
+server/e2e-wallet.ts tracks per-call txId + returns E2EPartialExecution
+{executedTxIds,lastTxHash,failedTxId,remainingTxIds}; provider throws
+E2EPartialExecutionError; runtime-tx-handler resolves partials instead of
+blanket-rejecting; packages/client session emits TWO tx_complete events
+(success for the mined prefix, failed for the tail) via new optional
+completedTxIds/failedTxIds/failureReason on the transaction result type.
+VERIFIED: new regression test (leg-2 revert → exact partial shape),
+portal 14/14, client 297/297, tsc clean ×3. THEN money-legos recorded
+first try: 7 txs mined, agent close "ids 1–6 all consumed", 1000.0 USDC
+borrowed VERIFIED on-chain; 259s @2x delivered.
+Coordination: SVM cases ds9–ds12 are the -svm session's to shoot (per
+Cecilia); rig handed over after money-legos with merged config — derived
+providers.toml now carries well-formed [solana.mainnet] mirror pin
+(kind/cluster/rpc_url=8899/fallback_urls=[]) — NOTE `evm up` regenerates
+the file and drops this patch; re-apply after any evm up. Their field
+reports: backend booted without SOLANA_MAINNET_RPC_URL reads PUBLIC
+mainnet (0 SOL takes); mirrors older than ~2-3h fail Jupiter/Sanctum
+sims; `test-env svm down/up` broken (wrong pid tracking) — boot surfpool
+directly.
 
 2026-08-02 (~04:20) — **FIRST DESTINATION-LEG EVAL PASS**:
-  bridge_base_usdc_to_arbitrum_send_and_fill on claude-sonnet-4-6 — agent
-  deposited 5 USDC into the Base SpokePool (9 tool calls, 53s), in-process
-  across actor filled on the REAL Arbitrum SpokePool (fill tx 0xd68aec…),
-  ALL assertions green incl. FilledRelay + USDC-arrival on 42161. Reports
-  archived at demo/out/eval/*.PASS.*.json. Fixes en route (product-mono,
-  uncommitted): eval actor-endpoint fallback via provider_manager when
-  pids.json isn't tracked (explicit PROVIDERS_TOML runs); Base USDC whale →
-  0x498581fF… (Uniswap v4 PoolManager, ~10M) and Arbitrum USDC whale →
-  0x2Df1c51E… (Hyperliquid bridge, ~419M) in BOTH funding presets and
-  actors WHALES — prior whales were dry/drained (Arbitrum's Binance wallet
-  was drained to 0.05 USDC by our own 2×10,000 faucet funding). NOTE: eval
-  default model Gpt55 produced a silent 0-token turn — worth a loud error;
-  pass --model explicitly for now.
+bridge*base_usdc_to_arbitrum_send_and_fill on claude-sonnet-4-6 — agent
+deposited 5 USDC into the Base SpokePool (9 tool calls, 53s), in-process
+across actor filled on the REAL Arbitrum SpokePool (fill tx 0xd68aec…),
+ALL assertions green incl. FilledRelay + USDC-arrival on 42161. Reports
+archived at demo/out/eval/*.PASS.\_.json. Fixes en route (product-mono,
+uncommitted): eval actor-endpoint fallback via provider_manager when
+pids.json isn't tracked (explicit PROVIDERS_TOML runs); Base USDC whale →
+0x498581fF… (Uniswap v4 PoolManager, ~10M) and Arbitrum USDC whale →
+0x2Df1c51E… (Hyperliquid bridge, ~419M) in BOTH funding presets and
+actors WHALES — prior whales were dry/drained (Arbitrum's Binance wallet
+was drained to 0.05 USDC by our own 2×10,000 faucet funding). NOTE: eval
+default model Gpt55 produced a silent 0-token turn — worth a loud error;
+pass --model explicitly for now.
 
 2026-08-02 (overnight batch) — ds2-stake-eth (47s @2x, 5 ETH→stETH executed)
-  and stake-shootout (37s @2x, agent COMPARED and chose Rocket Pool: 4 ETH →
-  ~3.42 rETH) recorded clean and delivered. Unblocking fix chain:
-  (a) `test-env evm up` stamps sim instances `accounts = 1` — anvil's
-  genesis prefund is a LOCAL override on every derived mnemonic account
-  that shadows forked state after ANY anvil_reset (including the agent's
-  own sync-fork tool), so the demo wallet (index 2) read 10,000 ETH
-  forever; with one derived account only index 0 is shadowed and truth
-  forks through; (b) recorder resyncSimForks() + native-balance mirroring
-  onto sims (belt over braces). ALSO: overnight restacks must kill :8081
-  before relaunching backend (stale-backend footgun) and never TaskStop a
-  recorder mid-reset (orphans the proxy).
-  **money-legos PARKED — product bug with hard evidence**: two consecutive
-  takes failed identically; on-chain after the take the wallet holds
-  5.0 stETH + 4.9999 ETH, i.e. the Lido leg EXECUTED, then the pipeline
-  re-staged the SAME leg and the agent reported "wallet balance (4.999)
-  below the 5 required". Staged-tx-loss (the unfixed half of
-  task_90d7e590): after a successful commit the plan restarts at leg 1
-  instead of proceeding to wrap→collateralize→borrow. Threads from
-  ~04:05-04:15 2026-08-02 on the demo account show it twice.
+and stake-shootout (37s @2x, agent COMPARED and chose Rocket Pool: 4 ETH →
+~3.42 rETH) recorded clean and delivered. Unblocking fix chain:
+(a) `test-env evm up` stamps sim instances `accounts = 1` — anvil's
+genesis prefund is a LOCAL override on every derived mnemonic account
+that shadows forked state after ANY anvil_reset (including the agent's
+own sync-fork tool), so the demo wallet (index 2) read 10,000 ETH
+forever; with one derived account only index 0 is shadowed and truth
+forks through; (b) recorder resyncSimForks() + native-balance mirroring
+onto sims (belt over braces). ALSO: overnight restacks must kill :8081
+before relaunching backend (stale-backend footgun) and never TaskStop a
+recorder mid-reset (orphans the proxy).
+**money-legos PARKED — product bug with hard evidence**: two consecutive
+takes failed identically; on-chain after the take the wallet holds
+5.0 stETH + 4.9999 ETH, i.e. the Lido leg EXECUTED, then the pipeline
+re-staged the SAME leg and the agent reported "wallet balance (4.999)
+below the 5 required". Staged-tx-loss (the unfixed half of
+task_90d7e590): after a successful commit the plan restarts at leg 1
+instead of proceeding to wrap→collateralize→borrow. Threads from
+~04:05-04:15 2026-08-02 on the demo account show it twice.
 
 2026-08-02 01:40 — Four new Solana case files AUTHORED, none shot (per
-  Cecilia: files only). Confidence order for the next recording session:
-  ds10-sol-unstake (marinade liquid_unstake, cleanest — proven program, no
-  ATA side quest) > ds9-sol-payment (USDC invoice + recipient-ATA creation;
-  recipient = deterministic throwaway 4568cBFk…tMoX, key held by nobody) >
-  ds12-sol-best-price (Jupiter vs Raydium quote shootout; Raydium unproven
-  but quote-only in happy path) > ds11-sol-lst-switch (mSOL→JitoSOL via
-  Sanctum; Lane 2 venue UNPROVEN on the mirror — first take doubles as its
-  phase-0 spike, Jupiter fallback noted in-file). ds10/ds11 share DS6's
-  wallet biography (3.5 mSOL) so the takes cut together. All four compile.
-  Standing rules apply: re-fork the mirror before shooting; verify env
-  inside the live backend process before rolling.
+Cecilia: files only). Confidence order for the next recording session:
+ds10-sol-unstake (marinade liquid_unstake, cleanest — proven program, no
+ATA side quest) > ds9-sol-payment (USDC invoice + recipient-ATA creation;
+recipient = deterministic throwaway 4568cBFk…tMoX, key held by nobody) >
+ds12-sol-best-price (Jupiter vs Raydium quote shootout; Raydium unproven
+but quote-only in happy path) > ds11-sol-lst-switch (mSOL→JitoSOL via
+Sanctum; Lane 2 venue UNPROVEN on the mirror — first take doubles as its
+phase-0 spike, Jupiter fallback noted in-file). ds10/ds11 share DS6's
+wallet biography (3.5 mSOL) so the takes cut together. All four compile.
+Standing rules apply: re-fork the mirror before shooting; verify env
+inside the live backend process before rolling.
 
 2026-08-02 (later) — **CLEAN ds4 take delivered**: 66s at 2x, attempt 1, zero
-  reverts, arrival 0 → 9.8505 ETH on Base, agent's own close: "The bridge
-  landed. ✅ … matches the ~9.85 min-received floor after the Across relayer
-  fee." Three content fixes got it there, each from a failed take:
-  (1) across skill template fallback (product-mono
-  crates/skills/manifests/evm/across/across.template.md): derive
-  quote_timestamp/fill_deadline from SpokePool getCurrentTime() (wall clock
-  reverts InvalidQuoteTimestamp/InvalidFillDeadline on forks) AND
-  output_token = DESTINATION chain's WETH (agent reused the mainnet WETH
-  address → unfillable deposit, filler correctly refused for lack of
-  inventory); (2) recorder zeroes the wallet on non-source chains (anvil's
-  10,000 ETH prefund made one honest agent say "fork-default state, can't
-  tell if the fill landed"); (3) recorder resyncSimForks() — the demo
-  backend NEVER starts per-instance refork/sync tasks (log has zero
-  "Starting per-instance refork task" lines), so sims freeze at boot state;
-  measured live: proxy 10 ETH vs sim 10,000 ETH; agent proposed bridging
-  1,000 ETH (E2E cap correctly blocked it). Recorder now finds each sim by
-  ps (anvil forking from our proxy) and anvil_reset's it post-seed; the
-  interval stamping in up.rs is kept but insufficient alone — WHY the
-  backend skips start_background in this mode is an open product question.
-  ALSO DONE (task #9, was chip task_fe0fc8c8): custom-error decoding in
-  product-mono crates/evm — gateway/error_decode.rs + generated
-  known_error_selectors.rs (337 selectors from all crates/skills/abis via
-  cast keccak), wired into cast_client eth_call errors, simulate.rs
-  decode_revert_reason fallthrough, view.rs revert_reason; 46/46 aomi-evm
-  tests, clippy/fmt clean. NOTE for commit: crates/skills/generated/* now
-  mixes my across.md regen with the other workstream's marinade regen —
-  regenerate on a clean tree at commit time.
+reverts, arrival 0 → 9.8505 ETH on Base, agent's own close: "The bridge
+landed. ✅ … matches the ~9.85 min-received floor after the Across relayer
+fee." Three content fixes got it there, each from a failed take:
+(1) across skill template fallback (product-mono
+crates/skills/manifests/evm/across/across.template.md): derive
+quote_timestamp/fill_deadline from SpokePool getCurrentTime() (wall clock
+reverts InvalidQuoteTimestamp/InvalidFillDeadline on forks) AND
+output_token = DESTINATION chain's WETH (agent reused the mainnet WETH
+address → unfillable deposit, filler correctly refused for lack of
+inventory); (2) recorder zeroes the wallet on non-source chains (anvil's
+10,000 ETH prefund made one honest agent say "fork-default state, can't
+tell if the fill landed"); (3) recorder resyncSimForks() — the demo
+backend NEVER starts per-instance refork/sync tasks (log has zero
+"Starting per-instance refork task" lines), so sims freeze at boot state;
+measured live: proxy 10 ETH vs sim 10,000 ETH; agent proposed bridging
+1,000 ETH (E2E cap correctly blocked it). Recorder now finds each sim by
+ps (anvil forking from our proxy) and anvil_reset's it post-seed; the
+interval stamping in up.rs is kept but insufficient alone — WHY the
+backend skips start_background in this mode is an open product question.
+ALSO DONE (task #9, was chip task_fe0fc8c8): custom-error decoding in
+product-mono crates/evm — gateway/error_decode.rs + generated
+known_error_selectors.rs (337 selectors from all crates/skills/abis via
+cast keccak), wired into cast_client eth_call errors, simulate.rs
+decode_revert_reason fallthrough, view.rs revert_reason; 46/46 aomi-evm
+tests, clippy/fmt clean. NOTE for commit: crates/skills/generated/\* now
+mixes my across.md regen with the other workstream's marinade regen —
+regenerate on a clean tree at commit time.
 
 2026-08-02 — **ds4-bridge-to-base RECORDED end-to-end** (demo/out/…/-2x.mp4,
-  140s @2x, delivered). Agent chose Across, picked its own 0.05 ETH gas
-  reserve, bridged 9.95; AcrossFiller executed real fillRelay on the Base
-  fork (fill 0x8304d9…, journal `filled`); agent verified "+9.865 ETH
-  credited" on Base ON CAMERA. Journal also shows strictness working:
-  upstream deposits toward unforked chains rejected with reasons.
-  Landed on the way (product-mono `chain-actor` branch, uncommitted):
-  (1) OpDepositFinalizer — phase-2 canonical "mock sequencer" (`base-native`
-  actor; agent's first takes chose L1StandardBridge depositETHTo, invisible
-  to the Across filler; scenario now arms BOTH actors); (2) driver per-chain
-  fault isolation + daemon tracing init (an OOM-killed Base proxy silently
-  froze ALL scanning with an empty journal); (3) `test-env evm up` stamps
-  sim instances with sync=5s/refork=15s (localhost upstream = free) — fixes
-  agent READS seeing pre-seed state (thread titled "Approve 0.1 ETH
-  Transfer" while the proxy held 10 ETH); (4) ActorCtx timeout 10s→120s;
-  Widget recorder: 20s post-seed settle, deviceScaleFactor 2→1 (Chromium
-  OOM), actors up/down per attempt, 7702 wipe, source-only funding,
-  require-all-chains execution proof. Ops: account 8641fa7c… upgraded
-  free→pro (500.9/500 exhausted mid-take → payment-required modal blocked
-  the composer); machine survived OOM (Docker + other sessions' 10-anvil
-  fleets + 4.9GB bloated next-server) and a 100% full disk (foundry rpc
-  cache + failed-take webms). FOLLOW-UPS: agent falsely claimed "9.9 ETH
-  arrived" in a NO-fill take (balance read through sim showed the 10k anvil
-  prefund? investigate read path + consider zeroing dest-chain prefund at
-  seeding); Base USDC whale 0x0B0A5886… holds 0 on current forks (swap
-  WHALES entry); eval spec + across upstream-deposit noise fills journal on
-  refork (cursor clamp interplay — benign, verify); demo stack left UP
-  (forks 51521/51524, backend 8081, portal 3500) for more takes.
+140s @2x, delivered). Agent chose Across, picked its own 0.05 ETH gas
+reserve, bridged 9.95; AcrossFiller executed real fillRelay on the Base
+fork (fill 0x8304d9…, journal `filled`); agent verified "+9.865 ETH
+credited" on Base ON CAMERA. Journal also shows strictness working:
+upstream deposits toward unforked chains rejected with reasons.
+Landed on the way (product-mono `chain-actor` branch, uncommitted):
+(1) OpDepositFinalizer — phase-2 canonical "mock sequencer" (`base-native`
+actor; agent's first takes chose L1StandardBridge depositETHTo, invisible
+to the Across filler; scenario now arms BOTH actors); (2) driver per-chain
+fault isolation + daemon tracing init (an OOM-killed Base proxy silently
+froze ALL scanning with an empty journal); (3) `test-env evm up` stamps
+sim instances with sync=5s/refork=15s (localhost upstream = free) — fixes
+agent READS seeing pre-seed state (thread titled "Approve 0.1 ETH
+Transfer" while the proxy held 10 ETH); (4) ActorCtx timeout 10s→120s;
+Widget recorder: 20s post-seed settle, deviceScaleFactor 2→1 (Chromium
+OOM), actors up/down per attempt, 7702 wipe, source-only funding,
+require-all-chains execution proof. Ops: account 8641fa7c… upgraded
+free→pro (500.9/500 exhausted mid-take → payment-required modal blocked
+the composer); machine survived OOM (Docker + other sessions' 10-anvil
+fleets + 4.9GB bloated next-server) and a 100% full disk (foundry rpc
+cache + failed-take webms). FOLLOW-UPS: agent falsely claimed "9.9 ETH
+arrived" in a NO-fill take (balance read through sim showed the 10k anvil
+prefund? investigate read path + consider zeroing dest-chain prefund at
+seeding); Base USDC whale 0x0B0A5886… holds 0 on current forks (swap
+WHALES entry); eval spec + across upstream-deposit noise fills journal on
+refork (cursor clamp interplay — benign, verify); demo stack left UP
+(forks 51521/51524, backend 8081, portal 3500) for more takes.
 
 2026-08-02 01:15 — **PROOF TAKE PASSED on the rebuilt backend** (attempt 1,
-  fresh Surfpool fork): SOL 10→0.008, USDC 25→391.09, mSOL 0→3.571, all
-  chain-verified. All four agent fixes observed in behaviour: no invented
-  amounts (closing line states no numbers it didn't read), one leg per turn,
-  repair bounded (2 corrective re-stages then success, 45s turn), and the
-  agent CREATED the mSOL ATA itself — no fixture. Root cause of the earlier
-  fresh-rig failure confirmed as FORK STALENESS: a 7h-old mirror rejects
-  live-quoted Jupiter routes in simulation; a minutes-old fork passes first
-  try. RUNBOOK RULE: re-fork the mirror before any recording session.
-  Note: `test-env svm down` tracked a wrong pid (killed a ghost, left the
-  real 7h surfpool holding 8899) and `svm up`'s spawn path dies silently
-  (empty logs) — fresh mirror was booted directly; worth a product-mono chip.
-  Polish candidates, NOT blockers: closing message is a terse "Solana
-  transaction confirmed." (rule over-corrected — should read balances and
-  summarize from tool results); turn-4 trace shows two Failed simulate steps
-  before success (honest, but a re-roll could get a cleaner hero take).
-  Videos: demo/out/ds6-sol-swap-stake (133s master + 67s 2x).
+fresh Surfpool fork): SOL 10→0.008, USDC 25→391.09, mSOL 0→3.571, all
+chain-verified. All four agent fixes observed in behaviour: no invented
+amounts (closing line states no numbers it didn't read), one leg per turn,
+repair bounded (2 corrective re-stages then success, 45s turn), and the
+agent CREATED the mSOL ATA itself — no fixture. Root cause of the earlier
+fresh-rig failure confirmed as FORK STALENESS: a 7h-old mirror rejects
+live-quoted Jupiter routes in simulation; a minutes-old fork passes first
+try. RUNBOOK RULE: re-fork the mirror before any recording session.
+Note: `test-env svm down` tracked a wrong pid (killed a ghost, left the
+real 7h surfpool holding 8899) and `svm up`'s spawn path dies silently
+(empty logs) — fresh mirror was booted directly; worth a product-mono chip.
+Polish candidates, NOT blockers: closing message is a terse "Solana
+transaction confirmed." (rule over-corrected — should read balances and
+summarize from tool results); turn-4 trace shows two Failed simulate steps
+before success (honest, but a re-roll could get a cleaner hero take).
+Videos: demo/out/ds6-sol-swap-stake (133s master + 67s 2x).
 
 2026-08-02 (session halted by Cecilia — read before resuming demo work) —
-  Backend REBUILT with all four agent fixes (invented amounts, dependent-batch
-  staging, unbounded repair loops, missing-ATA handling); binary + runtime
-  skills bundle both verified to carry them. NO passing take on the new binary
-  yet: the shared apps/portal/.env.local was repointed to port 8081 mid-session
-  by a parallel session, so two recording runs died with the portal unable to
-  reach the backend at all (browser showed prompts with no reply + HTTP 502).
-  Demo backend moved to 8081 to match; portal→backend verified healed (502→400)
-  but the re-run was stopped before completing. ds6 scenario now has NO mSOL
-  fixture (removed to prove the post-#912 agent creates the ATA itself) — that
-  claim is UNPROVEN. Rig left running: backend :8081 (providers-demo.toml,
-  mirror pinned, real-mainnet fallback removed), portal :3500, surfpool :8899.
-  EVM anvil forks are DOWN. ~180 GB freed (stale worktree build caches).
-  Full handoff: this entry + demo/README.md failure-modes section.
+Backend REBUILT with all four agent fixes (invented amounts, dependent-batch
+staging, unbounded repair loops, missing-ATA handling); binary + runtime
+skills bundle both verified to carry them. NO passing take on the new binary
+yet: the shared apps/portal/.env.local was repointed to port 8081 mid-session
+by a parallel session, so two recording runs died with the portal unable to
+reach the backend at all (browser showed prompts with no reply + HTTP 502).
+Demo backend moved to 8081 to match; portal→backend verified healed (502→400)
+but the re-run was stopped before completing. ds6 scenario now has NO mSOL
+fixture (removed to prove the post-#912 agent creates the ATA itself) — that
+claim is UNPROVEN. Rig left running: backend :8081 (providers-demo.toml,
+mirror pinned, real-mainnet fallback removed), portal :3500, surfpool :8899.
+EVM anvil forks are DOWN. ~180 GB freed (stale worktree build caches).
+Full handoff: this entry + demo/README.md failure-modes section.
 
 2026-08-01 — **First Solana demo recorded** (`demo/out/ds6-sol-swap-stake`,
-  86s master + 43s 2x). Jupiter swap 5 SOL → 365 USDC via HumidiFi, then
-  Marinade stake of the rest → 3.57 mSOL, both confirmed on the Surfpool
-  mainnet mirror and both proven from chain state, not UI text. This closes
-  phases 2–3 of SOLANA-DEMO-PLAN.md; the plan is now fully executed.
+86s master + 43s 2x). Jupiter swap 5 SOL → 365 USDC via HumidiFi, then
+Marinade stake of the rest → 3.57 mSOL, both confirmed on the Surfpool
+mainnet mirror and both proven from chain state, not UI text. This closes
+phases 2–3 of SOLANA-DEMO-PLAN.md; the plan is now fully executed.
 
-  Getting there cost eight takes and surfaced four defects worth keeping:
+Getting there cost eight takes and surfaced four defects worth keeping:
 
-  1. **`test-env svm reset` does not reset.** It does not restart Surfpool
-     (up 3h57m across a dozen resets) and does not re-apply the airdrop or
-     `token_fixtures`. Takes silently inherited the previous take's balances.
-     Fixed: scenarios declare `svm.fund.sol` + `svm.tokenAccounts`, and the
-     recorder writes both after every reset via `surfnet_setAccount` /
-     `surfnet_setTokenAccount`. Assertions tightened to match.
-  2. **The agent apologised for succeeding** — the same failure class as the
-     chat.aomi.dev screenshot that started this work. Turn 2 fired 1.6s after
-     turn 1 stopped streaming, before the execution callbacks landed, so the
-     agent re-staged an executed leg and closed on "your current balance is
-     ~0.0099 SOL … not enough" over a perfect swap and stake. Fixed: the
-     recorder settles follow-up turns after EVERY turn, not just at the end.
-  3. **Empty (`amount: "0"`) ATA fixtures hang the take.** The agent cannot
-     distinguish an empty ATA from a missing one, tries to create it,
-     `svm-manifest-guard` blocks it (backend predates #912), and it loops on
-     "Correcting Marinade stake account" until timeout. Fixed with dust;
-     removable once the demo backend is rebuilt past #912.
-  4. **Joint simulation of both legs fails deterministically.** Every passing
-     take simulated 8 txs; every hung take simulated 9. Asking for swap+stake
-     in one sentence makes the agent batch them, and the stake cannot simulate
-     against SOL the swap has not freed. Fixed by one leg per turn.
+1. **`test-env svm reset` does not reset.** It does not restart Surfpool
+   (up 3h57m across a dozen resets) and does not re-apply the airdrop or
+   `token_fixtures`. Takes silently inherited the previous take's balances.
+   Fixed: scenarios declare `svm.fund.sol` + `svm.tokenAccounts`, and the
+   recorder writes both after every reset via `surfnet_setAccount` /
+   `surfnet_setTokenAccount`. Assertions tightened to match.
+2. **The agent apologised for succeeding** — the same failure class as the
+   chat.aomi.dev screenshot that started this work. Turn 2 fired 1.6s after
+   turn 1 stopped streaming, before the execution callbacks landed, so the
+   agent re-staged an executed leg and closed on "your current balance is
+   ~0.0099 SOL … not enough" over a perfect swap and stake. Fixed: the
+   recorder settles follow-up turns after EVERY turn, not just at the end.
+3. **Empty (`amount: "0"`) ATA fixtures hang the take.** The agent cannot
+   distinguish an empty ATA from a missing one, tries to create it,
+   `svm-manifest-guard` blocks it (backend predates #912), and it loops on
+   "Correcting Marinade stake account" until timeout. Fixed with dust;
+   removable once the demo backend is rebuilt past #912.
+4. **Joint simulation of both legs fails deterministically.** Every passing
+   take simulated 8 txs; every hung take simulated 9. Asking for swap+stake
+   in one sentence makes the agent batch them, and the stake cannot simulate
+   against SOL the swap has not freed. Fixed by one leg per turn.
 
-  Also: LLM bundle construction is non-deterministic, so `RECORD_ATTEMPTS`
-  (default 3) re-seeds and re-shoots until a take passes and deletes failed
-  attempts' videos — the shipped take passed on attempt 2. Camera hygiene now
-  handled in-recorder: consent pre-declined, dev indicator off via
-  `AOMI_HIDE_DEV_INDICATOR` (new opt-in flag in apps/portal/next.config.ts +
-  the `portal-demo-studio` launch config, which was referenced in the README
-  but did not exist), sidebar collapsed and *verified* collapsed.
+Also: LLM bundle construction is non-deterministic, so `RECORD_ATTEMPTS`
+(default 3) re-seeds and re-shoots until a take passes and deletes failed
+attempts' videos — the shipped take passed on attempt 2. Camera hygiene now
+handled in-recorder: consent pre-declined, dev indicator off via
+`AOMI_HIDE_DEV_INDICATOR` (new opt-in flag in apps/portal/next.config.ts +
+the `portal-demo-studio` launch config, which was referenced in the README
+but did not exist), sidebar collapsed and _verified_ collapsed.
 
-  New scenarios authored, NOT yet recorded: `ds7-sol-yield-scan` (read-only
-  venue comparison — the reasoning turn with nothing to fail, and the most
-  reliable asset in the catalog) and `ds8-cross-vm` (Ethereum + Solana in one
-  thread; the actual differentiator, and the one unproven thing is whether the
-  agent holds both wallet identities across the VM boundary).
+New scenarios authored, NOT yet recorded: `ds7-sol-yield-scan` (read-only
+venue comparison — the reasoning turn with nothing to fail, and the most
+reliable asset in the catalog) and `ds8-cross-vm` (Ethereum + Solana in one
+thread; the actual differentiator, and the one unproven thing is whether the
+agent holds both wallet identities across the VM boundary).
 
-  Corrected `specs/DEMO-SCENARIOS.md` scenario 6, which claimed Solana
-  "cannot run on a fork" and should be shot on mainnet with real money.
+Corrected `specs/DEMO-SCENARIOS.md` scenario 6, which claimed Solana
+"cannot run on a fork" and should be shot on mainnet with real money.
 
-  OPEN, needs a decision: the agent's closing summary said "approximately
-  4.85 mSOL" when the wallet actually received 3.57 — a wrong number, stated
-  confidently, on camera. Chain state is right; the agent's arithmetic in the
-  summary is not. Worth fixing before this take goes to a Solana-literate
-  audience.
+OPEN, needs a decision: the agent's closing summary said "approximately
+4.85 mSOL" when the wallet actually received 3.57 — a wrong number, stated
+confidently, on camera. Chain state is right; the agent's arithmetic in the
+summary is not. Worth fixing before this take goes to a Solana-literate
+audience.
 
 2026-08-01 — BUILT mock-relayer phase 1 (product-mono branch `chain-actor` off
-  origin/main e3d9739ea, uncommitted). MY files: aomi/Cargo.toml+lock (member +
-  workspace dep), crates/anvil/{Cargo.toml,src/lib.rs,src/evm/mod.rs,
-  src/evm/actors/* NEW}, crates/actors/ NEW (AcrossFiller), bin/cli/{Cargo.toml,
-  cli.rs,commands/test_env/{mod.rs,evm/mod.rs,actors.rs NEW}}, bin/eval/
-  {Cargo.toml,spec/mod.rs,assertions/{mod,balance,event_log,state}.rs,
-  run/{mod,preflight}.rs, specs/across/bridge_base_usdc_to_arbitrum_send_and_fill.json
-  NEW}. WARNING: the same checkout carries ANOTHER session's uncommitted
-  protocol-attribution work (crates/skills/guards/*, crates/evm/assemble.rs,
-  crates/tools/*, crates/core/*, bin/backend, bin/cli/src/tests.rs) being
-  edited live during mine — state.rs was a merge point (their `protocol: None`
-  fix + my field restore). Cecilia must not commit the tree wholesale.
-  Verified: aomi-anvil 64+10 tests (6 new actors), aomi-actors 10/10,
-  aomi-eval 83/83, clippy/fmt clean; LIVE smoke (isolated forks 53101/53102,
-  sandboxed $HOME): crafted depositV3 on eth fork → daemon filled via real
-  Base SpokePool → +0.998 ETH native at recipient, journal filled, status
-  renders; fill tx receipt shows FilledRelay + WETH pull + unwrap.
-  DISCOVERY: anvil mnemonic accounts incl. demo wallet #2 have EIP-7702
-  sweeper code on real mainnet+Base (0xef0100…) — bridge fills to them get
-  swept in-tx; recorder must anvil_setCode(wallet,"0x") at funding time.
-  Fixes en route: ActorCtx timeout 120s (cold-fork fills exceeded 10s and
-  journaled as errors while landing), journal errors now carry {err:#} chain.
-  PENDING: 42161 fork target in providers.toml (new eval spec fails fast on
-  it, correctly); rewrite ds4-bridge-to-base to chains [1,8453] +
-  actors ["across"] + setCode wipe + dest-chain verify; dest-chain ERC20
-  token aliases in eval (custom aliases still pin to env chain — natives +
-  event_log route today); phase 2+ adapters (OpDepositFinalizer, CctpAttester,
-  ZeroXGaslessRelayer).
+origin/main e3d9739ea, uncommitted). MY files: aomi/Cargo.toml+lock (member +
+workspace dep), crates/anvil/{Cargo.toml,src/lib.rs,src/evm/mod.rs,
+src/evm/actors/_ NEW}, crates/actors/ NEW (AcrossFiller), bin/cli/{Cargo.toml,
+cli.rs,commands/test_env/{mod.rs,evm/mod.rs,actors.rs NEW}}, bin/eval/
+{Cargo.toml,spec/mod.rs,assertions/{mod,balance,event_log,state}.rs,
+run/{mod,preflight}.rs, specs/across/bridge_base_usdc_to_arbitrum_send_and_fill.json
+NEW}. WARNING: the same checkout carries ANOTHER session's uncommitted
+protocol-attribution work (crates/skills/guards/_, crates/evm/assemble.rs,
+crates/tools/_, crates/core/_, bin/backend, bin/cli/src/tests.rs) being
+edited live during mine — state.rs was a merge point (their `protocol: None`
+fix + my field restore). Cecilia must not commit the tree wholesale.
+Verified: aomi-anvil 64+10 tests (6 new actors), aomi-actors 10/10,
+aomi-eval 83/83, clippy/fmt clean; LIVE smoke (isolated forks 53101/53102,
+sandboxed $HOME): crafted depositV3 on eth fork → daemon filled via real
+Base SpokePool → +0.998 ETH native at recipient, journal filled, status
+renders; fill tx receipt shows FilledRelay + WETH pull + unwrap.
+DISCOVERY: anvil mnemonic accounts incl. demo wallet #2 have EIP-7702
+sweeper code on real mainnet+Base (0xef0100…) — bridge fills to them get
+swept in-tx; recorder must anvil_setCode(wallet,"0x") at funding time.
+Fixes en route: ActorCtx timeout 120s (cold-fork fills exceeded 10s and
+journaled as errors while landing), journal errors now carry {err:#} chain.
+PENDING: 42161 fork target in providers.toml (new eval spec fails fast on
+it, correctly); rewrite ds4-bridge-to-base to chains [1,8453] +
+actors ["across"] + setCode wipe + dest-chain verify; dest-chain ERC20
+token aliases in eval (custom aliases still pin to env chain — natives +
+event_log route today); phase 2+ adapters (OpDepositFinalizer, CctpAttester,
+ZeroXGaslessRelayer).
 
 2026-08-01 — Designed the mock relayer: specs/MOCK-RELAYER.md (design only, no
-  code; target repo product-mono). "Chain actors" — impersonated counterparties
-  that watch a source fork and submit the REAL fill tx to the REAL destination
-  contract on a destination fork: mechanism (trait + poll driver + JSONL
-  journal) in aomi-anvil::evm::actors, protocol adapters in a new aomi-actors
-  crate (phase 1 AcrossFiller, then OpDepositFinalizer, CctpAttester,
-  ZeroXGaslessRelayer). Strictness contract: reject what a real relayer would
-  reject; the certified claim is "the agent produced a deposit a correct
-  relayer would have filled". Surfaces: `aomi test-env actors up/status/down`,
-  demo Scenario gains `actors?: string[]` (unblocks ds4-bridge-to-base
-  end-to-end on chains [1,8453] and dissolves the route-drift problem), and
-  eval `run.environment.actors` in preflight (same provider_manager()) so
-  EXISTING balance_delta/event_log assertions grade destination chains — the
-  across/cctp/base_native eval specs currently stop at source-side assertions.
-  Open: crate-vs-module, fill latency default (4s demo / 0s eval), 42161 fork
-  for the Base→Arbitrum eval. PENDING: Cecilia reviews the spec before any
-  code.
+code; target repo product-mono). "Chain actors" — impersonated counterparties
+that watch a source fork and submit the REAL fill tx to the REAL destination
+contract on a destination fork: mechanism (trait + poll driver + JSONL
+journal) in aomi-anvil::evm::actors, protocol adapters in a new aomi-actors
+crate (phase 1 AcrossFiller, then OpDepositFinalizer, CctpAttester,
+ZeroXGaslessRelayer). Strictness contract: reject what a real relayer would
+reject; the certified claim is "the agent produced a deposit a correct
+relayer would have filled". Surfaces: `aomi test-env actors up/status/down`,
+demo Scenario gains `actors?: string[]` (unblocks ds4-bridge-to-base
+end-to-end on chains [1,8453] and dissolves the route-drift problem), and
+eval `run.environment.actors` in preflight (same provider_manager()) so
+EXISTING balance_delta/event_log assertions grade destination chains — the
+across/cctp/base_native eval specs currently stop at source-side assertions.
+Open: crate-vs-module, fill latency default (4s demo / 0s eval), 42161 fork
+for the Base→Arbitrum eval. PENDING: Cecilia reviews the spec before any
+code.
 
 2026-08-01 — Renamed portal E2E executor `executeE2EWalletTransaction` →
-  `executeE2EvmTransaction` (EVM-only; pairs with `executeE2ESolanaTransaction`).
-  Touched: apps/portal/src/server/e2e-wallet.ts, e2e-wallet.test.ts,
-  apps/portal/src/app/api/bff/e2e/execute/route.ts.
+`executeE2EvmTransaction` (EVM-only; pairs with `executeE2ESolanaTransaction`).
+Touched: apps/portal/src/server/e2e-wallet.ts, e2e-wallet.test.ts,
+apps/portal/src/app/api/bff/e2e/execute/route.ts.
 
 2026-07-31 — Fixed the browser POST /api/exec/simulate empty-body bug (on this
-  branch, not committed). ROOT CAUSE (proven in real Chrome + undici): the
-  portal's withDebugLogging rebuilt Request inputs via `new Request(url,
+branch, not committed). ROOT CAUSE (proven in real Chrome + undici): the
+portal's withDebugLogging rebuilt Request inputs via `new Request(url,
   request)` — the Request lands in the RequestInit position, so its buffered
-  string body is read back as a ReadableStream (`duplex: "half"`). Chrome only
-  sends streaming uploads over HTTP/2, so on plain-http localhost the fetch
-  dies with ERR_ALPN_NEGOTIATION_FAILED, and under Playwright interception the
-  streamed body reads as 0 bytes → backend 400 "EOF while parsing". The chain:
-  simulateBatch → wrapFetchWithAccountBearer → paymentFetch (wraps string url
-  + init into a Request) → withDebugLogging (mangled it). FIXES:
+string body is read back as a ReadableStream (`duplex: "half"`). Chrome only
+sends streaming uploads over HTTP/2, so on plain-http localhost the fetch
+dies with ERR_ALPN_NEGOTIATION_FAILED, and under Playwright interception the
+streamed body reads as 0 bytes → backend 400 "EOF while parsing". The chain:
+simulateBatch → wrapFetchWithAccountBearer → paymentFetch (wraps string url
+
+- init into a Request) → withDebugLogging (mangled it). FIXES:
   apps/portal/src/lib/portal-client-options.ts — withDebugLogging now passes
   Request inputs through untouched (their URL is already absolute);
   applyLockedAppScope (same Request-as-init bug, latent) now rebuilds field by
@@ -773,44 +1070,45 @@
   here: full client suite 289 green, portal lib tests green, eslint/tsc clean
   on touched files, real-Chrome A/B against an HTTP/1.1 echo server (buggy
   chain fails, fixed chain delivers the body intact). The demo rig's
-  WORKAROUND stub for **/api/exec/simulate in demo/capture/record.ts was
+  WORKAROUND stub for \*\*/api/exec/simulate in demo/capture/record.ts was
   REMOVED with the fix in place — per the stub's own note, re-run a fork demo
   capture to confirm fee injection now works end-to-end (not yet re-tested;
   vitest cannot run inside .claude worktrees, so run tests from a regular
   checkout).
-2026-08-01 (later) — Integrations page REDESIGN PORTED TO THE REAL PAGE
+  2026-08-01 (later) — Integrations page REDESIGN PORTED TO THE REAL PAGE
   (same worktree/branch, uncommitted). Design was iterated with Cecilia on
   /mock-integration, then moved wholesale:
-  - `features/integrations/how-it-works.tsx` (NEW): TelegramHowItWorks —
-    plain-text 4-step explainer (PT Serif heading) + BotFatherGuide, a
-    Telegram-dark chat mimic of the real /setcommands exchange (hardcoded
-    Telegram colors #0e1621/#182533/#2b5278 by design, BotFather header with
-    verified badge, Copy chip on the command-list bubble).
-  - `features/operate/bots-view.tsx` (REWRITTEN): provider rail (real brand
-    marks: Telegram plane #2AABEE, Discord Clyde #5865F2, Slack 4-color;
-    Discord/Slack greyed "Soon"; bot count pill; Add bot pill) → how-it-works
-    → inline AddBotCard (token/label 13px labels over 12px hints, sliding
-    ThreadModeToggle with `?` tooltip control top-right of the app table) →
-    one card per bot (monogram, masked token `platform_bot_id:••••`, Active
-    pill, thread-mode label, Change apps + circular trash, primary-starred
-    app chips) with in-place edit (framed APP|SOURCE|PRIMARY table, checked
-    rows accent-washed, radio primary, ghost rows uncheckable-only + save
-    blocked, thread mode DISABLED with "can't be changed after registration
-    yet" tooltip until the manager PATCH gains thread_mode). Data layer
-    unchanged (react-query bots key, POST/PATCH/DELETE via
-    API_PATHS.bff.operate.bots, cache updates). `embedded` prop dropped.
-  - `features/integrations/integrations-view.tsx`: slimmed to page header +
-    BotsView (old Telegram hero + Discord placeholder cards gone; sign-in
-    gates live in BotsView).
-  - `/mock-integration` is now a fixture HARNESS for the real page (pattern
-    from dev-operate-preview): stubbed window.fetch serves github/status +
-    operate/bots GET/POST/PATCH/DELETE from in-memory fixtures under
-    QueryClientProvider + GitHubSessionProvider, plus a page-local
-    light/dark ThemeSwitch. Full add/edit/remove flows work there without
-    auth — verified live (edit → toggle app → Save → PATCH → chips update).
-  - bots-view.test.tsx rewritten for the new UI (5 tests: sign-in gate,
-    cards+masked token+count pill, add-flow gating, edit lock/cancel, ghost
-    block/unblock).
+
+* `features/integrations/how-it-works.tsx` (NEW): TelegramHowItWorks —
+  plain-text 4-step explainer (PT Serif heading) + BotFatherGuide, a
+  Telegram-dark chat mimic of the real /setcommands exchange (hardcoded
+  Telegram colors #0e1621/#182533/#2b5278 by design, BotFather header with
+  verified badge, Copy chip on the command-list bubble).
+* `features/operate/bots-view.tsx` (REWRITTEN): provider rail (real brand
+  marks: Telegram plane #2AABEE, Discord Clyde #5865F2, Slack 4-color;
+  Discord/Slack greyed "Soon"; bot count pill; Add bot pill) → how-it-works
+  → inline AddBotCard (token/label 13px labels over 12px hints, sliding
+  ThreadModeToggle with `?` tooltip control top-right of the app table) →
+  one card per bot (monogram, masked token `platform_bot_id:••••`, Active
+  pill, thread-mode label, Change apps + circular trash, primary-starred
+  app chips) with in-place edit (framed APP|SOURCE|PRIMARY table, checked
+  rows accent-washed, radio primary, ghost rows uncheckable-only + save
+  blocked, thread mode DISABLED with "can't be changed after registration
+  yet" tooltip until the manager PATCH gains thread_mode). Data layer
+  unchanged (react-query bots key, POST/PATCH/DELETE via
+  API_PATHS.bff.operate.bots, cache updates). `embedded` prop dropped.
+* `features/integrations/integrations-view.tsx`: slimmed to page header +
+  BotsView (old Telegram hero + Discord placeholder cards gone; sign-in
+  gates live in BotsView).
+* `/mock-integration` is now a fixture HARNESS for the real page (pattern
+  from dev-operate-preview): stubbed window.fetch serves github/status +
+  operate/bots GET/POST/PATCH/DELETE from in-memory fixtures under
+  QueryClientProvider + GitHubSessionProvider, plus a page-local
+  light/dark ThemeSwitch. Full add/edit/remove flows work there without
+  auth — verified live (edit → toggle app → Save → PATCH → chips update).
+* bots-view.test.tsx rewritten for the new UI (5 tests: sign-in gate,
+  cards+masked token+count pill, add-flow gating, edit lock/cancel, ghost
+  block/unblock).
   Verified: apps/build vitest 403/403 (63 files), type-check, eslint clean.
   HARNESSES GROUPED under /dev (per Cecilia): NEW index
   `app/dev/page.tsx` (dev-only, notFound in prod — portal convention) lists
@@ -838,26 +1136,27 @@
   type-check + lint clean; live harness round trip single→multi green.
 
 2026-08-01 — Integrations page (build-staging.aomi.dev/integrations) FE logic
-  fixes + redesign kickoff (worktree vibrant-cerf-89d084, branch
-  claude/page-redesign-bug-fixes-277017, uncommitted). Full-chain read done:
-  IntegrationsView shell → embedded BotsView → BFF operate/bots →
-  packages/deploy client → manager github_app_bots.rs → bin/telegram runtime.
-  FE fixes in `apps/build/src/features/operate/bots-view.tsx`:
-  - Cancel button for edit mode (was a one-way door — editingId only cleared
-    by successful save).
-  - Thread mode select now disabled while editing, with explanatory hint
-    (PATCH carries only app mappings; manager UpdateBuilderBotRequest has no
-    thread_mode — the enabled select silently discarded changes).
-  - Ghost apps (bot mappings no longer in the builder's sources) render as
-    uncheckable-only rows under "No longer available", appear in the Primary
-    select, and block save with an inline message instead of an opaque BFF
-    403 "selected apps are not owned by this user".
-  - Removing the bot being edited exits edit mode.
-  - toggleApplication no longer calls setState inside another setState
-    updater (StrictMode impurity).
-  - "Attached apps" group is a div, not a <label> (nested labels gave every
-    checkbox the same accessible name and any click in the box toggled the
-    first checkbox).
+fixes + redesign kickoff (worktree vibrant-cerf-89d084, branch
+claude/page-redesign-bug-fixes-277017, uncommitted). Full-chain read done:
+IntegrationsView shell → embedded BotsView → BFF operate/bots →
+packages/deploy client → manager github_app_bots.rs → bin/telegram runtime.
+FE fixes in `apps/build/src/features/operate/bots-view.tsx`:
+
+- Cancel button for edit mode (was a one-way door — editingId only cleared
+  by successful save).
+- Thread mode select now disabled while editing, with explanatory hint
+  (PATCH carries only app mappings; manager UpdateBuilderBotRequest has no
+  thread_mode — the enabled select silently discarded changes).
+- Ghost apps (bot mappings no longer in the builder's sources) render as
+  uncheckable-only rows under "No longer available", appear in the Primary
+  select, and block save with an inline message instead of an opaque BFF
+  403 "selected apps are not owned by this user".
+- Removing the bot being edited exits edit mode.
+- toggleApplication no longer calls setState inside another setState
+  updater (StrictMode impurity).
+- "Attached apps" group is a div, not a <label> (nested labels gave every
+  checkbox the same accessible name and any click in the box toggled the
+  first checkbox).
   Tests: bots-view.test.tsx +2 (edit-mode lock/cancel, ghost-block); apps/
   build suite 403/403, type-check + eslint clean. NOTE: fresh worktree needed
   `pnpm install` + `pnpm --filter @aomi-labs/smither build` (dist JS is
@@ -877,226 +1176,229 @@
   (3) thread_mode/label not updatable via PATCH (manager + BFF + client).
   Dead FE stub also left in place: features/integrations/client.ts +
   server/bff/integrations/routes.ts (status always disconnected, connect
-  501) — wired to /api/bff/integrations but nothing calls it.
+
+501. — wired to /api/bff/integrations but nothing calls it.
 
 2026-07-30 — Operate batch reads for the REST of the herd: transactions,
-  statement, usage, logs (branch `fix/operate-batch-reads` in aomi,
-  `feat/operate-batch-reads` in product-mono). Cecilia reported Transactions
-  and Usage still showing "0 of 111 — pick a single source" with Usage then
-  presenting the Example-data statement; teammates with real transactions
-  could not see them. MEASURED: per-source statement reads are ~1s solo but
-  ~5–6s each at the BFF's exact 6-wide fan-out (~1 source/sec throughput) —
-  111 sources can never fit the 20s budget, so both fan-out legs mass-drop.
-  MANAGER (product-mono): four new service routes under
-  /api/integrations/github-app/user/ — transactions + logs return ONE
-  globally-merged newest-first page (global tuple cursor; pagination got
-  simpler), statement + usage return per-source results arrays in the exact
-  single-source wire shapes. Shared endpoints/batch_scope.rs resolves every
-  owned source under its own bound/loaded platform (observability batch
-  refactored onto it); statement buckets/usage/logs SQL batched via
-  unnest-pairs joins (EXPLAIN-validated read-only against the live DB before
-  deploy); partner-payment ledgers only for sources WITH apps, in waves of 8.
-  Shared partner-settlement log rows carry NULL app_source_id (account-level).
-  AOMI: deploy client listUserTransactions/getUserStatements/getUserUsage/
-  listUserLogs; BFF routes batch-first (batch caches, 15s), 404 → legacy
-  fan-out fallback, single-source (?appSourceId=) stays on per-source reads
-  (also fixed: observability batch now narrows to the picked source).
-  UX per Cecilia ("the old way is better"): DegradedNotice banner REMOVED
-  everywhere, `degraded` off the wire; a fallback losing EVERY read now 503s
-  ("Operate reads are temporarily unavailable") → FE red error state instead
-  of empty-page-plus-banner or Example data. exampleStatement remains ONLY
-  for genuinely available:false statements (BE-not-migrated), never for
-  failures. Composite cursor gained a `batch` slot ({batch: {...}} on the
-  wire, opaque to the FE).
-  Verified: manager cargo test 137+manifest, clippy/fmt clean; worker
-  node --test green (route added to MANAGER_ROUTE_PATTERNS + test); aomi
-  vitest 1154 passed, tsc + lint clean. DEPLOY ORDER: product-mono first
-  (backend auto-deploys on merge; worker needs MANUAL
-  `wrangler deploy --env staging` with Han's CLOUDFLARE_ACCOUNT_ID), verify
-  via probe, then merge aomi. FOLLOW-UPS: prod worker deploy with the next
-  prod backend release; delete settleBySource + per-source fallback once
-  batch soaks; consider caching partner-payment reports (still the slowest
-  leg of statement/observability batches).
+statement, usage, logs (branch `fix/operate-batch-reads` in aomi,
+`feat/operate-batch-reads` in product-mono). Cecilia reported Transactions
+and Usage still showing "0 of 111 — pick a single source" with Usage then
+presenting the Example-data statement; teammates with real transactions
+could not see them. MEASURED: per-source statement reads are ~1s solo but
+~5–6s each at the BFF's exact 6-wide fan-out (~1 source/sec throughput) —
+111 sources can never fit the 20s budget, so both fan-out legs mass-drop.
+MANAGER (product-mono): four new service routes under
+/api/integrations/github-app/user/ — transactions + logs return ONE
+globally-merged newest-first page (global tuple cursor; pagination got
+simpler), statement + usage return per-source results arrays in the exact
+single-source wire shapes. Shared endpoints/batch_scope.rs resolves every
+owned source under its own bound/loaded platform (observability batch
+refactored onto it); statement buckets/usage/logs SQL batched via
+unnest-pairs joins (EXPLAIN-validated read-only against the live DB before
+deploy); partner-payment ledgers only for sources WITH apps, in waves of 8.
+Shared partner-settlement log rows carry NULL app_source_id (account-level).
+AOMI: deploy client listUserTransactions/getUserStatements/getUserUsage/
+listUserLogs; BFF routes batch-first (batch caches, 15s), 404 → legacy
+fan-out fallback, single-source (?appSourceId=) stays on per-source reads
+(also fixed: observability batch now narrows to the picked source).
+UX per Cecilia ("the old way is better"): DegradedNotice banner REMOVED
+everywhere, `degraded` off the wire; a fallback losing EVERY read now 503s
+("Operate reads are temporarily unavailable") → FE red error state instead
+of empty-page-plus-banner or Example data. exampleStatement remains ONLY
+for genuinely available:false statements (BE-not-migrated), never for
+failures. Composite cursor gained a `batch` slot ({batch: {...}} on the
+wire, opaque to the FE).
+Verified: manager cargo test 137+manifest, clippy/fmt clean; worker
+node --test green (route added to MANAGER_ROUTE_PATTERNS + test); aomi
+vitest 1154 passed, tsc + lint clean. DEPLOY ORDER: product-mono first
+(backend auto-deploys on merge; worker needs MANUAL
+`wrangler deploy --env staging` with Han's CLOUDFLARE_ACCOUNT_ID), verify
+via probe, then merge aomi. FOLLOW-UPS: prod worker deploy with the next
+prod backend release; delete settleBySource + per-source fallback once
+batch soaks; consider caching partner-payment reports (still the slowest
+leg of statement/observability batches).
 
 2026-08-03 — Portal Account tab UI restyle **merged** (PR #431 → `main`).
-  Account settings now matches `aomi-portal` mock: custody-grouped wallet rows
-  with provider logos (`wallet-brands.tsx`), inline grant status, radio signing
-  modes (`SigningModeList`), grant revoke inside expanded rows, attention strip,
-  unbound wallets → Activate (bind), Para agent provision strip, flat Revoke all.
-  Live API wiring unchanged (`use-account-acl.ts`). New helpers:
-  `account-reconcile.ts`, `wallet-policy-row.tsx`. Follow-ups (not blockers):
-  `rdns` on API for self-custody wallet logos; deterministic re-grant route.
+Account settings now matches `aomi-portal` mock: custody-grouped wallet rows
+with provider logos (`wallet-brands.tsx`), inline grant status, radio signing
+modes (`SigningModeList`), grant revoke inside expanded rows, attention strip,
+unbound wallets → Activate (bind), Para agent provision strip, flat Revoke all.
+Live API wiring unchanged (`use-account-acl.ts`). New helpers:
+`account-reconcile.ts`, `wallet-policy-row.tsx`. Follow-ups (not blockers):
+`rdns` on API for self-custody wallet logos; deterministic re-grant route.
 
-  `account-reconcile.ts`, `wallet-policy-row.tsx`. Docs:
-  `docs/SETTINGS-REDESIGN-GAPS.md` updated. Still open: `rdns` on API for
-  self-custody wallet logos (Para/Privy always show). Rebased onto main;
-  preview QA on Vercel before merge.
+`account-reconcile.ts`, `wallet-policy-row.tsx`. Docs:
+`docs/SETTINGS-REDESIGN-GAPS.md` updated. Still open: `rdns` on API for
+self-custody wallet logos (Para/Privy always show). Rebased onto main;
+preview QA on Vercel before merge.
 2026-08-03 (later) — ROOT CAUSE + FIX: browser SSE was silently dead in the portal
-  (every session, every event type, predating the orchestrator work).
-  packages/client/src/sse.ts built the stream URL with `new URL(`${backendUrl}/api/
-  thread/updates`)`; the portal's getBackendUrl() returns "" (same-origin BFF), and
-  a base-less relative `new URL("/api/…")` THROWS before fetch — the subscriber's
-  retry loop swallowed it forever, so zero /api/thread/updates requests ever left
-  the browser (portal log evidence: 247 state polls, 0 SSE connects during an
-  orchestrator run). Nobody noticed because polling covers messages; task_* events
-  are the first SSE-only user-visible feature. Fix: relative-safe string URL (like
-  buildApiUrl) in sse.ts + regression test test/sse-url.unit.test.ts; client+react
-  dists rebuilt; portal restarted with fresh .next. Verified: bus replay of the
-  affected thread shows task_started + 5 task_activity flowing through the portal
-  proxy. Also: backend emission confirmed working from the user's actual run (child
-  thread spawned, label "1 wei self-transfer"). Remaining perceived slowness is the
-  known local GPT-5.5 pipeline latency (12-16s/call through cliproxy, serial).
+(every session, every event type, predating the orchestrator work).
+packages/client/src/sse.ts built the stream URL with `new URL(`${backendUrl}/api/
+thread/updates`)`; the portal's getBackendUrl() returns "" (same-origin BFF), and
+a base-less relative `new URL("/api/…")` THROWS before fetch — the subscriber's
+retry loop swallowed it forever, so zero /api/thread/updates requests ever left
+the browser (portal log evidence: 247 state polls, 0 SSE connects during an
+orchestrator run). Nobody noticed because polling covers messages; task\_\* events
+are the first SSE-only user-visible feature. Fix: relative-safe string URL (like
+buildApiUrl) in sse.ts + regression test test/sse-url.unit.test.ts; client+react
+dists rebuilt; portal restarted with fresh .next. Verified: bus replay of the
+affected thread shows task_started + 5 task_activity flowing through the portal
+proxy. Also: backend emission confirmed working from the user's actual run (child
+thread spawned, label "1 wei self-transfer"). Remaining perceived slowness is the
+known local GPT-5.5 pipeline latency (12-16s/call through cliproxy, serial).
 
 2026-08-03 — Orchestrator UI §5 (+§1) landed in apps/shadcn-registry — the trace UI.
-  New `WorkingAgent` (components/assistant-ui/working-agent.tsx): one delegation as a
-  row — pulsing identity dot (accent → pink by order of appearance) that becomes a
-  check/X on terminal status, mono label, summary slot (hidden while live+expanded,
-  shimmering latest intent while live+collapsed, the child's `message` when done),
-  live "N steps · Xs" counter (1s tick), chevron; children stream under the
-  `ml-[7px] pl-[17px] border-l` rail (tool calls through the existing interpreter,
-  notes as WorkingNote, both with the same expandable `<pre>` detail). Mounts
-  expanded while live, auto-folds ~900ms after completion unless the reader toggled
-  it. Row primitives shared with the mother trace were factored into
-  working-trace-rows.tsx (ToolStepRow / WorkingNote / ToolChipView) to avoid an
-  import cycle. working-trace.tsx joins transcript ↔ sidecar: `readTaskPartAgentId`
-  parts render as agent rows, live runs with no part yet render as synthetic rows
-  keyed by agent id (sticky until the part lands, so the row never blinks), header
-  says "Orchestrating"/"Orchestrated for X" + `aui-working-badge` when the TURN has
-  task rows (not the selected app), step count = rows + child steps, and agent rows
-  are exempt from the staggered-reveal backlog. Interpreter: new `task` family
-  (title "Delegated: <label>", Bot icon, short-agent-hash + `staged N` chips, failed
-  when status ≠ completed) via optional `title`/`failed` overrides on ToolOperation.
-  App selector: `orchestrator` app-metadata entry (Orchestrator/Or, new "Modes"
-  category, order 5) + pinned two-line row under "Basic Apps" in AppSelect.
-  Tests: working-agent.test.tsx (7), 3 interpreter cases, orchestrator app-metadata
-  + 2 AppSelect cases. Pending: product-mono event emission (§2) — until it ships
+New `WorkingAgent` (components/assistant-ui/working-agent.tsx): one delegation as a
+row — pulsing identity dot (accent → pink by order of appearance) that becomes a
+check/X on terminal status, mono label, summary slot (hidden while live+expanded,
+shimmering latest intent while live+collapsed, the child's `message` when done),
+live "N steps · Xs" counter (1s tick), chevron; children stream under the
+`ml-[7px] pl-[17px] border-l` rail (tool calls through the existing interpreter,
+notes as WorkingNote, both with the same expandable `<pre>` detail). Mounts
+expanded while live, auto-folds ~900ms after completion unless the reader toggled
+it. Row primitives shared with the mother trace were factored into
+working-trace-rows.tsx (ToolStepRow / WorkingNote / ToolChipView) to avoid an
+import cycle. working-trace.tsx joins transcript ↔ sidecar: `readTaskPartAgentId`
+parts render as agent rows, live runs with no part yet render as synthetic rows
+keyed by agent id (sticky until the part lands, so the row never blinks), header
+says "Orchestrating"/"Orchestrated for X" + `aui-working-badge` when the TURN has
+task rows (not the selected app), step count = rows + child steps, and agent rows
+are exempt from the staggered-reveal backlog. Interpreter: new `task` family
+(title "Delegated: <label>", Bot icon, short-agent-hash + `staged N` chips, failed
+when status ≠ completed) via optional `title`/`failed` overrides on ToolOperation.
+App selector: `orchestrator` app-metadata entry (Orchestrator/Or, new "Modes"
+category, order 5) + pinned two-line row under "Basic Apps" in AppSelect.
+Tests: working-agent.test.tsx (7), 3 interpreter cases, orchestrator app-metadata
+
+- 2 AppSelect cases. Pending: product-mono event emission (§2) — until it ships
   the UI renders the Phase-0 done-state row from the transcript alone.
 
 2026-08-03 — Orchestrator UI §3+§4 landed (client + React runtime; UI still pending).
-  packages/client: AomiMessage now models `tool_name`/`tool_arguments`; new
-  `AomiTaskEvent` union (task_started | task_activity | task_completed) +
-  `parseAomiTaskEvent` guard in src/types.ts; SessionEventMap gained the three
-  events; session/events.ts re-emits them like tool_update (no session-state
-  mutation); CLI verbose narration (`◆ [agent] … started`, `  ↳ step`,
-  `  ✔ label: status (N steps, Xs)`) in cli/output.ts + commands/chat.ts.
-  packages/react: `TaskRunState`/`TaskRunStep` + pure `reduceTaskRuns` reducer and a
-  per-thread `taskRuns` map in state/thread-store.ts (dedupe on (agentId, childSeq),
-  idempotent SSE replay, out-of-order tolerant, client-clock startedAt);
-  ThreadContext gained allThreadTaskRuns/getThreadTaskRuns/applyTaskEvent/
-  clearThreadTaskRuns plus `useThreadTaskRuns` / `useTaskRun`; runtime/orchestrator.ts
-  subscribes to the three events next to forwardEvent("tool_update") and reduces
-  into the sidecar; toInboundMessage now prefers `tool_name`, passes
-  `tool_arguments` as args, and attaches `metadata.custom.aomiTask = { agentId }` to
-  completed `task` tool-call parts (survives mergeAssistantTurns re-keying and
-  fromThreadMessageLike). Tests: reducer/store unit tests, runtime wiring test,
-  projection + merge metadata tests, client SSE routing + CLI line tests.
-  Pending: apps/shadcn-registry WorkingAgent UI + task interpreter family + app
-  selector entry (§1/§5), and the product-mono event emission (§2).
+packages/client: AomiMessage now models `tool_name`/`tool_arguments`; new
+`AomiTaskEvent` union (task_started | task_activity | task_completed) +
+`parseAomiTaskEvent` guard in src/types.ts; SessionEventMap gained the three
+events; session/events.ts re-emits them like tool_update (no session-state
+mutation); CLI verbose narration (`◆ [agent] … started`, `  ↳ step`,
+`  ✔ label: status (N steps, Xs)`) in cli/output.ts + commands/chat.ts.
+packages/react: `TaskRunState`/`TaskRunStep` + pure `reduceTaskRuns` reducer and a
+per-thread `taskRuns` map in state/thread-store.ts (dedupe on (agentId, childSeq),
+idempotent SSE replay, out-of-order tolerant, client-clock startedAt);
+ThreadContext gained allThreadTaskRuns/getThreadTaskRuns/applyTaskEvent/
+clearThreadTaskRuns plus `useThreadTaskRuns` / `useTaskRun`; runtime/orchestrator.ts
+subscribes to the three events next to forwardEvent("tool_update") and reduces
+into the sidecar; toInboundMessage now prefers `tool_name`, passes
+`tool_arguments` as args, and attaches `metadata.custom.aomiTask = { agentId }` to
+completed `task` tool-call parts (survives mergeAssistantTurns re-keying and
+fromThreadMessageLike). Tests: reducer/store unit tests, runtime wiring test,
+projection + merge metadata tests, client SSE routing + CLI line tests.
+Pending: apps/shadcn-registry WorkingAgent UI + task interpreter family + app
+selector entry (§1/§5), and the product-mono event emission (§2).
 
 2026-08-03 — Orchestrator UI: plan written (specs/ORCHESTRATOR-UI-PLAN.md), no code
-  yet. Decided UX (animated mocks:
-  https://claude.ai/code/artifact/96148a25-4320-4138-928e-ed4a395c3e35): agent row
-  per delegation inside aui-working-trace, auto-expands while live / auto-folds to a
-  one-line summary on completion unless user-toggled; vertical rail under each agent
-  row is a MUST-KEEP; header shows "Orchestrating" + orchestrator badge. Entry =
-  selecting the `orchestrator` app in the existing AppSelect (backend already gates
-  `task` on app id; needs descriptor exposure + app-metadata entry + pinned "Modes"
-  row). Protocol decision: backend emits task_started / task_activity / task_completed
-  on the MOTHER's event bus from ChildTaskService::drive() (parent SSE endpoint and
-  child 409 gates unchanged). Today NOTHING of a child is visible to any UI — parent
-  transcript gets one redacted `task` result post-hoc; TS AomiMessage doesn't even
-  model tool_name/tool_arguments (Rust serializes them). Phases: 0 = transcript-only
-  done-state rows (no backend change), 1 = lifecycle events, 2 = child activity
-  streaming (full UX), 3 = failure states + parallel children. Pending: product-mono
-  event emission; packages/client types + SessionEventMap; taskRuns sidecar in
-  thread-store + orchestrator.ts reducer; WorkingAgent component; task interpreter
-  family; open questions in the spec (app gating tier, activity payload truncation,
-  stall UX, note granularity).
+yet. Decided UX (animated mocks:
+https://claude.ai/code/artifact/96148a25-4320-4138-928e-ed4a395c3e35): agent row
+per delegation inside aui-working-trace, auto-expands while live / auto-folds to a
+one-line summary on completion unless user-toggled; vertical rail under each agent
+row is a MUST-KEEP; header shows "Orchestrating" + orchestrator badge. Entry =
+selecting the `orchestrator` app in the existing AppSelect (backend already gates
+`task` on app id; needs descriptor exposure + app-metadata entry + pinned "Modes"
+row). Protocol decision: backend emits task_started / task_activity / task_completed
+on the MOTHER's event bus from ChildTaskService::drive() (parent SSE endpoint and
+child 409 gates unchanged). Today NOTHING of a child is visible to any UI — parent
+transcript gets one redacted `task` result post-hoc; TS AomiMessage doesn't even
+model tool_name/tool_arguments (Rust serializes them). Phases: 0 = transcript-only
+done-state rows (no backend change), 1 = lifecycle events, 2 = child activity
+streaming (full UX), 3 = failure states + parallel children. Pending: product-mono
+event emission; packages/client types + SessionEventMap; taskRuns sidecar in
+thread-store + orchestrator.ts reducer; WorkingAgent component; task interpreter
+family; open questions in the spec (app gating tier, activity payload truncation,
+stall UX, note granularity).
 
 2026-07-30 — Observability batch read: fan-out removed at the source (branch
-  `feat/operate-batch-observability` in BOTH repos; aomi PR #426, product-mono
-  PR #901; based on main incl. #423 + #424).
-  ROOT CAUSE (measured on staging via a minted service bearer, 113 sources):
-  one per-source observability read = ~1.9s (~9 Grafana HTTP queries); at the
-  BFF's 6-wide fan-out reads stretch to 6.1–8.6s because Grafana serializes
-  the ~54 concurrent queries — every read outlives #423's 8s per-source
-  timeout, so /operate/observability rendered "Showing 0 of 113 sources".
-  Also: partner-bound sources (somm.finance) 404 "not launch-relevant" under
-  the default platform on every unscoped page load — permanently counted in
-  the degraded banner. Probe recipe + full facts in auto-memory
-  (observability-fanout-root-cause).
-  MANAGER (product-mono #901): new service route
-  GET /api/integrations/github-app/user/observability?github_user_id=
-  [&platform=] → { results: [single-source wire shape] }. One
-  Grafana/rollup snapshot per PLATFORM (operate_monitoring generalized to a
-  source-id set; transaction_metrics_24h_for_sources ANY($1)); each source
-  resolved under its own bound/loaded platform (fixes partner 404s);
-  partner-payment ledgers in bounded waves of 8; single-source read's
-  sequential per-app current_sdk_version N+1 replaced with batched
-  current_sdk_versions; app_health_json/dashboard_links_json shared between
-  single + batch so shapes can't drift.
-  AOMI (#426): packages/deploy getUserObservability(); BFF
-  operateObservabilityRoute does ONE batch read (15s TimedPromiseCache).
-  404 (pre-batch manager, mid-rollout) → falls back to the #423 bounded
-  per-source fan-out; other errors surface. degraded unset on batch path.
-  FE untouched (same response shape).
-  DEPLOY ORDER: either PR lands first (fallback covers the gap); page gets
-  fast only once the manager deploys. FOLLOW-UPS once staging verifies:
-  delete the per-source fallback + settleBySource for observability; apply
-  the same batch pattern to transactions/usage/logs/statement (same herd);
-  then re-check the "0 of N" banner never fires.
-  Verified: manager cargo test 137+manifest, clippy/fmt clean, backend check
-  green; aomi 497/497 (apps/build + packages/deploy), type-check + lint clean.
+`feat/operate-batch-observability` in BOTH repos; aomi PR #426, product-mono
+PR #901; based on main incl. #423 + #424).
+ROOT CAUSE (measured on staging via a minted service bearer, 113 sources):
+one per-source observability read = ~1.9s (~9 Grafana HTTP queries); at the
+BFF's 6-wide fan-out reads stretch to 6.1–8.6s because Grafana serializes
+the ~54 concurrent queries — every read outlives #423's 8s per-source
+timeout, so /operate/observability rendered "Showing 0 of 113 sources".
+Also: partner-bound sources (somm.finance) 404 "not launch-relevant" under
+the default platform on every unscoped page load — permanently counted in
+the degraded banner. Probe recipe + full facts in auto-memory
+(observability-fanout-root-cause).
+MANAGER (product-mono #901): new service route
+GET /api/integrations/github-app/user/observability?github_user_id=
+[&platform=] → { results: [single-source wire shape] }. One
+Grafana/rollup snapshot per PLATFORM (operate_monitoring generalized to a
+source-id set; transaction_metrics_24h_for_sources ANY($1)); each source
+resolved under its own bound/loaded platform (fixes partner 404s);
+partner-payment ledgers in bounded waves of 8; single-source read's
+sequential per-app current_sdk_version N+1 replaced with batched
+current_sdk_versions; app_health_json/dashboard_links_json shared between
+single + batch so shapes can't drift.
+AOMI (#426): packages/deploy getUserObservability(); BFF
+operateObservabilityRoute does ONE batch read (15s TimedPromiseCache).
+404 (pre-batch manager, mid-rollout) → falls back to the #423 bounded
+per-source fan-out; other errors surface. degraded unset on batch path.
+FE untouched (same response shape).
+DEPLOY ORDER: either PR lands first (fallback covers the gap); page gets
+fast only once the manager deploys. FOLLOW-UPS once staging verifies:
+delete the per-source fallback + settleBySource for observability; apply
+the same batch pattern to transactions/usage/logs/statement (same herd);
+then re-check the "0 of N" banner never fires.
+Verified: manager cargo test 137+manifest, clippy/fmt clean, backend check
+green; aomi 497/497 (apps/build + packages/deploy), type-check + lint clean.
 
 2026-07-29 — Build project-page perf: react-query ownership + parallel reads
-  (worktree untitled-session-7921bd, uncommitted; based on main 0e89ece2).
-  Diagnosis: /projects/:id was the last page outside react-query — hand-rolled
-  fetch of ALL sources per mount, first paint gated on `Promise.all(sources,
+(worktree untitled-session-7921bd, uncommitted; based on main 0e89ece2).
+Diagnosis: /projects/:id was the last page outside react-query — hand-rolled
+fetch of ALL sources per mount, first paint gated on `Promise.all(sources,
   sdkStatus)`, no prefetch entry, then a strict depth-2 waterfall for HomeTab's
-  secrets+usage. Changes (apps/build):
-  - `use-project-detail.ts`: source/sdk/loading/error now `useQuery`-owned.
-    Source list keyed by NEW `buildQueryKeys.projectSources(account, platform)`
-    — identical to the `projects` key when unbound (shares the /projects index
-    cache + hover prefetch; nav list→project reads cache), platform-scoped for
-    bound projects (1620/somm.finance would `.find()` nothing in the unbound
-    list). sdkStatus is its own query and NO LONGER gates first paint (badge
-    fills in; `sdkCompatibility(_, null)`="unknown" so nothing flashes).
-    `reload()` → `refetchQueries`; records-latch reset preserved on
-    [sourceId, platform] change. Hook also returns `accountKey`.
-  - `prefetch-control-plane-route.ts`: NEW `prefetchProjectDetail()` (sources +
-    sdk + usage) + a /projects/:id matcher case — hover now warms the detail
-    page; ProjectPage calls the same helper on mount so cold loads run all
-    reads in parallel; ProjectPage also fires `loadSecrets()` for home/env tabs
-    at mount instead of after the source read.
-  - `home-tab.tsx`: usage peek moved from useState/useEffect onto `useQuery`
-    with the operate usage key (shared with /operate/usage + prefetch).
-  - `server/bff/launch/routes.ts`: `timedManagerRead()` logs around
-    `list_user_sources` + `server_tags` — read off one staging load to decide
-    whether the manager needs a single-source/filtered read (fix #4).
+secrets+usage. Changes (apps/build):
+
+- `use-project-detail.ts`: source/sdk/loading/error now `useQuery`-owned.
+  Source list keyed by NEW `buildQueryKeys.projectSources(account, platform)`
+  — identical to the `projects` key when unbound (shares the /projects index
+  cache + hover prefetch; nav list→project reads cache), platform-scoped for
+  bound projects (1620/somm.finance would `.find()` nothing in the unbound
+  list). sdkStatus is its own query and NO LONGER gates first paint (badge
+  fills in; `sdkCompatibility(_, null)`="unknown" so nothing flashes).
+  `reload()` → `refetchQueries`; records-latch reset preserved on
+  [sourceId, platform] change. Hook also returns `accountKey`.
+- `prefetch-control-plane-route.ts`: NEW `prefetchProjectDetail()` (sources +
+  sdk + usage) + a /projects/:id matcher case — hover now warms the detail
+  page; ProjectPage calls the same helper on mount so cold loads run all
+  reads in parallel; ProjectPage also fires `loadSecrets()` for home/env tabs
+  at mount instead of after the source read.
+- `home-tab.tsx`: usage peek moved from useState/useEffect onto `useQuery`
+  with the operate usage key (shared with /operate/usage + prefetch).
+- `server/bff/launch/routes.ts`: `timedManagerRead()` logs around
+  `list_user_sources` + `server_tags` — read off one staging load to decide
+  whether the manager needs a single-source/filtered read (fix #4).
   Behavior deltas: manual refresh no longer shows the full-tab spinner when
   data exists (SWR semantics via isPending); cold DIRECT loads wait for the
   GitHub session before the source read (cache key needs accountKey).
   Second pass (same session) — the two items first skipped, now done properly:
-  - BFF launch read cache WITH mutation invalidation (`launch/routes.ts`):
-    `readCache.{sources,serverTags}` (TimedPromiseCache, 15s) behind
-    userSourcesRoute + launchSdkStatusRoute; unlike operate's read-only cache,
-    every source-mutating route clears it via exported `clearLaunchReadCache()`
-    — deploy/preflight factory, create-repo, activate, promote, deactivate,
-    redeploy, and sourceSdkUpgradeRoute (source-upgrade.ts). This is what makes
-    the cache safe for the redeploy→reload() flow (preflight registers apps;
-    the next sources read must see them). timedManagerRead sits INSIDE the
-    cache loader, so timing logs now measure only real manager calls.
-  - Single-source read WITHOUT losing cache sharing: `?appSourceId=` on the
-    sources BFF route filters BFF-side off the cached list (manager has no
-    single-source endpoint; manager URL unchanged). Client chain:
-    `API_PATHS...sources(platform, appSourceId)` → `deploymentSources(platform,
-    appSourceId)`. Hook now queries `buildQueryKeys.projectSource(account,
-    sourceId, platform)` (nested under the projects prefix) with
-    `initialData`/`initialDataUpdatedAt` seeded from the `projects` LIST cache
-    — warm list→project nav paints from cache with zero fetch while the list
-    is fresh; cold loads transfer ONE source instead of the whole account.
-    `projectSources` key helper replaced by `projectSource`; prefetch warms the
-    slim read.
+- BFF launch read cache WITH mutation invalidation (`launch/routes.ts`):
+  `readCache.{sources,serverTags}` (TimedPromiseCache, 15s) behind
+  userSourcesRoute + launchSdkStatusRoute; unlike operate's read-only cache,
+  every source-mutating route clears it via exported `clearLaunchReadCache()`
+  — deploy/preflight factory, create-repo, activate, promote, deactivate,
+  redeploy, and sourceSdkUpgradeRoute (source-upgrade.ts). This is what makes
+  the cache safe for the redeploy→reload() flow (preflight registers apps;
+  the next sources read must see them). timedManagerRead sits INSIDE the
+  cache loader, so timing logs now measure only real manager calls.
+- Single-source read WITHOUT losing cache sharing: `?appSourceId=` on the
+  sources BFF route filters BFF-side off the cached list (manager has no
+  single-source endpoint; manager URL unchanged). Client chain:
+  `API_PATHS...sources(platform, appSourceId)` → `deploymentSources(platform,
+appSourceId)`. Hook now queries `buildQueryKeys.projectSource(account,
+sourceId, platform)` (nested under the projects prefix) with
+  `initialData`/`initialDataUpdatedAt` seeded from the `projects` LIST cache
+  — warm list→project nav paints from cache with zero fetch while the list
+  is fresh; cold loads transfer ONE source instead of the whole account.
+  `projectSources` key helper replaced by `projectSource`; prefetch warms the
+  slim read.
   Tests: use-project-detail.test.ts + home-tab.test.tsx + project-page.test.tsx
   gained QueryClientProvider/GitHubSessionProvider harnesses (pattern from
   use-projects.test.ts); user-sources.test.ts +3 (appSourceId filter + no
@@ -1113,97 +1415,99 @@
   nothing here overlaps it.
 
 2026-07-27 — Light/dark token sweep. Dark mode was losing all structure: in
-  `themes/default.css` the dark block collapsed `--aomi-surface-2`, `--aomi-raised`
-  and `--aomi-border` onto a single `#27272a`, so every hairline drawn on a panel
-  was the panel's own colour — settings-modal dividers, table rules, the credits
-  meter track and the round close button all rendered at 1.00:1. `apps/build`'s
-  `aomi-design-tokens.css` had the identical collision on `cool-800`.
+`themes/default.css` the dark block collapsed `--aomi-surface-2`, `--aomi-raised`
+and `--aomi-border` onto a single `#27272a`, so every hairline drawn on a panel
+was the panel's own colour — settings-modal dividers, table rules, the credits
+meter track and the round close button all rendered at 1.00:1. `apps/build`'s
+`aomi-design-tokens.css` had the identical collision on `cool-800`.
 
-  Dark ramp re-laid as six distinct steps (bg `#09090b` → surface `#18181b` →
-  raised `#202024` → surface-2 `#2e2e33` → hover `#4a4a52`, border `#3f3f46`
-  clearing all of them); `--aomi-accent-subtle` became a sky tint (`#28354a`)
-  so the selected nav row reads. Light had its own collision — `--aomi-hover`
-  *was* `--aomi-surface-2` (`#f4f4f5`), so surface-2-filled controls had no
-  hover at all; moved to `#e9e9ec`. `--aomi-success` split per theme (`#1f8558`
-  light / `#35b37b` dark) — it renders as text and was 3.38:1 on white.
-  `apps/build` got the same treatment via new `cool-150/650/750/850` stops, plus
-  a duplicate `--aomi-ring` declaration removed from *both* its blocks (a later
-  grey redeclaration was silently overriding the intended sky focus ring).
+Dark ramp re-laid as six distinct steps (bg `#09090b` → surface `#18181b` →
+raised `#202024` → surface-2 `#2e2e33` → hover `#4a4a52`, border `#3f3f46`
+clearing all of them); `--aomi-accent-subtle` became a sky tint (`#28354a`)
+so the selected nav row reads. Light had its own collision — `--aomi-hover`
+_was_ `--aomi-surface-2` (`#f4f4f5`), so surface-2-filled controls had no
+hover at all; moved to `#e9e9ec`. `--aomi-success` split per theme (`#1f8558`
+light / `#35b37b` dark) — it renders as text and was 3.38:1 on white.
+`apps/build` got the same treatment via new `cool-150/650/750/850` stops, plus
+a duplicate `--aomi-ring` declaration removed from _both_ its blocks (a later
+grey redeclaration was silently overriding the intended sky focus ring).
 
-  Two cascade fixes in `themes/default.css`: `.dark` now re-declares the derived
-  tokens (`--aomi-ring`, `--aomi-accent-tint`, `--aomi-accent-outline`,
-  `--aomi-overlay-border`) — a `var()` inside a custom property substitutes
-  against the *declaring* element, so they only re-derived because `.dark` lands
-  on `<html>`, and broke under any subtree `.dark`; and `:root` is now
-  `:root, .light` so light can be scoped to a subtree too (dark was a one-way
-  door — relevant for embedding the widget in a dark host).
+Two cascade fixes in `themes/default.css`: `.dark` now re-declares the derived
+tokens (`--aomi-ring`, `--aomi-accent-tint`, `--aomi-accent-outline`,
+`--aomi-overlay-border`) — a `var()` inside a custom property substitutes
+against the _declaring_ element, so they only re-derived because `.dark` lands
+on `<html>`, and broke under any subtree `.dark`; and `:root` is now
+`:root, .light` so light can be scoped to a subtree too (dark was a one-way
+door — relevant for embedding the widget in a dark host).
 
-  Harness: NEW dev-only `apps/portal/src/app/dev/theme-audit/` renders the ramp
-  and every redesigned surface twice (light + dark) from `features/usage/fixture.ts`
-  — no account needed — and measures 21 contrast pairs by compositing on a canvas
-  (Chrome serialises `color-mix()` as `color(srgb …)`, whose 0–1 channels an
-  rgb() parser misreads). 9 hard failures → 4, all light-mode and deliberate:
-  white-on-white `raised over bg` (the modal sits on a `black/50` scrim),
-  `surface on raised` (surface is the recessed tone, as in light), and two
-  unresolved below.
+Harness: NEW dev-only `apps/portal/src/app/dev/theme-audit/` renders the ramp
+and every redesigned surface twice (light + dark) from `features/usage/fixture.ts`
+— no account needed — and measures 21 contrast pairs by compositing on a canvas
+(Chrome serialises `color-mix()` as `color(srgb …)`, whose 0–1 channels an
+rgb() parser misreads). 9 hard failures → 4, all light-mode and deliberate:
+white-on-white `raised over bg` (the modal sits on a `black/50` scrim),
+`surface on raised` (surface is the recessed tone, as in light), and two
+unresolved below.
 
-  PENDING (design calls, deliberately not made): `--aomi-accent` as text is
-  3.71:1 in light — below AA — for "View full statement →" and tx links; the
-  existing `--aomi-accent-strong` measures 5.30:1, so either darken the light
-  accent or route text through a new `--aomi-accent-text`. `--aomi-warning`
-  (2.48:1 light) is referenced by zero call sites — dead token, fix or delete.
-  Also noted: `apps/landing/public/r/*.json` mirrors are broadly stale (11 files,
-  predating the whole `aomi-*` token system) — `vercel-build` regenerates them
-  from source at deploy, so they were left alone rather than hand-synced.
+PENDING (design calls, deliberately not made): `--aomi-accent` as text is
+3.71:1 in light — below AA — for "View full statement →" and tx links; the
+existing `--aomi-accent-strong` measures 5.30:1, so either darken the light
+accent or route text through a new `--aomi-accent-text`. `--aomi-warning`
+(2.48:1 light) is referenced by zero call sites — dead token, fix or delete.
+Also noted: `apps/landing/public/r/*.json` mirrors are broadly stale (11 files,
+predating the whole `aomi-*` token system) — `vercel-build` regenerates them
+from source at deploy, so they were left alone rather than hand-synced.
 
 2026-07-26 (later) — Fixtures solved: Packages + Usage wired to live data
-  (branch `worktree-settings-redesign`; backend twin in product-mono worktree
-  `account-acl-be`, uncommitted).
+(branch `worktree-settings-redesign`; backend twin in product-mono worktree
+`account-acl-be`, uncommitted).
 
-  **Packages** — catalog from `GET /api/account/apps`, installed set from the
-  profile's `user.apps`, install/remove via a NEW backend
-  `PUT /api/account/apps` (full-replace of `users.applications`; names
-  validated against the account's own visible catalog; `default` pinned).
-  FE: `components/shell/packages-api.ts` + rewired `packages-modal.tsx`
-  (brand decoration is now a `DECOR` lookup keyed by app name — real rows,
-  decorated when known, monogram under "More" otherwise). Not optimistic.
+**Packages** — catalog from `GET /api/account/apps`, installed set from the
+profile's `user.apps`, install/remove via a NEW backend
+`PUT /api/account/apps` (full-replace of `users.applications`; names
+validated against the account's own visible catalog; `default` pinned).
+FE: `components/shell/packages-api.ts` + rewired `packages-modal.tsx`
+(brand decoration is now a `DECOR` lookup keyed by app name — real rows,
+decorated when known, monogram under "More" otherwise). Not optimistic.
 
-  **Usage/statement (model subject)** — NEW backend
-  `GET /api/account/statement?from_date&to_date`:
-  `DbLlmUsageEvent::get_model_usage` (per app × model × payment_method over
-  `llm_usage_events` — the daily rollup drops the model column, so this reads
-  events; attribution mirrors `get_ranged_usage`, partner-fee rows excluded;
-  DB-proven by `model_usage_groups_per_model_and_scopes_to_the_user`) +
-  `aomi_account::model_statement` (statement assembly lives in the shared
-  crate per the account extraction). USD via `AomiCredit::to_usd` — no FE
-  pricing constant.
-  FE: `features/usage/statement-api.ts` (wire→`MonthlyStatement` adapter),
-  `use-usage-statement.ts` (per-month fetch + cache, allowance from the
-  profile's embedded UsageStats), rewired `usage-settings.tsx` and
-  `statement-view.tsx` (real identity header, real month picker).
-  HONESTY RULE: tool/outcome subjects have no ledger writer (statement_entries
-  declares them, x402 client unbuilt) — they render "—"/absent, never $0.00;
-  allowance meter only for the current month. `fixture.ts` unreferenced, kept
-  as the design harness for the unreal sections.
+**Usage/statement (model subject)** — NEW backend
+`GET /api/account/statement?from_date&to_date`:
+`DbLlmUsageEvent::get_model_usage` (per app × model × payment_method over
+`llm_usage_events` — the daily rollup drops the model column, so this reads
+events; attribution mirrors `get_ranged_usage`, partner-fee rows excluded;
+DB-proven by `model_usage_groups_per_model_and_scopes_to_the_user`) +
+`aomi_account::model_statement` (statement assembly lives in the shared
+crate per the account extraction). USD via `AomiCredit::to_usd` — no FE
+pricing constant.
+FE: `features/usage/statement-api.ts` (wire→`MonthlyStatement` adapter),
+`use-usage-statement.ts` (per-month fetch + cache, allowance from the
+profile's embedded UsageStats), rewired `usage-settings.tsx` and
+`statement-view.tsx` (real identity header, real month picker).
+HONESTY RULE: tool/outcome subjects have no ledger writer (statement_entries
+declares them, x402 client unbuilt) — they render "—"/absent, never $0.00;
+allowance meter only for the current month. `fixture.ts` unreferenced, kept
+as the design harness for the unreal sections.
 
-  Verification: portal tsc clean, 295/295 vitest, eslint clean on touched
-  files, `next build` green. Backend: `cargo check -p backend` green, route
-  manifest 10/10, entities 44/44 (DATABASE_URL → local supabase :54322),
-  aomi-account 4/4, fmt applied.
+Verification: portal tsc clean, 295/295 vitest, eslint clean on touched
+files, `next build` green. Backend: `cargo check -p backend` green, route
+manifest 10/10, entities 44/44 (DATABASE_URL → local supabase :54322),
+aomi-account 4/4, fmt applied.
 
 2026-07-26 — Zombie sweep of `apps/portal/src/app` after the FE revamp
-  (branch `worktree-settings-redesign`). Traced reachability of every page
-  (by navigation) and API route (by fetch-path across portal/build/landing/
-  packages/client/shadcn-registry). Deleted, portal type-check green:
-  - `app/device-auth-complete/page.tsx` — orphan success page, zero refs
-    (the device-auth flow redirects back to the CLI loopback, never here).
-  - `app/auth/privy/signer-grants.ts` + its test — `ensureServerSignerAccess`
-    imported only by its own test; emptied `app/auth/` entirely.
-  - `app/blog/{page.tsx,[slug]/page.tsx,content.ts}` + the now-orphaned
-    `BlogEntry` interface in `lib/utils.ts` — nothing linked `/blog`; both
-    entries' CTAs point out to Notion.
+(branch `worktree-settings-redesign`). Traced reachability of every page
+(by navigation) and API route (by fetch-path across portal/build/landing/
+packages/client/shadcn-registry). Deleted, portal type-check green:
+
+- `app/device-auth-complete/page.tsx` — orphan success page, zero refs
+  (the device-auth flow redirects back to the CLI loopback, never here).
+- `app/auth/privy/signer-grants.ts` + its test — `ensureServerSignerAccess`
+  imported only by its own test; emptied `app/auth/` entirely.
+- `app/blog/{page.tsx,[slug]/page.tsx,content.ts}` + the now-orphaned
+  `BlogEntry` interface in `lib/utils.ts` — nothing linked `/blog`; both
+  entries' CTAs point out to Notion.
   KEPT (Cecilia's explicit call) — the `/device-auth` + `api/aomi/device-auth/*`
-  + `lib/device-auth-grants.ts` cluster is NOT a zombie: it backs the live
+
+* `lib/device-auth-grants.ts` cluster is NOT a zombie: it backs the live
   `aomi account login` (Privy/Para) and `aomi account link --provider` CLI
   commands (`packages/client/src/cli/commands/account.ts` →
   `cli/device-auth.ts`). The old "accidental device-login" note referred to a
@@ -1215,337 +1519,340 @@
   redirect stub.
 
 2026-07-26 — Account tab wired to the real ACL endpoints (branch
-  `worktree-settings-redesign`). The tab was the last redesign surface running
-  on fixtures; it now reads and writes live state. New files, all under
-  `apps/portal/src/features/account/`:
+`worktree-settings-redesign`). The tab was the last redesign surface running
+on fixtures; it now reads and writes live state. New files, all under
+`apps/portal/src/features/account/`:
 
-  - `account-api.ts` — wire types + mappers for `GET /api/account/wallets`
-    (policy axis) and `GET /api/account/grants` (capability axis), plus
-    `DELETE /api/account/providers/:provider/grant`. `linkedVia` is derived,
-    not stored: `wallet_provider` privy/para, else siwe/siws by chain. Legacy
-    `human_sync`/`agent_sync` wire values normalize to the renamed modes.
-  - `use-account-acl.ts` — the permit ceremony. `challenge` → `signTypedData`
-    (EVM) / `signSolanaMessage` (SVM, which also names its `signer` since
-    Ed25519 has no recovery) → `commit` → refetch.
-  - `account-acl.test.tsx` — route-caller + ceremony coverage (4 tests).
+- `account-api.ts` — wire types + mappers for `GET /api/account/wallets`
+  (policy axis) and `GET /api/account/grants` (capability axis), plus
+  `DELETE /api/account/providers/:provider/grant`. `linkedVia` is derived,
+  not stored: `wallet_provider` privy/para, else siwe/siws by chain. Legacy
+  `human_sync`/`agent_sync` wire values normalize to the renamed modes.
+- `use-account-acl.ts` — the permit ceremony. `challenge` → `signTypedData`
+  (EVM) / `signSolanaMessage` (SVM, which also names its `signer` since
+  Ed25519 has no recovery) → `commit` → refetch.
+- `account-acl.test.tsx` — route-caller + ceremony coverage (4 tests).
 
-  `account-signing.tsx` kept its design verbatim but is now controlled: no
-  local mutation, per-row busy/error, and **nothing optimistic** — a mode flips
-  only on the committed backend value, so a rejected signature or a failed
-  version CAS can never look applied. Mode availability now follows backend
-  truth (`can_use_auto`, `provider_managed`) instead of inferring from custody.
-  Direction (loosen vs tighten) is pre-computed client-side against the
-  kernel's rank ladder purely to explain "connect this wallet itself" before
-  the prompt — the backend still decides. The posture strip counts only
-  *active* grants; the grants list carries revoked/expired history.
+`account-signing.tsx` kept its design verbatim but is now controlled: no
+local mutation, per-row busy/error, and **nothing optimistic** — a mode flips
+only on the committed backend value, so a rejected signature or a failed
+version CAS can never look applied. Mode availability now follows backend
+truth (`can_use_auto`, `provider_managed`) instead of inferring from custody.
+Direction (loosen vs tighten) is pre-computed client-side against the
+kernel's rank ladder purely to explain "connect this wallet itself" before
+the prompt — the backend still decides. The posture strip counts only
+_active_ grants; the grants list carries revoked/expired history.
 
-  Backend side of this (endpoints, Para Auto, the Privy-revocation fix) lives
-  in product-mono worktree `account-acl-be`, uncommitted.
+Backend side of this (endpoints, Para Auto, the Privy-revocation fix) lives
+in product-mono worktree `account-acl-be`, uncommitted.
 
-  Verification: portal type-check clean, 290/290 tests pass, eslint clean.
-  Still open (docs/SETTINGS-REDESIGN-GAPS.md): "Re-grant" routes through
-  `openAccountUI` because no server-side re-grant exists; wallet brand tags
-  need `rdns` captured at connect; Usage tab still on fixtures.
+Verification: portal type-check clean, 290/290 tests pass, eslint clean.
+Still open (docs/SETTINGS-REDESIGN-GAPS.md): "Re-grant" routes through
+`openAccountUI` because no server-side re-grant exists; wallet brand tags
+need `rdns` captured at connect; Usage tab still on fixtures.
 
 2026-07-26 — Design-system pass over the redesigned surfaces, driven by a
-  component inventory review (branch `worktree-settings-redesign`). The
-  aomi-* set is now the single vocabulary AND has explicit rules behind it:
+component inventory review (branch `worktree-settings-redesign`). The
+aomi-\* set is now the single vocabulary AND has explicit rules behind it:
 
-  New tokens (all in the shared widget theme, apps/shadcn-registry/src/themes/default.css):
-  - `--aomi-ring` + a `:where(...):focus-visible` rule so no surface falls
-    back to the browser's default outline. Zero specificity, so components
-    can still override.
-  - `--aomi-accent-tint` / `--aomi-accent-outline` / `--aomi-overlay-border`
-    replace 15 ad-hoc `/10` `/40` `/50` `/30` opacities in component code.
-  - `--aomi-danger-strong` + `--aomi-on-danger` for destructive fills
-    (white on plain `danger` is 4.3:1 — fails AA at 13px; strong is 5.6:1),
-    plus a dark-mode lift for `danger`, which had none.
-  - `--aomi-hover` retuned: was `#e4e4e7` (the border value, too heavy on a
-    white menu) and `#27272a` in dark — byte-identical to `--aomi-raised`,
-    so menu hover could never show. Now `#f4f4f5` / `#3f3f46`.
+New tokens (all in the shared widget theme, apps/shadcn-registry/src/themes/default.css):
 
-  Rules now encoded across the components:
-  - Selection splits by SIZE, not by component: pill-sized controls take the
-    solid accent fill (segments, filter chips); card/row-sized selection takes
-    `accent-subtle` + accent icon (mode cards, nav rows, menu rows, modal rows).
-    Neutral grey no longer means "chosen" anywhere.
-  - Type ladder: badge 10px, chip/segment/search 12px, composer/button 13px.
-  - Buttons are two shape families: pills at page level (ink commit + neutral
-    dismiss + red destructive), rounded-lg in flow (blue commit + blue repair).
-    All 34px, filled variants carry `border-transparent` so they match the
-    outlined ones. The last accent gradient is gone.
-  - Dismissal: every X is a circle — 32px on `surface-2` closes a surface,
-    20px transparent-until-hover clears a field.
-  - Menus: inset rounded rows (`rounded-lg` inside a 4px-padded panel), 32px
-    tall, 12px, never full-bleed bands.
-  - Modal shell: 50% flat ink scrim (no blur), `bg-aomi-raised` panel at
-    `rounded-2xl`, no shadow/ring, 32px circular close, fixed header/footer
-    with only the body scrolling. Two widths: 420px and 900x600.
+- `--aomi-ring` + a `:where(...):focus-visible` rule so no surface falls
+  back to the browser's default outline. Zero specificity, so components
+  can still override.
+- `--aomi-accent-tint` / `--aomi-accent-outline` / `--aomi-overlay-border`
+  replace 15 ad-hoc `/10` `/40` `/50` `/30` opacities in component code.
+- `--aomi-danger-strong` + `--aomi-on-danger` for destructive fills
+  (white on plain `danger` is 4.3:1 — fails AA at 13px; strong is 5.6:1),
+  plus a dark-mode lift for `danger`, which had none.
+- `--aomi-hover` retuned: was `#e4e4e7` (the border value, too heavy on a
+  white menu) and `#27272a` in dark — byte-identical to `--aomi-raised`,
+  so menu hover could never show. Now `#f4f4f5` / `#3f3f46`.
 
-  Files touched: portal — settings-modal, packages-modal, header-controls
-  (rebuilt to mirror the mock: 32px rounded-lg icon buttons + sliding theme
-  switch), general-settings, account-signing, statement-view, usage-shared.
-  Registry — wallet-picker shell adopted the modal standard; thread.tsx
-  composer field to 13px; thread-list + threadlist-sidebar finished off
-  shadcn vocabulary. Mock (~/Code/aomi-chat-design) — chat-header theme
-  switch scaled to the 32px baseline, composer scaled down.
+Rules now encoded across the components:
 
-  Verification: portal `pnpm run type-check` and registry `tsc` both clean
-  after every step; specimen geometry checked as computed values in the
-  browser rather than by reading class names.
+- Selection splits by SIZE, not by component: pill-sized controls take the
+  solid accent fill (segments, filter chips); card/row-sized selection takes
+  `accent-subtle` + accent icon (mode cards, nav rows, menu rows, modal rows).
+  Neutral grey no longer means "chosen" anywhere.
+- Type ladder: badge 10px, chip/segment/search 12px, composer/button 13px.
+- Buttons are two shape families: pills at page level (ink commit + neutral
+  dismiss + red destructive), rounded-lg in flow (blue commit + blue repair).
+  All 34px, filled variants carry `border-transparent` so they match the
+  outlined ones. The last accent gradient is gone.
+- Dismissal: every X is a circle — 32px on `surface-2` closes a surface,
+  20px transparent-until-hover clears a field.
+- Menus: inset rounded rows (`rounded-lg` inside a 4px-padded panel), 32px
+  tall, 12px, never full-bleed bands.
+- Modal shell: 50% flat ink scrim (no blur), `bg-aomi-raised` panel at
+  `rounded-2xl`, no shadow/ring, 32px circular close, fixed header/footer
+  with only the body scrolling. Two widths: 420px and 900x600.
 
-  NOTE: another Claude session was working in this same worktree concurrently
-  (registry conversation restyle). The token promotion below was theirs.
+Files touched: portal — settings-modal, packages-modal, header-controls
+(rebuilt to mirror the mock: 32px rounded-lg icon buttons + sliding theme
+switch), general-settings, account-signing, statement-view, usage-shared.
+Registry — wallet-picker shell adopted the modal standard; thread.tsx
+composer field to 13px; thread-list + threadlist-sidebar finished off
+shadcn vocabulary. Mock (~/Code/aomi-chat-design) — chat-header theme
+switch scaled to the 32px baseline, composer scaled down.
 
-  Also this session: the inventory page's own theme control was replaced with
-  the design system's sliding switch (it had been a one-off icon button), and
-  apps/build was aligned onto the canonical `aomi-*` names — see
-  docs/SETTINGS-REDESIGN-GAPS.md for what was additive vs left as an open
-  human call (`--aomi-surface` means cool-0 there, cool-50 in the widget).
+Verification: portal `pnpm run type-check` and registry `tsc` both clean
+after every step; specimen geometry checked as computed values in the
+browser rather than by reading class names.
+
+NOTE: another Claude session was working in this same worktree concurrently
+(registry conversation restyle). The token promotion below was theirs.
+
+Also this session: the inventory page's own theme control was replaced with
+the design system's sliding switch (it had been a one-off icon button), and
+apps/build was aligned onto the canonical `aomi-*` names — see
+docs/SETTINGS-REDESIGN-GAPS.md for what was additive vs left as an open
+human call (`--aomi-surface` means cool-0 there, cool-50 in the widget).
 
 2026-07-25 (night) — Chat-surface restyle to the aomi-chat-design mock +
-  portal glue cleanup (branch `worktree-settings-redesign`). The whole
-  chat column now matches the mock, not just settings:
-  (1) `--aomi-*` tokens PROMOTED into the shared widget theme
-  (apps/shadcn-registry/src/themes/default.css — light + .dark + @theme
-  utilities); the portal globals.css duplicate block deleted (portal keeps
-  only its --font-display mapping). Every widget consumer now resolves
-  the tokens; the shimmer + trace edge-fade CSS prefers aomi vars with
-  shadcn fallback.
-  (2) Conversation restyle in the registry (all behavior kept): thread.tsx —
-  mock empty state (centered AomiMark + "What can I help you onchain?" +
-  hero composer + pill suggestion chips; dock composer "Reply to Aomi…"
-  only when a conversation exists), user bubble = surface-2
-  rounded-2xl/rounded-br-md 15px, assistant rows carry a 26px AomiMark
-  avatar, small muted copy/rerun action bar; working-trace.tsx = bordered
-  card (surface header "Worked for Ns · N steps" + green check, mono step
-  titles, rounded-full surface-2 chips) — reveal cascade, windowing,
-  scroll fades, auto-collapse all unchanged. New shared
-  components/aomi-mark.tsx (threadlist-sidebar now imports it).
-  (3) Chrome: frame header = mock geometry (h-14 border-b, thread title
-  left); portal HeaderControls gained the real NetworkSelect styled as
-  the header pill (composer hides network via hideNetwork; NetworkSelect
-  now exported from widget-lib); sidebar footer DualWalletBar restyled as
-  the mock account chip (avatar + two-line address/network + chevrons).
-  (4) Portal glue cleanup: ONE shared /api/account store
-  (lib/account-overview.ts, seeded by the session probe — was fetched 3×
-  per settings open; copy-pasted AccountProfile types gone; dead
-  AomiSessionProvider removed); portal-aomi-frame.tsx 415→155 lines
-  (fetch middleware stack extracted to lib/portal-client-options.ts);
-  `pnpm --filter portal test` NOW RUNS THE REAL 45-file vitest suite
-  (was a no-op script exiting 0 — scripts/run-tests.mjs deleted, stale
-  usage-range exclude dropped); fixed 3 silently-broken tests (2 launch
-  routes tests stale vs deploy's fail-closed required-secrets policy —
-  ported apps/build's versions; svm-wallet-binding test missing the
-  svmTransport:"embedded" gate); /statement can scroll (h-screen +
-  overflow-y-auto under the overflow-hidden root layout); settings gate
-  on probe ERROR now only blocks General — Account/Usage render their
-  fixtures behind a slim retry banner (anonymous/establishing still gate
-  fully).
-  Verified: portal 45 files/286 tests, registry 39/280 (after
-  widget-lib build), react 12/126, repo lint + root/portal typechecks all
-  green; live at :3400 vs the mock at :3010 in light + dark (empty state,
-  header pill, packages, settings modal, /statement scroll). Conversation
-  visuals (trace card, bubbles) verified by tests; live-chat check needs
-  the local backend. NOTE: gaps doc lives at repo-root
-  docs/SETTINGS-REDESIGN-GAPS.md.
+portal glue cleanup (branch `worktree-settings-redesign`). The whole
+chat column now matches the mock, not just settings:
+(1) `--aomi-*` tokens PROMOTED into the shared widget theme
+(apps/shadcn-registry/src/themes/default.css — light + .dark + @theme
+utilities); the portal globals.css duplicate block deleted (portal keeps
+only its --font-display mapping). Every widget consumer now resolves
+the tokens; the shimmer + trace edge-fade CSS prefers aomi vars with
+shadcn fallback.
+(2) Conversation restyle in the registry (all behavior kept): thread.tsx —
+mock empty state (centered AomiMark + "What can I help you onchain?" +
+hero composer + pill suggestion chips; dock composer "Reply to Aomi…"
+only when a conversation exists), user bubble = surface-2
+rounded-2xl/rounded-br-md 15px, assistant rows carry a 26px AomiMark
+avatar, small muted copy/rerun action bar; working-trace.tsx = bordered
+card (surface header "Worked for Ns · N steps" + green check, mono step
+titles, rounded-full surface-2 chips) — reveal cascade, windowing,
+scroll fades, auto-collapse all unchanged. New shared
+components/aomi-mark.tsx (threadlist-sidebar now imports it).
+(3) Chrome: frame header = mock geometry (h-14 border-b, thread title
+left); portal HeaderControls gained the real NetworkSelect styled as
+the header pill (composer hides network via hideNetwork; NetworkSelect
+now exported from widget-lib); sidebar footer DualWalletBar restyled as
+the mock account chip (avatar + two-line address/network + chevrons).
+(4) Portal glue cleanup: ONE shared /api/account store
+(lib/account-overview.ts, seeded by the session probe — was fetched 3×
+per settings open; copy-pasted AccountProfile types gone; dead
+AomiSessionProvider removed); portal-aomi-frame.tsx 415→155 lines
+(fetch middleware stack extracted to lib/portal-client-options.ts);
+`pnpm --filter portal test` NOW RUNS THE REAL 45-file vitest suite
+(was a no-op script exiting 0 — scripts/run-tests.mjs deleted, stale
+usage-range exclude dropped); fixed 3 silently-broken tests (2 launch
+routes tests stale vs deploy's fail-closed required-secrets policy —
+ported apps/build's versions; svm-wallet-binding test missing the
+svmTransport:"embedded" gate); /statement can scroll (h-screen +
+overflow-y-auto under the overflow-hidden root layout); settings gate
+on probe ERROR now only blocks General — Account/Usage render their
+fixtures behind a slim retry banner (anonymous/establishing still gate
+fully).
+Verified: portal 45 files/286 tests, registry 39/280 (after
+widget-lib build), react 12/126, repo lint + root/portal typechecks all
+green; live at :3400 vs the mock at :3010 in light + dark (empty state,
+header pill, packages, settings modal, /statement scroll). Conversation
+visuals (trace card, bubbles) verified by tests; live-chat check needs
+the local backend. NOTE: gaps doc lives at repo-root
+docs/SETTINGS-REDESIGN-GAPS.md.
 
 2026-07-25 — Settings redesign port (branch `worktree-settings-redesign`,
-  `apps/portal`): settings surface reduced to three tabs — General /
-  Account / Usage — per the aomi-chat-design mock, styled to the aomi
-  design system (sky accent + pink decorative meters via new `--aomi-*`
-  tokens in globals.css, PT Serif display font, flat/no shadows).
-  New: `features/account` (wallet signing ACL editor — posture grid,
-  custody-grouped wallet cards, Manual/Accept transactions/Auto/Locked
-  modes, delegated-grants panel; wallets/grants are FIXTURES),
-  `features/usage` (three-subject summary + by-app matrix) and a
-  standalone `/statement` route (month picker, By app/Itemized views,
-  app+subject filters; 3-month FIXTURE statement). GeneralSettings
-  reworked (identity card + Manage account → Account tab, Theme wired to
-  useSettings.colorMode, network/wallet rows). Removed: Deploy, App Keys,
-  Bots, Secrets, BYOK tabs (+ features/{apps,app-keys,bots,secrets,byok},
-  deploy-settings.tsx, lib/usage-range*); GitHub-return params still
-  forward to /deployments. Stub boundaries + fill-up list in
-  apps/portal/docs/SETTINGS-REDESIGN-GAPS.md (grants endpoint, permit
-  ceremony wiring, per-app statement endpoint, rdns brand capture, SVM
-  bind re-home). type-check + route-caller test green; verified live on
-  PORT=3400.
+`apps/portal`): settings surface reduced to three tabs — General /
+Account / Usage — per the aomi-chat-design mock, styled to the aomi
+design system (sky accent + pink decorative meters via new `--aomi-*`
+tokens in globals.css, PT Serif display font, flat/no shadows).
+New: `features/account` (wallet signing ACL editor — posture grid,
+custody-grouped wallet cards, Manual/Accept transactions/Auto/Locked
+modes, delegated-grants panel; wallets/grants are FIXTURES),
+`features/usage` (three-subject summary + by-app matrix) and a
+standalone `/statement` route (month picker, By app/Itemized views,
+app+subject filters; 3-month FIXTURE statement). GeneralSettings
+reworked (identity card + Manage account → Account tab, Theme wired to
+useSettings.colorMode, network/wallet rows). Removed: Deploy, App Keys,
+Bots, Secrets, BYOK tabs (+ features/{apps,app-keys,bots,secrets,byok},
+deploy-settings.tsx, lib/usage-range\*); GitHub-return params still
+forward to /deployments. Stub boundaries + fill-up list in
+apps/portal/docs/SETTINGS-REDESIGN-GAPS.md (grants endpoint, permit
+ceremony wiring, per-app statement endpoint, rdns brand capture, SVM
+bind re-home). type-check + route-caller test green; verified live on
+PORT=3400.
 
 2026-07-26 — Build Providers page (builder model keys, FE half; branch
-  `feat/build-model-keys-tab`, uncommitted, worktree
-  `.worktrees/model-keys-tab`). The ACCOUNT-nav Providers page (`/providers`,
-  `features/operate/providers-view.tsx`) has one flat card per provider
-  (OpenAI/Anthropic/OpenRouter),
-  accordion key rows, project-assignment editor, and rotate/remove flows; key
-  material is write-only and only the stored prefix renders. Project pages gain
-  a read-mostly Providers tab
-  (`tabs/providers-tab.tsx`, apply/remove grants for this project; Details
-  merged into Home to make room). BFF `/api/bff/operate/model-keys`
-  (GET/POST/PUT/DELETE in `server/bff/operate/routes.ts`) fronts the manager
-  routes `/api/integrations/github-app/user/model-keys[/:id[/grants]]` via
-  five new DeploymentClient methods in `packages/deploy`. The existing
-  dedicated Providers ⌘K entry indexes model-provider terms. Per-key usage
-  (`usage` / `usageByApplication`, all-time funded-turn sums) comes from the
-  manager on each key; the view derives the per-project Tokens/Cost cells from
-  it at 1 credit = $0.01.
+`feat/build-model-keys-tab`, uncommitted, worktree
+`.worktrees/model-keys-tab`). The ACCOUNT-nav Providers page (`/providers`,
+`features/operate/providers-view.tsx`) has one flat card per provider
+(OpenAI/Anthropic/OpenRouter),
+accordion key rows, project-assignment editor, and rotate/remove flows; key
+material is write-only and only the stored prefix renders. Project pages gain
+a read-mostly Providers tab
+(`tabs/providers-tab.tsx`, apply/remove grants for this project; Details
+merged into Home to make room). BFF `/api/bff/operate/model-keys`
+(GET/POST/PUT/DELETE in `server/bff/operate/routes.ts`) fronts the manager
+routes `/api/integrations/github-app/user/model-keys[/:id[/grants]]` via
+five new DeploymentClient methods in `packages/deploy`. The existing
+dedicated Providers ⌘K entry indexes model-provider terms. Per-key usage
+(`usage` / `usageByApplication`, all-time funded-turn sums) comes from the
+manager on each key; the view derives the per-project Tokens/Cost cells from
+it at 1 credit = $0.01.
 
-  Restyled per Cecilia review against the settings-redesign inventory (artifact
-  5885e89f…, `.claude/worktrees/settings-redesign`). The project picker is a
-  framed PROJECT/SOURCE/FUNDED-BY/TOKENS/COST table with 10px tracked heads,
-  checked-row accent fill, sky checkboxes, reassign warnings, per-project usage,
-  and an all-time Total row. The expanded key panel now opens with a funding
-  summary instead of raw metadata: sponsorship state and project names plus
-  wired Projects funded / Tokens sponsored / Provider spend totals; key prefix,
-  creation, rotation, and the all-time window remain quiet provenance. The
-  assignment section is titled "Add to project" at the same text size as the
-  key title and explains: "Use this key to fund projects when users select
-  models from this provider." Its table is a frameless white ledger with
-  horizontal separators and five evenly sized columns; checkbox state carries
-  selection without a row wash. Closed rows keep the key identity in consistent
-  monospace type (including user labels such as `prod-main`),
-  Active/Unassigned state, and funded-project context. Rotate and the
-  solid-red/white Remove action live together in the funding-summary header,
-  with each action's flow directly below the summary. The full expanded panel
-  uses one wider horizontal inset so its summary, assignment ledger, and flows
-  align uniformly on both sides.
+Restyled per Cecilia review against the settings-redesign inventory (artifact
+5885e89f…, `.claude/worktrees/settings-redesign`). The project picker is a
+framed PROJECT/SOURCE/FUNDED-BY/TOKENS/COST table with 10px tracked heads,
+checked-row accent fill, sky checkboxes, reassign warnings, per-project usage,
+and an all-time Total row. The expanded key panel now opens with a funding
+summary instead of raw metadata: sponsorship state and project names plus
+wired Projects funded / Tokens sponsored / Provider spend totals; key prefix,
+creation, rotation, and the all-time window remain quiet provenance. The
+assignment section is titled "Add to project" at the same text size as the
+key title and explains: "Use this key to fund projects when users select
+models from this provider." Its table is a frameless white ledger with
+horizontal separators and five evenly sized columns; checkbox state carries
+selection without a row wash. Closed rows keep the key identity in consistent
+monospace type (including user labels such as `prod-main`),
+Active/Unassigned state, and funded-project context. Rotate and the
+solid-red/white Remove action live together in the funding-summary header,
+with each action's flow directly below the summary. The full expanded panel
+uses one wider horizontal inset so its summary, assignment ledger, and flows
+align uniformly on both sides.
 
-  Normalized the Providers radii to apps/build's token mapping: `rounded-md`
-  cards/tables/panels (12px), `rounded-sm` in-card controls (8px), and
-  `rounded-full` pills. Carried the same recipes into the project-scoped
-  Providers tab and shared `status-pill.tsx` / `sdk-badge.tsx` primitives.
-  Fixed inert `bg-surface` / `bg-surface-subtle` utilities there. Registered
-  the missing `--color-accent-selected-foreground` token so solid-sky Save /
-  Add key controls and checkbox ticks use the correct on-accent ink. Simplified
-  active sidebar navigation to a uniform sky-500 fill, removing the pale
-  two-layer crescent.
+Normalized the Providers radii to apps/build's token mapping: `rounded-md`
+cards/tables/panels (12px), `rounded-sm` in-card controls (8px), and
+`rounded-full` pills. Carried the same recipes into the project-scoped
+Providers tab and shared `status-pill.tsx` / `sdk-badge.tsx` primitives.
+Fixed inert `bg-surface` / `bg-surface-subtle` utilities there. Registered
+the missing `--color-accent-selected-foreground` token so solid-sky Save /
+Add key controls and checkbox ticks use the correct on-accent ink. Simplified
+active sidebar navigation to a uniform sky-500 fill, removing the pale
+two-layer crescent.
 
-  Branch fast-forwarded onto main 9c98c44e (zero overlap). Verified before the
-  latest copy pass: aomi-build type-check, vitest 318/318, root deploy suite
-  130/130, lint (3 pre-existing warnings), production `next build`, and live
-  :3430 light/dark grant save + badge updates with no console errors. After the
-  funding-summary and assignment-copy pass: aomi-build type-check is green,
-  lint remains at the same 3 warnings, and the :3430 preview shows the unassigned
-  state plus the wired active-key totals (2 projects, 1.3M tokens, $9.02).
+Branch fast-forwarded onto main 9c98c44e (zero overlap). Verified before the
+latest copy pass: aomi-build type-check, vitest 318/318, root deploy suite
+130/130, lint (3 pre-existing warnings), production `next build`, and live
+:3430 light/dark grant save + badge updates with no console errors. After the
+funding-summary and assignment-copy pass: aomi-build type-check is green,
+lint remains at the same 3 warnings, and the :3430 preview shows the unassigned
+state plus the wired active-key totals (2 projects, 1.3M tokens, $9.02).
 
-  Pending BE gap 1: builder keys do not fund dynamic apps yet (they bill
-  `app_key` while platform keys pay). Fix BE-side first, then ship without a
-  flag. Pending BE gap 2: the FE types/renders
-  `ModelKey.usage[applicationId] = {tokens, costUsd}`, but the manager does
-  not emit it, so production usage cells remain "—"; only the dev preview has
-  real values. Add the manager field on `/user/model-keys` and map it in
-  `camelBuilderModelKey`. Deploy order: BE → FE → signed-in smoke (add key →
-  apply → chat shows `app_key`).
+Pending BE gap 1: builder keys do not fund dynamic apps yet (they bill
+`app_key` while platform keys pay). Fix BE-side first, then ship without a
+flag. Pending BE gap 2: the FE types/renders
+`ModelKey.usage[applicationId] = {tokens, costUsd}`, but the manager does
+not emit it, so production usage cells remain "—"; only the dev preview has
+real values. Add the manager field on `/user/model-keys` and map it in
+`camelBuilderModelKey`. Deploy order: BE → FE → signed-in smoke (add key →
+apply → chat shows `app_key`).
 
 2026-07-23 — Review-checklist fix pass on
-  `codex/widget-auth-single-tenant`: all §1–§4 items and the actionable §5
-  items of the (untracked) REVIEW-CHECKLIST.md closed via six parallel
-  agents + consolidation. Highlights: provider-plugin no longer eagerly
-  creates canonical users (orphan-brick fixed; email upsert now inside the
-  advisory-locked transaction via a new `onResolved` hook;
-  IdentityConflictError → 409 in the plugin path); deterministic username
-  fallback on collision; account deletion no longer blocked by `last_factor`
-  (guard stays on unlink; dead 409 branch pruned from the portal DELETE
-  route); per-IP rate limiting on all unauthenticated widget-auth routes
-  (new `lib/widget-auth/rate-limit.ts`); ba_verifications sweep +
-  jsonb-cast-safe session deletion; proxy-aware `isFirstPartyRequest`;
-  RS256 pin + `nbf` on Para paths, lazy `PARA_API_BASE_URL`, SIWS strict
-  parser reuse, empty untrusted attestations, strict Privy `tokenKind`;
-  client widget-session sign-out/fingerprint races fixed (epoch +
-  fingerprint guards, 6 new tests), enumerable `required`, sec-vs-ms
-  `expires_at` guard, dispose() throws, teardown notifies subscribers;
-  wallet-mode widget now boots idle (shared `widgetCredentialsReady`
-  predicate), deleteAccount revokes the widget session in try/finally,
-  duplicate mount GET /account coalesced, sequential bulk rename/unlink;
-  Para startup banner fixed both directions (`useParaStatus().isReady` is
-  the readiness signal; 4 new component tests) and JWT cooldown scoped
-  per-instance; dead `WidgetAuthAdapter.kind` removed; `safeEnv` collapsed
-  to client export; root vitest now includes the portal widget-auth suites;
-  `/dev/para-cross-project` spike deleted; `apps/shadcn-registry/dist`
-  untracked (staged only); `prepublishOnly` guard on widget-lib. Verified:
-  root vitest 816 pass, registry 277 pass, lint + all typechecks clean;
-  client/react dists rebuilt, 4 registry JSONs regenerated in
-  `apps/landing/public/r/`. NOTE: viem `getAddress` returns plain `string`
-  here (abitype register) — the `as \`0x${string}\`` casts are load-bearing.
-  Nothing committed. Pending: §6 deploy gates (db-master migration first,
-  product-mono PR #855 backend mirror), separate STATE.md ops-detail scrub.
+`codex/widget-auth-single-tenant`: all §1–§4 items and the actionable §5
+items of the (untracked) REVIEW-CHECKLIST.md closed via six parallel
+agents + consolidation. Highlights: provider-plugin no longer eagerly
+creates canonical users (orphan-brick fixed; email upsert now inside the
+advisory-locked transaction via a new `onResolved` hook;
+IdentityConflictError → 409 in the plugin path); deterministic username
+fallback on collision; account deletion no longer blocked by `last_factor`
+(guard stays on unlink; dead 409 branch pruned from the portal DELETE
+route); per-IP rate limiting on all unauthenticated widget-auth routes
+(new `lib/widget-auth/rate-limit.ts`); ba_verifications sweep +
+jsonb-cast-safe session deletion; proxy-aware `isFirstPartyRequest`;
+RS256 pin + `nbf` on Para paths, lazy `PARA_API_BASE_URL`, SIWS strict
+parser reuse, empty untrusted attestations, strict Privy `tokenKind`;
+client widget-session sign-out/fingerprint races fixed (epoch +
+fingerprint guards, 6 new tests), enumerable `required`, sec-vs-ms
+`expires_at` guard, dispose() throws, teardown notifies subscribers;
+wallet-mode widget now boots idle (shared `widgetCredentialsReady`
+predicate), deleteAccount revokes the widget session in try/finally,
+duplicate mount GET /account coalesced, sequential bulk rename/unlink;
+Para startup banner fixed both directions (`useParaStatus().isReady` is
+the readiness signal; 4 new component tests) and JWT cooldown scoped
+per-instance; dead `WidgetAuthAdapter.kind` removed; `safeEnv` collapsed
+to client export; root vitest now includes the portal widget-auth suites;
+`/dev/para-cross-project` spike deleted; `apps/shadcn-registry/dist`
+untracked (staged only); `prepublishOnly` guard on widget-lib. Verified:
+root vitest 816 pass, registry 277 pass, lint + all typechecks clean;
+client/react dists rebuilt, 4 registry JSONs regenerated in
+`apps/landing/public/r/`. NOTE: viem `getAddress` returns plain `string`
+here (abitype register) — the `as \`0x${string}\`` casts are load-bearing.
+Nothing committed. Pending: §6 deploy gates (db-master migration first,
+product-mono PR #855 backend mirror), separate STATE.md ops-detail scrub.
 
 2026-07-23 (current) — Para/Privy Account access subtitles now show only their
-  shortened provider-managed wallet values, in EVM/SVM family order and joined
-  by a middle dot (for example, `0xda6..f0 · 53GfE..oL`). The chain tags above
-  retain the family and access-capability context. Connected SVM wallet
-  subtitles now identify the network as `Solana`, parallel to `Ethereum`,
-  `Base`, and other resolved EVM network names.
+shortened provider-managed wallet values, in EVM/SVM family order and joined
+by a middle dot (for example, `0xda6..f0 · 53GfE..oL`). The chain tags above
+retain the family and access-capability context. Connected SVM wallet
+subtitles now identify the network as `Solana`, parallel to `Ethereum`,
+`Base`, and other resolved EVM network names.
 
 2026-07-23 (current) — Portal/widget thread authentication restored. The live
-  BetterAuth/account process was connected to
-  `127.0.0.1:54322/aomi_local`, but the manually started Rust backend was
-  connected to the remote Supabase database. Account resolution therefore
-  succeeded in the Portal while the backend could not find the AccountBearer
-  subject and returned 401 only on account-required routes such as
-  `GET /api/threads`. Restarting through `scripts/dev-auth-stack.sh` aligned
-  both services to `aomi_local`; verified AccountBearer and origin-bound widget
-  session requests both return the same 43-thread list with HTTP 200. The React
-  runtime now preserves a caller-supplied `localhost` host, and provider widgets
-  do not expose a required bearer function until their provider credential is
-  ready, removing the transient pre-auth identity errors.
+BetterAuth/account process was connected to
+`127.0.0.1:54322/aomi_local`, but the manually started Rust backend was
+connected to the remote Supabase database. Account resolution therefore
+succeeded in the Portal while the backend could not find the AccountBearer
+subject and returned 401 only on account-required routes such as
+`GET /api/threads`. Restarting through `scripts/dev-auth-stack.sh` aligned
+both services to `aomi_local`; verified AccountBearer and origin-bound widget
+session requests both return the same 43-thread list with HTTP 200. The React
+runtime now preserves a caller-supplied `localhost` host, and provider widgets
+do not expose a required bearer function until their provider credential is
+ready, removing the transient pre-auth identity errors.
 
 2026-07-23 (current) — Widget-consumer Para Solana root cause confirmed
-  against Para's live BETA partner configuration. The Portal project declares
-  required `EVM` and `SOLANA` wallet types; the separate consumer/Landing
-  project declares required `EVM` only. This is why the canonical Aomi account
-  exposes the Portal-created SVM address under Account access while the
-  consumer cannot expose an SVM signer under Connected now. A client-side
-  auto-create or display-only promotion cannot override the provider project's
-  supported wallet families. The Para developer dashboard is open in Chrome
-  at sign-in; next step is to enable Solana for the consumer project, then
-  logout/relogin in the consumer so Para provisions and exposes its
-  project-local SVM wallet.
+against Para's live BETA partner configuration. The Portal project declares
+required `EVM` and `SOLANA` wallet types; the separate consumer/Landing
+project declares required `EVM` only. This is why the canonical Aomi account
+exposes the Portal-created SVM address under Account access while the
+consumer cannot expose an SVM signer under Connected now. A client-side
+auto-create or display-only promotion cannot override the provider project's
+supported wallet families. The Para developer dashboard is open in Chrome
+at sign-in; next step is to enable Solana for the consumer project, then
+logout/relogin in the consumer so Para provisions and exposes its
+project-local SVM wallet.
 
 2026-07-23 (later) — Widget-consumer Para Solana parity: attempted an
-  auto-provisioning fix (useCreateWallet({type:"SOLANA"}) after session-up in
-  ParaPluginProvider) — user reported it did not help; REVERTED fully. Root
-  cause analysis stands: Para wallets are per-project, so the consumer
-  project's session holds no SVM wallet even though the Aomi account has one
-  linked; "Connected now" is built from the live session
-  (para-session-source svm/changed), "Account access" from the backend.
-  OPEN: the consumer-side Solana connection gap and the broader
-  account-management UI redesign both still need a solution.
+auto-provisioning fix (useCreateWallet({type:"SOLANA"}) after session-up in
+ParaPluginProvider) — user reported it did not help; REVERTED fully. Root
+cause analysis stands: Para wallets are per-project, so the consumer
+project's session holds no SVM wallet even though the Aomi account has one
+linked; "Connected now" is built from the live session
+(para-session-source svm/changed), "Account access" from the backend.
+OPEN: the consumer-side Solana connection gap and the broader
+account-management UI redesign both still need a solution.
 
 2026-07-23 (craft-cleanup pass, uncommitted) — Executed the quality-review
-  cleanup of 2b42d79e across three parallel workstreams; net −353 lines
-  (1437+/1790−, 83 files), all verified green: root vitest 772 passed/28
-  skipped, widget-lib 267/267, account 70/70, portal route tests 23/23,
-  client 328, react 125; root + portal typechecks clean; client/react/
-  registry dists + landing public/r mirrors regenerated.
-  Highlights:
-  - Portal: new widgetRoute()/widgetPreflight() wrapper centralizes CORS +
-    error mapping (~40 applyWidgetCors call sites and all hand-written
-    OPTIONS removed); shared widgetSessionResponse/widgetChallengeResponse;
-    shared exchange pipeline lib/widget-auth/exchange.ts; ZodError→400 and
-    provider_token_*→401 (was 500); sign-out 500 code unified to
-    widget_auth_failed. RESTORED the E2E canonical-user override that
-    2b42d79e silently dropped (canonical-session.ts now composes
-    resolveE2ECanonicalUserId → resolvePortalCanonicalUserId). Fixed a
-    latent split type/value import that made WidgetAuthError undefined
-    under Vite SSR.
-  - Account: deleted walletClaimTrust, write-only sessionId,
-    listWidgetProviders, createAomiUserForBetterAuth, dead imports; merged
-    SIWE/SIWS challenge creators (widget-auth/challenge.ts) and wallet
-    sign-in near-clones; IDENTITY_SCOPES constants; toMillis reverted to
-    millis-only (normalized at widget call site); collectIdentityOwners
-    shared; policy param narrowed to { subjectIsEnvironmentGlobal }.
-    widgetEnabled KEPT (portal reads it). Public import paths unchanged.
-  - Client/widget-lib: safeEnv() helper replaced ~25 typeof-process
-    ternaries; thread-store logging now fails CLOSED in no-process prod
-    builds; SIWE/SIWS client adapters merged; joinUrl/base64url decode
-    deduped into packages/client/src/internal/*; dead getSigner option
-    removed (adapter required); useWidgetSessionProvider extracted from
-    aomi-backend-runtime; Para banner themed via tokens; paraAuth/privyAuth
-    keys required at type level; GetAccountBearer.required typed;
-    AomiAccountCredential aliased to client ProviderCredential; unused
-    LinkedAuthAccount fields dropped; registry.ts gained the 3 new files.
-  - Periphery: GOAL.md indent fix; NEXT_PUBLIC_PARA_SECONDARY_API_KEY
-    documented in landing/.env.example.
+cleanup of 2b42d79e across three parallel workstreams; net −353 lines
+(1437+/1790−, 83 files), all verified green: root vitest 772 passed/28
+skipped, widget-lib 267/267, account 70/70, portal route tests 23/23,
+client 328, react 125; root + portal typechecks clean; client/react/
+registry dists + landing public/r mirrors regenerated.
+Highlights:
+
+- Portal: new widgetRoute()/widgetPreflight() wrapper centralizes CORS +
+  error mapping (~40 applyWidgetCors call sites and all hand-written
+  OPTIONS removed); shared widgetSessionResponse/widgetChallengeResponse;
+  shared exchange pipeline lib/widget-auth/exchange.ts; ZodError→400 and
+  provider*token*\*→401 (was 500); sign-out 500 code unified to
+  widget_auth_failed. RESTORED the E2E canonical-user override that
+  2b42d79e silently dropped (canonical-session.ts now composes
+  resolveE2ECanonicalUserId → resolvePortalCanonicalUserId). Fixed a
+  latent split type/value import that made WidgetAuthError undefined
+  under Vite SSR.
+- Account: deleted walletClaimTrust, write-only sessionId,
+  listWidgetProviders, createAomiUserForBetterAuth, dead imports; merged
+  SIWE/SIWS challenge creators (widget-auth/challenge.ts) and wallet
+  sign-in near-clones; IDENTITY_SCOPES constants; toMillis reverted to
+  millis-only (normalized at widget call site); collectIdentityOwners
+  shared; policy param narrowed to { subjectIsEnvironmentGlobal }.
+  widgetEnabled KEPT (portal reads it). Public import paths unchanged.
+- Client/widget-lib: safeEnv() helper replaced ~25 typeof-process
+  ternaries; thread-store logging now fails CLOSED in no-process prod
+  builds; SIWE/SIWS client adapters merged; joinUrl/base64url decode
+  deduped into packages/client/src/internal/\*; dead getSigner option
+  removed (adapter required); useWidgetSessionProvider extracted from
+  aomi-backend-runtime; Para banner themed via tokens; paraAuth/privyAuth
+  keys required at type level; GetAccountBearer.required typed;
+  AomiAccountCredential aliased to client ProviderCredential; unused
+  LinkedAuthAccount fields dropped; registry.ts gained the 3 new files.
+- Periphery: GOAL.md indent fix; NEXT_PUBLIC_PARA_SECONDARY_API_KEY
+  documented in landing/.env.example.
   Known remaining (unchanged from review): portal test files not matched by
   root vitest include globs (CI gap); pre-existing no-restricted-imports
   lint errors in apps/portal/src/lib/widget-auth (cors.ts et al., +2 from
@@ -1555,202 +1862,204 @@
   open from the earlier review entry.
 
 2026-07-22 (post-push review of 2b42d79e) — Three-agent deep review of the
-  widget-auth commit (portal routes/CORS, packages/account, client/widget).
-  Verdict: architecture sound; locked decisions (no origin allowlist, no
-  audience allowlist, Para env-global subject matching) verified implemented
-  as designed; provider-agnostic boundary held (no para/privy literals in
-  shared code); client dist matches src. Actionable findings, none
-  design-blocking:
-  - FIX BEFORE RELEASE: shadcn registry `aomi-para-provider` file list is
-    missing `providers/para/para-message-signing.ts` (imported by
-    ParaPluginProvider.tsx) → CLI installs of that component break
-    (apps/shadcn-registry/src/registry.ts:298-325; dist/registry.json).
-  - Sign-out race: `signOut()`/`revoke()` don't cancel the in-flight
-    `pending` exchange; a refresh completing after sign-out re-caches a
-    fresh WST (packages/client/src/widget-session.ts:258-287).
-  - SIWE/SIWS-minted WSTs carry no providerIdentityId, so wallet unlink
-    doesn't revoke them (TTL-bounded, ≤30 min).
-  - Wallet-mode has no silent refresh → SIWE re-sign prompt ~every 29 min.
-  - Provider-token verify errors and ZodError in aomi/provider/exchange
-    surface as 500 instead of 4xx (response.ts doesn't map plain Errors).
-  - Expired ba_verifications rows never purged; unindexed LIKE scan in
-    deleteWidgetSessionsForProviderIdentity.
-  - Widget SIWE is EOA-only (no ERC-1271/6492) — scoped out, but silently
-    diverges from first-party SIWE.
-  - Privy native issuerEnvironment hardcoded "privy:prod"
-    (account-credentials.ts:139); dead imports in account-service.ts.
-  - Para startup-failure banner (para-plugin.tsx:128-177) can't fire for
-    async init failures; provider SDKs are hard deps of widget-lib.
+widget-auth commit (portal routes/CORS, packages/account, client/widget).
+Verdict: architecture sound; locked decisions (no origin allowlist, no
+audience allowlist, Para env-global subject matching) verified implemented
+as designed; provider-agnostic boundary held (no para/privy literals in
+shared code); client dist matches src. Actionable findings, none
+design-blocking:
+
+- FIX BEFORE RELEASE: shadcn registry `aomi-para-provider` file list is
+  missing `providers/para/para-message-signing.ts` (imported by
+  ParaPluginProvider.tsx) → CLI installs of that component break
+  (apps/shadcn-registry/src/registry.ts:298-325; dist/registry.json).
+- Sign-out race: `signOut()`/`revoke()` don't cancel the in-flight
+  `pending` exchange; a refresh completing after sign-out re-caches a
+  fresh WST (packages/client/src/widget-session.ts:258-287).
+- SIWE/SIWS-minted WSTs carry no providerIdentityId, so wallet unlink
+  doesn't revoke them (TTL-bounded, ≤30 min).
+- Wallet-mode has no silent refresh → SIWE re-sign prompt ~every 29 min.
+- Provider-token verify errors and ZodError in aomi/provider/exchange
+  surface as 500 instead of 4xx (response.ts doesn't map plain Errors).
+- Expired ba_verifications rows never purged; unindexed LIKE scan in
+  deleteWidgetSessionsForProviderIdentity.
+- Widget SIWE is EOA-only (no ERC-1271/6492) — scoped out, but silently
+  diverges from first-party SIWE.
+- Privy native issuerEnvironment hardcoded "privy:prod"
+  (account-credentials.ts:139); dead imports in account-service.ts.
+- Para startup-failure banner (para-plugin.tsx:128-177) can't fire for
+  async init failures; provider SDKs are hard deps of widget-lib.
   Deploy dependency confirmed: db-master tenant-column migration must land
   before this serves traffic. Team explainer artifact published
   ("Widget Auth: How It Works").
 
 2026-07-22 (widget auth complete) — Implemented
-  WIDGET-AUTH-INTEGRATION-PLAN.md across aomi, db-master, and product-mono.
-  Provider identities are tenant-scoped at storage and resolved atomically
-  under provider policy; Para widget credentials use pinned environment JWKS
-  and arbitrary signed audiences; Portal now issues origin-bound,
-  hashed-at-rest, memory-only WSTs for provider, SIWE, and SIWS authentication
-  and accepts them through the same account and backend routes as native
-  BetterAuth sessions. Added the public AomiWidget/paraAuth package surface,
-  isolated provider entrypoints, and a separate-origin Vite consumer. Portal
-  keeps its existing local Para project; Landing and the ignored consumer use
-  the requested separate BETA browser key. Patch-bumped account 0.1.4, client
-  0.3.7, and widget-lib 1.4.9. Isolated migration replay, Rust fmt/clippy,
-  lint, typechecks, package/consumer builds and pack verification, 769 root
-  tests, 252 registry tests, and the portal test command passed. Phase 8's
-  optional pre-creation link-proof flow remains an explicit v1 non-goal.
+WIDGET-AUTH-INTEGRATION-PLAN.md across aomi, db-master, and product-mono.
+Provider identities are tenant-scoped at storage and resolved atomically
+under provider policy; Para widget credentials use pinned environment JWKS
+and arbitrary signed audiences; Portal now issues origin-bound,
+hashed-at-rest, memory-only WSTs for provider, SIWE, and SIWS authentication
+and accepts them through the same account and backend routes as native
+BetterAuth sessions. Added the public AomiWidget/paraAuth package surface,
+isolated provider entrypoints, and a separate-origin Vite consumer. Portal
+keeps its existing local Para project; Landing and the ignored consumer use
+the requested separate BETA browser key. Patch-bumped account 0.1.4, client
+0.3.7, and widget-lib 1.4.9. Isolated migration replay, Rust fmt/clippy,
+lint, typechecks, package/consumer builds and pack verification, 769 root
+tests, 252 registry tests, and the portal test command passed. Phase 8's
+optional pre-creation link-proof flow remains an explicit v1 non-goal.
 
 2026-07-22 (later) — PHASE 0 PASSED (user-confirmed): logout/relogin repeat,
-  second-user test, and guest/pregen collision check all succeeded — Para
-  cross-tenant global-sub matching is UNBLOCKED (subjectIsEnvironmentGlobal:
-  true unconditional for Para, same environment only, never BETA↔PROD). Plan
-  updated in place. Two non-gating follow-ups remain in Phase 0: Para written
-  sub-immutability confirmation (belt-and-braces) and sanitized token fixtures
-  for packages/account/test (needed by Phase-3 verifier tests anyway). The
-  data.wallets claimed-vs-pregen classification stays open — walletClaimTrust
-  remains "none". Next: start Phase 1 (tenant-aware schema).
+second-user test, and guest/pregen collision check all succeeded — Para
+cross-tenant global-sub matching is UNBLOCKED (subjectIsEnvironmentGlobal:
+true unconditional for Para, same environment only, never BETA↔PROD). Plan
+updated in place. Two non-gating follow-ups remain in Phase 0: Para written
+sub-immutability confirmation (belt-and-braces) and sanitized token fixtures
+for packages/account/test (needed by Phase-3 verifier tests anyway). The
+data.wallets claimed-vs-pregen classification stays open — walletClaimTrust
+remains "none". Next: start Phase 1 (tenant-aware schema).
 
 2026-07-22 — Widget-auth plan Rev 2: generalized + file-mapped (still uncommitted,
-  specs/WIDGET-AUTH-INTEGRATION-PLAN.md). Full codebase mapping (3 parallel
-  explorations) folded into the plan. Headline change: a provider-agnostic
-  contract — backend `WidgetProviderDescriptor` (credentialSchema,
-  verifyWidgetCredential, policy { subjectIsEnvironmentGlobal, walletClaimTrust,
-  widgetEnabled }) producing `VerifiedProviderIdentity`; shared code (resolver,
-  exchange route, WST, principal, routes, client transport) never names a
-  provider. Para = first registry entry (subject global per env, JWKS env-global);
-  Privy descriptor ships `widgetEnabled: false` (tenant-scoped keys + app-scoped
-  DIDs → cross-tenant matching OFF). Key mapping facts now in the plan: the
-  native verifier registry already exists (verifyProviderCredential,
-  account-credentials.ts) and is dual-provider; the closed unions blocking a 3rd
-  provider are types.ts:117-130, wallet-kit types.ts:274-285, provider-plugin.ts
-  zod body, ProvidersConfig; the frontend transport seam is
-  clientOptions.getAccountBearer → wrapFetchWithAccountBearer (WST rides it with
-  zero runtime changes); wallet-kit lives at src/lib/wallet-kit (NOT components/),
-  shadcn-registry has NO tsup (build-registry.js); Phase-1 backfill must include
-  privy rows (Rev 1 omitted them); api/widget/auth/{exchange,session,siwe,siws}
-  exist as EMPTY untracked scaffold dirs. Locked in Rev 2: unlinking a provider
-  identity revokes its WSTs (fail closed). Pending: commit the plan; start
-  Phase 1; remaining Phase-0 Para checks gate prod cross-tenant matching only.
+specs/WIDGET-AUTH-INTEGRATION-PLAN.md). Full codebase mapping (3 parallel
+explorations) folded into the plan. Headline change: a provider-agnostic
+contract — backend `WidgetProviderDescriptor` (credentialSchema,
+verifyWidgetCredential, policy { subjectIsEnvironmentGlobal, walletClaimTrust,
+widgetEnabled }) producing `VerifiedProviderIdentity`; shared code (resolver,
+exchange route, WST, principal, routes, client transport) never names a
+provider. Para = first registry entry (subject global per env, JWKS env-global);
+Privy descriptor ships `widgetEnabled: false` (tenant-scoped keys + app-scoped
+DIDs → cross-tenant matching OFF). Key mapping facts now in the plan: the
+native verifier registry already exists (verifyProviderCredential,
+account-credentials.ts) and is dual-provider; the closed unions blocking a 3rd
+provider are types.ts:117-130, wallet-kit types.ts:274-285, provider-plugin.ts
+zod body, ProvidersConfig; the frontend transport seam is
+clientOptions.getAccountBearer → wrapFetchWithAccountBearer (WST rides it with
+zero runtime changes); wallet-kit lives at src/lib/wallet-kit (NOT components/),
+shadcn-registry has NO tsup (build-registry.js); Phase-1 backfill must include
+privy rows (Rev 1 omitted them); api/widget/auth/{exchange,session,siwe,siws}
+exist as EMPTY untracked scaffold dirs. Locked in Rev 2: unlinking a provider
+identity revokes its WSTs (fail closed). Pending: commit the plan; start
+Phase 1; remaining Phase-0 Para checks gate prod cross-tenant matching only.
 
 2026-07-21 — Widget-auth integration plan written + code-verified (branch
-  codex/widget-auth-single-tenant, which is a fresh placeholder == origin/main).
-  New specs/WIDGET-AUTH-INTEGRATION-PLAN.md: checklistable Phases 0–9 merging
-  PR #339 (AomiWidget/paraAuth UX, tip 2487a5b9) with PR #355 (WST/origin-bound
-  transport, tip a586b016) plus net-new tenant-aware identities
-  (provider, issuer_environment, tenant_id, subject), an atomic canonical-user
-  resolver, a multi-tenant Para verifier, and SIWE/SIWS link-at-first-login.
-  Verification corrections folded in (do not re-derive): findConsistentSignalOwner
-  does NOT exist (only first-match findFirstSignalOwner — resolver is net-new);
-  identity code lives in packages/account (packages/auth is an empty stub);
-  schema truth is db-master/migrations (product-mono mirrors schema.rs); the
-  2026-07-01 consolidation dropped the per-app `application` column — tenant_id
-  deliberately re-scopes the unique index; #339 is mostly already on main (only
-  aomi-widget.tsx, paraAuth/privyAuth, widget-consumer, package-dist subpaths
-  left to port); #355 verified clean but its principal.ts import must move to
-  apps/portal/src/server/canonical-session.ts. Pending: commit the plan doc;
-  Phase 0 Para two-project sub-stability experiment gates cross-tenant matching.
+codex/widget-auth-single-tenant, which is a fresh placeholder == origin/main).
+New specs/WIDGET-AUTH-INTEGRATION-PLAN.md: checklistable Phases 0–9 merging
+PR #339 (AomiWidget/paraAuth UX, tip 2487a5b9) with PR #355 (WST/origin-bound
+transport, tip a586b016) plus net-new tenant-aware identities
+(provider, issuer_environment, tenant_id, subject), an atomic canonical-user
+resolver, a multi-tenant Para verifier, and SIWE/SIWS link-at-first-login.
+Verification corrections folded in (do not re-derive): findConsistentSignalOwner
+does NOT exist (only first-match findFirstSignalOwner — resolver is net-new);
+identity code lives in packages/account (packages/auth is an empty stub);
+schema truth is db-master/migrations (product-mono mirrors schema.rs); the
+2026-07-01 consolidation dropped the per-app `application` column — tenant_id
+deliberately re-scopes the unique index; #339 is mostly already on main (only
+aomi-widget.tsx, paraAuth/privyAuth, widget-consumer, package-dist subpaths
+left to port); #355 verified clean but its principal.ts import must move to
+apps/portal/src/server/canonical-session.ts. Pending: commit the plan doc;
+Phase 0 Para two-project sub-stability experiment gates cross-tenant matching.
 
 2026-07-20 — LIVE SANDBOX VERIFICATION GREEN (branch claude/build-fe-artifacts
-  pushed as c0449506; image build-runner:live-1 in VCR under the aomi-build
-  Vercel project, e2e-test untouched; AOMI_REF=c0449506,
-  AOMI_SDK_REF=b3c0c8b). Full chain proven on real infra with app "dune":
-  dispatch → registry row (run id, vercel-sandbox, sandbox name, sidecar
-  url) → sidecar /healthz ok + 403 on missing/bogus bearers → BFF file
-  route served dune/Cargo.toml FROM THE LIVE VM via a per-request
-  portalService() EdDSA bearer → supervise tick "extend" visibly bumped
-  the VM timeout 5→14 min → all five stages completed in ~6.5 min with
-  Kimi curate inside the VM (only SMITHER_OPENROUTER_API_KEY present, so
-  OpenRouter billing is conclusively the path) → supervise "release-
-  completed", registry completed, sandbox stopped → file route fell back
-  to the store tarball after VM death → download served the real 5.4 KB
-  crate tar.gz (Cargo.toml, src/lib.rs, src/tool.rs, test.json).
-  BUG FOUND+FIXED during verification (UNCOMMITTED, needs follow-up
-  commit): @vercel/sandbox identifies sandboxes by `name` — the Sandbox
-  class has NO sandboxId/id getter and Sandbox.get takes {name} — so
-  dispatch stored undefined (NOT NULL violation in the registry, one
-  orphan VM, stopped) and the supervisor/cancel by-id path could never
-  have worked. Fix: adaptSdkSandbox maps name→SandboxLike.sandboxId;
-  Sandbox.get({name, resume:false}) so managing a dead VM never
-  resurrects it; registry INSERT coerces NOT NULL columns. Two orphan
-  runs in the store from the broken first dispatch (smither-dune-a839ce90,
-  status running, dead heartbeat, no registry row — invisible to the
-  supervisor, harmless cruft). Live rig: worktree
-  .claude/worktrees/build-live-verify (detached at c0449506) on :3220 via
-  scratchpad run-build-dev.sh (launch.json entry aomi-build-live-sandbox);
-  staging topology + portal .env.local signing key so sidecar bearers
-  verify.
+pushed as c0449506; image build-runner:live-1 in VCR under the aomi-build
+Vercel project, e2e-test untouched; AOMI_REF=c0449506,
+AOMI_SDK_REF=b3c0c8b). Full chain proven on real infra with app "dune":
+dispatch → registry row (run id, vercel-sandbox, sandbox name, sidecar
+url) → sidecar /healthz ok + 403 on missing/bogus bearers → BFF file
+route served dune/Cargo.toml FROM THE LIVE VM via a per-request
+portalService() EdDSA bearer → supervise tick "extend" visibly bumped
+the VM timeout 5→14 min → all five stages completed in ~6.5 min with
+Kimi curate inside the VM (only SMITHER_OPENROUTER_API_KEY present, so
+OpenRouter billing is conclusively the path) → supervise "release-
+completed", registry completed, sandbox stopped → file route fell back
+to the store tarball after VM death → download served the real 5.4 KB
+crate tar.gz (Cargo.toml, src/lib.rs, src/tool.rs, test.json).
+BUG FOUND+FIXED during verification (UNCOMMITTED, needs follow-up
+commit): @vercel/sandbox identifies sandboxes by `name` — the Sandbox
+class has NO sandboxId/id getter and Sandbox.get takes {name} — so
+dispatch stored undefined (NOT NULL violation in the registry, one
+orphan VM, stopped) and the supervisor/cancel by-id path could never
+have worked. Fix: adaptSdkSandbox maps name→SandboxLike.sandboxId;
+Sandbox.get({name, resume:false}) so managing a dead VM never
+resurrects it; registry INSERT coerces NOT NULL columns. Two orphan
+runs in the store from the broken first dispatch (smither-dune-a839ce90,
+status running, dead heartbeat, no registry row — invisible to the
+supervisor, harmless cruft). Live rig: worktree
+.claude/worktrees/build-live-verify (detached at c0449506) on :3220 via
+scratchpad run-build-dev.sh (launch.json entry aomi-build-live-sandbox);
+staging topology + portal .env.local signing key so sidecar bearers
+verify.
 
 2026-07-20 — /build multi-user + lifecycle fixes (branch
-  claude/build-fe-artifacts, staged, uncommitted). Four design fixes from
-  the FE-gap discussion, all live-verified against the Supabase store:
-  (1) sessions persist runId/app — reloads reattach to live runs and
-  Download survives; localStorage v2. (2) aomi_build_runs registry keyed
-  (owner_login, app) in the run store (registry.ts; created idempotently
-  via new smither storeQuery raw-SQL seam): Alice/arb-bot ≠ Bob/arb-bot,
-  BFF restarts look runs up instead of minting ids (resilience finding #2
-  fixed), plan_json persisted so observers/sandbox runs stop recomposing
-  plans; owner = GitHub login ("dev" when AOMI_BUILD_ALLOW_ANON).
-  (3) system-owned sandbox lifetime: supervisor.ts joins registry rows to
-  the engine heartbeat in _smithers_runs — extends live work, reaps
-  silent-death VMs after 2min grace (the 18:06/$4 zombie class, finding
-  #1) and stale-heartbeat runs (finding #3), releases on settle; ticks via
-  GET /api/bff/build/supervise (BUILD_RUN_CHECKER_CRON_SECRET-guarded — cron wiring
-  is Phase-4) + in-process interval on long-lived servers; cancel now
-  flips the registry + stops the sandbox by id even after restarts.
-  (4) live files: infra/build-runner/sidecar.ts (Bun, bearer-auth,
-  path-jailed /tree + /file on exposed port 8722) baked into the image;
-  dispatch launches it; BFF GET /api/bff/build/runs/file serves file
-  contents from local disk → live sidecar → store tarball (minimal ustar
-  reader tar.ts — file contents readable even after the sandbox dies);
-  Files panel is now a click-to-view source browser (dialog in
-  build-view). NOTE: WebSocket ruled out (Vercel Functions can't host WS;
-  SSE relay is the later polish); sidecar needs the next image rebuild to
-  exist in VMs. 83 smither + 286 app tests green; typecheck/lint clean.
-  Live-verified: registry row (dev|geckoterminal|completed|local),
-  resume-not-remint, file route serving real lib.rs, supervise route
-  responding.
+claude/build-fe-artifacts, staged, uncommitted). Four design fixes from
+the FE-gap discussion, all live-verified against the Supabase store:
+(1) sessions persist runId/app — reloads reattach to live runs and
+Download survives; localStorage v2. (2) aomi_build_runs registry keyed
+(owner_login, app) in the run store (registry.ts; created idempotently
+via new smither storeQuery raw-SQL seam): Alice/arb-bot ≠ Bob/arb-bot,
+BFF restarts look runs up instead of minting ids (resilience finding #2
+fixed), plan_json persisted so observers/sandbox runs stop recomposing
+plans; owner = GitHub login ("dev" when AOMI_BUILD_ALLOW_ANON).
+(3) system-owned sandbox lifetime: supervisor.ts joins registry rows to
+the engine heartbeat in \_smithers_runs — extends live work, reaps
+silent-death VMs after 2min grace (the 18:06/$4 zombie class, finding
+#1) and stale-heartbeat runs (finding #3), releases on settle; ticks via
+GET /api/bff/build/supervise (BUILD_RUN_CHECKER_CRON_SECRET-guarded — cron wiring
+is Phase-4) + in-process interval on long-lived servers; cancel now
+flips the registry + stops the sandbox by id even after restarts.
+(4) live files: infra/build-runner/sidecar.ts (Bun, bearer-auth,
+path-jailed /tree + /file on exposed port 8722) baked into the image;
+dispatch launches it; BFF GET /api/bff/build/runs/file serves file
+contents from local disk → live sidecar → store tarball (minimal ustar
+reader tar.ts — file contents readable even after the sandbox dies);
+Files panel is now a click-to-view source browser (dialog in
+build-view). NOTE: WebSocket ruled out (Vercel Functions can't host WS;
+SSE relay is the later polish); sidecar needs the next image rebuild to
+exist in VMs. 83 smither + 286 app tests green; typecheck/lint clean.
+Live-verified: registry row (dev|geckoterminal|completed|local),
+resume-not-remint, file route serving real lib.rs, supervise route
+responding.
 
-  Addendum (Cecilia review): sidecar auth now rides the OFFICIAL
-  service-bearer path instead of a homegrown random-UUID token. The BFF
-  mints a fresh 5-min EdDSA JWT per proxied request via portalService()
-  (PORTAL_SERVICE_PRIVATE_KEY + committed topology; new module
-  apps/aomi-build/src/server/bff/build/sidecar-auth.ts), audience
-  "aomi-sidecar" (added to aomi-bff's audiences in packages/account
-  topology-data.ts and the three aomi-build service.portal*.toml — a
-  leaked bearer is useless at the backend), subject = run id. The sidecar
-  verifies the JWT with WebCrypto Ed25519 against aomi-bff's committed
-  PUBLIC key (AOMI_SIDECAR_PUBKEY env — no secret in the VM), pins
-  iss/aud/sub/exp, fails closed. sidecar_token is gone from the registry
-  (no stored secret anywhere; the Supabase column's DEFAULT '' absorbs
-  omitted inserts). Round-trip + tamper tests in sidecar-auth.test.ts;
-  live-verified: real PORTAL_SERVICE_PRIVATE_KEY (portal .env.local,
-  staging topology) → portalService().mint → sidecar verifyBearer OK,
-  wrong run id rejected. NOTE: apps/portal's service.portal*.toml were
-  NOT touched (portal never mints the sidecar audience) — flag if
-  topology views should stay byte-identical.
+Addendum (Cecilia review): sidecar auth now rides the OFFICIAL
+service-bearer path instead of a homegrown random-UUID token. The BFF
+mints a fresh 5-min EdDSA JWT per proxied request via portalService()
+(PORTAL_SERVICE_PRIVATE_KEY + committed topology; new module
+apps/aomi-build/src/server/bff/build/sidecar-auth.ts), audience
+"aomi-sidecar" (added to aomi-bff's audiences in packages/account
+topology-data.ts and the three aomi-build service.portal*.toml — a
+leaked bearer is useless at the backend), subject = run id. The sidecar
+verifies the JWT with WebCrypto Ed25519 against aomi-bff's committed
+PUBLIC key (AOMI_SIDECAR_PUBKEY env — no secret in the VM), pins
+iss/aud/sub/exp, fails closed. sidecar_token is gone from the registry
+(no stored secret anywhere; the Supabase column's DEFAULT '' absorbs
+omitted inserts). Round-trip + tamper tests in sidecar-auth.test.ts;
+live-verified: real PORTAL_SERVICE_PRIVATE_KEY (portal .env.local,
+staging topology) → portalService().mint → sidecar verifyBearer OK,
+wrong run id rejected. NOTE: apps/portal's service.portal*.toml were
+NOT touched (portal never mints the sidecar audience) — flag if
+topology views should stay byte-identical.
 
 2026-07-19 (night, 2nd session) — /build agent billing: OpenRouter is now the
-  DEFAULT, Anthropic the env-only backup (uncommitted, stacked on the
-  build-fe-artifacts working tree). Motivation: first-party Anthropic is too
-  expensive for builder runs. `resolveAgentBilling` (packages/smither/src/
-  agents.ts): SMITHER_OPENROUTER_API_KEY > SMITHER_ANTHROPIC_API_KEY > local
-  CLI login; not user-selectable, pure deployment config. OpenRouter path
-  drives the same claude CLI via OpenRouter's Anthropic-compatible endpoint
-  (https://openrouter.ai/api): ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN +
-  ANTHROPIC_API_KEY pinned "" (never fall back to first-party auth) +
-  ANTHROPIC_MODEL/ANTHROPIC_SMALL_FAST_MODEL both set. Default model
-  moonshotai/kimi-k2.7-code ($0.72/$3.50 per M) — deliberately NOT kimi-k3
-  (July 16 release, but Sonnet-priced $3/$15, defeats the point); override
-  via SMITHER_OPENROUTER_MODEL. dispatchSandboxRun passes both new vars into
-  the microVM; BFF local runner + run-plan CLI already forward process.env.
-  Caveat (OpenRouter's own docs): claude CLI is only *guaranteed* against the
-  Anthropic first-party provider — third-party-model tool-calling fidelity is
-  the risk, and regressions surface as validate-loop maxIterations failures.
-  Cloud verification of a Kimi-billed run still pending (needs the env set on
-  a dispatch). Phase-4 decisions recorded from Cecilia: 5 build chats/apps per
-  user; build tokens NEVER hit the cost dashboard (chat+project only); quotas
-  + sessions live in the separate aomi-build-smither Supabase DB; GitHub login
+DEFAULT, Anthropic the env-only backup (uncommitted, stacked on the
+build-fe-artifacts working tree). Motivation: first-party Anthropic is too
+expensive for builder runs. `resolveAgentBilling` (packages/smither/src/
+agents.ts): SMITHER*OPENROUTER_API_KEY > SMITHER_ANTHROPIC_API_KEY > local
+CLI login; not user-selectable, pure deployment config. OpenRouter path
+drives the same claude CLI via OpenRouter's Anthropic-compatible endpoint
+(https://openrouter.ai/api): ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN +
+ANTHROPIC_API_KEY pinned "" (never fall back to first-party auth) +
+ANTHROPIC_MODEL/ANTHROPIC_SMALL_FAST_MODEL both set. Default model
+moonshotai/kimi-k2.7-code ($0.72/$3.50 per M) — deliberately NOT kimi-k3
+(July 16 release, but Sonnet-priced $3/$15, defeats the point); override
+via SMITHER_OPENROUTER_MODEL. dispatchSandboxRun passes both new vars into
+the microVM; BFF local runner + run-plan CLI already forward process.env.
+Caveat (OpenRouter's own docs): claude CLI is only \_guaranteed* against the
+Anthropic first-party provider — third-party-model tool-calling fidelity is
+the risk, and regressions surface as validate-loop maxIterations failures.
+Cloud verification of a Kimi-billed run still pending (needs the env set on
+a dispatch). Phase-4 decisions recorded from Cecilia: 5 build chats/apps per
+user; build tokens NEVER hit the cost dashboard (chat+project only); quotas
+
+- sessions live in the separate aomi-build-smither Supabase DB; GitHub login
   required + invite allowlist; image-SDK sync via GitHub Action (design in
   convo: images tagged build-runner:sdk-<ver>, repository_dispatch from
   aomi-sdk release, green-canary gate before activation). SECURITY: an
@@ -1759,102 +2068,101 @@
   lint clean (3 pre-existing warnings).
 
 2026-07-19 (night) — /build FE gap: store-served crate artifacts, hosted
-  store provisioned (branch claude/build-fe-artifacts, uncommitted).
-  Supabase project "aomi-build-smither" (ref ijhknhtjabljnqwmimrv,
-  us-east-1, org aomi) is the hosted smithers store; engine bootstrapped
-  all 25 _smithers_* tables + synced new columns on first connect; URL in
-  apps/aomi-build/.env.smither.local (gitignored; session pooler :5432 —
-  NOT the :6543 transaction pooler). New artifact pipeline: the result
-  phase packages the crate (packages/smither/src/artifacts.ts — file-tree
-  JSON + base64 tar.gz ≤2.5MB, warning on skip; executeRun raises
-  maxOutputBytes to 4MB) into the durable result row; BFF serves Files
-  and Download from the store when the crate isn't on local disk
-  (run-view artifactFromOutputs, engine storedCrateTarball, download
-  route fallback) — sandbox runs get real artifacts. Also: builder
-  passthrough on POST /runs (claude|codex|none; "none" = deterministic
-  pipeline, no LLM), mapper trusts run-level status over stale failed
-  stage rows (cross-attempt resumes), localStorage sessions bumped to v2
-  (v1 TS-mock fiction purged on load). Verified E2E on Supabase:
-  builder:none run green (binaries/codegen/validate/result), artifact row
-  669B tree + 67KB tar, then a fresh observer instance with an EMPTY SDK
-  root served the tree + a decodable 50KB tarball purely from the store —
-  the deployed-Vercel shape. Quota lesson re-confirmed: local claude CLI
-  keychain subscription outranks SMITHER_ANTHROPIC_API_KEY (a geckoterminal
-  run sits waiting-quota in the store; resumable). Cloud sandbox proof of
-  the artifact path needs an image rebuild from a pushed sha — Cecilia's
-  go. 77 smither + 284 app tests green; typecheck/lint clean.
+store provisioned (branch claude/build-fe-artifacts, uncommitted).
+Supabase project "aomi-build-smither" (ref ijhknhtjabljnqwmimrv,
+us-east-1, org aomi) is the hosted smithers store; engine bootstrapped
+all 25 _smithers_\* tables + synced new columns on first connect; URL in
+apps/aomi-build/.env.smither.local (gitignored; session pooler :5432 —
+NOT the :6543 transaction pooler). New artifact pipeline: the result
+phase packages the crate (packages/smither/src/artifacts.ts — file-tree
+JSON + base64 tar.gz ≤2.5MB, warning on skip; executeRun raises
+maxOutputBytes to 4MB) into the durable result row; BFF serves Files
+and Download from the store when the crate isn't on local disk
+(run-view artifactFromOutputs, engine storedCrateTarball, download
+route fallback) — sandbox runs get real artifacts. Also: builder
+passthrough on POST /runs (claude|codex|none; "none" = deterministic
+pipeline, no LLM), mapper trusts run-level status over stale failed
+stage rows (cross-attempt resumes), localStorage sessions bumped to v2
+(v1 TS-mock fiction purged on load). Verified E2E on Supabase:
+builder:none run green (binaries/codegen/validate/result), artifact row
+669B tree + 67KB tar, then a fresh observer instance with an EMPTY SDK
+root served the tree + a decodable 50KB tarball purely from the store —
+the deployed-Vercel shape. Quota lesson re-confirmed: local claude CLI
+keychain subscription outranks SMITHER_ANTHROPIC_API_KEY (a geckoterminal
+run sits waiting-quota in the store; resumable). Cloud sandbox proof of
+the artifact path needs an image rebuild from a pushed sha — Cecilia's
+go. 77 smither + 284 app tests green; typecheck/lint clean.
 
 2026-07-19 (evening) — /build sandbox-mode: FULLY GREEN CLOUD RUN.
-  `smither-defillama-ea2a9cba…` completed all five stages in a real Vercel
-  Sandbox booted from the rust-1.92 image: binaries ✓ codegen (kept
-  existing sources) ✓ curate (real analysis: caught a dangling
-  `defillama_get_yield_pool_history` tool reference) ✓ validate ✓ result ✓
-  — run status `completed`, curation + result served by the BFF from the
-  shared store. Phase 1–3 acceptance fully demonstrated on real infra.
-  (Empty fileTree / 409 download for sandbox runs remain the known Phase-4
-  gap.) Two more operational facts confirmed on the way: a stale
-  VERCEL_OIDC_TOKEN (12 h life) makes Sandbox.create succeed but the VM
-  die silently before its first store write — refresh with `vercel env
+`smither-defillama-ea2a9cba…` completed all five stages in a real Vercel
+Sandbox booted from the rust-1.92 image: binaries ✓ codegen (kept
+existing sources) ✓ curate (real analysis: caught a dangling
+`defillama_get_yield_pool_history` tool reference) ✓ validate ✓ result ✓
+— run status `completed`, curation + result served by the BFF from the
+shared store. Phase 1–3 acceptance fully demonstrated on real infra.
+(Empty fileTree / 409 download for sandbox runs remain the known Phase-4
+gap.) Two more operational facts confirmed on the way: a stale
+VERCEL_OIDC_TOKEN (12 h life) makes Sandbox.create succeed but the VM
+die silently before its first store write — refresh with `vercel env
   pull` before dispatching; and the lazy keepalive is real — a run watched
-  only via direct store reads (bypassing the BFF poll path) lets its
-  sandbox lapse at the 5-minute create ceiling mid-stage, exactly the
-  documented abandoned-run behavior. Test rig torn down (BFF :3210, ngrok
-  tunnel, throwaway Postgres :5455).
-
+only via direct store reads (bypassing the BFF poll path) lets its
+sandbox lapse at the 5-minute create ceiling mid-stage, exactly the
+documented abandoned-run behavior. Test rig torn down (BFF :3210, ngrok
+tunnel, throwaway Postgres :5455).
 
 2026-07-19 — /build ship: FIRST real Vercel sandbox-mode dispatch, chain
-  verified end-to-end on actual Vercel infra (PR #370 carries it all).
-  Golden image (debian:bookworm-slim, linux/amd64+zstd) pushed to VCR
-  (`build-runner:e2e-test`, ~1 GB, Ready) → `Sandbox.create({image})` boots a
-  real microVM → `run-plan` on Bun → binaries ✓ codegen ✓ claude curate
-  agent ✓ validate ✓, run state flowing to Postgres with the BFF observing.
-  Fix chain to get there (each its own commit): deterministic run-plan
-  sanity probe; VCR's 500 MB compressed-layer cap (slimmed cargo layer;
-  filtered `pnpm install --filter "@aomi-labs/smither..."`; CI=true prod
-  re-install; explicit pnpm-store rm — `$(pnpm store path)` expanded empty
-  and silently shipped 1.5 GB); Node from official tarball (nodesource
-  stopped shipping npm); codegenStep re-derives plan source at execution
-  time (sandbox plans compose as "discover", so committed apps hit remote
-  gen-specs and failed); IS_SANDBOX=1 in dispatch env (claude CLI refuses
-  skip-permissions as root). Final run settled "failed: validate-loop
-  reached maxIterations 3" — forensics show the IMAGE was the defect, not
-  the crate: minimal rustup profile lacked rustfmt (round 0) and clippy
-  (round 1), and rustc 1.88 < aomi-sdk's rust-version 1.91 (round 2); the
-  repair agent spent all rounds fixing the toolchain by hand. Dockerfile
-  now: rust 1.92.0 + rustfmt/clippy components (rebuild + green-run rerun
-  pending). Resilience findings REPORTED, not yet fixed (Cecilia to route:
-  this PR vs follow-ups): (1) engine pg client never reconnects after a
-  connection blip (ngrok hiccup bricked BFF reads until restart, twice);
-  (2) sandbox run-id reuse is process-local registry — BFF restart mints
-  new run ids instead of resuming (same disease as the fixed run.json bug;
-  store should be the lookup); (3) cancel of a dead-sandbox run wedges the
-  app on that instance (stopSandbox kills the engine before it settles the
-  store status). Session housekeeping: 41 MB of .smithers run state is
-  committed on MAIN (separate cleanup task spun off; image just rm's it);
-  vercel CLI 54→56.3.2 (for `vercel vcr login docker`); headless agent
-  billing = SMITHER_ANTHROPIC_API_KEY (renamed from AOMI_BUILDER_API_KEY)
-  so sandbox runs never share the interactive Claude subscription quota.
-
+verified end-to-end on actual Vercel infra (PR #370 carries it all).
+Golden image (debian:bookworm-slim, linux/amd64+zstd) pushed to VCR
+(`build-runner:e2e-test`, ~1 GB, Ready) → `Sandbox.create({image})` boots a
+real microVM → `run-plan` on Bun → binaries ✓ codegen ✓ claude curate
+agent ✓ validate ✓, run state flowing to Postgres with the BFF observing.
+Fix chain to get there (each its own commit): deterministic run-plan
+sanity probe; VCR's 500 MB compressed-layer cap (slimmed cargo layer;
+filtered `pnpm install --filter "@aomi-labs/smither..."`; CI=true prod
+re-install; explicit pnpm-store rm — `$(pnpm store path)` expanded empty
+and silently shipped 1.5 GB); Node from official tarball (nodesource
+stopped shipping npm); codegenStep re-derives plan source at execution
+time (sandbox plans compose as "discover", so committed apps hit remote
+gen-specs and failed); IS_SANDBOX=1 in dispatch env (claude CLI refuses
+skip-permissions as root). Final run settled "failed: validate-loop
+reached maxIterations 3" — forensics show the IMAGE was the defect, not
+the crate: minimal rustup profile lacked rustfmt (round 0) and clippy
+(round 1), and rustc 1.88 < aomi-sdk's rust-version 1.91 (round 2); the
+repair agent spent all rounds fixing the toolchain by hand. Dockerfile
+now: rust 1.92.0 + rustfmt/clippy components (rebuild + green-run rerun
+pending). Resilience findings REPORTED, not yet fixed (Cecilia to route:
+this PR vs follow-ups): (1) engine pg client never reconnects after a
+connection blip (ngrok hiccup bricked BFF reads until restart, twice);
+(2) sandbox run-id reuse is process-local registry — BFF restart mints
+new run ids instead of resuming (same disease as the fixed run.json bug;
+store should be the lookup); (3) cancel of a dead-sandbox run wedges the
+app on that instance (stopSandbox kills the engine before it settles the
+store status). Session housekeeping: 41 MB of .smithers run state is
+committed on MAIN (separate cleanup task spun off; image just rm's it);
+vercel CLI 54→56.3.2 (for `vercel vcr login docker`); headless agent
+billing = SMITHER_ANTHROPIC_API_KEY (renamed from AOMI_BUILDER_API_KEY)
+so sandbox runs never share the interactive Claude subscription quota.
 
 2026-07-17 (night) — smithers-orchestrator 0.27.0 → 0.28.0 upgrade (in tree,
-  unverified tail): packages/smither now `^0.28.0` + effect pinned 3.21.4;
-  bun-compat drops the `Bun.which: () => null` polyfill (0.28's resolveBinary
-  trusts a function-typed `which` with no PATH fallback — the stub broke
-  git/claude resolution; `Bun.sleep` kept as cheap insurance); raw-TS loader
-  hooks STILL required on 0.28.0 (plain-JS packaging lands only in releases
-  after it). Verified: smither build + 73/73, aomi-build type-check + 229/229
-  + lint, and on the two-instance Postgres E2E the compute stages
+unverified tail): packages/smither now `^0.28.0` + effect pinned 3.21.4;
+bun-compat drops the `Bun.which: () => null` polyfill (0.28's resolveBinary
+trusts a function-typed `which` with no PATH fallback — the stub broke
+git/claude resolution; `Bun.sleep` kept as cheap insurance); raw-TS loader
+hooks STILL required on 0.28.0 (plain-JS packaging lands only in releases
+after it). Verified: smither build + 73/73, aomi-build type-check + 229/229
+
+- lint, and on the two-instance Postgres E2E the compute stages
   (binaries/codegen) complete under Node with cross-instance observation
   intact. Found+fixed a 0.28 delta: engine settles quota-hit runs as new
   status `waiting-quota` (retries preserved, later create resumes) — wire
   mapping moved it running→failed (run-view.ts) so pages don't show an
-  eternal spinner; in-memory engine.ts mapping already agreed. PARKED_STATUSES
+  eternal spinner; in-memory engine.ts mapping already agreed. PARKED*STATUSES
   comment notes 0.28's `paused` (we never pass pauseSignal).
   Preserved-retry resume CONFIRMED after the quota window reset (~01:21am):
   re-creating the same app minted no new run id, resumed straight into
   `curate` (not a redo of binaries/codegen), and made a genuine retry
   attempt — smithers 0.28's "retries are preserved" holds. That attempt
-  immediately hit a *fresh* 5-hour quota wall (resets ~2026-07-18 06:20
+  immediately hit a \_fresh* 5-hour quota wall (resets ~2026-07-18 06:20
   local), because this session's own research work billed against the same
   Claude subscription the curate agent uses — not a code issue.
   REMAINING to verify: an agent step actually completing (either wait out
@@ -1866,66 +2174,66 @@
   scratchpad smither-on-vercel-report.md + subagent findings; fallback = pin
   back to 0.27.0, store schema read-compatible both ways.
 
-
 2026-07-17 (evening) — /build ship verification pass over the uncommitted
-  Phase 1–3 work + golden-image base swap. (1) Fixed a statelessness bug the
-  cross-instance E2E caught on a REAL fresh Postgres (14 on :5455, not the
-  PGlite socket stand-in): prepareRun trusted the local run.json pointer and
-  resumed a run id the shared store never had → smithers RUN_NOT_FOUND crash;
-  prepareRun now checks the store (storeHasRun via SmithersDb.getRun) and a
-  stale pointer falls back to a fresh run + rewritten run.json
-  (packages/smither/src/run.ts). (2) E2E re-verified end-to-end: create on
-  instance A (:3210), instance B (:3211, NEXT_DIST_DIR=.next-b) served
-  status/stages mid-run and, at settle, curation, result, fileTree AND the
-  crate tarball download (200, 50 KB) for a run it never executed; cancel
-  route from B returns ok (run had already completed — cancel-mid-run was
-  proven in the Phase 2 pass). (3) Golden image: Vercel Sandbox custom-image
-  docs confirm images are plain OCI from VCR with NO base-OS constraint
-  (only linux/amd64 manifest; ENTRYPOINT/CMD ignored; WORKDIR honored) — the
-  AL2023 assumption was wrong, base swapped to debian:bookworm-slim
-  (dnf→apt) and README push flow corrected to
-  `docker buildx build --platform linux/amd64` + zstd (a plain build on an
-  ARM Mac lands as `Unoptimized` in VCR and Sandbox rejects it; wait for
-  `Ready`, else image_not_ready). Full sweep green after the fix: smither
-  build + 73/73 tests, aomi-build type-check + 229/229 tests + lint.
+Phase 1–3 work + golden-image base swap. (1) Fixed a statelessness bug the
+cross-instance E2E caught on a REAL fresh Postgres (14 on :5455, not the
+PGlite socket stand-in): prepareRun trusted the local run.json pointer and
+resumed a run id the shared store never had → smithers RUN_NOT_FOUND crash;
+prepareRun now checks the store (storeHasRun via SmithersDb.getRun) and a
+stale pointer falls back to a fresh run + rewritten run.json
+(packages/smither/src/run.ts). (2) E2E re-verified end-to-end: create on
+instance A (:3210), instance B (:3211, NEXT_DIST_DIR=.next-b) served
+status/stages mid-run and, at settle, curation, result, fileTree AND the
+crate tarball download (200, 50 KB) for a run it never executed; cancel
+route from B returns ok (run had already completed — cancel-mid-run was
+proven in the Phase 2 pass). (3) Golden image: Vercel Sandbox custom-image
+docs confirm images are plain OCI from VCR with NO base-OS constraint
+(only linux/amd64 manifest; ENTRYPOINT/CMD ignored; WORKDIR honored) — the
+AL2023 assumption was wrong, base swapped to debian:bookworm-slim
+(dnf→apt) and README push flow corrected to
+`docker buildx build --platform linux/amd64` + zstd (a plain build on an
+ARM Mac lands as `Unoptimized` in VCR and Sandbox rejects it; wait for
+`Ready`, else image_not_ready). Full sweep green after the fix: smither
+build + 73/73 tests, aomi-build type-check + 229/229 tests + lint.
 
 2026-07-17 — /build ship Phase 3 (review-ready; real provisioning blocked on
-  Vercel/API-key decisions): SandboxRunner. BFF dispatches
-  `aomi-smither run-plan --plan-b64 … --run-id …` into a Vercel Sandbox
-  booted from the golden image (infra/build-runner/{Dockerfile,README.md}:
-  AL2023 + Rust + Bun + Node + claude CLI + pinned aomi-sdk with prebuilt
-  release binaries + built smither package). AOMI_BUILD_RUNNER=vercel-sandbox
-  branch in the engine (composePlan sdkRoot override, pre-allocated run id,
-  settled-app re-create reuses the run id so run-plan resumes from store
-  state); serverless keepalive = lazy extendTimeout from the poll path;
-  cancel = durable store write + best-effort sandbox stop. @vercel/sandbox
-  behind an injectable SandboxClientLike seam (sandbox-runner.ts, 4 tests
-  with a fake client; SDK v2.7 API verified from the published types).
-  run-plan now resumes when the shared store already knows the run id even
-  with no local run.json (fresh-sandbox continuation). Local runner
-  regression E2E green after the refactor (5/5 stages, curation present).
-  Sandbox-mode known gaps (Phase 4): Files panel/download read local fs —
-  empty for sandbox runs; cross-instance sandbox extend/stop and quotas need
-  the build_runs registry decision; sandbox-mode plans always use discover
-  (server can't stat the image's apps/).
+Vercel/API-key decisions): SandboxRunner. BFF dispatches
+`aomi-smither run-plan --plan-b64 … --run-id …` into a Vercel Sandbox
+booted from the golden image (infra/build-runner/{Dockerfile,README.md}:
+AL2023 + Rust + Bun + Node + claude CLI + pinned aomi-sdk with prebuilt
+release binaries + built smither package). AOMI_BUILD_RUNNER=vercel-sandbox
+branch in the engine (composePlan sdkRoot override, pre-allocated run id,
+settled-app re-create reuses the run id so run-plan resumes from store
+state); serverless keepalive = lazy extendTimeout from the poll path;
+cancel = durable store write + best-effort sandbox stop. @vercel/sandbox
+behind an injectable SandboxClientLike seam (sandbox-runner.ts, 4 tests
+with a fake client; SDK v2.7 API verified from the published types).
+run-plan now resumes when the shared store already knows the run id even
+with no local run.json (fresh-sandbox continuation). Local runner
+regression E2E green after the refactor (5/5 stages, curation present).
+Sandbox-mode known gaps (Phase 4): Files panel/download read local fs —
+empty for sandbox runs; cross-instance sandbox extend/stop and quotas need
+the build_runs registry decision; sandbox-mode plans always use discover
+(server can't stat the image's apps/).
 
 2026-07-17 — /build ship Phase 2 (specs/BUILD-SHIP-E2E-PLAN.md): runner seam.
-  packages/smither: `aomi-smither run-plan` headless subcommand (--plan/
-  --plan-b64 JSON, optional pre-allocated --run-id via createRunState/
-  prepareRun runId option) — smoked on Bun (resume replay, exit 0; custom
-  run-id lands in run.json); `requestRunCancel` (durable
-  cancel_requested_at_ms write the engine polls — cancel works from any
-  process); makeWorkAgent takes apiKey, wired from SMITHER_ANTHROPIC_API_KEY so
-  headless runners bill an API key instead of a CLI login. BFF: Runner seam
-  (AOMI_BUILD_RUNNER, LocalRunner today, SandboxRunner = phase 3 slot),
-  cancelBuildRun + POST /api/bff/build/runs/cancel, Esc on the page cancels
-  the real run. Cancel E2E verified against shared Postgres: store status
-  `cancelled`, codegen node cancelled mid-flight. Note: wire status maps
-  cancelled→failed (no distinct wire state yet — P1 polish).
+packages/smither: `aomi-smither run-plan` headless subcommand (--plan/
+--plan-b64 JSON, optional pre-allocated --run-id via createRunState/
+prepareRun runId option) — smoked on Bun (resume replay, exit 0; custom
+run-id lands in run.json); `requestRunCancel` (durable
+cancel_requested_at_ms write the engine polls — cancel works from any
+process); makeWorkAgent takes apiKey, wired from SMITHER_ANTHROPIC_API_KEY so
+headless runners bill an API key instead of a CLI login. BFF: Runner seam
+(AOMI_BUILD_RUNNER, LocalRunner today, SandboxRunner = phase 3 slot),
+cancelBuildRun + POST /api/bff/build/runs/cancel, Esc on the page cancels
+the real run. Cancel E2E verified against shared Postgres: store status
+`cancelled`, codegen node cancelled mid-flight. Note: wire status maps
+cancelled→failed (no distinct wire state yet — P1 polish).
 
 2026-07-16 — /build ship Phase 1 (specs/BUILD-SHIP-E2E-PLAN.md): stateless
-  BFF over the durable store. packages/smither gains readRunView (run status
-  + per-node states from _smithers_runs/_smithers_nodes + outputs) and
+BFF over the durable store. packages/smither gains readRunView (run status
+
+- per-node states from \_smithers_runs/\_smithers_nodes + outputs) and
   prepareRun accepts a shared api handle; the BFF snapshot now derives
   status/stages/curation/result from the store every poll (live reducer is
   garnish), one store handle per app (PGlite can't double-open), and a
@@ -1940,73 +2248,74 @@
   Supabase) — needed for Phase 2 runner bookkeeping.
 
 2026-07-16 — /build P0 honest artifacts (gap map: specs/BUILD-PAGE-WIRING-GAP.md):
-  engine snapshot now carries the real crate file tree (walk of
-  sdkRoot/apps/<app>, target/ excluded), the curate agent's structured
-  report (loadRunOutputs reads curation/result rows — covers replayed
-  resumes), and per-stage transition times; completion message = curation
-  summary + followUps verbatim; download = crate tarball route
-  (GET /api/bff/build/runs/download) wired to the Ship banner button;
-  mock artifacts swapped to the real Rust crate shape (Cargo.toml,
-  openapi.yaml, src/{lib.rs,client/,tool.rs}, test.json) — flow unchanged.
-  Verified E2E in-browser against the resumed geckoterminal run.
+engine snapshot now carries the real crate file tree (walk of
+sdkRoot/apps/<app>, target/ excluded), the curate agent's structured
+report (loadRunOutputs reads curation/result rows — covers replayed
+resumes), and per-stage transition times; completion message = curation
+summary + followUps verbatim; download = crate tarball route
+(GET /api/bff/build/runs/download) wired to the Ship banner button;
+mock artifacts swapped to the real Rust crate shape (Cargo.toml,
+openapi.yaml, src/{lib.rs,client/,tool.rs}, test.json) — flow unchanged.
+Verified E2E in-browser against the resumed geckoterminal run.
 
 2026-07-16 — /build E2E verified in-browser against a REAL smither run
-  (geckoterminal: binaries → codegen → curate via live Claude agent →
-  validate-loop cargo → result; resume replay lands the page on Ship). Fixes
-  found by the E2E: workflow.tsx ok/green checks must be truthy not `=== true`
-  (booleans round-trip as 0/1 through the store); bun-compat gained a minimal
-  `Bun` global polyfill (sleep/which, no `version` so isBunRuntime stays
-  honest) and a functional node:sqlite-backed bun:sqlite shim (the engine's
-  single-runner opens an in-memory scratch sqlite on every backend); engine
-  maps RunStatus "finished"/"continued" (not "completed"), captures
-  result.error, backfills stage statuses on replayed completed runs, and
-  auto-resumes settled apps on re-POST;
+(geckoterminal: binaries → codegen → curate via live Claude agent →
+validate-loop cargo → result; resume replay lands the page on Ship). Fixes
+found by the E2E: workflow.tsx ok/green checks must be truthy not `=== true`
+(booleans round-trip as 0/1 through the store); bun-compat gained a minimal
+`Bun` global polyfill (sleep/which, no `version` so isBunRuntime stays
+honest) and a functional node:sqlite-backed bun:sqlite shim (the engine's
+single-runner opens an in-memory scratch sqlite on every backend); engine
+maps RunStatus "finished"/"continued" (not "completed"), captures
+result.error, backfills stage statuses on replayed completed runs, and
+auto-resumes settled apps on re-POST;
 2026-07-16 — /build wired to real aomi-smither (flagged): smithers-orchestrator
-  0.26.1→0.27.0 (Node ≥22 + pglite/postgres backends via new SmitherBackend
-  seam in packages/smither run.ts/workflow.tsx; SMITHER_DATABASE_URL wins,
-  Bun keeps bun:sqlite, Node falls back to per-app PGlite); aomi-build BFF
-  build engine (src/server/bff/build/engine.ts + routes; POST/GET
-  /api/bff/build/runs, POST /api/bff/build/runs/decision; GitHub session +
-  origin + rate-limit gated; autoApprove default until UI renders approvals);
-  Node loader hooks for Bun-flavored smithers sources (src/instrumentation.ts
-  + src/server/bun-compat.ts; serverExternalPackages in next.config.ts);
+0.26.1→0.27.0 (Node ≥22 + pglite/postgres backends via new SmitherBackend
+seam in packages/smither run.ts/workflow.tsx; SMITHER_DATABASE_URL wins,
+Bun keeps bun:sqlite, Node falls back to per-app PGlite); aomi-build BFF
+build engine (src/server/bff/build/engine.ts + routes; POST/GET
+/api/bff/build/runs, POST /api/bff/build/runs/decision; GitHub session +
+origin + rate-limit gated; autoApprove default until UI renders approvals);
+Node loader hooks for Bun-flavored smithers sources (src/instrumentation.ts
+
+- src/server/bun-compat.ts; serverExternalPackages in next.config.ts);
   use-build-session drives the real engine when NEXT_PUBLIC_BUILD_ENGINE=
   smither (poll → smither-run-mapper.ts, mock pipeline unchanged by default);
-2026-07-19 — Operate: BE statement vocabulary + example-data fallback (designs
+  2026-07-19 — Operate: BE statement vocabulary + example-data fallback (designs
   visible pre-BE; fixtures moved to features/operate/fixtures);
-2026-07-16 — Bots page 404 root-caused to product-mono edge routing;
-2026-07-16 — Environment tab: unified Variables list (declared slots + configured, `*` = required);
-2026-07-16 — PR #358 (+): env-aware default chat host (prod → chat.aomi.dev,
+  2026-07-16 — Bots page 404 root-caused to product-mono edge routing;
+  2026-07-16 — Environment tab: unified Variables list (declared slots + configured, `*` = required);
+  2026-07-16 — PR #358 (+): env-aware default chat host (prod → chat.aomi.dev,
   preview/dev → chat-staging.aomi.dev; NEXT_PUBLIC_CHAT_URL still overrides);
-2026-07-14 — Account menu: Docs (aomi.dev/docs) + Home page links (Vercel-style);
-2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
-2026-07-14 — Create stack #343–#349 merged to main (left #340);
-2026-07-14 — Create Recent rail UX: one Create-header toggle (no double collapse);
-2026-07-14 — Create Recent rail: user open/collapse + localStorage (⌘B);
-2026-07-14 — Create composer: UI-only model picker mock (Aomi + Soon);
-2026-07-14 — Create templates: Browse all opens a sheet;
-2026-07-14 — Create mobile: hide Plan steps when Progress is in-thread;
-2026-07-14 — Create Recent titles: derive + dedupe (hello → unique);
-2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
-2026-07-14 — Create craft review: jargon migrate + canvas;
-2026-07-14 — Create UI: builder language (no eng keywords in chat/sidebar);
-2026-07-14 — AI Builder P3 (#344): nodes + compile/aomi-run (review local first);
-2026-07-14 — AI Builder P0–P2 (#343): Create craft on /build;
-2026-07-14 — AI Builder P1 craft port: mock layout feel in ControlPlaneShell
+  2026-07-14 — Account menu: Docs (aomi.dev/docs) + Home page links (Vercel-style);
+  2026-07-14 — Build P2 deep-link polish (⌘K / Billing / Overview → right tab);
+  2026-07-14 — Create stack #343–#349 merged to main (left #340);
+  2026-07-14 — Create Recent rail UX: one Create-header toggle (no double collapse);
+  2026-07-14 — Create Recent rail: user open/collapse + localStorage (⌘B);
+  2026-07-14 — Create composer: UI-only model picker mock (Aomi + Soon);
+  2026-07-14 — Create templates: Browse all opens a sheet;
+  2026-07-14 — Create mobile: hide Plan steps when Progress is in-thread;
+  2026-07-14 — Create Recent titles: derive + dedupe (hello → unique);
+  2026-07-14 — Create craft polish tranche (rail/empty/chat/stage/composer);
+  2026-07-14 — Create craft review: jargon migrate + canvas;
+  2026-07-14 — Create UI: builder language (no eng keywords in chat/sidebar);
+  2026-07-14 — AI Builder P3 (#344): nodes + compile/aomi-run (review local first);
+  2026-07-14 — AI Builder P0–P2 (#343): Create craft on /build;
+  2026-07-14 — AI Builder P1 craft port: mock layout feel in ControlPlaneShell
   (composer, stream, files, ship→Projects, in-page history; local mock timers);
-2026-07-14 — AI Builder P1: intent composer + templates + local session;
-2026-07-14 — AI-BUILDER-EXPERIENCE.md (Create / chat-mock port plan);
-2026-07-14 — Build AI Builder: enable sidebar Build + `/build` scaffold;
-2026-07-13 — Build P2 usage peek (Home meter → Operate Usage);
-2026-07-13 — Build P2 Deployments timeline (history that reads as history);
-2026-07-13 — Build Live status consistency (one story across list/Home/Deployments);
-2026-07-13 — Build P2 Project home (live / keys / Open Chat / usage glance);
-2026-07-13 — Build P1 control plane: ⌘K, toasts, Projects landing, glossary;
-2026-07-13 — Build P0 trust: Soon labels, gate Integrations Save, human errors;
-2026-07-13 — Build UI copy polish (em dashes / hedging essays);
-2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
-2026-07-13 — Fixed required-secrets gate fail-open (P1, external review);
-2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
+  2026-07-14 — AI Builder P1: intent composer + templates + local session;
+  2026-07-14 — AI-BUILDER-EXPERIENCE.md (Create / chat-mock port plan);
+  2026-07-14 — Build AI Builder: enable sidebar Build + `/build` scaffold;
+  2026-07-13 — Build P2 usage peek (Home meter → Operate Usage);
+  2026-07-13 — Build P2 Deployments timeline (history that reads as history);
+  2026-07-13 — Build Live status consistency (one story across list/Home/Deployments);
+  2026-07-13 — Build P2 Project home (live / keys / Open Chat / usage glance);
+  2026-07-13 — Build P1 control plane: ⌘K, toasts, Projects landing, glossary;
+  2026-07-13 — Build P0 trust: Soon labels, gate Integrations Save, human errors;
+  2026-07-13 — Build UI copy polish (em dashes / hedging essays);
+  2026-07-13 — Billing option A: methods live on Chat (no fake Build fetch);
+  2026-07-13 — Fixed required-secrets gate fail-open (P1, external review);
+  2026-07-13 — BILLING-EXPERIENCE.md: backend ↔ UI map (code-checked)
 
 ## Required-secret gate hid the app it blocked on (2026-07-27)
 
@@ -2017,7 +2326,7 @@ Environment tab listed no such variable.
 
 Cause: `redeploySource` runs `launchPreflight`, which re-syncs the source from
 the repo (`syncSource`, `server/bff/launch/routes.ts:301`) and returns
-`pre.apps` from the *preflight deployment*. HEAD's `aomi.toml` can therefore
+`pre.apps` from the _preflight deployment_. HEAD's `aomi.toml` can therefore
 register apps the page's `source` snapshot predates. `ensureRequiredSecrets`
 gates on `pre.apps` (fresh), while the gate banner
 (`deployments-tab.tsx`) and the Environment tab's app list
@@ -2424,7 +2733,7 @@ the initial Overview load path, which the first round left untouched:
   partner-scoped bearers as their own change before first partner onboards.
 - 2026-07-10 later session: Phase 2 REDESIGNED per Cecilia — `github_ci_runs`
   replaced by a proper `deployments` projection table (full manifest JSONB +
-  indexed columns + webhook-fed ci_* columns; write-through at deploy, lazy
+  indexed columns + webhook-fed ci\_\* columns; write-through at deploy, lazy
   backfill on status reads, workflow_run webhook matching by repo+branch+
   commit-prefix). Phase 3 CODE done: `crates/artifact-store` (config-gated
   R2/SigV4 client) + cache-through in `AppFetcher::fetch`. NO live
@@ -2499,6 +2808,7 @@ dismissed and /settings sat on "Connecting your account…".
   packages/account fold) plus a blank-values regression test in
   `packages/account/test/env.test.ts`. 51/51 account tests green, tsc + eslint
   clean.
+
 ## Follow-ups from the same debugging session (2026-07-11, afternoon)
 
 Para sign-in now completes on chat-staging (modal dismisses, wallets connect,
@@ -2528,6 +2838,7 @@ or handed off, per Cecilia's direction (no direct backend/DB mutation):
   (pre-flight checks + RESTRICT drops, no CASCADE) for review; also fixed the
   last stale `aomi_wallets` comment in
   `apps/shadcn-registry/src/lib/wallet-kit/account/aomi-backend-runtime.ts`.
+
 ## Aomi Build owned operate + pre-prod fixes (2026-07-08)
 
 - Hardened launch/operate-adjacent BFF reads and writes around the signed-in
@@ -2596,7 +2907,7 @@ waiting-approval — that gap would have hung the settle loop; fixed).
 
 Verified live through the real runtime, CROSS-PROCESS (the true durability
 claim): process A parked a run on wait-external (`waiting-event`); process B —
-the *built* `aomi-smither signal` CLI — delivered the signal by loading the
+the _built_ `aomi-smither signal` CLI — delivered the signal by loading the
 run off disk; process C resumed (`resuming? true`) and finished, with the
 `external` row carrying the note from process B. Plus an in-process GameFi
 proof: binaries → wait-external (park → signal → resume) → eval-loop (0.9 pass)
@@ -2720,6 +3031,7 @@ Note for reviewers: headless `--yes` auto-selects each clarify's FIRST
 option — compositions should order options recommendation-first.
 
 ### aomi-smither engine rewrite: Smithers-native, compose-from-intent (2026-07-05)
+
 2026-07-03 - Tri-repo pre-merge review (aomi vs origin/main, product-mono vs origin/refactor/dbthread-unification, db-master). Local checks all green. Blockers logged below.
 
 ## Partner deploy primitives — additive on Han's main (2026-07-07)
@@ -2733,7 +3045,7 @@ primitives **purely additively** — 24 files, all under `packages/deploy/`, zer
 changes to `apps/portal` or `apps/shadcn-registry`:
 
 - **`@aomi-labs/deploy/bff`** (server-only) — framework-agnostic `(Request) =>
-  Response` route factories: `createLaunchRoutes`, `createGitHubAuthRoutes`,
+Response` route factories: `createLaunchRoutes`, `createGitHubAuthRoutes`,
   `createGitHubSessionCodec`, default guards, config, validators, error mapper.
 - **`@aomi-labs/deploy/launch`** (browser) — `createLaunchClient` typed client +
   wizard state machine + contracts + url-context.
@@ -4274,7 +4586,7 @@ Controls disabled while isProcessing === true
   (c) policy/svm.rs commit-matrix refactor.
 - Contract check against the branch: authorization.rs UNCHANGED (ceremony
   script contract holds); staged wallet envelope still `status:
-  pending_approval` + `chain_kind: svm` + `svm_ix_ids` (interpreter matcher
+pending_approval` + `chain_kind: svm` + `svm_ix_ids` (interpreter matcher
   holds); `pending_solana_id` is NOT in the staged tool envelope — it only
   exists between wallet request and callback (policy/svm.rs wallet_pending).
 - RESOLVED the flagged phase-4 unknown accordingly: outcomes now ALSO keyed
@@ -4289,7 +4601,7 @@ Controls disabled while isProcessing === true
 - Phase 2 (studio): `demo/capture/svm-env.ts` (assertSurfnetOrDie via
   getVersion "surfnet-version"; resetSvm; surfnet_setTokenAccount seeding;
   sol/spl balance readers; checkAssertions). `types.ts` gains `svm{cluster,
-  tokenAccounts, verify}`. `record.ts`: EVM lifecycle gated on
+tokenAccounts, verify}`. `record.ts`: EVM lifecycle gated on
   chains.length>0, seed URL carries svmAddress+svmCluster
   (AOMI_E2E_SVM_ADDRESS), per-VM execution proof — EVM block-delta vs SVM
   balance assertions with 30s settle polling.
@@ -4297,7 +4609,7 @@ Controls disabled while isProcessing === true
   ceremony (node:crypto Ed25519, PKCS8-wrapped seed; pubkey passed as arg to
   avoid base58 dep). Not yet run.
 - Phase 4: collectTxOutcomes returns per-VM maps {evm, svm} (id spaces
-  collide numerically!); accepts wallet::solana_{sign,send,sign_and_send}_
+  collide numerically!); accepts wallet::solana*{sign,send,sign_and_send}*
   complete with signed/submitted→success, rejected/failed→failed (sign_message
   ignored); enrichment keys on pending_solana_id. `txOutcomeStatus` hoisted to
   interpreter normalize.ts, used by evm-tx AND svm-tx pending_approval.
@@ -4385,8 +4697,8 @@ Controls disabled while isProcessing === true
   first — dist/ missing is an environment condition, not a regression).
   eslint + tsc clean.
 - Root-cause note from the parallel session (memory): the simulate empty-body
-  + ERR_ALPN bug = `new Request(url, req)` streaming-body footgun; fixed
-  separately.
+  - ERR_ALPN bug = `new Request(url, req)` streaming-body footgun; fixed
+    separately.
 
 ## Demo studio — scenario round 2 (2026-08-01)
 
@@ -4422,10 +4734,10 @@ Controls disabled while isProcessing === true
   restarted after every fork restart or it silently talks to a dead proxy
   ("connection issue with the network provider").
 - ENVIRONMENT: memory is the real constraint — free RAM hit 154 MB with Cursor
-  + tsserver + rust-analyzer + next-server + another session's cargo build. The
-  test-env proxy is what gets OOM-killed, which is the recurring "fork died"
-  mystery from the whole session. Recording needs fork + backend + portal +
-  chromium concurrently; close heavy apps first.
+  - tsserver + rust-analyzer + next-server + another session's cargo build. The
+    test-env proxy is what gets OOM-killed, which is the recurring "fork died"
+    mystery from the whole session. Recording needs fork + backend + portal +
+    chromium concurrently; close heavy apps first.
 - Also: earlier "15 anvils" panic was a misread — those were clang processes
   compiling the aomi-anvil crate, not anvil instances.
 
@@ -4543,7 +4855,7 @@ Controls disabled while isProcessing === true
 ## LOCAL_SCOPED_APPS backend scoping (2026-07-31, uncommitted in product-mono main)
 
 - `aomi/bin/backend/src/handler/app/reconcile.rs`: `local_scope:
-  Arc<Option<HashSet<String>>>` on `ArtifactsReconciler`, parsed from
+Arc<Option<HashSet<String>>>` on `ArtifactsReconciler`, parsed from
   `LOCAL_SCOPED_APPS` (comma-separated app names, lowercase-normalized; Cecilia
   requested plain Option<HashSet> over a wrapper struct). When set: (a) rows
   not in the set are skipped in `reconcile_active_once` — applies to both
@@ -4578,14 +4890,14 @@ Controls disabled while isProcessing === true
   Playwright capture (automation). Record ONE master per scenario + timestamped
   markers; derive short cuts, never re-shoot per format.
 - **Layer 2 already exists — do not build it.** `aomi test-env up/down/status/
-  reset` in product-mono spawns detached pre-funded anvil-fork proxies per chain
+reset` in product-mono spawns detached pre-funded anvil-fork proxies per chain
   (gated on `FULL_TESTNETS=true`, needs `ALCHEMY_API_KEY`). Frontend routing
   (`NEXT_PUBLIC_USE_FULL_TESTNET`, `FullTestnetWalletRouter`) preserves REAL
   chain ids while swapping RPC, so the UI shows "Ethereum · Mainnet" on camera
   while running on a fork. Remaining Layer 2 work: fork block heights, non-USDC
   whale funding, wiring the capture runner to test-env.
 - Capability boundary: SDK plugins verified against `~/Code/aomi-sdk/apps/*/src/
-  *.rs` — perps + lending (Hyperliquid, dYdX, GMX, Morpho, Yearn) READ-ONLY.
+*.rs` — perps + lending (Hyperliquid, dYdX, GMX, Morpho, Yearn) READ-ONLY.
   But a SEPARATE protocol-skill layer (Uniswap, Lido, Rocket Pool, Ether.fi,
   Aave, CCTP, Stargate, Base native, Pendle) does execute — so liquid staking
   IS demoable. byreal perps write capability is UNVERIFIED (source not in this
