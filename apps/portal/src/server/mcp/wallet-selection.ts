@@ -115,13 +115,15 @@ export async function resolveSessionWallets(input: {
     input.canonicalUserId,
     input.sessionId,
   );
-  if (ownership === "foreign") {
+  if (ownership === "not-own") {
     return {
       ok: false,
       failure: {
         error: "session_not_owned",
+        // Covers both a session owned by someone else and one whose owner was
+        // never established; from here neither is this account's to operate on.
         guidance:
-          "This Aomi session belongs to a different account. Start a new session, or list this account's sessions with aomi_list_sessions.",
+          "This Aomi session is not owned by this account. Start a new session, or list this account's sessions with aomi_list_sessions.",
       },
     };
   }
@@ -308,23 +310,28 @@ function walletFamily(value: unknown): WalletFamily | undefined {
 /**
  * Whether this account may operate on `sessionId`.
  *
- * "own" also covers a session with no thread row yet — the id the caller was
- * just handed, or one that was never created. Nothing exists to hijack in that
- * case, and selection state written under it is keyed by user anyway, so
- * refusing would only break the ordinary first-turn path.
+ * Three states, not two. **No row** is the ordinary first-turn path — the id
+ * the caller was just handed, before the backend has durably written it — and
+ * is allowed: nothing exists to hijack, and any selection written under it is
+ * user-keyed regardless. An **existing row with a NULL `user_id`** is a
+ * different thing entirely: an anonymous or legacy thread whose ownership was
+ * never established, or one orphaned by `ON DELETE SET NULL`. Ownership that
+ * was never established is not ownership by the asker, so it fails closed.
  */
 async function sessionOwnership(
   canonicalUserId: string,
   sessionId: string,
-): Promise<"own" | "foreign" | "unreadable"> {
+): Promise<"own" | "not-own" | "unreadable"> {
   try {
     const result = await getPool().query(
       `select user_id from threads where id = $1 limit 1`,
       [sessionId],
     );
-    const owner = result.rows[0]?.user_id;
-    if (owner === undefined || owner === null) return "own";
-    return String(owner) === canonicalUserId ? "own" : "foreign";
+    const row = result.rows[0];
+    if (row === undefined) return "own";
+    const owner = row.user_id;
+    if (owner === undefined || owner === null) return "not-own";
+    return String(owner) === canonicalUserId ? "own" : "not-own";
   } catch {
     return "unreadable";
   }

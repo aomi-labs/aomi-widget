@@ -22,11 +22,17 @@ type Row = Record<string, unknown>;
  * Route queries by the table they touch so a test states account contents and
  * remembered selections, not statement order.
  */
+/**
+ * `session` names what the ownership probe finds. "missing" (no row) and
+ * "ownerless" (a row whose `user_id` is NULL) are deliberately distinct: they
+ * are different states, and collapsing them into one empty result set is
+ * exactly what hid an ownerless-thread bypass. Defaults to a row owned by USER.
+ */
 function db(
   options: {
     owned?: Row[];
     selected?: Row[];
-    sessionOwner?: string | null;
+    session?: "missing" | "ownerless" | string;
   } = {},
 ) {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
@@ -35,9 +41,10 @@ function db(
     // mcp_session_wallets` also contains "from mcp_session_wallets".
     const isRead = sql.trimStart().toLowerCase().startsWith("select");
     if (isRead && sql.includes("from threads")) {
-      const owner =
-        options.sessionOwner === undefined ? USER : options.sessionOwner;
-      return { rows: owner === null ? [] : [{ user_id: owner }] };
+      const session = options.session ?? USER;
+      if (session === "missing") return { rows: [] };
+      if (session === "ownerless") return { rows: [{ user_id: null }] };
+      return { rows: [{ user_id: session }] };
     }
     if (isRead && sql.includes("public_keys")) {
       return { rows: options.owned ?? [] };
@@ -379,7 +386,7 @@ describe("MCP session wallet selection", () => {
     const writes = db({
       owned: [{ chain_type: "evm", address: FUNDED, is_primary: false }],
       selected: [{ chain_family: "evm", address: STALE }],
-      sessionOwner: null,
+      session: "missing",
     });
 
     await resolveSessionWallets({
@@ -402,7 +409,7 @@ describe("MCP session wallet selection", () => {
   it("refuses to touch a session owned by another account", async () => {
     const writes = db({
       owned: [{ chain_type: "evm", address: FUNDED, is_primary: false }],
-      sessionOwner: "someone-else",
+      session: "someone-else",
     });
 
     const result = await resolveSessionWallets({
@@ -420,10 +427,37 @@ describe("MCP session wallet selection", () => {
     expect(mocks.query).toHaveBeenCalledTimes(1);
   });
 
+  it("refuses a session whose ownership was never established", async () => {
+    // A row with a NULL user_id is an anonymous/legacy thread, or one orphaned
+    // by ON DELETE SET NULL — not a new session. Treating it as ownable would
+    // let anyone who knows such an id attach wallet state to it. 2196 threads
+    // on prod are in exactly this state.
+    const writes = db({
+      owned: [{ chain_type: "evm", address: FUNDED, is_primary: false }],
+      selected: [{ chain_family: "evm", address: FUNDED }],
+      session: "ownerless",
+    });
+
+    const result = await resolveSessionWallets({
+      canonicalUserId: USER,
+      sessionId: SESSION,
+      requested: { evm: FUNDED },
+      familyInPlay: "evm",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.error).toBe("session_not_owned");
+    // The ownership probe is the only query: no wallet read, no write.
+    expect(writes).toHaveLength(0);
+    expect(mocks.query).toHaveBeenCalledTimes(1);
+    expect(String(mocks.query.mock.calls[0][0])).toContain("from threads");
+  });
+
   it("proceeds for a session that has no thread row yet", async () => {
     db({
       owned: [{ chain_type: "evm", address: FUNDED, is_primary: false }],
-      sessionOwner: null,
+      session: "missing",
     });
 
     const result = await resolveSessionWallets({
