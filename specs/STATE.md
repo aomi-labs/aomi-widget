@@ -2,6 +2,47 @@
 
 ## Last Updated
 
+2026-08-26 — Two Privy bugs reported from #builders (Waves): the automatic-
+signing toggle always answered "Open a chat thread before enabling automatic
+signing." with a chat open, and a swap's approve never popped a Privy prompt.
+
+Bug 1 was structural. SettingsModal/PackagesModal were siblings of
+`AomiFrame.Root`, which is what mounts `AomiRuntimeApiProvider`, so
+`useOptionalAomiRuntime()` in `use-account-acl.ts` was ALWAYS null and the
+thread guard could never pass from settings. They now render inside
+`AomiFrame.Root` and reach `<body>` through the new
+`apps/portal/src/components/shell/overlay-portal.tsx`, which keeps the React
+context and moves only the DOM so one backdrop still covers sidebar + chat.
+The portal container needs its own `zIndex: 60`: `position: fixed` makes it a
+stacking context, so the modals' own z-60 counts only inside it and the
+sidebar's z-10 painted over the left edge (caught in the browser, fixed,
+re-verified). Deliberately NOT fixed by feeding it the synthetic settings
+session id from `settings-api.ts` — that would bind the delegation grant to an
+unrelated "settings thread". The portal-aomi-frame test mock now renders Root's
+children (it did not before, which is what hid this) and asserts the nesting.
+
+Bug 2: the portal runs Privy through the plugin lane (`privyPlugin.wrap` ->
+plain `PrivyProvider`, no `@privy-io/wagmi`), so the embedded EOA is a
+synthetic session, not a wagmi connector. `PrivyPluginProvider` gave it
+`signMessage`/`signTypedData` but no send path — `sendTransaction` existed only
+when a client smart wallet did — so sends fell through to a wagmi connector
+that was never connected, threw, and `RuntimeTxHandler` rejected them into the
+console. New `privy-embedded-execution.ts` sends via
+`switchChain` + fresh `getEthereumProvider()` + `eth_sendTransaction`, wired in
+as `sendTransactionAsync`/`switchChainAsync` overrides so the shared executor
+keeps owning batching, nonce ordering and partial-batch reporting.
+Signer choice is now one decision (`embeddedSigner` / `smartWalletSigner`):
+external wagmi wallet wins, then the embedded EOA — which is the identity the
+backend quotes against — and the client smart account only when there is no
+embedded EOA, so a swap priced for the EOA can no longer be sent from the smart
+account. `RuntimeTxHandler` now also surfaces failures as an error
+notification instead of console-only.
+UNVERIFIED end to end: no Privy credentials or backend in this worktree, so the
+delegation call and a real embedded-EOA broadcast were not exercised. Covered
+by unit tests (`privy-embedded-execution.test.ts`, incl. one through
+`buildEvmExecutionRuntime`) and the overlay was browser-verified against the
+portal dev server.
+
 2026-08-25 — Payment rails split out of /pricing (Cecilia). The x402 deferred
 credit gate explainer from aomi-design
 `communication/info/x402-deferred-credit-gate.html` now lives at
