@@ -6,6 +6,7 @@ import {
   uniqueFacts,
 } from "../normalize";
 import type { ToolFact, ToolMatcher, ToolOperation } from "../types";
+import { svmClusterFact } from "./svm";
 
 const op = (
   id: string,
@@ -19,7 +20,7 @@ const op = (
 });
 
 const txCountFact = (ids: unknown): ToolFact | null =>
-  Array.isArray(ids)
+  Array.isArray(ids) && ids.length > 0
     ? {
         kind: "count",
         role: "tx",
@@ -61,7 +62,9 @@ export const matchSvmSimulation: ToolMatcher = ({ rawLabel, resultRecord }) => {
 
 export const matchSvmPendingApproval: ToolMatcher = ({
   rawLabel,
+  parsedArgs,
   resultRecord,
+  relatedResultRecords,
 }) => {
   if (
     !resultRecord ||
@@ -74,11 +77,34 @@ export const matchSvmPendingApproval: ToolMatcher = ({
     return null;
   }
 
+  const args = asRecord(parsedArgs);
+  const txIds = Array.isArray(resultRecord.svm_ix_ids)
+    ? resultRecord.svm_ix_ids
+    : Array.isArray(args?.svm_ix_ids)
+      ? args.svm_ix_ids
+      : [];
+  const relatedCluster = [...relatedResultRecords]
+    .reverse()
+    .map((record) => asString(record.cluster))
+    .find((cluster) => cluster != null);
+  const cluster =
+    asString(resultRecord.cluster) ?? asString(args?.cluster) ?? relatedCluster;
+  const outcome = asRecord(resultRecord.tx_outcome);
+  const txHash = asString(outcome?.txHash);
+
   // "pending_approval" is frozen at staging time; the wallet's actual verdict
   // arrives later via wallet::solana_*_complete and is reconciled onto the
   // result as `tx_outcome` — prefer it, same contract as the EVM family.
   return op("svm.tx.pending_approval", rawLabel, [
-    txCountFact(resultRecord.svm_ix_ids),
+    svmClusterFact(cluster),
+    txCountFact(txIds),
+    txHash
+      ? {
+          kind: "txId",
+          value: txHash,
+          source: "result",
+        }
+      : null,
     statusFact(txOutcomeStatus(resultRecord) ?? resultRecord.status),
   ]);
 };

@@ -457,6 +457,13 @@ export const WorkingAgent: FC<WorkingAgentProps> = ({
                     toolName: step.toolName,
                     argsText,
                     result: step.resultPreview,
+                    relatedResults: steps
+                      .slice(0, i)
+                      .flatMap((previous) =>
+                        previous.kind === "tool_call"
+                          ? [previous.resultPreview]
+                          : [],
+                      ),
                   })}
                   argsText={argsText}
                   detailText={step.resultPreview}

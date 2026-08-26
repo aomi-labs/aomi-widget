@@ -52,7 +52,7 @@ const statusChip = (value: string): ToolChip => {
     case "queued":
       return { label: "Queued", icon: ClockIcon };
     case "pending":
-      return { label: "Pending approval", icon: ClockIcon };
+      return { label: "Pending confirmation", icon: ClockIcon };
     case "success":
       return { label: "Success", icon: CircleCheckIcon };
     case "failed":
@@ -160,7 +160,13 @@ export const chipForFact = (fact: ToolFact): ToolChip | null => {
     case "token":
       return { label: fact.label ?? fact.value, icon: CoinsIcon };
     case "txId":
-      return { label: fact.value, icon: ReceiptTextIcon };
+      return {
+        label:
+          fact.value.length > 14
+            ? `${fact.value.slice(0, 7)}...${fact.value.slice(-5)}`
+            : fact.value,
+        icon: ReceiptTextIcon,
+      };
     default:
       return null;
   }

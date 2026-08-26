@@ -84,6 +84,30 @@ export const chainFactFromRecord = (
   );
 };
 
+/** Resolve an explicit chain name embedded in a model-authored tool topic.
+ * Longest names win, so "Base Sepolia" is not reduced to "Base". Tickers are
+ * intentionally excluded because token symbols such as ETH are ambiguous. */
+export const chainFactFromText = (
+  value: string,
+  source: FactSource = "label",
+): ToolFact | null => {
+  const searchable = ` ${value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()} `;
+  const chains = [...SUPPORTED_CHAINS].sort(
+    (left, right) => right.name.length - left.name.length,
+  );
+  const chain = chains.find((candidate) => {
+    const name = candidate.name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    return name.length > 0 && searchable.includes(` ${name} `);
+  });
+  return chain ? chainFact(chain.id, chain.name, source) : null;
+};
+
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 export const normalizeAddress = (value: unknown): string | null => {

@@ -252,6 +252,23 @@ export async function executeWalletKitTransaction({
       chainsById: state.chainsById,
       getPreferredRpcUrl: state.getPreferredRpcUrl ?? getPreferredRpcUrl,
     });
+
+    // `sendTransactionAsync` resolves once the wallet broadcasts. Keep the
+    // request — and therefore the trace's pending commit state — open until
+    // the final sequential leg has an on-chain receipt. Earlier legs are
+    // already confirmed before the next wallet signature is requested.
+    const finalBroadcast = broadcastLegs[broadcastLegs.length - 1];
+    if (finalBroadcast) {
+      const receipt = await waitForReceipt(
+        state,
+        finalBroadcast.chainId,
+        finalBroadcast.hash,
+      );
+      if (receipt.status === "reverted") {
+        revertedLegIndex = broadcastLegs.length - 1;
+        throw new Error("wallet_sequential_transaction_reverted");
+      }
+    }
   } catch (error) {
     // A broadcast leg counts as executed even when we never saw its receipt:
     // a receipt wait can fail on an RPC timeout while the transaction mines
