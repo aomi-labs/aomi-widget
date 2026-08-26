@@ -1,5 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
 
 import { PortalAomiFrame, ThreadUrlBootstrap } from "./portal-aomi-frame";
 
@@ -29,6 +30,7 @@ const runtimeState = vi.hoisted(() => ({
     currentThreadId: "initial",
     threadMetadata: new Map<string, unknown>(),
     selectThread: vi.fn(),
+    createThread: vi.fn(async () => "thread-new"),
   },
 }));
 
@@ -44,13 +46,17 @@ vi.mock("@aomi-labs/widget-lib", async () => {
       Root: ({
         accountSessionAvailable,
         applicationId,
+        children,
         showSidebar,
       }: {
         accountSessionAvailable: boolean;
         applicationId?: string | null;
+        children?: React.ReactNode;
         showSidebar?: boolean;
       }) => {
         const [instance] = React.useState(() => ++frameInstances.next);
+        // Renders children: the real Root mounts the Aomi runtime around
+        // them, so anything the portal shell nests here must stay nested.
         return (
           <div
             data-account-session-available={String(accountSessionAvailable)}
@@ -58,10 +64,14 @@ vi.mock("@aomi-labs/widget-lib", async () => {
             data-instance={instance}
             data-show-sidebar={String(showSidebar)}
             data-testid="aomi-frame"
-          />
+          >
+            {children}
+          </div>
         );
       },
-      Header: () => null,
+      Header: ({ children }: { children?: React.ReactNode }) => (
+        <div>{children}</div>
+      ),
       Composer: () => null,
     },
     useAomiWalletKit: () => walletKitState.current,
@@ -79,6 +89,28 @@ vi.mock("@portal/lib/settings-api", () => ({
 
 vi.mock("@portal/components/shell/use-portal-wallet-account-menu", () => ({
   usePortalWalletAccountMenu: () => undefined,
+}));
+
+vi.mock("@portal/components/shell/header-controls", () => ({
+  HeaderControls: ({ onOpenSettings }: { onOpenSettings: () => void }) => (
+    <button type="button" onClick={onOpenSettings}>
+      Open settings
+    </button>
+  ),
+}));
+
+vi.mock("@portal/components/settings/settings-modal", () => ({
+  SettingsModal: () => <div data-testid="settings-modal" />,
+}));
+
+// Renders in place so the assertion below can check where the overlay is
+// mounted in the React tree; the real component portals it to <body>.
+vi.mock("@portal/components/shell/overlay-portal", () => ({
+  OverlayPortal: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+vi.mock("@portal/features/general/svm-wallet-binding-gate", () => ({
+  SvmWalletBindingGate: () => null,
 }));
 
 describe("PortalAomiFrame account bootstrap", () => {
@@ -114,6 +146,25 @@ describe("PortalAomiFrame account bootstrap", () => {
       "true",
     );
     expect(document.querySelector('main[aria-busy="true"]')).toBeNull();
+  });
+
+  it("mounts settings inside the frame so it can read the Aomi runtime", async () => {
+    walletKitState.current = {
+      accountStatus: "ready",
+      accountUser: { id: "acct-a" },
+    };
+    render(<PortalAomiFrame />);
+
+    await act(async () => {
+      screen.getByRole("button", { name: "Open settings" }).click();
+    });
+
+    // Rendered as a sibling of the frame, the settings account tab sees no
+    // runtime and reports "Open a chat thread before enabling automatic
+    // signing." with a chat open. It must stay a descendant.
+    expect(screen.getByTestId("aomi-frame")).toContainElement(
+      screen.getByTestId("settings-modal"),
+    );
   });
 
   it("mounts the anonymous frame after a signed-out lookup resolves", async () => {

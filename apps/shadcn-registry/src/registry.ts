@@ -366,6 +366,7 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/providers/privy/PrivyPluginProvider.tsx",
       "lib/wallet-kit/providers/privy/PrivyProvider.tsx",
       "lib/wallet-kit/providers/privy/privy-auth.ts",
+      "lib/wallet-kit/providers/privy/privy-embedded-execution.ts",
       "lib/wallet-kit/providers/privy/privy-execution.ts",
       "lib/wallet-kit/providers/privy/privy-delegation-context.ts",
       "lib/wallet-kit/providers/privy/privy-delegation.tsx",
