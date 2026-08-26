@@ -1,6 +1,5 @@
 "use client";
 
-import "@aomi-labs/widget-lib/providers/para";
 import { useEffect, useState, type ReactNode } from "react";
 import { defineChain, type Chain } from "viem";
 import { useAccount, useSwitchChain } from "wagmi";
@@ -30,9 +29,13 @@ const LOCALHOST_CHAIN_ID = 31337;
 const walletConnectProjectId =
   process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID ||
   process.env.NEXT_PUBLIC_PROJECT_ID;
-const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY;
-const paraEnvironment: "PROD" | "BETA" =
-  process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD" ? "PROD" : "BETA";
+
+export const landingPortalUrl = (
+  process.env.NEXT_PUBLIC_AOMI_PORTAL_URL ??
+  (process.env.NODE_ENV === "development"
+    ? "http://localhost:3000"
+    : "https://chat.aomi.dev")
+).replace(/\/+$/, "");
 
 const localhost = defineChain({
   id: 31337,
@@ -192,18 +195,11 @@ export function LandingWalletKitProvider({
   return (
     <AomiWalletKitProvider
       preset="wallets-only"
-      auth={{ provider: "para", methods: ["google", "email", "wallet"] }}
-      providers={{
-        para: {
-          apiKey: paraApiKey,
-          environment: paraEnvironment,
-          appName: "Aomi Labs",
-          appDescription: "Interactive Aomi widget demo",
-          appUrl:
-            typeof window !== "undefined"
-              ? window.location.origin
-              : "https://aomi.dev",
-        },
+      auth={false}
+      account={{
+        mode: "aomi-backend",
+        baseUrl: landingPortalUrl,
+        widgetAuth: { mode: "wallet" },
       }}
       execution={{
         aa: "optional",
