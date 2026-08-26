@@ -1,17 +1,10 @@
 import { auth } from "@aomi-labs/account/better-auth";
-import { oauthFeatures } from "@portal/server/oauth/features";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function handleAuth(request: Request) {
   const path = new URL(request.url).pathname;
-  if (isIssuancePath(path) && !oauthFeatures.issuance()) {
-    return Response.json(
-      { error: "temporarily_unavailable" },
-      { status: 503, headers: { "retry-after": "60" } },
-    );
-  }
   if (request.method === "POST" && path.endsWith("/oauth2/register")) {
     const metadata = await request
       .clone()
@@ -90,17 +83,6 @@ async function handleAuth(request: Request) {
     });
   }
   return response;
-}
-
-function isIssuancePath(path: string): boolean {
-  return [
-    "/oauth2/authorize",
-    "/oauth2/token",
-    "/oauth2/register",
-    "/oauth2/consent",
-    "/device/code",
-    "/device/approve",
-  ].some((suffix) => path.endsWith(suffix));
 }
 
 function isObservedOAuthPath(path: string): boolean {

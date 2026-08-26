@@ -4,7 +4,6 @@ const mocks = vi.hoisted(() => ({
   verifyAccessTokenRequest: vi.fn(),
   getBetterAuthSession: vi.fn(),
   canonicalAccount: vi.fn(),
-  resolveLegacy: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/account/better-auth", () => ({
@@ -25,14 +24,7 @@ vi.mock("@aomi-labs/account/account", () => ({
 vi.mock("@portal/lib/aomi-account/session", () => ({
   getBetterAuthSession: mocks.getBetterAuthSession,
 }));
-vi.mock("@portal/server/canonical-session", () => ({
-  resolveCanonicalUserId: mocks.resolveLegacy,
-}));
 vi.mock("./features", () => ({
-  oauthFeatures: {
-    restOAuth: () => true,
-    legacySessionValidation: () => true,
-  },
   isGuestRestEnabled: () => true,
 }));
 vi.mock("./resources", () => ({
@@ -63,7 +55,6 @@ describe("public OAuth and session principal resolution", () => {
     mocks.canonicalAccount
       .mockReset()
       .mockResolvedValue({ id: "canonical-user" });
-    mocks.resolveLegacy.mockReset();
   });
 
   it("classifies JWT Bearer and DPoP credentials without confusing session bearers", () => {
@@ -112,7 +103,7 @@ describe("public OAuth and session principal resolution", () => {
     });
   });
 
-  it("never falls back to session or legacy identity after invalid OAuth", async () => {
+  it("never falls back to a cookie session after invalid OAuth", async () => {
     mocks.verifyAccessTokenRequest.mockRejectedValue({ status: 401 });
     mocks.getBetterAuthSession.mockResolvedValue({
       user: { id: "cookie-user" },
@@ -128,7 +119,20 @@ describe("public OAuth and session principal resolution", () => {
       }),
     ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
     expect(mocks.getBetterAuthSession).not.toHaveBeenCalled();
-    expect(mocks.resolveLegacy).not.toHaveBeenCalled();
+  });
+
+  it("rejects opaque legacy bearer sessions", async () => {
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          headers: { authorization: "Bearer opaque-session" },
+        }),
+        resource,
+        requiredScopes: ["agent:read"],
+        sessionScopes: ["agent:read"],
+      }),
+    ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
+    expect(mocks.getBetterAuthSession).not.toHaveBeenCalled();
   });
 
   it("rejects canonical identity disagreement and elevated guest scopes", async () => {
