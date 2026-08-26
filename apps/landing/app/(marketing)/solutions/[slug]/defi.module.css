@@ -45,9 +45,19 @@
   text-wrap: balance;
 }
 
+.heroSubtitle {
+  max-width: 620px;
+  margin: 24px 0 0;
+  color: var(--landing-ink);
+  font-size: var(--landing-h3);
+  font-weight: 500;
+  line-height: var(--landing-h3-lh);
+  text-wrap: balance;
+}
+
 .lede {
   max-width: 620px;
-  margin: 28px 0 0;
+  margin: 18px 0 0;
   color: var(--landing-copy);
   font-size: var(--landing-lead);
   line-height: var(--landing-lead-lh);

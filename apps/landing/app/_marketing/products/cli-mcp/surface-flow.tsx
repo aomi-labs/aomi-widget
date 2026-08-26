@@ -47,6 +47,17 @@ export function SurfaceFlow({
 
   return (
     <div className={styles.flow} aria-label="Three surfaces, one harness">
+      <div className={`${styles.sectionHeading} ${styles.flowIntro}`}>
+        <div>
+          <p className={styles.eyebrow}>Choose your surface</p>
+          <h2>Start with a compatible interface with flexibility.</h2>
+        </div>
+        <p>
+          These entry points share execution infrastructure, but they solve
+          different setup, session, and signing problems.
+        </p>
+      </div>
+
       <div className={styles.flowRail}>
         {surfaces.map((surface) => {
           const Icon = ICONS[surface.id];

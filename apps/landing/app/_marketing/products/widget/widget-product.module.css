@@ -165,7 +165,7 @@
   height: 520px;
   overflow: hidden;
   border-radius: 15px;
-  background: white;
+  background: var(--aomi-bg);
 }
 
 .demoClip > div {

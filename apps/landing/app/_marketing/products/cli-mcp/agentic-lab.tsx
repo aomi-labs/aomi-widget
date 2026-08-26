@@ -217,11 +217,9 @@ export function AgenticLab() {
                       </button>
                     ))}
                   </div>
-                ) : (
-                  <span>
-                    {surface === "skills" ? "Agent terminal" : "Terminal"}
-                  </span>
-                )}
+                ) : surface === "cli" ? (
+                  <span>Terminal</span>
+                ) : null}
                 <button
                   type="button"
                   className={styles.copyButton}

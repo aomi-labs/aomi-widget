@@ -452,6 +452,15 @@
   flex-grow: 0;
 }
 
+.fixtureComposer :global(.aui-working-trace-header),
+.fixtureComposer :global(.aui-working-trace-header:hover),
+.fixtureComposer :global(.aui-working-trace-header[aria-expanded="true"]) {
+  background-image: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  transform: none !important;
+}
+
 .fixtureComposer :global(.aui-composer-wrapper),
 .fixtureComposer :global(.aui-composer-root),
 .fixtureComposer :global(.aui-thread-welcome-suggestions) {

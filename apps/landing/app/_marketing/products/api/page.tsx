@@ -290,7 +290,7 @@ export default function RestApiProductPage({
                 </span>
                 <span className={styles.contractBadge}>V1 CONTRACT</span>
               </div>
-              <p className={styles.apiIndex}>01 · OUR AGENT PLANS</p>
+              <p className={styles.apiIndex}>01 · AOMI RESOLVES THE INTENT</p>
               <h3>Agent API</h3>
               <p className={styles.apiCardBody}>
                 Send a user&apos;s intent and wallet capabilities. Receive
@@ -330,7 +330,9 @@ export default function RestApiProductPage({
                   PREVIEW
                 </span>
               </div>
-              <p className={styles.apiIndex}>02 · YOUR AGENT PLANS</p>
+              <p className={styles.apiIndex}>
+                02 · YOUR SYSTEM SELECTS THE ACTION
+              </p>
               <h3>Pipeline API</h3>
               <p className={styles.apiCardBody}>
                 Select a catalog action or assemble a batch directly. Receive a
@@ -368,7 +370,7 @@ export default function RestApiProductPage({
         <div className={styles.shell}>
           <div className={styles.contractCopy}>
             <p className={styles.eyebrow}>THE SHARED CONTRACT</p>
-            <h2>One Action crosses both APIs.</h2>
+            <h2>Both APIs resolve to the same Action.</h2>
             <p>
               Agent chat and pipeline builds resolve into the same durable,
               sealed approval object. One confirmation UI, one wallet binding,
@@ -450,7 +452,7 @@ export default function RestApiProductPage({
                 <p className={styles.eyebrow}>
                   TWO APIS · ONE TRANSACTION PIPELINE
                 </p>
-                <h2>More control. The same execution guarantees.</h2>
+                <h2>More control. The same execution lifecycle.</h2>
               </div>
               <p>
                 The Agent API accepts customer intent and lets Aomi plan. The

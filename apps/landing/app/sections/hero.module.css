@@ -1,3 +1,8 @@
+.demoFrame {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
 .demoFrame :global(.aui-thread-welcome-root) {
   gap: 1.25rem;
   margin-top: auto;
@@ -8,15 +13,11 @@
   margin-bottom: 1rem;
 }
 
-.demoFrame
-  :global(.aui-thread-welcome-root)
-  :global(.aui-composer-root) {
+.demoFrame :global(.aui-thread-welcome-root) :global(.aui-composer-root) {
   min-height: 9rem;
 }
 
-.demoFrame
-  :global(.aui-thread-welcome-root)
-  :global(.aui-composer-input) {
+.demoFrame :global(.aui-thread-welcome-root) :global(.aui-composer-input) {
   min-height: 4.5rem;
 }
 
@@ -24,9 +25,17 @@
   padding-bottom: 4rem;
 }
 
-.demoFrame:has(
-    > :global([data-slot="sidebar"][data-state="expanded"])
-  )
+/* Marketing-wide pressed-button styling must not restyle widget internals. */
+.demoFrame :global(.aui-working-trace-header),
+.demoFrame :global(.aui-working-trace-header:hover),
+.demoFrame :global(.aui-working-trace-header[aria-expanded="true"]) {
+  background-image: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  transform: none !important;
+}
+
+.demoFrame:has(> :global([data-slot="sidebar"][data-state="expanded"]))
   :global(.aui-composer-wrapper) {
   padding-right: 2rem;
   padding-left: 2rem;

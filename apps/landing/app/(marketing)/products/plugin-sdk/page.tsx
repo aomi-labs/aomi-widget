@@ -24,10 +24,9 @@ export default function PluginSdkPage() {
               <h1>Bring your API. Ship an agent that can transact.</h1>
               <p className={styles.heroLede}>
                 Package your proprietary product context and API operations as
-                typed tools. Aomi provides the hosting and operational
-                infrastructure for crypto agents—much like Vercel does for web
-                applications—and connects every agent-selected action to the
-                transaction pipeline shared across all Aomi surfaces.
+                typed tools. Aomi hosts the application, manages its releases,
+                and connects every selected tool call to the transaction
+                pipeline shared across Aomi surfaces.
               </p>
             </div>
             <div className={styles.heroAside}>
@@ -87,8 +86,8 @@ export default function PluginSdkPage() {
           <header className={styles.sectionHead}>
             <p className={styles.eyebrow}>OPERATE · BUILD.AOMI.DEV</p>
             <h2>
-              Monitoring transactions, tool calls, and fees with
-              institution-grade provision
+              Institution-grade monitoring for transactions, tool calls, and
+              fees.
             </h2>
             <p>
               Aomi Build keeps every release tied to its repository,
@@ -127,7 +126,7 @@ export default function PluginSdkPage() {
         <div className={styles.shell}>
           <header className={styles.sectionHead}>
             <p className={styles.eyebrow}>BUILD → TEST → DEPLOY → OPERATE</p>
-            <h2>Integration toolings &amp; deployment pipeline</h2>
+            <h2>Integration tooling and deployment pipeline.</h2>
             <p>
               The same toolchain carries a plugin from a platform-compatible
               build through local model testing, hosted activation, and the

@@ -9,34 +9,18 @@ export function TradingPage() {
       <section className={styles.hero}>
         <div className={styles.heroCopy}>
           <p className={styles.eyebrow}>Aomi for trading UX</p>
-          <h1>
-            Automate trading UX with ready‑to‑go integrations plus expanded
-            action space
-          </h1>
+          <h1>Automate trading with ready‑to‑go integrations</h1>
+          <p className={styles.heroSubtitle}>plus expanded action space</p>
           <p className={styles.heroIntro}>
             Connect the trading surfaces your users already rely on to
-            Aomi&apos;s execution infrastructure. Ready-to-go integrations bring
-            account context and a broader set of protocol actions into the
-            experience, while every transaction remains simulated,
-            policy-checked, and explicitly signed.
+            Aomi&apos;s execution runtime. Your product or agent keeps the
+            strategy and selects the trade; Aomi prepares, simulates, and
+            carries the approved action through the existing signer to a
+            verified result.
           </p>
           <a className={styles.heroCta} href="#world-markets-example">
             See an integration example <ArrowDown aria-hidden />
           </a>
-          <dl className={styles.heroProof}>
-            <div>
-              <dt>01</dt>
-              <dd>Connect the experience</dd>
-            </div>
-            <div>
-              <dt>02</dt>
-              <dd>Expand the action space</dd>
-            </div>
-            <div>
-              <dt>03</dt>
-              <dd>Keep approval explicit</dd>
-            </div>
-          </dl>
         </div>
 
         <figure className={styles.productStack}>
@@ -44,8 +28,8 @@ export function TradingPage() {
             <Image
               src="/assets/landing/solutions/trading/aomi-build-create.png"
               alt="Aomi Build screen for creating an agent from a prompt or template"
-              width={2406}
-              height={1302}
+              width={2602}
+              height={1348}
               priority
             />
           </div>

@@ -230,6 +230,8 @@
   width: 18%;
   aspect-ratio: 1;
   place-items: center;
+  animation: orbit-counter-spin 18s linear infinite;
+  animation-play-state: var(--play-state);
 }
 
 .orbitWorld {
@@ -266,6 +268,22 @@
   box-shadow: 0 0 0 0.58cqw rgba(223, 93, 144, 0.15);
   animation: orbit-pulse 900ms ease-in-out infinite alternate;
   animation-play-state: var(--play-state);
+}
+
+.sceneStatic .orbit {
+  animation: orbit-spin 18s linear infinite !important;
+  animation-play-state: running;
+}
+
+.sceneStatic .orbitWorld,
+.sceneStatic .orbitTelegram {
+  animation: orbit-counter-spin 18s linear infinite !important;
+  animation-play-state: running;
+}
+
+.sceneStatic .orbit > i {
+  animation: orbit-pulse 900ms ease-in-out infinite alternate !important;
+  animation-play-state: running;
 }
 
 .connectLayout {
@@ -695,45 +713,75 @@
 }
 
 :global(html[data-theme="dark"]) .phone {
-  border-color: #27272a;
-  background: #09090b;
+  border-color: #263544;
+  background: #0e1621;
+  box-shadow: 0 1.8cqw 4.6cqw rgba(0, 0, 0, 0.42);
 }
 
 :global(html[data-theme="dark"]) .phone > header,
-:global(html[data-theme="dark"]) .chat,
 :global(html[data-theme="dark"]) .phone > footer {
-  border-color: #27272a;
-  background-color: #09090b;
+  border-color: #0b1118;
+  background-color: #17212b;
 }
 
 :global(html[data-theme="dark"]) .chat {
+  background-color: #0e1621;
   background-image:
     radial-gradient(
-      circle at 18px 18px,
-      rgba(255, 255, 255, 0.025) 0 2px,
-      transparent 2.5px
+      circle at 17px 17px,
+      rgba(112, 150, 177, 0.075) 0 1.5px,
+      transparent 2px
     ),
     linear-gradient(
-      45deg,
-      transparent 47%,
-      rgba(255, 255, 255, 0.018) 48% 52%,
-      transparent 53%
+      135deg,
+      transparent 46%,
+      rgba(112, 150, 177, 0.032) 47% 50%,
+      transparent 51%
     );
+  background-size:
+    58px 58px,
+    92px 92px;
 }
 
-:global(html[data-theme="dark"]) .chat > small,
-:global(html[data-theme="dark"]) .userMessage,
-:global(html[data-theme="dark"]) .agentMessage,
-:global(html[data-theme="dark"]) .agentRow > div > span,
+:global(html[data-theme="dark"]) .chat > small {
+  color: #d8e6f3;
+  background: rgba(38, 56, 72, 0.92);
+}
+
+:global(html[data-theme="dark"]) .userMessage {
+  color: #fff;
+  background: #2b5278;
+}
+
+:global(html[data-theme="dark"]) .agentMessage {
+  color: #fff;
+  background: #182533;
+}
+
+:global(html[data-theme="dark"]) .agentRow > i,
+:global(html[data-theme="dark"]) .phone > header > i {
+  background: #182533;
+}
+
+:global(html[data-theme="dark"]) .agentRow > div > span {
+  color: #6ab2f2;
+  background: #17212b;
+}
+
 :global(html[data-theme="dark"]) .phone > footer span {
-  border-color: #27272a;
-  color: var(--ink);
-  background: #18181b;
+  border-color: #33404d;
+  color: #8f9dac;
+  background: #242f3d;
+}
+
+:global(html[data-theme="dark"]) .phone > footer i,
+:global(html[data-theme="dark"]) .phone > header > span {
+  color: #8393a3;
 }
 
 :global(html[data-theme="dark"]) .userMessage time,
 :global(html[data-theme="dark"]) .agentMessage time {
-  color: var(--muted);
+  color: #aebdca;
 }
 
 .securityLayout .sceneCopy {
@@ -1036,6 +1084,38 @@
   font-size: clamp(4px, 0.78cqw, 9px);
 }
 
+:global(html[data-theme="dark"]) .mandatePanel > header > span {
+  color: #8ee0b4;
+  background: #17382c;
+}
+
+:global(html[data-theme="dark"]) .ruleGrid > div {
+  border: 1px solid #303945;
+  color: #fff;
+  background: #202832;
+}
+
+:global(html[data-theme="dark"]) .ruleGrid > div small {
+  color: #9eabb9;
+}
+
+:global(html[data-theme="dark"]) .enforcementResult {
+  border-color: #285f48;
+  background: #17382c;
+}
+
+:global(html[data-theme="dark"]) .enforcementResult span > small {
+  color: #8ee0b4;
+}
+
+:global(html[data-theme="dark"]) .enforcementResult span > strong {
+  color: #fff;
+}
+
+:global(html[data-theme="dark"]) .enforcementResult > b {
+  color: #62d196;
+}
+
 .closeScene {
   position: absolute;
   top: 18%;
@@ -1184,6 +1264,12 @@
 @keyframes orbit-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes orbit-counter-spin {
+  to {
+    transform: rotate(-360deg);
   }
 }
 

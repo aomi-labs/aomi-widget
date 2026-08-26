@@ -39,7 +39,10 @@ export function WalletsPage() {
       <section className={`${styles.sectorHero} ${styles.walletsHero}`}>
         <div className={styles.walletsHeroCopy}>
           <p className={styles.eyebrow}>AOMI FOR WALLETS</p>
-          <h1>Next generation wallet UX with protocol-agnostic execution</h1>
+          <h1>
+            Give wallets protocol execution without replacing their agent or
+            signer.
+          </h1>
           <p className={styles.sectorLede}>
             Whether a wallet team has already built its in-house agentic stack
             or is starting from scratch, Aomi can be the execution layer
@@ -74,7 +77,7 @@ export function WalletsPage() {
 
       <section className={styles.walletPromise}>
         <p className={styles.eyebrow}>The pitch</p>
-        <h2>Stop reinventing the wheel on transaction harnesses.</h2>
+        <h2>Stop rebuilding the transaction layer for every protocol.</h2>
         <p>
           The agent is your product surface and your differentiation. The
           protocol integrations, simulation infrastructure, guard policies, and
