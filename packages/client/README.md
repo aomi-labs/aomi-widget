@@ -235,9 +235,8 @@ via `npx @aomi-labs/client ...`.
 `aomi account login` now uses Better Auth device authorization for both Agent
 and Pipeline resources, stores resource-bound rotating grants, and opens the
 shared portal login/consent page. `aomi account logout` revokes the saved
-refresh/access grants before clearing local state. Pass `--legacy` only during
-the bounded compatibility window; `AOMI_CLI_OAUTH_DEFAULT_ENABLED=false`
-provides the independently reversible default switch.
+refresh/access grants before clearing local state. Native SIWE/SIWS login
+remains available through the wallet-specific options.
 
 Claude Code / Codex skills that drive this CLI live in the separate
 [`aomi-labs/skills`](https://github.com/aomi-labs/skills) repository — that

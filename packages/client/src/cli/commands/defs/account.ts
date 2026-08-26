@@ -24,10 +24,6 @@ const accountLoginDef = defineCommand({
       type: "boolean",
       description: "Do not open provider auth; use native CLI SIWE",
     },
-    legacy: {
-      type: "boolean",
-      description: "Use the temporary legacy browser session login",
-    },
   },
   async run({ args }) {
     const { accountLoginCommand } = await import("../account");
@@ -36,7 +32,6 @@ const accountLoginDef = defineCommand({
       wallet: args.wallet === true,
       solana: args.solana === true,
       noBrowser: args["no-browser"] === true,
-      legacy: args.legacy === true,
     });
   },
 });

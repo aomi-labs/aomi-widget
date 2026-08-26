@@ -10,8 +10,7 @@ import { oauthProviderResourceClient } from "@better-auth/oauth-provider/resourc
 import type { JWTPayload } from "jose";
 
 import { getBetterAuthSession } from "@portal/lib/aomi-account/session";
-import { resolveCanonicalUserId } from "@portal/server/canonical-session";
-import { isGuestRestEnabled, oauthFeatures } from "./features";
+import { isGuestRestEnabled } from "./features";
 import { aomiOAuthResources, type AomiPublicResource } from "./resources";
 
 export type ApiPrincipal = {
@@ -19,7 +18,7 @@ export type ApiPrincipal = {
   scopes: readonly string[];
   resource: AomiPublicResource;
   clientId?: string;
-  authSource: "oauth" | "session" | "cli_session";
+  authSource: "oauth" | "session";
   principalClass: "user" | "guest";
   grantId?: string;
   sid?: string;
@@ -53,9 +52,6 @@ export async function resolveApiPrincipal(input: {
   sessionScopes: readonly string[];
 }): Promise<ApiPrincipal> {
   if (isOAuthCredential(input.request)) {
-    if (!oauthFeatures.restOAuth()) {
-      throw new ApiPrincipalError(401, "invalid_token");
-    }
     let claims: JWTPayload;
     try {
       claims = await resourceClient.verifyAccessTokenRequest(input.request, {
@@ -97,6 +93,10 @@ export async function resolveApiPrincipal(input: {
     return principal;
   }
 
+  if (input.request.headers.has("authorization")) {
+    throw new ApiPrincipalError(401, "invalid_token");
+  }
+
   const session = await getBetterAuthSession(input.request);
   if (session?.user?.id) {
     enforceCookieCsrf(input.request);
@@ -132,29 +132,12 @@ export async function resolveApiPrincipal(input: {
       canonicalUserId: canonical.id,
       scopes,
       resource: input.resource,
-      authSource: input.request.headers.has("authorization")
-        ? "cli_session"
-        : "session",
+      authSource: "session",
       principalClass,
       sid: session.session ? "session" : undefined,
     };
   }
-
-  // Preserve existing first-party widget/E2E compatibility, but never fall
-  // back here after a JWT/DPoP credential failed verification.
-  if (!oauthFeatures.legacySessionValidation()) {
-    throw new ApiPrincipalError(401, "invalid_token");
-  }
-  const canonicalUserId = await resolveCanonicalUserId(input.request);
-  if (!canonicalUserId) throw new ApiPrincipalError(401, "invalid_token");
-  enforceCookieCsrf(input.request);
-  return {
-    canonicalUserId,
-    scopes: [...input.sessionScopes],
-    resource: input.resource,
-    authSource: "session",
-    principalClass: "user",
-  };
+  throw new ApiPrincipalError(401, "invalid_token");
 }
 
 export async function principalFromOAuthClaims(

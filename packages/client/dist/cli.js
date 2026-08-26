@@ -8646,16 +8646,8 @@ __export(account_exports, {
   whoamiCommand: () => whoamiCommand
 });
 async function accountLoginCommand(config, options = {}) {
-  var _a3, _b, _c;
+  var _a3;
   const cli = CliSession.loadOrCreate(config);
-  let rewroteLegacyBackend = false;
-  if (!config.baseUrl && cli.baseUrl === LEGACY_RAW_BACKEND_URL) {
-    cli.setBaseUrl(DEFAULT_CLI_BASE_URL);
-    rewroteLegacyBackend = true;
-  }
-  if (rewroteLegacyBackend && !config.json) {
-    console.log(`Backend updated to ${DEFAULT_CLI_BASE_URL}`);
-  }
   if (options.solana && (options.wallet || options.provider)) {
     fatal("Choose only one of `--solana`, `--wallet`, or `--provider`.");
   }
@@ -8670,10 +8662,7 @@ async function accountLoginCommand(config, options = {}) {
   if (options.provider && options.provider !== "privy" && options.provider !== "para") {
     fatal('Unknown --provider value. Use "privy" or "para".');
   }
-  const oauthDefault = !options.legacy && !["0", "false", "no"].includes(
-    (_b = (_a3 = process.env.AOMI_CLI_OAUTH_DEFAULT_ENABLED) == null ? void 0 : _a3.trim().toLowerCase()) != null ? _b : ""
-  );
-  if (!options.provider && oauthDefault) {
+  if (!options.provider) {
     const origin = new URL(cli.baseUrl).origin;
     const grants = [
       {
@@ -8714,9 +8703,8 @@ async function accountLoginCommand(config, options = {}) {
   if (config.json) {
     printJson({
       status: "signed_in",
-      provider: (_c = result.provider) != null ? _c : null,
+      provider: (_a3 = result.provider) != null ? _a3 : null,
       baseUrl: cli.baseUrl,
-      migratedLegacyBackend: rewroteLegacyBackend,
       expiresAt: new Date(result.auth.expiresAt).toISOString()
     });
     return;
@@ -9225,7 +9213,7 @@ function requireConfirmed(confirmed, action) {
     fatal(`Refusing to ${action} without --yes.`);
   }
 }
-var DEFAULT_CHAIN_ID2, LEGACY_RAW_BACKEND_URL, whoamiCommand;
+var DEFAULT_CHAIN_ID2, whoamiCommand;
 var init_account = __esm({
   "src/cli/commands/account.ts"() {
     "use strict";
@@ -9234,12 +9222,10 @@ var init_account = __esm({
     init_output();
     init_auth();
     init_device_auth();
-    init_client_factory();
     init_oauth_device_auth();
     init_account_graph();
     init_sessions();
     DEFAULT_CHAIN_ID2 = 1;
-    LEGACY_RAW_BACKEND_URL = "https://api.aomi.dev";
     whoamiCommand = accountWhoamiCommand;
   }
 });
@@ -10654,10 +10640,6 @@ var accountLoginDef = defineCommand8({
     "no-browser": {
       type: "boolean",
       description: "Do not open provider auth; use native CLI SIWE"
-    },
-    legacy: {
-      type: "boolean",
-      description: "Use the temporary legacy browser session login"
     }
   }),
   async run({ args }) {
@@ -10666,8 +10648,7 @@ var accountLoginDef = defineCommand8({
       provider: typeof args.provider === "string" ? args.provider : void 0,
       wallet: args.wallet === true,
       solana: args.solana === true,
-      noBrowser: args["no-browser"] === true,
-      legacy: args.legacy === true
+      noBrowser: args["no-browser"] === true
     });
   }
 });
