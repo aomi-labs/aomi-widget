@@ -2,7 +2,6 @@ import { auth } from "@aomi-labs/account/better-auth";
 import { oauthProviderResourceClient } from "@better-auth/oauth-provider/resource-client";
 
 import { aomiOAuthResources } from "@portal/server/oauth/resources";
-import { oauthFeatures } from "@portal/server/oauth/features";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +12,6 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ path: string[] }> },
 ) {
-  if (!oauthFeatures.issuance()) return new Response(null, { status: 404 });
   const path = `/${(await context.params).path.join("/")}`;
   const resources = aomiOAuthResources();
   const policies = new Map<string, { resource: string; scopes: string[] }>([

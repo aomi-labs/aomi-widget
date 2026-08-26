@@ -46,10 +46,9 @@ const DEVICE_CODE_FIELDS: Record<string, string> = {
   oauthClientId: "oauth_client_id",
 };
 
-// Better Auth 1.7's separately published protocol packages can resolve a
-// second, structurally identical @better-auth/core peer under pnpm. Preserve
-// the complete inferred plugin type while normalizing that package identity
-// for the host Better Auth instance.
+// Better Auth 1.7's separately published protocol packages resolve distinct
+// @better-auth/core peer contexts under pnpm. Their runtime plugin contract is
+// identical; normalize that package identity at this one integration boundary.
 function compatiblePlugin<T extends object>(plugin: T): T & BetterAuthPlugin {
   return plugin as T & BetterAuthPlugin;
 }
@@ -234,106 +233,99 @@ export const auth = betterAuth({
         });
       },
     }),
-    ...(seedOAuthResources
-      ? [
-          compatiblePlugin(
-            snakeCasedOAuth(
-              mcp({
-                loginPage: "/oauth/authorize",
-                consentPage: "/oauth/consent",
-                resource: resources.agentMcp,
-                resources: seedOAuthResources
-                  ? [
-                      {
-                        identifier: resources.agentMcp,
-                        allowedScopes: [...AGENT_SCOPES, ...STANDARD_SCOPES],
-                        accessTokenTtl: 5 * 60,
-                      },
-                      {
-                        identifier: resources.pipelineMcp,
-                        allowedScopes: [...PIPELINE_SCOPES, ...STANDARD_SCOPES],
-                        accessTokenTtl: 5 * 60,
-                      },
-                      {
-                        identifier: resources.agentRest,
-                        allowedScopes: [
-                          ...AGENT_SCOPES.filter(
-                            (scope) => scope !== "mcp:agent",
-                          ),
-                          ...STANDARD_SCOPES,
-                        ],
-                        accessTokenTtl: 5 * 60,
-                      },
-                      {
-                        identifier: resources.pipelineRest,
-                        allowedScopes: [
-                          ...PIPELINE_SCOPES.filter(
-                            (scope) => scope !== "mcp:pipeline",
-                          ),
-                          ...STANDARD_SCOPES,
-                        ],
-                        accessTokenTtl: 5 * 60,
-                      },
-                    ]
-                  : [],
-                resourceSeedMode: "merge",
-                scopes: [...AOMI_SCOPES],
-                clientRegistrationDefaultResources: seedOAuthResources
-                  ? [resources.agentMcp, resources.pipelineMcp]
-                  : [],
-                clientRegistrationAllowedResources: seedOAuthResources
-                  ? [resources.agentRest, resources.pipelineRest]
-                  : [],
-                clientRegistrationDefaultScopes: [
-                  "agent:read",
-                  "agent:write",
-                  "pipeline:catalog",
-                  "mcp:agent",
-                  "mcp:pipeline",
-                ],
-                clientRegistrationAllowedScopes: [...AOMI_SCOPES],
-                clientRegistrationRequirePKCE: true,
-                allowDynamicClientRegistration: true,
-                allowUnauthenticatedClientRegistration: true,
-                allowPublicClientPrelogin: true,
-                accessTokenExpiresIn: 5 * 60,
-                refreshTokenReuseInterval: 0,
-                customAccessTokenClaims: async ({ user }) => {
-                  if (!user) throw new Error("oauth_user_required");
-                  const canonical =
-                    await getOrCreateAomiUserForBetterAuthSession({
-                      betterAuthUserId: user.id,
-                      email: user.email,
-                      emailVerified: user.emailVerified,
-                      name: user.name,
-                      avatarUrl: user.image,
-                    });
-                  return {
-                    [AOMI_CANONICAL_USER_CLAIM]: canonical.id,
-                    [AOMI_PRINCIPAL_CLASS_CLAIM]:
-                      user.isAnonymous === true ? "guest" : "user",
-                  };
+    compatiblePlugin(
+      snakeCasedOAuth(
+        mcp({
+          loginPage: "/oauth/authorize",
+          consentPage: "/oauth/consent",
+          resource: resources.agentMcp,
+          resources: seedOAuthResources
+            ? [
+                {
+                  identifier: resources.agentMcp,
+                  allowedScopes: [...AGENT_SCOPES, ...STANDARD_SCOPES],
+                  accessTokenTtl: 5 * 60,
                 },
-              }),
-            ),
-          ),
-          cimd({
-            fetchClientMetadataResource,
-            metadataProfile: "mcp-2026-07-28",
-          }),
-          compatiblePlugin(
-            oauthDeviceAuthorization({
-              verificationUri: `${resources.issuer}/oauth/device`,
-              schema: {
-                deviceCode: {
-                  modelName: "ba_oauth_device_codes",
-                  fields: DEVICE_CODE_FIELDS,
+                {
+                  identifier: resources.pipelineMcp,
+                  allowedScopes: [...PIPELINE_SCOPES, ...STANDARD_SCOPES],
+                  accessTokenTtl: 5 * 60,
                 },
-              },
-            }),
-          ),
-        ]
-      : []),
+                {
+                  identifier: resources.agentRest,
+                  allowedScopes: [
+                    ...AGENT_SCOPES.filter((scope) => scope !== "mcp:agent"),
+                    ...STANDARD_SCOPES,
+                  ],
+                  accessTokenTtl: 5 * 60,
+                },
+                {
+                  identifier: resources.pipelineRest,
+                  allowedScopes: [
+                    ...PIPELINE_SCOPES.filter(
+                      (scope) => scope !== "mcp:pipeline",
+                    ),
+                    ...STANDARD_SCOPES,
+                  ],
+                  accessTokenTtl: 5 * 60,
+                },
+              ]
+            : [],
+          resourceSeedMode: "merge",
+          scopes: [...AOMI_SCOPES],
+          clientRegistrationDefaultResources: seedOAuthResources
+            ? [resources.agentMcp, resources.pipelineMcp]
+            : [],
+          clientRegistrationAllowedResources: seedOAuthResources
+            ? [resources.agentRest, resources.pipelineRest]
+            : [],
+          clientRegistrationDefaultScopes: [
+            "agent:read",
+            "agent:write",
+            "pipeline:catalog",
+            "mcp:agent",
+            "mcp:pipeline",
+          ],
+          clientRegistrationAllowedScopes: [...AOMI_SCOPES],
+          clientRegistrationRequirePKCE: true,
+          allowDynamicClientRegistration: true,
+          allowUnauthenticatedClientRegistration: true,
+          allowPublicClientPrelogin: true,
+          accessTokenExpiresIn: 5 * 60,
+          refreshTokenReuseInterval: 0,
+          customAccessTokenClaims: async ({ user }) => {
+            if (!user) throw new Error("oauth_user_required");
+            const canonical = await getOrCreateAomiUserForBetterAuthSession({
+              betterAuthUserId: user.id,
+              email: user.email,
+              emailVerified: user.emailVerified,
+              name: user.name,
+              avatarUrl: user.image,
+            });
+            return {
+              [AOMI_CANONICAL_USER_CLAIM]: canonical.id,
+              [AOMI_PRINCIPAL_CLASS_CLAIM]:
+                user.isAnonymous === true ? "guest" : "user",
+            };
+          },
+        }),
+      ),
+    ),
+    cimd({
+      fetchClientMetadataResource,
+      metadataProfile: "mcp-2026-07-28",
+    }),
+    compatiblePlugin(
+      oauthDeviceAuthorization({
+        verificationUri: `${resources.issuer}/oauth/device`,
+        schema: {
+          deviceCode: {
+            modelName: "ba_oauth_device_codes",
+            fields: DEVICE_CODE_FIELDS,
+          },
+        },
+      }),
+    ),
     aomiProviderAuthPlugin(),
     nextCookies(),
   ],

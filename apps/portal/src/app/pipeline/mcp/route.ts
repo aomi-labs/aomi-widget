@@ -7,7 +7,6 @@ import {
   principalFromOAuthClaims,
 } from "@portal/server/oauth/principal";
 import { aomiOAuthResources } from "@portal/server/oauth/resources";
-import { oauthFeatures } from "@portal/server/oauth/features";
 import { narrowMcpPrincipal } from "@portal/server/oauth/mcp-scopes";
 
 export const runtime = "nodejs";
@@ -47,9 +46,4 @@ const authenticatedPost = requireMcpAuth(
   },
 );
 
-export function POST(request: Request) {
-  if (!oauthFeatures.pipelineMcp()) {
-    return new Response(null, { status: 404 });
-  }
-  return authenticatedPost(request);
-}
+export const POST = authenticatedPost;

@@ -6,20 +6,13 @@ function enabled(name: string, defaultValue: boolean): boolean {
   return value === "1" || value === "true" || value === "yes";
 }
 
-const newSurfaceDefault = process.env.NODE_ENV !== "production";
+const guestRestDefault = process.env.NODE_ENV !== "production";
 
 export const oauthFeatures = {
-  issuance: () => enabled("AOMI_OAUTH_ISSUANCE_ENABLED", newSurfaceDefault),
-  restOAuth: () => enabled("AOMI_REST_OAUTH_ENABLED", newSurfaceDefault),
-  agentMcp: () => enabled("AOMI_AGENT_MCP_OAUTH_ENABLED", newSurfaceDefault),
-  pipelineMcp: () =>
-    enabled("AOMI_PIPELINE_MCP_OAUTH_ENABLED", newSurfaceDefault),
-  legacySessionValidation: () =>
-    enabled("AOMI_LEGACY_SESSION_AUTH_ENABLED", true),
   agentGuestRest: () =>
-    enabled("AOMI_GUEST_AGENT_REST_ENABLED", newSurfaceDefault),
+    enabled("AOMI_GUEST_AGENT_REST_ENABLED", guestRestDefault),
   pipelineGuestRest: () =>
-    enabled("AOMI_GUEST_PIPELINE_REST_ENABLED", newSurfaceDefault),
+    enabled("AOMI_GUEST_PIPELINE_REST_ENABLED", guestRestDefault),
 } as const;
 
 export function isGuestRestEnabled(resource: string): boolean {
