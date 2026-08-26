@@ -1,5 +1,15 @@
 # Canonical Landing
 
+Current session goal: **EXTERNAL WALLET RELOAD PERSISTENCE VERIFIED
+2026-08-26** — external EVM wallets now persist and silently reconnect across
+portal reloads even when the durable Aomi account session is enabled; hosts can
+still opt out explicitly, and an actual wallet disconnect remains disconnected.
+The Solana adapter already restores through its native `autoConnect` path.
+Wallet-kit regression tests, package build, portal TypeScript, scoped ESLint,
+Prettier, and `git diff --check` pass. The unrelated pre-existing
+`execution-runtime.test.ts` receipt-wait fixture still times out in the full
+suite; all other 358 wallet-kit tests pass.
+
 Current session goal: **NON-HOMEPAGE GTM COPY ALIGNMENT VERIFIED 2026-08-26**
 — updated the approved language across About, Human Interface, Agent Toolings,
 REST APIs, Plugin SDK, Trading, DeFi, Fintech, Wallets, and Contact while
