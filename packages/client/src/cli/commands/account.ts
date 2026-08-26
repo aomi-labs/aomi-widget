@@ -13,7 +13,6 @@ import {
   signInWithDeviceProvider,
   type DeviceAuthProvider,
 } from "../device-auth";
-import { DEFAULT_CLI_BASE_URL } from "../client-factory";
 import { signInWithOAuthDevice } from "../oauth-device-auth";
 import {
   buildSignedWalletLink,
@@ -27,14 +26,12 @@ import {
 import { resumeSessionCommand, sessionsCommand } from "./sessions";
 
 const DEFAULT_CHAIN_ID = 1;
-const LEGACY_RAW_BACKEND_URL = "https://api.aomi.dev";
 
 export type AccountLoginOptions = {
   provider?: string;
   wallet?: boolean;
   solana?: boolean;
   noBrowser?: boolean;
-  legacy?: boolean;
 };
 
 export type AccountLinkOptions = {
@@ -57,14 +54,6 @@ export async function accountLoginCommand(
   options: AccountLoginOptions = {},
 ): Promise<void> {
   const cli = CliSession.loadOrCreate(config);
-  let rewroteLegacyBackend = false;
-  if (!config.baseUrl && cli.baseUrl === LEGACY_RAW_BACKEND_URL) {
-    cli.setBaseUrl(DEFAULT_CLI_BASE_URL);
-    rewroteLegacyBackend = true;
-  }
-  if (rewroteLegacyBackend && !config.json) {
-    console.log(`Backend updated to ${DEFAULT_CLI_BASE_URL}`);
-  }
   if (options.solana && (options.wallet || options.provider)) {
     fatal("Choose only one of `--solana`, `--wallet`, or `--provider`.");
   }
@@ -85,12 +74,7 @@ export async function accountLoginCommand(
     fatal('Unknown --provider value. Use "privy" or "para".');
   }
 
-  const oauthDefault =
-    !options.legacy &&
-    !["0", "false", "no"].includes(
-      process.env.AOMI_CLI_OAUTH_DEFAULT_ENABLED?.trim().toLowerCase() ?? "",
-    );
-  if (!options.provider && oauthDefault) {
+  if (!options.provider) {
     const origin = new URL(cli.baseUrl).origin;
     const grants = [
       {
@@ -135,7 +119,6 @@ export async function accountLoginCommand(
       status: "signed_in",
       provider: result.provider ?? null,
       baseUrl: cli.baseUrl,
-      migratedLegacyBackend: rewroteLegacyBackend,
       expiresAt: new Date(result.auth.expiresAt).toISOString(),
     });
     return;
