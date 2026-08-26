@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  enabled: vi.fn(() => true),
   handler: undefined as
     | ((request: Request, claims: Record<string, unknown>) => Promise<Response>)
     | undefined,
@@ -33,9 +32,6 @@ vi.mock("@portal/server/oauth/resources", () => ({
     pipelineMcp: "https://chat.aomi.dev/pipeline/mcp",
   }),
 }));
-vi.mock("@portal/server/oauth/features", () => ({
-  oauthFeatures: { pipelineMcp: mocks.enabled },
-}));
 vi.mock("@portal/server/oauth/principal", () => ({
   apiAuthError: vi.fn(() => new Response(null, { status: 403 })),
   principalFromOAuthClaims: mocks.principal,
@@ -59,7 +55,6 @@ const principal = {
 
 describe("canonical Pipeline MCP route", () => {
   beforeEach(() => {
-    mocks.enabled.mockReturnValue(true);
     mocks.principal.mockResolvedValue(principal);
     mocks.narrow.mockResolvedValue(principal);
     mocks.proxy.mockResolvedValue(Response.json({ ok: true }));
@@ -103,18 +98,5 @@ describe("canonical Pipeline MCP route", () => {
     expect(new URL(proxied.url).pathname).toBe("/v1/pipeline/mcp");
     expect(await proxied.text()).toContain("tools/list");
     expect(delegated).toBe(principal);
-  });
-
-  it("is independently reversible", async () => {
-    mocks.enabled.mockReturnValue(false);
-    expect(
-      (
-        await POST(
-          new Request("https://chat.aomi.dev/pipeline/mcp", {
-            method: "POST",
-          }),
-        )
-      ).status,
-    ).toBe(404);
   });
 });
