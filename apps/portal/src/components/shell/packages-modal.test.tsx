@@ -8,6 +8,8 @@ import {
 } from "@testing-library/react";
 
 import { PackagesModal } from "./packages-modal";
+import { PackageRow } from "./package-row";
+import { toCatalogPackage } from "./packages-catalog";
 import { seedAccountOverview } from "@portal/lib/account-overview";
 
 type FetchCall = { input: string | URL | Request; init?: RequestInit };
@@ -16,6 +18,12 @@ type FetchCall = { input: string | URL | Request; init?: RequestInit };
 const CATALOG = [
   { name: "default" },
   { name: "uniswap", is_public: true, application_id: 7 },
+  {
+    name: "stablefx",
+    is_public: true,
+    application_id: 8,
+    chain_ids: [5_042_002],
+  },
   {
     name: "treasury-ops",
     is_public: false,
@@ -90,6 +98,8 @@ describe("packages modal wiring", () => {
     // The pinned core app shows as built in, never removable.
     expect(screen.getByText("Built in")).toBeTruthy();
     expect(screen.queryByLabelText("Remove Aomi Core")).toBeNull();
+    expect(screen.getByText("Circle StableFX")).toBeTruthy();
+    expect(screen.getByText("Arc only")).toBeTruthy();
   });
 
   it("uses the same full-frame modal geometry as settings", async () => {
@@ -217,5 +227,53 @@ describe("packages modal wiring", () => {
     await act(async () => {
       finishPut?.(Response.json({ apps: ["default"] }));
     });
+  });
+});
+
+describe("chain-scoped package rows", () => {
+  it("blocks StableFX installation until Arc Testnet is selected", () => {
+    const app = toCatalogPackage({
+      name: "stablefx",
+      chainIds: [5_042_002],
+    });
+
+    render(
+      <PackageRow
+        app={app}
+        installed={false}
+        busy={false}
+        disabled={false}
+        activeChainId={1}
+        onInstall={() => undefined}
+        onUninstall={() => undefined}
+      />,
+    );
+
+    const button = screen.getByLabelText(
+      "Switch to Arc Testnet to install Circle StableFX",
+    );
+    expect(button).toBeDisabled();
+  });
+
+  it("keeps chain-scoped installation disabled while the wallet chain is unknown", () => {
+    const app = toCatalogPackage({
+      name: "stablefx",
+      chainIds: [5_042_002],
+    });
+
+    render(
+      <PackageRow
+        app={app}
+        installed={false}
+        busy={false}
+        disabled={false}
+        onInstall={() => undefined}
+        onUninstall={() => undefined}
+      />,
+    );
+
+    expect(
+      screen.getByLabelText("Switch to Arc Testnet to install Circle StableFX"),
+    ).toBeDisabled();
   });
 });

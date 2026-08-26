@@ -471,6 +471,7 @@ describe("AomiClient app catalog", () => {
           platform: "somm.finance",
           artifact_ready: false,
           artifact_status: "fetch_backoff",
+          chain_ids: [5_042_002, 1, 5_042_002, 0, -1, "8453"],
         },
       ]),
     } as unknown as Response;
@@ -496,6 +497,7 @@ describe("AomiClient app catalog", () => {
           platform: "somm.finance",
           artifactReady: false,
           artifactStatus: "fetch_backoff",
+          chainIds: [1, 5_042_002],
           secrets: [],
         },
       ]);

@@ -22,6 +22,20 @@ export interface CatalogPackage {
   category: PackageCategory;
   /** Core apps the account depends on — always installed, not removable. */
   pinned?: boolean;
+  /** Exact EVM chains declared by the official release. */
+  chainIds: number[];
+}
+
+export const ARC_TESTNET_CHAIN_ID = 5_042_002;
+
+export function isPackageAvailableOnChain(
+  app: CatalogPackage,
+  chainId: number | undefined,
+): boolean {
+  return (
+    app.chainIds.length === 0 ||
+    (chainId !== undefined && app.chainIds.includes(chainId))
+  );
 }
 
 /**
@@ -126,6 +140,14 @@ const DECOR: Record<
     foreground: "#12362b",
     category: "Markets & onchain",
   },
+  stablefx: {
+    name: "Circle StableFX",
+    description: "Quote and settle institutional stablecoin FX on Arc.",
+    iconDomain: "circle.com",
+    background: "#eef7ff",
+    foreground: "#136fd8",
+    category: "Markets & onchain",
+  },
   solscan: {
     name: "Solscan",
     description: "Inspect Solana accounts and transactions.",
@@ -227,5 +249,6 @@ export function toCatalogPackage(app: AomiAppDescriptor): CatalogPackage {
     category:
       visibility === "personal" ? "Your packages" : (decor.category ?? "More"),
     pinned: PINNED_APPS.has(app.name),
+    chainIds: app.chainIds ?? [],
   };
 }

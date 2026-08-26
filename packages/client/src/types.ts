@@ -606,6 +606,8 @@ export interface AomiAppDescriptor {
   artifactReady?: boolean | null;
   artifactStatus?: AomiArtifactStatus | null;
   secrets?: AomiSecretSlot[];
+  /** Exact EVM chain IDs declared by the official app release. */
+  chainIds?: number[];
 }
 
 export type AomiSSEEventType =

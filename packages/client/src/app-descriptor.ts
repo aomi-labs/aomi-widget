@@ -70,6 +70,19 @@ export function normalizeAppDescriptor(
     descriptor.artifactStatus = artifactStatus as AomiArtifactStatus;
   }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  const rawChainIds = raw.chainIds ?? raw.chain_ids;
+  if (Array.isArray(rawChainIds)) {
+    descriptor.chainIds = [
+      ...new Set(
+        rawChainIds.filter(
+          (chainId): chainId is number =>
+            typeof chainId === "number" &&
+            Number.isSafeInteger(chainId) &&
+            chainId > 0,
+        ),
+      ),
+    ].sort((left, right) => left - right);
+  }
   // Drop the source twins carried over by the spread so the descriptor exposes
   // a single camelCase identity (no `id`/`application_id`/`applicationId`
   // triplets downstream).
@@ -81,6 +94,7 @@ export function normalizeAppDescriptor(
     "is_public",
     "artifact_ready",
     "artifact_status",
+    "chain_ids",
   ]) {
     delete (descriptor as unknown as Record<string, unknown>)[key];
   }
