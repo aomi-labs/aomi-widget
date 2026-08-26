@@ -1,9 +1,10 @@
 import "server-only";
 
-import { getPool, mintAccountBearer } from "@aomi-labs/account";
+import { mintAccountBearer } from "@aomi-labs/account";
 import { configuredBackendUrl } from "@portal/server/backend-url";
 import { portalFailures } from "@portal/server/bff/failures";
 import { mcpThreadId } from "@portal/server/mcp/thread";
+import type { ResolvedWallets } from "@portal/server/mcp/wallet-selection";
 
 export type ChatBackendResult = {
   ok: boolean;
@@ -39,18 +40,26 @@ export async function ensureThread(
   );
 }
 
-/** Fire one agent turn, seeding account wallets for this headless surface. */
+/**
+ * Fire one agent turn on this headless surface.
+ *
+ * `wallets` carries the addresses the caller chose, already checked against
+ * the account by `resolveSessionWallets`. This function does not look wallets
+ * up: an operating address must arrive here having been selected, never
+ * inferred from the account graph at send time.
+ */
 export async function sendChat(
   canonicalUserId: string,
   sessionId: string,
   message: string,
   app?: string,
   chainContext?: McpChainContext,
+  wallets?: ResolvedWallets,
 ): Promise<ChatBackendResult> {
   const url = new URL(`${configuredBackendUrl()}/api/thread/chat`);
   url.searchParams.set("message", message);
   if (app) url.searchParams.set("app", app);
-  const userState = await headlessUserState(canonicalUserId, chainContext);
+  const userState = headlessUserState(wallets ?? {}, chainContext);
   if (userState) {
     url.searchParams.set("user_state", JSON.stringify(userState));
   }
@@ -150,38 +159,26 @@ async function backendJson(
   return { ok: response.ok, status: response.status, body };
 }
 
-async function headlessUserState(
-  canonicalUserId: string,
+/**
+ * Shape the selected wallets into the backend's `user_state` wire format.
+ *
+ * `is_connected` reports whether this turn has an operating wallet at all. On
+ * a headless surface that means a wallet was chosen and ownership confirmed —
+ * not merely that a row exists somewhere in the account graph.
+ */
+function headlessUserState(
+  wallets: ResolvedWallets,
   chainContext?: McpChainContext,
-): Promise<HeadlessUserState | undefined> {
-  let rows: Array<Record<string, unknown>> = [];
-  try {
-    const result = await getPool().query(
-      `select chain_type, address
-         from public_keys
-        where user_id = $1
-        order by is_primary desc, created_at asc`,
-      [canonicalUserId],
-    );
-    rows = result.rows;
-  } catch {
-    // Wallet hydration is advisory. The agent can still return its normal
-    // connect/authorize guidance when the account graph cannot be read. An
-    // explicit caller-supplied chain remains authoritative independently.
-  }
-  const evm = rows.find(
-    (row) => String(row.chain_type).toLowerCase() === "evm",
-  );
-  const svm = rows.find((row) =>
-    ["svm", "solana"].includes(String(row.chain_type).toLowerCase()),
-  );
+): HeadlessUserState | undefined {
+  const evm = wallets.evm;
+  const svm = wallets.svm;
   if (!evm && !svm && !chainContext) return undefined;
   return {
     connection: { is_connected: Boolean(evm || svm) },
     ...(evm || chainContext?.family === "evm"
       ? {
           evm: {
-            ...(evm ? { address: String(evm.address) } : {}),
+            ...(evm ? { address: evm } : {}),
             ...(chainContext?.family === "evm"
               ? { chain_id: chainContext.chain_id }
               : {}),
@@ -191,7 +188,7 @@ async function headlessUserState(
     ...(svm || chainContext?.family === "solana"
       ? {
           svm: {
-            ...(svm ? { address: String(svm.address) } : {}),
+            ...(svm ? { address: svm } : {}),
             ...(chainContext?.family === "solana"
               ? { cluster: chainContext.cluster }
               : {}),

@@ -55,18 +55,20 @@ describe("MCP chat backend", () => {
     expect(fetchMock.mock.calls[0][1]?.method).toBe("POST");
   });
 
-  it("hydrates wallet addresses without inventing active mainnet defaults", async () => {
+  it("sends only the wallets the caller resolved, never a looked-up default", async () => {
+    // A stray account-graph read at send time is the original defect. If one
+    // ever returns, this row would leak into user_state.
     mocks.query.mockResolvedValue({
-      rows: [
-        { chain_type: "evm", address: "0xabc" },
-        { chain_type: "svm", address: "SolanaAddress" },
-      ],
+      rows: [{ chain_type: "evm", address: "0xnever-selected" }],
     });
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response("{}", { status: 200 }));
 
-    await sendChat("user-1", "mcp-new", "swap", "default");
+    await sendChat("user-1", "mcp-new", "swap", "default", undefined, {
+      evm: "0xabc",
+      svm: "SolanaAddress",
+    });
 
     const url = new URL(String(fetchMock.mock.calls[0][0]));
     expect(url.pathname).toBe("/api/thread/chat");
@@ -78,6 +80,19 @@ describe("MCP chat backend", () => {
       svm: { address: "SolanaAddress" },
       ext: { client_type: "mcp" },
     });
+    expect(mocks.query).not.toHaveBeenCalled();
+  });
+
+  it("reports no connection when the turn has no selected wallet", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+
+    await sendChat("user-1", "mcp-new", "swap");
+
+    expect(fetchMock.mock.calls[0][0]).toBeDefined();
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(url.searchParams.get("user_state")).toBeNull();
   });
 
   it("preserves an explicit Base chain context", async () => {
@@ -99,17 +114,18 @@ describe("MCP chat backend", () => {
   });
 
   it("preserves an explicit supported Solana cluster context", async () => {
-    mocks.query.mockResolvedValue({
-      rows: [{ chain_type: "svm", address: "SolanaAddress" }],
-    });
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
       .mockResolvedValue(new Response("{}", { status: 200 }));
 
-    await sendChat("user-1", "mcp-new", "swap", undefined, {
-      family: "solana",
-      cluster: "solana:devnet",
-    });
+    await sendChat(
+      "user-1",
+      "mcp-new",
+      "swap",
+      undefined,
+      { family: "solana", cluster: "solana:devnet" },
+      { svm: "SolanaAddress" },
+    );
 
     const url = new URL(String(fetchMock.mock.calls[0][0]));
     expect(JSON.parse(url.searchParams.get("user_state")!)).toEqual({
