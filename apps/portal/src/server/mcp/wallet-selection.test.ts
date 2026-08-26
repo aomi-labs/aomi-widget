@@ -22,12 +22,23 @@ type Row = Record<string, unknown>;
  * Route queries by the table they touch so a test states account contents and
  * remembered selections, not statement order.
  */
-function db(options: { owned?: Row[]; selected?: Row[] } = {}) {
+function db(
+  options: {
+    owned?: Row[];
+    selected?: Row[];
+    sessionOwner?: string | null;
+  } = {},
+) {
   const writes: Array<{ sql: string; params: unknown[] }> = [];
   mocks.query.mockImplementation(async (sql: string, params: unknown[]) => {
     // Route on the statement verb, not on the table name: `delete from
     // mcp_session_wallets` also contains "from mcp_session_wallets".
     const isRead = sql.trimStart().toLowerCase().startsWith("select");
+    if (isRead && sql.includes("from threads")) {
+      const owner =
+        options.sessionOwner === undefined ? USER : options.sessionOwner;
+      return { rows: owner === null ? [] : [{ user_id: owner }] };
+    }
     if (isRead && sql.includes("public_keys")) {
       return { rows: options.owned ?? [] };
     }
@@ -197,7 +208,7 @@ describe("MCP session wallet selection", () => {
     // used rather than the turn failing.
     expect(result).toEqual({ ok: true, wallets: { evm: FUNDED } });
     expect(writes[0].sql).toContain("delete from mcp_session_wallets");
-    expect(writes[0].params).toEqual([SESSION, "evm"]);
+    expect(writes[0].params).toEqual([USER, SESSION, "evm"]);
     // …and the replacement choice is recorded, so the next turn is stable.
     expect(writes[1].sql).toContain("insert into mcp_session_wallets");
     expect(writes[1].params).toEqual([SESSION, USER, "evm", FUNDED]);
@@ -232,6 +243,7 @@ describe("MCP session wallet selection", () => {
 
   it("asks for a wallet rather than proceeding when the store is missing", async () => {
     mocks.query.mockImplementation(async (sql: string) => {
+      if (sql.includes("from threads")) return { rows: [{ user_id: USER }] };
       if (sql.includes("from public_keys")) {
         return {
           rows: [
@@ -240,7 +252,7 @@ describe("MCP session wallet selection", () => {
           ],
         };
       }
-      // Pre-migration: the selection table does not exist yet.
+      // Pre-migration: only the selection table is absent.
       throw Object.assign(new Error("relation does not exist"), {
         code: "42P01",
       });
@@ -272,5 +284,154 @@ describe("MCP session wallet selection", () => {
     // Not wallet_not_owned: an unreadable lookup is not evidence of anything
     // about the caller's address.
     expect(result.failure.error).toBe("wallet_lookup_unavailable");
+  });
+  it("validates a supplied wallet whose family is not the declared chain", async () => {
+    // Regression: `familyInPlay` narrowed the resolver to SVM and the caller's
+    // EVM choice was dropped unvalidated, letting the turn proceed on an
+    // address nobody picked.
+    const writes = db({
+      owned: [
+        { chain_type: "evm", address: FUNDED, is_primary: false },
+        { chain_type: "svm", address: "SolOnly", is_primary: false },
+      ],
+    });
+
+    const result = await resolveSessionWallets({
+      canonicalUserId: USER,
+      sessionId: SESSION,
+      requested: { evm: FUNDED },
+      familyInPlay: "svm",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      wallets: { evm: FUNDED, svm: "SolOnly" },
+    });
+    expect(
+      writes
+        .map((write) => write.params)
+        .filter((params) => params[2] === "evm"),
+    ).toEqual([[SESSION, USER, "evm", FUNDED]]);
+  });
+
+  it("rejects a supplied wallet the account does not own even off the declared chain", async () => {
+    db({
+      owned: [
+        { chain_type: "evm", address: STALE, is_primary: false },
+        { chain_type: "svm", address: "SolOnly", is_primary: false },
+      ],
+    });
+
+    const result = await resolveSessionWallets({
+      canonicalUserId: USER,
+      sessionId: SESSION,
+      requested: { evm: FUNDED },
+      familyInPlay: "svm",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.error).toBe("wallet_not_owned");
+  });
+
+  it("validates a supplied Solana wallet on a declared EVM turn", async () => {
+    db({
+      owned: [
+        { chain_type: "evm", address: FUNDED, is_primary: false },
+        { chain_type: "svm", address: "SolOne", is_primary: false },
+        { chain_type: "svm", address: "SolTwo", is_primary: false },
+      ],
+    });
+
+    const result = await resolveSessionWallets({
+      canonicalUserId: USER,
+      sessionId: SESSION,
+      requested: { svm: "SolTwo" },
+      familyInPlay: "evm",
+    });
+
+    // The named SVM wallet is honoured even though SVM is ambiguous and not
+    // the declared family — an explicit choice is never ambiguous.
+    expect(result).toEqual({
+      ok: true,
+      wallets: { evm: FUNDED, svm: "SolTwo" },
+    });
+  });
+
+  it("leaves an unnamed off-chain family unset rather than choosing for it", async () => {
+    db({
+      owned: [
+        { chain_type: "evm", address: FUNDED, is_primary: false },
+        { chain_type: "svm", address: "SolOnly", is_primary: false },
+      ],
+    });
+
+    const result = await resolveSessionWallets({
+      canonicalUserId: USER,
+      sessionId: SESSION,
+      familyInPlay: "evm",
+    });
+
+    expect(result).toEqual({ ok: true, wallets: { evm: FUNDED } });
+  });
+
+  it("scopes every selection write to the authenticated account", async () => {
+    const writes = db({
+      owned: [{ chain_type: "evm", address: FUNDED, is_primary: false }],
+      selected: [{ chain_family: "evm", address: STALE }],
+      sessionOwner: null,
+    });
+
+    await resolveSessionWallets({
+      canonicalUserId: USER,
+      sessionId: SESSION,
+      familyInPlay: "evm",
+    });
+
+    // Both the eviction and the replacement must name the user, or a caller
+    // who knows another account's session id could clobber its cache.
+    const del = writes.find((write) => write.sql.includes("delete from"));
+    const ins = writes.find((write) => write.sql.includes("insert into"));
+    expect(del?.params).toEqual([USER, SESSION, "evm"]);
+    expect(ins?.params[1]).toBe(USER);
+    expect(ins?.sql).toContain(
+      "on conflict (user_id, session_id, chain_family)",
+    );
+  });
+
+  it("refuses to touch a session owned by another account", async () => {
+    const writes = db({
+      owned: [{ chain_type: "evm", address: FUNDED, is_primary: false }],
+      sessionOwner: "someone-else",
+    });
+
+    const result = await resolveSessionWallets({
+      canonicalUserId: USER,
+      sessionId: SESSION,
+      requested: { evm: FUNDED },
+      familyInPlay: "evm",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.failure.error).toBe("session_not_owned");
+    // Nothing was read or written against the foreign session.
+    expect(writes).toHaveLength(0);
+    expect(mocks.query).toHaveBeenCalledTimes(1);
+  });
+
+  it("proceeds for a session that has no thread row yet", async () => {
+    db({
+      owned: [{ chain_type: "evm", address: FUNDED, is_primary: false }],
+      sessionOwner: null,
+    });
+
+    const result = await resolveSessionWallets({
+      canonicalUserId: USER,
+      sessionId: SESSION,
+      familyInPlay: "evm",
+    });
+
+    expect(result).toEqual({ ok: true, wallets: { evm: FUNDED } });
   });
 });

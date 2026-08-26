@@ -61,6 +61,10 @@ export type WalletSelectionFailure =
   | {
       error: "wallet_lookup_unavailable";
       guidance: string;
+    }
+  | {
+      error: "session_not_owned";
+      guidance: string;
     };
 
 export type WalletResolution =
@@ -102,6 +106,36 @@ export async function resolveSessionWallets(input: {
   familyInPlay?: WalletFamily;
 }): Promise<WalletResolution> {
   const requested = input.requested ?? {};
+
+  // `session_id` is caller-supplied, and wallet resolution runs before any
+  // request reaches the backend's own thread authorization. Refuse a session
+  // that demonstrably belongs to someone else before reading or writing a
+  // single row of selection state.
+  const ownership = await sessionOwnership(
+    input.canonicalUserId,
+    input.sessionId,
+  );
+  if (ownership === "foreign") {
+    return {
+      ok: false,
+      failure: {
+        error: "session_not_owned",
+        guidance:
+          "This Aomi session belongs to a different account. Start a new session, or list this account's sessions with aomi_list_sessions.",
+      },
+    };
+  }
+  if (ownership === "unreadable") {
+    return {
+      ok: false,
+      failure: {
+        error: "wallet_lookup_unavailable",
+        guidance:
+          "Aomi could not confirm this session's owner, so it cannot safely resolve a wallet. Retry shortly.",
+      },
+    };
+  }
+
   const owned = await ownedWallets(input.canonicalUserId);
   if (!owned) {
     return {
@@ -114,7 +148,16 @@ export async function resolveSessionWallets(input: {
     };
   }
   const recorded = await readSelections(input.canonicalUserId, input.sessionId);
-  const families = input.familyInPlay ? [input.familyInPlay] : FAMILIES;
+  // `familyInPlay` narrows which families must PRODUCE an address — it must
+  // never narrow away an address the caller actually supplied. A caller who
+  // names an EVM wallet on a Solana-context turn has still made a choice, and
+  // dropping it unvalidated would put the turn back on an address nobody
+  // picked. So: resolve every family the caller named, plus every family in
+  // play. Only the in-play ones can fail the turn for ambiguity.
+  const inPlay = input.familyInPlay ? [input.familyInPlay] : [...FAMILIES];
+  const families = FAMILIES.filter(
+    (family) => inPlay.includes(family) || requested[family]?.trim(),
+  );
 
   const wallets: ResolvedWallets = {};
   const ambiguous: Array<{
@@ -176,9 +219,13 @@ export async function resolveSessionWallets(input: {
       }
       // The account no longer owns what this session chose — unlinked, or
       // switched on another surface. Drop it and re-decide below.
-      await clearSelection(input.sessionId, family);
+      await clearSelection(input.canonicalUserId, input.sessionId, family);
     }
 
+    // Beyond this point the family was not named by the caller. A family that
+    // is not in play has nothing to decide: leave it unset rather than
+    // choosing on the user's behalf for a chain they did not ask about.
+    if (!inPlay.includes(family)) continue;
     if (candidates.length === 0) continue;
     if (candidates.length === 1) {
       const only = candidates[0]!.address;
@@ -258,6 +305,31 @@ function walletFamily(value: unknown): WalletFamily | undefined {
   return undefined;
 }
 
+/**
+ * Whether this account may operate on `sessionId`.
+ *
+ * "own" also covers a session with no thread row yet — the id the caller was
+ * just handed, or one that was never created. Nothing exists to hijack in that
+ * case, and selection state written under it is keyed by user anyway, so
+ * refusing would only break the ordinary first-turn path.
+ */
+async function sessionOwnership(
+  canonicalUserId: string,
+  sessionId: string,
+): Promise<"own" | "foreign" | "unreadable"> {
+  try {
+    const result = await getPool().query(
+      `select user_id from threads where id = $1 limit 1`,
+      [sessionId],
+    );
+    const owner = result.rows[0]?.user_id;
+    if (owner === undefined || owner === null) return "own";
+    return String(owner) === canonicalUserId ? "own" : "foreign";
+  } catch {
+    return "unreadable";
+  }
+}
+
 async function readSelections(
   canonicalUserId: string,
   sessionId: string,
@@ -293,9 +365,8 @@ async function recordSelection(
     await getPool().query(
       `insert into mcp_session_wallets (session_id, user_id, chain_family, address)
             values ($1, $2, $3, $4)
-       on conflict (session_id, chain_family)
+       on conflict (user_id, session_id, chain_family)
        do update set address = excluded.address,
-                     user_id = excluded.user_id,
                      selected_at = extract(epoch from now())::bigint`,
       [sessionId, canonicalUserId, family, address],
     );
@@ -305,14 +376,15 @@ async function recordSelection(
 }
 
 async function clearSelection(
+  canonicalUserId: string,
   sessionId: string,
   family: WalletFamily,
 ): Promise<void> {
   try {
     await getPool().query(
       `delete from mcp_session_wallets
-        where session_id = $1 and chain_family = $2`,
-      [sessionId, family],
+        where user_id = $1 and session_id = $2 and chain_family = $3`,
+      [canonicalUserId, sessionId, family],
     );
   } catch (error) {
     if (!isMissingRelation(error)) throw error;
