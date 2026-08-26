@@ -2783,7 +2783,7 @@
   .sectorHeroCopy h1,
   .nftHeroCopy h1,
   .walletsHeroCopy h1 {
-    font-size: 48px;
+    font-size: var(--landing-h1);
   }
 
   .sectorHero {

@@ -125,7 +125,7 @@ export function WidgetProductPageContent({
           <div className={pageStyles.heroGrid}>
             <div className={pageStyles.heroCopy}>
               <p className={pageStyles.eyebrow}>{productName}</p>
-              <h1>Zero cost integration at all product surfaces</h1>
+              <h1>One integration across every product surface.</h1>
               <p className={pageStyles.heroSupport}>
                 Put the same chat-to-transaction experience used by Aomi Portal
                 where your users already are: embedded in your product, or in a

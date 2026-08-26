@@ -182,7 +182,7 @@ function ConnectScene() {
 
       <div className={styles.connectCard}>
         <p>Connect World to Telegram</p>
-        <h3>Connect your selected World account.</h3>
+        <h3>Connect your world account.</h3>
         <img
           src="/assets/landing/case-studies/world-markets/telegram-world-handoff-qr.svg"
           alt="QR code opening the World Markets Telegram bot"

@@ -3630,6 +3630,10 @@
 }
 
 @media (max-width: 860px) {
+  .root {
+    --landing-h1: clamp(30px, 3vw, 38px);
+  }
+
   .navDock {
     top: 18px;
     width: calc(100vw - 24px);
@@ -3766,7 +3770,7 @@
   }
   .heroCopy h1,
   .heroInstaller h2 {
-    font-size: clamp(30px, 3vw, 38px);
+    font-size: var(--landing-h1);
   }
   .heroCommandRow {
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -3969,6 +3973,10 @@
 }
 
 @media (max-width: 560px) {
+  .root {
+    --landing-h1: 45px;
+  }
+
   .hero {
     min-height: 650px;
   }
@@ -3981,7 +3989,7 @@
   }
   .heroCopy h1,
   .heroInstaller h2 {
-    font-size: 45px;
+    font-size: var(--landing-h1);
     line-height: 0.98;
   }
   .heroCopy > p:not(.heroEyebrow),
@@ -4123,7 +4131,7 @@
   }
   .detailHeroInner h1,
   .editorialHero h1 {
-    font-size: 46px;
+    font-size: var(--landing-h1);
   }
   .detailHeroActions {
     flex-direction: column;
@@ -4157,7 +4165,7 @@
     padding-inline: var(--landing-page-inset);
   }
   .solutionHeroCopy h1 {
-    font-size: 46px;
+    font-size: var(--landing-h1);
   }
   .solutionShowcase > header,
   .solutionShowcase > footer {
@@ -4448,6 +4456,10 @@
 :global(html[data-theme="dark"]) .footer,
 :global(html[data-theme="dark"]) .researchList > div:last-child > a:hover {
   background: var(--landing-wash);
+}
+
+:global(html[data-theme="dark"]) .footerLogoMark {
+  filter: brightness(0) invert(1);
 }
 
 :global(html[data-theme="dark"]) .validation,

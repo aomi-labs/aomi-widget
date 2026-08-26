@@ -1,5 +1,72 @@
 # Canonical Landing
 
+Current session goal: **NON-HOMEPAGE GTM COPY ALIGNMENT VERIFIED 2026-08-26**
+— updated the approved language across About, Human Interface, Agent Toolings,
+REST APIs, Plugin SDK, Trading, DeFi, Fintech, Wallets, and Contact while
+preserving every page's audience-specific GTM, components, layout, styling,
+interaction, and animation. All ten routes return 200 with the approved copy;
+Playwright checks at 1440px and 390px confirm the intended headings and zero
+horizontal overflow. The landing production build, TypeScript, ESLint,
+Prettier, and `git diff --check` pass.
+
+Current session goal: **AGENT TOOLINGS COMPOSITION POLISH VERIFIED
+2026-08-26** — restyle the Choose Your Surface flow cards with the same flat,
+compact visual language as the Simulate and Sign stages, then move the section
+heading and support copy into the unused space above the execution path so the
+three input cards can begin immediately and the whole section becomes shorter;
+on desktop, place the title in the rightmost intro column above Simulate and
+Sign, with the supporting copy to its left above the harness. Keep the
+Interactive Setup code surface at one compact height across Skills, MCP, and CLI
+while tightening the internal vertical gaps. Browser measurements confirm all
+three setup states remain exactly 560px tall with their full desktop transcripts
+visible, the title occupies the rightmost desktop intro column, and the 390px
+layout has zero horizontal overflow. Scoped ESLint, Prettier, and
+`git diff --check` pass.
+
+Current session goal: **TRADING HERO REFERENCE LAYOUT VERIFIED 2026-08-26** —
+matched the supplied hero composition with the large Integrations screen on the
+upper-left, the Build/Create screen overlapping from the lower-right, and the
+copy column on the right; removed the unreferenced proof rail and preserved a
+copy-first, overflow-safe mobile stack. Desktop and 390px browser checks confirm
+the requested hierarchy, overlap, dark presentation, and mobile containment.
+
+Current session goal: **WORLD MARKETS MOTION AND DARK TELEGRAM POLISH VERIFIED
+2026-08-26** — animate the World and Telegram marks around the orbit while
+keeping them upright, simplify the handoff title to “Connect your world
+account,” make the dark Telegram fixture read like a real Telegram window, and
+replace the bright mandate cards with muted dark surfaces and white text.
+Browser checks confirm changing orbit transforms, upright moving badges, the
+updated account title, distinct Telegram-dark incoming and outgoing surfaces,
+and muted authority and enforcement cards. Landing TypeScript, scoped ESLint
+and Prettier, and `git diff --check` pass.
+
+Current session goal: **TRADING HERO COPY AND PADDED BUILD PROOF VERIFIED
+2026-08-26** — split the Trading hero into “Automate trading with ready-to-go
+integrations” and the subtitle “plus expanded action space,” replaced the rear
+Build screenshot with the supplied narrower Create view, and kept the layered
+proof inside deliberate page padding instead of bleeding across the viewport.
+Desktop and 390px browser checks confirm the requested copy hierarchy, readable
+rear and foreground screens, deliberate side padding, and an overflow-safe
+mobile stack. Landing TypeScript, scoped ESLint and Prettier, asset dimensions,
+and `git diff --check` pass.
+
+Current session goal: **SUBPAGE HERO SCALE AND SETUP CONTROL POLISH VERIFIED
+2026-08-26** — removed the redundant Agent terminal label, sized the Agent
+Toolings segmented selector to the shared 46px button token, split the DeFi hero
+into a concise title and mandate subtitle, and tied every subpage hero to the
+homepage scale across desktop, tablet, and mobile. Browser checks covered 15
+product, solution, pricing, company, and research routes at 1440px and 390px;
+none exceeds the homepage hero, the selector slides through all three states,
+and the DeFi mobile route has zero horizontal overflow. Landing TypeScript,
+scoped ESLint and Prettier, and `git diff --check` pass.
+
+Current session goal: **DARK-MODE VISUAL POLISH VERIFIED 2026-08-26** —
+remove the homepage FAQ hover wash, eliminate the four nested-radius crescents
+around the Human Interface demo, stop global pressed-button styling from leaking
+into widget traces, keep the footer mark and wordmark the same color, and restore
+Sign-stage text contrast in dark mode. Verified in Playwright in light and dark
+themes at desktop and 390px widths; landing lint and production build pass.
+
 Current session goal: **CANONICAL LANDING IMPLEMENTATION CLEANUP VERIFIED
 2026-08-25** — remove migration-era version names and generated-export
 scaffolding from the one production landing implementation, give every retained

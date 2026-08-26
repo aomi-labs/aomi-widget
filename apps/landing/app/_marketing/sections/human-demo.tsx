@@ -38,12 +38,12 @@ class DemoErrorBoundary extends Component<
 export function HumanDemo() {
   return (
     <div
-      className="relative mb-4 h-[520px] w-full max-w-[1040px] origin-top overflow-hidden rounded-2xl border border-zinc-200 bg-white md:h-[590px]"
+      className="relative mb-4 h-[520px] w-full max-w-[1040px] origin-top overflow-hidden bg-aomi-bg md:h-[590px]"
       data-testid="human-demo"
     >
       {/* Visible while LandingWalletKitProvider returns null pre-mount */}
       <div
-        className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center bg-white"
+        className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center bg-aomi-bg"
         aria-hidden
       >
         <span className="text-sm font-medium text-zinc-500">Loading demo…</span>
@@ -54,7 +54,7 @@ export function HumanDemo() {
             <AomiFrame.Root
               height="100%"
               width="100%"
-              className={`${styles.demoFrame} aui-suggestions-marquee overflow-hidden rounded-3xl bg-white`}
+              className={`${styles.demoFrame} aui-suggestions-marquee overflow-hidden`}
               defaultSidebarOpen={false}
               walletPosition="footer"
               walletFamilies={["evm", "solana"]}

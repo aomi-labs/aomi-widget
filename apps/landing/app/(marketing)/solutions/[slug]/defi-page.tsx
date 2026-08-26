@@ -112,13 +112,14 @@ export function DefiPage() {
         <div className={styles.heroGrid} aria-hidden />
         <div className={styles.heroCopy}>
           <p className={styles.eyebrow}>AOMI FOR DEFI</p>
-          <h1>
-            DeFi with controlled agent action. AI-driven liquidity management
-            with security.
-          </h1>
+          <h1>DeFi with controlled agent action.</h1>
+          <p className={styles.heroSubtitle}>
+            Agent-driven liquidity operations within your mandate.
+          </p>
           <p className={styles.lede}>
-            Let an agent route swaps, move idle capital, rebalance positions,
-            and respond to risk. Every action it proposes is checked against
+            Give an agent your liquidity objective and mandate. It can prepare
+            swaps, move idle capital, rebalance positions, and respond to risk
+            within those boundaries. Every action it proposes is checked against
             your policy, built as exact calls, simulated on forked live state,
             and signed by the wallet you already run.
           </p>

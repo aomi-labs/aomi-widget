@@ -23,22 +23,21 @@ export default function AboutPage() {
     <main className={styles.editorialPage}>
       <header className={`${styles.editorialHero} ${styles.aboutHero}`}>
         <p className={styles.eyebrow}>About Aomi</p>
-        <h1>
-          Financial agents need an execution system, not permission to
-          improvise.
-        </h1>
+        <h1>Onchain decisions need a controlled path to execution.</h1>
         <p>
-          Aomi builds the infrastructure between an agent&apos;s decision and
-          its settlement: typed tools, policy, construction, simulation,
-          authorization, broadcast, recovery, and evidence.
+          Aomi Labs builds the runtime between an onchain question or approved
+          financial decision and its verified result: state access,
+          protocol-specific actions, simulation, authorization, execution,
+          recovery, and evidence.
         </p>
       </header>
 
       <section className={styles.aboutStatement}>
         <p className={styles.eyebrow}>Our position</p>
         <blockquote>
-          Models can propose. Wallets can authorize. Aomi makes the path between
-          them explicit, programmable, and verifiable.
+          Financial systems can research and decide. Wallets can authorize. Aomi
+          makes the execution path between them explicit, programmable, and
+          verifiable.
         </blockquote>
         <div>
           <span>Backed by</span>

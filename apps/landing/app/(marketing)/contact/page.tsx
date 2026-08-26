@@ -47,9 +47,8 @@ export default function ContactPage() {
         <p className={styles.eyebrow}>Contact</p>
         <h1>Bring the execution problem.</h1>
         <p>
-          We work with product teams and developers building transactional
-          agents, embedded financial automation, and new onchain execution
-          surfaces.
+          We work with teams building trading, wallet, treasury, protocol, and
+          agent workflows that need controlled onchain execution.
         </p>
         <div>
           <a href="mailto:contact@aomi.dev">

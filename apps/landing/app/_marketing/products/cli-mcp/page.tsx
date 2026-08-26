@@ -94,7 +94,7 @@ export function AgentToolingsPageContent({
               <h1>Bring transaction capability to your existing agent stack</h1>
               <p className={styles.heroSupport}>
                 Connect coding agents through Skills, hosted MCP, or the CLI.
-                Three surfaces, one account-owned execution harness.
+                Three surfaces, one account-owned execution lifecycle.
               </p>
               <div className={styles.heroActions}>
                 <Link href="#surfaces" className={styles.primaryButton}>
@@ -118,16 +118,6 @@ export function AgentToolingsPageContent({
 
       <section id="surfaces" className={styles.surfaceSection}>
         <div className={styles.shell}>
-          <div className={styles.sectionHeading}>
-            <div>
-              <p className={styles.eyebrow}>CHOOSE YOUR SURFACE</p>
-              <h2>Start with a compatible interface with flexibility.</h2>
-            </div>
-            <p>
-              These entry points share execution infrastructure, but they solve
-              different setup, session, and signing problems.
-            </p>
-          </div>
           <SurfaceFlow surfaces={surfaces} />
         </div>
       </section>
@@ -166,7 +156,7 @@ export function AgentToolingsPageContent({
           <div className={styles.sectionHeading}>
             <div>
               <p className={styles.eyebrow}>USE THEM TOGETHER</p>
-              <h2>One workflow can move between every surface.</h2>
+              <h2>One execution workflow can continue across every surface.</h2>
             </div>
             <div className={styles.taskPrompt}>
               <span>Prompt</span>
