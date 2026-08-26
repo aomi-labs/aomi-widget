@@ -53,6 +53,16 @@ function compatiblePlugin<T extends object>(plugin: T): T & BetterAuthPlugin {
   return plugin as T & BetterAuthPlugin;
 }
 
+// OAuth Provider 1.7 always queries its resource table during `init`, even
+// when no resources are configured. Unit suites intentionally have no
+// Postgres service; retain the plugin id, schema, endpoints, and request hooks
+// while omitting only that eager database lifecycle hook in tests.
+function withoutTestDatabaseInit<T extends BetterAuthPlugin>(plugin: T): T {
+  if (seedOAuthResources) return plugin;
+  const { init: _init, ...runtimePlugin } = plugin;
+  return runtimePlugin as T;
+}
+
 // BetterAuth's storage lives in the SAME database as the canonical account
 // graph, but under our house schema style: `ba_`-prefixed snake_case tables
 // (`ba_users`, `ba_sessions`, `ba_accounts`, `ba_verifications`,
@@ -233,82 +243,84 @@ export const auth = betterAuth({
         });
       },
     }),
-    compatiblePlugin(
-      snakeCasedOAuth(
-        mcp({
-          loginPage: "/oauth/authorize",
-          consentPage: "/oauth/consent",
-          resource: resources.agentMcp,
-          resources: seedOAuthResources
-            ? [
-                {
-                  identifier: resources.agentMcp,
-                  allowedScopes: [...AGENT_SCOPES, ...STANDARD_SCOPES],
-                  accessTokenTtl: 5 * 60,
-                },
-                {
-                  identifier: resources.pipelineMcp,
-                  allowedScopes: [...PIPELINE_SCOPES, ...STANDARD_SCOPES],
-                  accessTokenTtl: 5 * 60,
-                },
-                {
-                  identifier: resources.agentRest,
-                  allowedScopes: [
-                    ...AGENT_SCOPES.filter((scope) => scope !== "mcp:agent"),
-                    ...STANDARD_SCOPES,
-                  ],
-                  accessTokenTtl: 5 * 60,
-                },
-                {
-                  identifier: resources.pipelineRest,
-                  allowedScopes: [
-                    ...PIPELINE_SCOPES.filter(
-                      (scope) => scope !== "mcp:pipeline",
-                    ),
-                    ...STANDARD_SCOPES,
-                  ],
-                  accessTokenTtl: 5 * 60,
-                },
-              ]
-            : [],
-          resourceSeedMode: "merge",
-          scopes: [...AOMI_SCOPES],
-          clientRegistrationDefaultResources: seedOAuthResources
-            ? [resources.agentMcp, resources.pipelineMcp]
-            : [],
-          clientRegistrationAllowedResources: seedOAuthResources
-            ? [resources.agentRest, resources.pipelineRest]
-            : [],
-          clientRegistrationDefaultScopes: [
-            "agent:read",
-            "agent:write",
-            "pipeline:catalog",
-            "mcp:agent",
-            "mcp:pipeline",
-          ],
-          clientRegistrationAllowedScopes: [...AOMI_SCOPES],
-          clientRegistrationRequirePKCE: true,
-          allowDynamicClientRegistration: true,
-          allowUnauthenticatedClientRegistration: true,
-          allowPublicClientPrelogin: true,
-          accessTokenExpiresIn: 5 * 60,
-          refreshTokenReuseInterval: 0,
-          customAccessTokenClaims: async ({ user }) => {
-            if (!user) throw new Error("oauth_user_required");
-            const canonical = await getOrCreateAomiUserForBetterAuthSession({
-              betterAuthUserId: user.id,
-              email: user.email,
-              emailVerified: user.emailVerified,
-              name: user.name,
-              avatarUrl: user.image,
-            });
-            return {
-              [AOMI_CANONICAL_USER_CLAIM]: canonical.id,
-              [AOMI_PRINCIPAL_CLASS_CLAIM]:
-                user.isAnonymous === true ? "guest" : "user",
-            };
-          },
-        }),
+    withoutTestDatabaseInit(
+      compatiblePlugin(
+        snakeCasedOAuth(
+          mcp({
+            loginPage: "/oauth/authorize",
+            consentPage: "/oauth/consent",
+            resource: resources.agentMcp,
+            resources: seedOAuthResources
+              ? [
+                  {
+                    identifier: resources.agentMcp,
+                    allowedScopes: [...AGENT_SCOPES, ...STANDARD_SCOPES],
+                    accessTokenTtl: 5 * 60,
+                  },
+                  {
+                    identifier: resources.pipelineMcp,
+                    allowedScopes: [...PIPELINE_SCOPES, ...STANDARD_SCOPES],
+                    accessTokenTtl: 5 * 60,
+                  },
+                  {
+                    identifier: resources.agentRest,
+                    allowedScopes: [
+                      ...AGENT_SCOPES.filter((scope) => scope !== "mcp:agent"),
+                      ...STANDARD_SCOPES,
+                    ],
+                    accessTokenTtl: 5 * 60,
+                  },
+                  {
+                    identifier: resources.pipelineRest,
+                    allowedScopes: [
+                      ...PIPELINE_SCOPES.filter(
+                        (scope) => scope !== "mcp:pipeline",
+                      ),
+                      ...STANDARD_SCOPES,
+                    ],
+                    accessTokenTtl: 5 * 60,
+                  },
+                ]
+              : [],
+            resourceSeedMode: "merge",
+            scopes: [...AOMI_SCOPES],
+            clientRegistrationDefaultResources: seedOAuthResources
+              ? [resources.agentMcp, resources.pipelineMcp]
+              : [],
+            clientRegistrationAllowedResources: seedOAuthResources
+              ? [resources.agentRest, resources.pipelineRest]
+              : [],
+            clientRegistrationDefaultScopes: [
+              "agent:read",
+              "agent:write",
+              "pipeline:catalog",
+              "mcp:agent",
+              "mcp:pipeline",
+            ],
+            clientRegistrationAllowedScopes: [...AOMI_SCOPES],
+            clientRegistrationRequirePKCE: true,
+            allowDynamicClientRegistration: true,
+            allowUnauthenticatedClientRegistration: true,
+            allowPublicClientPrelogin: true,
+            accessTokenExpiresIn: 5 * 60,
+            refreshTokenReuseInterval: 0,
+            customAccessTokenClaims: async ({ user }) => {
+              if (!user) throw new Error("oauth_user_required");
+              const canonical = await getOrCreateAomiUserForBetterAuthSession({
+                betterAuthUserId: user.id,
+                email: user.email,
+                emailVerified: user.emailVerified,
+                name: user.name,
+                avatarUrl: user.image,
+              });
+              return {
+                [AOMI_CANONICAL_USER_CLAIM]: canonical.id,
+                [AOMI_PRINCIPAL_CLASS_CLAIM]:
+                  user.isAnonymous === true ? "guest" : "user",
+              };
+            },
+          }),
+        ),
       ),
     ),
     cimd({
