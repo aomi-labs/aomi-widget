@@ -8,7 +8,7 @@ import {
 import { useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { accountScopedFetch } from "@portal/lib/settings-api";
 
-type SigningAuthorization = {
+type SigningPolicy = {
   address: { chain: "evm" | "svm"; address: string };
   mode: string;
 };
@@ -48,12 +48,12 @@ export function useSvmWalletBinding() {
     setState({ status: "loading" });
     try {
       const data = await accountScopedFetch<{
-        signing_authorizations: SigningAuthorization[];
+        signing_policies: SigningPolicy[];
       }>("/api/account");
-      const row = data.signing_authorizations.find(
-        (authorization) =>
-          authorization.address.chain === "svm" &&
-          authorization.address.address === svmAddress,
+      const row = data.signing_policies.find(
+        (policy) =>
+          policy.address.chain === "svm" &&
+          policy.address.address === svmAddress,
       );
       setState(
         row

@@ -137,14 +137,14 @@ export type AomiAccountResponse = AomiAccountProfile;
  */
 export interface AomiUser {
   user_id: string;
-  username?: string | null;
-  apps?: string[];
-  tier?: string;
-  verified_email?: string | null;
-  status?: string;
-  last_seen_at?: number | null;
-  created_at?: number;
-  updated_at?: number;
+  username: string | null;
+  apps: string[];
+  tier: "anon" | "free" | "pro";
+  verified_email: string | null;
+  status: string;
+  last_seen_at: number | null;
+  created_at: number;
+  updated_at: number;
 }
 
 export type AomiChainKind = "evm" | "svm";
@@ -164,34 +164,37 @@ export interface AomiAuthProvider {
   id: number;
   provider: string;
   method: string;
-  verified_at?: number | null;
+  verified_at: number | null;
   is_primary: boolean;
   created_at: number;
 }
 
-export interface AomiSigningAuthorization {
+export interface AomiUserAccount {
   address: AomiOnchainAddress;
-  provider?: string | null;
-  mode: "auto" | "manual" | "client_auto" | "denied";
-  version: number;
+  auth_provider?: string | null;
   is_primary: boolean;
   provider_managed: boolean;
-  can_use_auto: boolean;
-  last_authorized_at?: number | null;
-  last_authorized_by?: AomiOnchainAddress | null;
+}
+
+export interface AomiSigningPolicy {
+  address: AomiOnchainAddress;
+  mode: "auto" | "manual" | "client_auto" | "denied";
+  authorization_version: number;
+  last_authorized_at: number | null;
+  last_authorized_by: AomiOnchainAddress | null;
 }
 
 export interface AomiDelegatedAccount {
   id: number;
   address: AomiOnchainAddress;
-  provider: string;
+  delegation_provider: string;
   kind: string;
   status: AomiAccountRecordStatus;
   created_at: number;
   updated_at: number;
-  expires_at?: number | null;
-  revoked_at?: number | null;
-  revocation_reason?: string | null;
+  expires_at: number | null;
+  revoked_at: number | null;
+  revocation_reason: string | null;
 }
 
 export interface AomiOperatingAccount {
@@ -235,15 +238,14 @@ export interface AomiOnchainPolicyBinding {
   id: number;
   owner: AomiOnchainAddress;
   delegate: AomiOnchainAddress;
-  operating_account: AomiOperatingAccount;
-  provider: string;
+  operating_account_id: number;
   policy: AomiOnchainPolicy;
   provider_binding: AomiProviderBinding;
   status: AomiAccountRecordStatus;
   created_at: number;
   updated_at: number;
-  confirmed_at?: number | null;
-  revoked_at?: number | null;
+  confirmed_at: number | null;
+  revoked_at: number | null;
 }
 
 export interface AomiUsageStats {
@@ -258,8 +260,8 @@ export interface AomiAccountProfile {
   user: AomiUser;
   auth_providers: AomiAuthProvider[];
   usage: AomiUsageStats;
-  onchain_addresses: AomiOnchainAddress[];
-  signing_authorizations: AomiSigningAuthorization[];
+  user_accounts: AomiUserAccount[];
+  signing_policies: AomiSigningPolicy[];
   delegated_accounts: AomiDelegatedAccount[];
   operating_accounts: AomiOperatingAccount[];
   onchain_policy_bindings: AomiOnchainPolicyBinding[];

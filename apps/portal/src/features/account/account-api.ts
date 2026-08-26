@@ -26,14 +26,17 @@ export type OnchainAddress = {
   address: string;
 };
 
-export type SigningAuthorization = {
+export type UserAccount = {
   address: OnchainAddress;
-  provider?: string | null;
-  mode: string;
-  version: number;
+  auth_provider?: string | null;
   is_primary: boolean;
   provider_managed: boolean;
-  can_use_auto: boolean;
+};
+
+export type SigningPolicy = {
+  address: OnchainAddress;
+  mode: string;
+  authorization_version: number;
   last_authorized_at?: number;
   last_authorized_by?: OnchainAddress | null;
 };
@@ -41,7 +44,7 @@ export type SigningAuthorization = {
 export type DelegatedAccount = {
   id: number;
   address: OnchainAddress;
-  provider: string;
+  delegation_provider: string;
   kind: string;
   status: AccountRecordStatus;
   created_at: number;
@@ -51,8 +54,9 @@ export type DelegatedAccount = {
   revocation_reason?: string;
 };
 
-export type AccountWithDelegation = {
-  signing_authorizations: SigningAuthorization[];
+export type AccountProfile = {
+  user_accounts: UserAccount[];
+  signing_policies: SigningPolicy[];
   delegated_accounts: DelegatedAccount[];
 };
 
@@ -60,11 +64,12 @@ export async function fetchAccountAcl(): Promise<{
   wallets: WalletPolicy[];
   grants: DelegationGrant[];
 }> {
-  const data = await accountScopedFetch<AccountWithDelegation>("/api/account");
+  const data = await accountScopedFetch<AccountProfile>("/api/account");
   const owned = new Set(
-    data.signing_authorizations.map((authorization) =>
-      authorization.address.address.toLowerCase(),
-    ),
+    data.user_accounts.map((account) => addressKey(account.address)),
+  );
+  const userAccountsByAddress = new Map(
+    data.user_accounts.map((account) => [addressKey(account.address), account]),
   );
   const delegationsByAddress = new Map<string, DelegatedAccount[]>();
   for (const delegation of data.delegated_accounts) {
@@ -75,10 +80,11 @@ export async function fetchAccountAcl(): Promise<{
     ]);
   }
   return {
-    wallets: data.signing_authorizations.map((authorization) =>
+    wallets: data.signing_policies.map((policy) =>
       toWalletPolicy(
-        authorization,
-        delegationsByAddress.get(addressKey(authorization.address)) ?? [],
+        policy,
+        userAccountsByAddress.get(addressKey(policy.address)),
+        delegationsByAddress.get(addressKey(policy.address)) ?? [],
         owned,
       ),
     ),
@@ -87,7 +93,9 @@ export async function fetchAccountAcl(): Promise<{
 }
 
 function addressKey(address: OnchainAddress): string {
-  return `${address.chain}:${address.address.toLowerCase()}`;
+  const value =
+    address.chain === "evm" ? address.address.toLowerCase() : address.address;
+  return `${address.chain}:${value}`;
 }
 
 /**
@@ -146,15 +154,19 @@ export function normalizeSignerMode(mode: string): SignerMode {
  * it came from, and a key with no provider was necessarily proven by a wallet
  * signature — SIWE on EVM, SIWS on SVM.
  */
-function linkedViaOf(row: SigningAuthorization, chain: ChainKind): LinkedVia {
-  const provider = row.provider?.toLowerCase();
+function linkedViaOf(
+  row: UserAccount | undefined,
+  chain: ChainKind,
+): LinkedVia {
+  const provider = row?.auth_provider?.toLowerCase();
   if (provider === "privy") return "privy";
   if (provider === "para") return "para";
   return chain === "svm" ? "siws" : "siwe";
 }
 
 function toWalletPolicy(
-  row: SigningAuthorization,
+  row: SigningPolicy,
+  userAccount: UserAccount | undefined,
   delegations: DelegatedAccount[],
   ownedAddresses: Set<string>,
 ): WalletPolicy {
@@ -166,24 +178,24 @@ function toWalletPolicy(
     id: `${chain}:${row.address.address}`,
     chain,
     address: row.address.address,
-    linkedVia: linkedViaOf(row, chain),
-    primary: row.is_primary,
+    linkedVia: linkedViaOf(userAccount, chain),
+    primary: userAccount?.is_primary ?? false,
     desiredMode: normalizeSignerMode(row.mode),
     grantActive: Boolean(active),
     grantExpiresLabel: formatDate(active?.expires_at),
-    authVersion: row.version,
+    authVersion: row.authorization_version,
     lastPermit: formatPermit(row, ownedAddresses),
-    provider: row.provider ?? undefined,
-    canUseAuto: row.can_use_auto,
-    providerManaged: row.provider_managed,
+    provider: userAccount?.auth_provider ?? undefined,
+    canUseAuto: row.mode === "auto" && Boolean(active),
+    providerManaged: userAccount?.provider_managed ?? false,
   };
 }
 
 function toDelegationGrant(row: DelegatedAccount): DelegationGrant {
   return {
     id: String(row.id),
-    provider: titleCase(row.provider),
-    providerKey: row.provider,
+    provider: titleCase(row.delegation_provider),
+    providerKey: row.delegation_provider,
     scope: grantScope(row),
     kind: grantKindLabel(row.kind),
     status:
@@ -208,16 +220,16 @@ function grantScope(row: DelegatedAccount): string {
  * the wallet being changed.
  */
 function formatPermit(
-  row: SigningAuthorization,
+  row: SigningPolicy,
   ownedAddresses: Set<string>,
 ): string | undefined {
   const when = formatDate(row.last_authorized_at);
   if (!when) return undefined;
-  const by = row.last_authorized_by?.address;
+  const by = row.last_authorized_by;
   if (!by) return when;
-  return ownedAddresses.has(by.toLowerCase())
+  return ownedAddresses.has(addressKey(by))
     ? `you · ${when}`
-    : `${shortenAddress(by)} · ${when}`;
+    : `${shortenAddress(by.address)} · ${when}`;
 }
 
 function formatDate(unixSeconds?: number | null): string | undefined {

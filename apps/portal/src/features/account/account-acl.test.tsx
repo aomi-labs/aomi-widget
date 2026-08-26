@@ -46,38 +46,44 @@ vi.mock("@aomi-labs/react", async (importOriginal) => ({
   useOptionalAomiRuntime: () => ({ currentThreadId: "thread-aa-test" }),
 }));
 
-/** Canonical `AccountWithDelegation` read model. */
+/** Canonical `AccountProfile` read model. */
 const ACCOUNT = {
-  signing_authorizations: [
+  user_accounts: [
     {
       address: { chain: "evm", address: CONNECTED_EVM.toLowerCase() },
-      provider: null,
+      auth_provider: null,
       is_primary: true,
+      provider_managed: false,
+    },
+    {
+      address: { chain: "svm", address: PRIVY_SVM },
+      auth_provider: "privy",
+      is_primary: false,
+      provider_managed: false,
+    },
+  ],
+  signing_policies: [
+    {
+      address: { chain: "evm", address: CONNECTED_EVM.toLowerCase() },
       mode: "manual",
-      version: 2,
+      authorization_version: 2,
       last_authorized_at: 1_752_000_000,
       last_authorized_by: {
         chain: "evm",
         address: CONNECTED_EVM.toLowerCase(),
       },
-      provider_managed: false,
-      can_use_auto: false,
     },
     {
       address: { chain: "svm", address: PRIVY_SVM },
-      provider: "privy",
-      is_primary: false,
       mode: "auto",
-      version: 4,
-      provider_managed: false,
-      can_use_auto: true,
+      authorization_version: 4,
     },
   ],
   delegated_accounts: [
     {
       id: 41,
       address: { chain: "svm", address: PRIVY_SVM },
-      provider: "privy",
+      delegation_provider: "privy",
       kind: "session_delegation",
       status: "active",
       created_at: 1_750_000_000,
@@ -138,7 +144,6 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
             authorization_version: 0,
             has_delegated_grant: false,
             provider_managed: true,
-            can_use_auto: false,
           },
         });
       }
@@ -244,14 +249,14 @@ describe("account ACL wiring", () => {
 
   it("allows a user-controlled Para wallet to accept transactions", async () => {
     const paraAccount = {
-      signing_authorizations: [
+      user_accounts: [
         {
-          ...ACCOUNT.signing_authorizations[0],
-          provider: "para",
+          ...ACCOUNT.user_accounts[0],
+          auth_provider: "para",
           provider_managed: false,
-          can_use_auto: false,
         },
       ],
+      signing_policies: [ACCOUNT.signing_policies[0]],
       delegated_accounts: [],
     };
     const { calls } = installFetchRecorder({
@@ -383,14 +388,14 @@ describe("account ACL wiring", () => {
 
   it("provisions a Para agent wallet through the provider route", async () => {
     const paraAccount = {
-      signing_authorizations: [
+      user_accounts: [
         {
-          ...ACCOUNT.signing_authorizations[0],
-          provider: "para",
+          ...ACCOUNT.user_accounts[0],
+          auth_provider: "para",
           provider_managed: false,
-          can_use_auto: false,
         },
       ],
+      signing_policies: [ACCOUNT.signing_policies[0]],
       delegated_accounts: [],
     };
     const { calls } = installFetchRecorder({

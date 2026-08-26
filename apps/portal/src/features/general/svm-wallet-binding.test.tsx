@@ -24,7 +24,7 @@ vi.mock("@aomi-labs/widget-lib", () => ({
   Button: (props: React.ComponentProps<"button">) => <button {...props} />,
 }));
 
-const authorizations: Array<{
+const policies: Array<{
   address: { chain: "svm"; address: string };
   mode: string;
 }> = [];
@@ -33,7 +33,7 @@ const posts: Array<{ path: string; body: unknown }> = [];
 vi.mock("@portal/lib/settings-api", () => ({
   accountScopedFetch: async (path: string, options?: RequestInit) => {
     if (path === "/api/account") {
-      return { signing_authorizations: [...authorizations] };
+      return { signing_policies: [...policies] };
     }
     const body = options?.body ? JSON.parse(String(options.body)) : undefined;
     posts.push({ path, body });
@@ -50,7 +50,7 @@ vi.mock("@portal/lib/settings-api", () => ({
         message_base64: Buffer.from(MESSAGE).toString("base64"),
       };
     }
-    authorizations.push({
+    policies.push({
       address: { chain: "svm", address: SVM_ADDRESS },
       mode: "manual",
     });
@@ -67,7 +67,7 @@ import { SvmWalletBinding } from "./svm-wallet-binding";
 
 describe("SvmWalletBinding", () => {
   beforeEach(() => {
-    authorizations.length = 0;
+    policies.length = 0;
     posts.length = 0;
     signSolanaMessage.mockClear();
   });
@@ -86,7 +86,7 @@ describe("SvmWalletBinding", () => {
   });
 
   it("shows an existing binding without an action", async () => {
-    authorizations.push({
+    policies.push({
       address: { chain: "svm", address: SVM_ADDRESS },
       mode: "manual",
     });
