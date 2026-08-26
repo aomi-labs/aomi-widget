@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  enabled: vi.fn(() => true),
   error: vi.fn(),
   handler: undefined as
     | ((request: Request, claims: Record<string, unknown>) => Promise<Response>)
@@ -34,9 +33,6 @@ vi.mock("@portal/server/oauth/resources", () => ({
     agentMcp: "https://chat.aomi.dev/agent/mcp",
   }),
 }));
-vi.mock("@portal/server/oauth/features", () => ({
-  oauthFeatures: { agentMcp: mocks.enabled },
-}));
 vi.mock("@portal/server/oauth/principal", () => ({
   apiAuthError: vi.fn((error) => {
     mocks.error(error);
@@ -61,7 +57,6 @@ const principal = {
 
 describe("canonical Agent MCP route", () => {
   beforeEach(() => {
-    mocks.enabled.mockReturnValue(true);
     mocks.principal.mockResolvedValue(principal);
     mocks.narrow.mockResolvedValue(principal);
     mocks.proxy.mockResolvedValue(Response.json({ ok: true }));
@@ -106,16 +101,5 @@ describe("canonical Agent MCP route", () => {
     expect(new URL(mocks.proxy.mock.calls[0][0].url).pathname).toBe(
       "/v1/agent/mcp",
     );
-  });
-
-  it("is independently reversible", async () => {
-    mocks.enabled.mockReturnValue(false);
-    expect(
-      (
-        await POST(
-          new Request("https://chat.aomi.dev/agent/mcp", { method: "POST" }),
-        )
-      ).status,
-    ).toBe(404);
   });
 });
