@@ -11,12 +11,17 @@ import {
 } from "@portal/server/mcp/chat-backend";
 import type { McpToolDef, ToolOutcome } from "@portal/server/mcp/rpc";
 import { newMcpThreadId } from "@portal/server/mcp/thread";
+import {
+  resolveSessionWallets,
+  type RequestedWallets,
+} from "@portal/server/mcp/wallet-selection";
 
 export const CHAT_MCP_INSTRUCTIONS = [
   "Chat with the Aomi agent by calling aomi_chat with the user's request.",
   "aomi_chat starts an asynchronous turn and returns a self-contained cursor; continue with aomi_check using that cursor until status is complete or awaiting_user.",
   "Each aomi_check returns only new transcript messages and newly drained tool/task activity, so relay useful progress while supervising longer work.",
   "Pass chain_context to aomi_chat only when the active EVM chain or Solana cluster is known; omit it instead of guessing a network.",
+  "Pass wallet.evm_address / wallet.svm_address when the user has told you which wallet to operate on. Aomi never guesses between an account's wallets: if the account holds more than one and none is selected, aomi_chat returns wallet_selection_required listing the candidates — relay them to the human and retry with their answer rather than picking one yourself. The choice is remembered for the rest of the session, so later turns need not repeat it.",
   "When status is awaiting_user, show the pending wallet request and handoff guidance to the human; do not claim the operation completed until a later check confirms it.",
   "Use aomi_interrupt to stop a running turn and aomi_list_sessions to find prior account-owned conversations.",
 ].join(" ");
@@ -53,9 +58,26 @@ export const CHAT_MCP_TOOLS: McpToolDef[] = [
           type: "string",
           description: "Optional Aomi app name for this turn.",
         },
+        wallet: {
+          type: "object",
+          description:
+            "The wallet the user chose to operate on. Supply it when the user has named a wallet, or in response to wallet_selection_required. Remembered for the session; supplying a different address switches the session to it.",
+          properties: {
+            evm_address: {
+              type: "string",
+              description:
+                "0x-prefixed EVM address owned by this Aomi account.",
+            },
+            svm_address: {
+              type: "string",
+              description: "Base58 Solana address owned by this Aomi account.",
+            },
+          },
+          additionalProperties: false,
+        },
         chain_context: {
           description:
-            "Optional authoritative active chain for this turn. Omit it when the network is unknown; Aomi will not invent a mainnet default.",
+            "Optional authoritative active chain for this turn. Omit it when the network is unknown; Aomi will not invent a mainnet default. Supplying it also narrows wallet selection to that chain family.",
           oneOf: [
             {
               type: "object",
@@ -150,11 +172,34 @@ export async function dispatchChatTool(
       if (!message) return invalid("message is required");
       const chainContext = parseChainContext(args.chain_context);
       if (chainContext.error) return invalid(chainContext.error);
+      const requestedWallets = parseWallet(args.wallet);
+      if (requestedWallets.error) return invalid(requestedWallets.error);
       const requestedSession = text(args.session_id);
       const sessionId = requestedSession ?? newMcpThreadId();
       if (!requestedSession) {
         const created = await ensureThread(canonicalUserId, sessionId);
         if (!created.ok) return backendError(created);
+      }
+      // Resolve the operating wallet before the turn runs. A turn that cannot
+      // say which wallet it operates on must not reach the agent at all —
+      // the agent would answer confidently about whichever address it was
+      // handed, and a wrong one is indistinguishable from a right one.
+      const resolution = await resolveSessionWallets({
+        canonicalUserId,
+        sessionId,
+        requested: requestedWallets.value,
+        familyInPlay:
+          chainContext.value?.family === "evm"
+            ? "evm"
+            : chainContext.value?.family === "solana"
+              ? "svm"
+              : undefined,
+      });
+      if (!resolution.ok) {
+        return {
+          result: { ...resolution.failure, session_id: sessionId },
+          isError: true,
+        };
       }
       const response = await sendChat(
         canonicalUserId,
@@ -162,6 +207,7 @@ export async function dispatchChatTool(
         message,
         text(args.app),
         chainContext.value,
+        resolution.wallets,
       );
       if (!response.ok) return backendError(response);
       return {
@@ -610,4 +656,28 @@ function parseChainContext(value: unknown): {
     return { value: { family: "solana", cluster } };
   }
   return { error: "chain_context.family must be evm or solana" };
+}
+
+function parseWallet(value: unknown): {
+  value?: RequestedWallets;
+  error?: string;
+} {
+  if (value === undefined) return {};
+  const wallet = record(value);
+  if (!wallet) return { error: "wallet must be an object" };
+  const keys = Object.keys(wallet);
+  if (keys.some((key) => !["evm_address", "svm_address"].includes(key))) {
+    return { error: "wallet contains unsupported fields" };
+  }
+  const requested: RequestedWallets = {};
+  for (const [key, family] of [
+    ["evm_address", "evm"],
+    ["svm_address", "svm"],
+  ] as const) {
+    if (wallet[key] === undefined) continue;
+    const address = text(wallet[key]);
+    if (!address) return { error: `wallet.${key} must be a non-empty string` };
+    requested[family] = address;
+  }
+  return { value: requested };
 }
