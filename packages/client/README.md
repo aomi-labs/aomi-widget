@@ -138,6 +138,10 @@ npx @aomi-labs/client secret list                        # list configured secre
 npx @aomi-labs/client secret add ALCHEMY_API_KEY=...     # ingest a secret for the active session
 npx @aomi-labs/client session log                        # show full conversation history
 npx @aomi-labs/client tx list                            # list pending + signed txs
+npx @aomi-labs/client tx simulate tx-1                   # simulate pending calls
+npx @aomi-labs/client tx export tx-1 > execution.json    # canonical EIP-5792
+npx @aomi-labs/client tx export tx-1 --format moss       # MOSS call array
+npx @aomi-labs/client tx export tx-1 --format metamask   # MetaMask handoff
 npx @aomi-labs/client tx sign tx-1                       # sign a specific pending tx
 npx @aomi-labs/client session status                     # session info
 npx @aomi-labs/client session events                     # system events
@@ -161,7 +165,44 @@ npx @aomi-labs/client chat "send 0 ETH to myself" \
 ```
 
 The address is persisted in the state file, so subsequent commands in the same
-session don't need it again.
+session don't need it again. `--public-key` is EVM-only (a 0x-prefixed
+address); Solana identities are configured with `wallet set --solana` or
+`--solana-private-key`.
+
+### Persisted wallets
+
+`aomi wallet set` persists a signing key and its derived address. EVM is the
+default; pass `--solana` for a Solana keypair. Setting a Solana wallet also
+persists its cluster (`solana:mainnet` unless `--cluster` says otherwise):
+
+```bash
+aomi wallet set 0xYOUR_EVM_PRIVATE_KEY
+aomi wallet set --solana YOUR_BASE58_SOLANA_KEY
+aomi wallet set --solana YOUR_BASE58_SOLANA_KEY --cluster devnet
+```
+
+`aomi wallet current --json` reports every configured wallet family. The
+`family` values match the backend wire keys (`evm`, `svm`):
+
+```json
+{
+  "active": true,
+  "wallets": [
+    {
+      "family": "evm",
+      "address": "0x5D907BEa404e6F821d467314a9cA07663CF64c9B",
+      "chainId": 1,
+      "hasSavedSigner": true
+    },
+    {
+      "family": "svm",
+      "address": "GkzrnLXeGFXQDPtx6WcbTKfvNQ5D6DBXWXWuz6dHzXsG",
+      "cluster": "solana:mainnet",
+      "hasSavedSigner": true
+    }
+  ]
+}
+```
 
 ### Chain selection
 
@@ -247,6 +288,11 @@ $ npx @aomi-labs/client tx list
 Pending (1):
   ⏳ tx-1  to: 0x3fC9...7FAD  value: 1000000000000000000  chain: 1
 
+$ npx @aomi-labs/client tx simulate tx-1
+All steps passed.
+
+$ npx @aomi-labs/client tx export tx-1 > execution.json
+
 $ npx @aomi-labs/client tx sign tx-1 --private-key 0xac0974...
 Signer:  0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 IDs:     tx-1
@@ -262,6 +308,70 @@ $ npx @aomi-labs/client tx list
 Signed (1):
   ✅ tx-1  hash: 0xabc123...  to: 0x3fC9...7FAD  value: 1000000000000000000
 ```
+
+`aomi tx export <id>...` refreshes the backend's authoritative pending state
+and writes a wallet handoff artifact to stdout. It requires no private key,
+preserves the selected call order, and fails if the calls do not share one
+sender and chain. Redirect stdout to keep the artifact separate from
+diagnostics:
+
+```bash
+aomi tx export evm:tx-1 evm:tx-2 > execution.json
+```
+
+The default `eip5792` format is the canonical export. It contains an EIP-5792
+`wallet_sendCalls` version `2.0.0` parameter object with hexadecimal `chainId`
+and `value` quantities, `atomicRequired: false`, and `to`/`data`/`value` call
+tuples. `moss` and `metamask` are small adapters over that representation:
+
+| Format     | Output                                               | Batch behavior            |
+| ---------- | ---------------------------------------------------- | ------------------------- |
+| `eip5792`  | Full `wallet_sendCalls` parameter object             | Preserves all calls       |
+| `moss`     | Ordered call array                                   | Preserves all calls       |
+| `metamask` | Numeric `chainId` plus one raw transaction `payload` | Requires exactly one call |
+
+The command does not sign, broadcast, append the local signer's execution-time
+Aomi service-fee call, notify the backend, or remove pending requests. Simulate
+the same ordered selection before handing it to an external wallet.
+
+MegaETH MOSS consumes the call array directly:
+
+```bash
+aomi tx export evm:tx-1 evm:tx-2 --format moss > moss-calls.json
+mega moss execute --calls moss-calls.json --network mainnet --json
+```
+
+MOSS still requires its own wallet login and an approved delegated key whose
+call and spend permissions cover every exported call.
+
+MetaMask browser and mobile wallets consume the default EIP-5792 object through
+an EIP-1193 provider. Check `wallet_getCapabilities` for the selected account
+and chain before requesting execution:
+
+```ts
+const execution = JSON.parse(await readFile("execution.json", "utf8"));
+await provider.request({
+  method: "wallet_sendCalls",
+  params: [execution],
+});
+```
+
+MetaMask Agent Wallet currently exposes one raw EVM transaction at a time. The
+`metamask` format keeps its required decimal chain argument beside the
+hexadecimal transaction payload:
+
+```bash
+aomi tx export evm:tx-1 --format metamask > metamask.json
+mm wallet send-transaction \
+  --chain-id "$(jq -r '.chainId' metamask.json)" \
+  --payload "$(jq -c '.payload' metamask.json)" \
+  --wait
+```
+
+The `metamask` format rejects multiple calls instead of turning a batch into
+unrelated sequential transactions. Use the default `eip5792` format for native
+MetaMask batch execution when the connected account advertises that
+capability.
 
 **EIP-712 signing** is also supported. When the backend requests a typed data
 signature (e.g. for CoW Protocol orders or permit approvals), it shows up as a
@@ -319,21 +429,24 @@ $ npx @aomi-labs/client session log
 
 All config can be passed as flags (which take priority over env vars):
 
-| Flag              | Env Variable       | Default                 | Description                                  |
-| ----------------- | ------------------ | ----------------------- | -------------------------------------------- |
-| `--backend-url`   | `AOMI_BACKEND_URL` | `https://chat.aomi.dev` | Aomi API/BFF URL                             |
-| `--api-key`       | `AOMI_API_KEY`     | —                       | API key for non-default apps                 |
-| `--app`           | `AOMI_APP`         | `default`               | App                                          |
-| `--model`         | `AOMI_MODEL`       | —                       | Model rig to apply before chat               |
-| `--prompt`, `-p`  | —                  | —                       | Send a single prompt and exit                |
-| `--show-tool`     | —                  | —                       | Show tool output in root prompt/REPL mode    |
-| `--provider-key`  | —                  | —                       | Save a BYOK provider key as `PROVIDER:KEY`   |
-| `--public-key`    | `AOMI_PUBLIC_KEY`  | —                       | Wallet address (tells agent your wallet)     |
-| `--private-key`   | `PRIVATE_KEY`      | —                       | Hex private key for `aomi tx sign`           |
-| `--rpc-url`       | `CHAIN_RPC_URL`    | —                       | RPC URL for transaction submission           |
-| `--chain`         | `AOMI_CHAIN_ID`    | `1`                     | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
-| `--verbose`, `-v` | —                  | —                       | Stream tool calls and agent responses live   |
-| `--version`, `-V` | —                  | —                       | Print the installed CLI version              |
+| Flag                   | Env Variable          | Default                 | Description                                  |
+| ---------------------- | --------------------- | ----------------------- | -------------------------------------------- |
+| `--backend-url`        | `AOMI_BACKEND_URL`    | `https://chat.aomi.dev` | Aomi API/BFF URL                             |
+| `--api-key`            | `AOMI_API_KEY`        | —                       | API key for non-default apps                 |
+| `--app`                | `AOMI_APP`            | `default`               | App                                          |
+| `--model`              | `AOMI_MODEL`          | —                       | Model rig to apply before chat               |
+| `--prompt`, `-p`       | —                     | —                       | Send a single prompt and exit                |
+| `--show-tool`          | —                     | —                       | Show tool output in root prompt/REPL mode    |
+| `--provider-key`       | —                     | —                       | Save a BYOK provider key as `PROVIDER:KEY`   |
+| `--public-key`         | `AOMI_PUBLIC_KEY`     | —                       | EVM wallet address (0x-prefixed)             |
+| `--private-key`        | `PRIVATE_KEY`         | —                       | Hex private key for `aomi tx sign`           |
+| `--solana-private-key` | `SOLANA_PRIVATE_KEY`  | —                       | Solana keypair (base58 or JSON byte array)   |
+| `--cluster`            | `AOMI_SOLANA_CLUSTER` | `mainnet-beta`          | Solana cluster (also CAIP-2 `solana:...`)    |
+| `--rpc-url`            | `CHAIN_RPC_URL`       | —                       | RPC URL for transaction submission           |
+| `--chain`              | `AOMI_CHAIN_ID`       | `1`                     | Chain ID (1, 137, 42161, 8453, 10, 11155111) |
+| `--json`               | —                     | —                       | Machine-readable JSON where supported        |
+| `--verbose`, `-v`      | —                     | —                       | Stream tool calls and agent responses live   |
+| `--version`, `-V`      | —                     | —                       | Print the installed CLI version              |
 
 ```bash
 # Use a custom backend
@@ -369,10 +482,14 @@ persists local state under `AOMI_STATE_DIR` or `~/.aomi` by default:
 | `sessionId`     | Which conversation to continue                         |
 | `clientId`      | Stable client identity used for session secret handles |
 | `model`         | Last successfully applied model for the session        |
-| `publicKey`     | Wallet address (from `--public-key`)                   |
+| `publicKey`     | EVM wallet address (from `--public-key`)               |
 | `chainId`       | Active chain ID (from `--chain`)                       |
+| `svmPublicKey`  | Solana address (from `wallet set --solana`)            |
+| `svmPrivateKey` | Solana signing key persisted by `wallet set --solana`  |
+| `svmCluster`    | Solana cluster; always set when `svmPublicKey` is set  |
 | `secretHandles` | Opaque handles returned for ingested secrets           |
 | `pendingTxs`    | Unsigned transactions waiting for `aomi tx sign <id>`  |
+| `pendingSolTxs` | Unsigned Solana requests waiting for `aomi tx sign`    |
 | `signedTxs`     | Completed transactions with hashes/signatures          |
 
 ```

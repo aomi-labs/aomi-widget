@@ -665,8 +665,13 @@ function createSseSubscriber({
 }
 
 // src/app-descriptor.ts
+var ARTIFACT_STATUSES = /* @__PURE__ */ new Set([
+  "ready",
+  "pending",
+  "fetch_backoff"
+]);
 function normalizeAppDescriptor(item) {
-  var _a, _b;
+  var _a, _b, _c, _d;
   if (typeof item === "string") {
     const name2 = item.trim();
     return name2 ? { name: name2 } : null;
@@ -704,14 +709,30 @@ function normalizeAppDescriptor(item) {
   } else if (typeof raw.artifact_ready === "boolean") {
     descriptor.artifactReady = raw.artifact_ready;
   }
+  const artifactStatus = (_c = raw.artifactStatus) != null ? _c : raw.artifact_status;
+  if (typeof artifactStatus === "string" && ARTIFACT_STATUSES.has(artifactStatus)) {
+    descriptor.artifactStatus = artifactStatus;
+  }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  const rawChainIds = (_d = raw.chainIds) != null ? _d : raw.chain_ids;
+  if (Array.isArray(rawChainIds)) {
+    descriptor.chainIds = [
+      ...new Set(
+        rawChainIds.filter(
+          (chainId3) => typeof chainId3 === "number" && Number.isSafeInteger(chainId3) && chainId3 > 0
+        )
+      )
+    ].sort((left, right) => left - right);
+  }
   for (const key of [
     "id",
     "application_id",
     "app_release_tag",
     "is_active",
     "is_public",
-    "artifact_ready"
+    "artifact_ready",
+    "artifact_status",
+    "chain_ids"
   ]) {
     delete descriptor[key];
   }
@@ -739,6 +760,9 @@ function joinApiPath(baseUrl, path) {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${normalizedBase}${normalizedPath}` || normalizedPath;
+}
+function applicationIdParam(id) {
+  return (id == null ? void 0 : id.toString().trim()) || void 0;
 }
 function buildApiUrl(baseUrl, path, query) {
   const url = joinApiPath(baseUrl, path);
@@ -789,6 +813,9 @@ function normalizeThreadWire(wire) {
     last_active_at: normalizedLastActiveAt === void 0 || Number.isNaN(normalizedLastActiveAt) ? void 0 : normalizedLastActiveAt
   });
 }
+var CREATE_THREAD_RETRY_STATUSES = /* @__PURE__ */ new Set([502, 503, 504]);
+var CREATE_THREAD_RETRY_DELAYS_MS = [400, 1e3, 2e3];
+var delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function withSessionHeader(sessionId, init) {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
@@ -886,7 +913,18 @@ function secretNamesFrom(response) {
 }
 var AomiClient = class {
   constructor(options) {
-    var _a;
+    /**
+     * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
+     *
+     * Historically evaluated ONCE in the constructor, which silently dropped
+     * reconnect for a stable bearer whose `subscribe` appears after construction.
+     * Re-attempted lazily on every SSE subscription so that shape is picked up on
+     * the next stream instead of never. Replacing the bearer function itself still
+     * requires a stable host/widget bridge; AomiClient intentionally retains the
+     * source supplied at construction.
+     */
+    this.tokenRefreshWired = false;
+    var _a, _b;
     this.baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.apiKey = options.apiKey;
     const fetchImpl = (_a = options.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
@@ -900,6 +938,7 @@ var AomiClient = class {
       options.getAccountBearer
     );
     this.logger = options.logger;
+    this.accountBearer = options.getAccountBearer;
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
       getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
@@ -908,11 +947,21 @@ var AomiClient = class {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger
     });
-    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      options.getAccountBearer.subscribe(() => {
-        this.sseSubscriber.reconnect("account-token-refreshed");
-      });
+    this.wireTokenRefreshReconnect();
+    if (((_b = options.getAccountBearer) == null ? void 0 : _b.required) === true && !supportsTokenRefreshSubscription(options.getAccountBearer)) {
+      console.warn(
+        "[aomi-client] getAccountBearer.required is set but subscribe() is missing: SSE will not reconnect after token refresh. Pass the WidgetSessionProvider through unwrapped, or preserve its subscribe/dispose/revoke methods."
+      );
     }
+  }
+  wireTokenRefreshReconnect() {
+    if (this.tokenRefreshWired) return;
+    const bearer = this.accountBearer;
+    if (!supportsTokenRefreshSubscription(bearer)) return;
+    this.tokenRefreshWired = true;
+    bearer.subscribe(() => {
+      this.sseSubscriber.reconnect("account-token-refreshed");
+    });
   }
   // ===========================================================================
   // Chat & State
@@ -964,12 +1013,11 @@ ${body}` : ""}`
    * Fetch current session state (messages, processing status, title).
    */
   async fetchState(sessionId, userState, clientId, options) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c;
     const normalizedUserState = UserState.normalize(userState);
-    const applicationId = (_a = options == null ? void 0 : options.applicationId) == null ? void 0 : _a.toString().trim();
     const stateContext = {
       app: options == null ? void 0 : options.app,
-      application_id: applicationId || void 0
+      application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
     };
     const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", __spreadProps(__spreadValues({}, stateContext), {
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
@@ -981,10 +1029,10 @@ ${body}` : ""}`
       stateContext
     );
     const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
-    (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/thread/state start", {
+    (_a = this.logger) == null ? void 0 : _a.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
       app: options == null ? void 0 : options.app,
-      applicationId,
+      applicationId: options == null ? void 0 : options.applicationId,
       clientId,
       hasUserState: Boolean(normalizedUserState)
     });
@@ -994,7 +1042,7 @@ ${body}` : ""}`
       sessionId
     );
     if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-      (_c = this.logger) == null ? void 0 : _c.debug(
+      (_b = this.logger) == null ? void 0 : _b.debug(
         "[aomi][client] GET /api/thread/state retrying without sync params",
         {
           sessionId,
@@ -1009,7 +1057,7 @@ ${body}` : ""}`
         sessionId
       );
     }
-    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] GET /api/thread/state response", {
+    (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/thread/state response", {
       sessionId,
       status: response.status,
       ok: response.ok
@@ -1023,23 +1071,22 @@ ${body}` : ""}`
    * Send a chat message and return updated session state.
    */
   async sendMessage(sessionId, message, options) {
-    var _a, _b, _c, _d, _e, _f, _g;
+    var _a, _b, _c, _d, _e, _f;
     const app = (_a = options == null ? void 0 : options.app) != null ? _a : "default";
     const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
     const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
-    const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
       app,
-      application_id: applicationId || void 0,
+      application_id: applicationIdParam(options == null ? void 0 : options.applicationId),
       message,
       user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
       client_id: options == null ? void 0 : options.clientId,
-      payment_method: (_d = options == null ? void 0 : options.paymentMethod) != null ? _d : void 0
+      payment_method: (_c = options == null ? void 0 : options.paymentMethod) != null ? _c : void 0
     });
-    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST /api/thread/chat prepared", {
+    (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/thread/chat prepared", {
       sessionId,
       app,
-      applicationId,
+      applicationId: options == null ? void 0 : options.applicationId,
       clientId: options == null ? void 0 : options.clientId,
       paymentMethod: options == null ? void 0 : options.paymentMethod,
       hasUserState: Boolean(normalizedUserState),
@@ -1049,7 +1096,7 @@ ${body}` : ""}`
     if (apiKey) {
       headers.set(APP_KEY_HEADER, apiKey);
     }
-    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST start", {
+    (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
       path: "/api/thread/chat",
       sessionId,
       hasApiKey: Boolean(apiKey),
@@ -1059,7 +1106,7 @@ ${body}` : ""}`
       method: "POST",
       headers
     });
-    (_g = this.logger) == null ? void 0 : _g.debug("[aomi][client] POST response", {
+    (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
       path: "/api/thread/chat",
       sessionId,
       status: response.status,
@@ -1210,6 +1257,7 @@ ${body}` : ""}`
    * Returns an unsubscribe function.
    */
   subscribeSSE(sessionId, onUpdate, onError, options) {
+    this.wireTokenRefreshReconnect();
     return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
   }
   // ===========================================================================
@@ -1268,10 +1316,17 @@ ${body}` : ""}`
       platform: options == null ? void 0 : options.platform,
       client_id: options == null ? void 0 : options.clientId
     });
-    const response = await this.fetchImpl(url, {
+    let response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId)
     });
+    for (let attempt = 0; attempt < CREATE_THREAD_RETRY_DELAYS_MS.length && CREATE_THREAD_RETRY_STATUSES.has(response.status); attempt += 1) {
+      await delay(CREATE_THREAD_RETRY_DELAYS_MS[attempt]);
+      response = await this.fetchImpl(url, {
+        method: "POST",
+        headers: withSessionHeader(threadId)
+      });
+    }
     if (!response.ok) {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
     }
@@ -1350,9 +1405,10 @@ ${body}` : ""}`
   /**
    * Get system events for a session.
    */
-  async getSystemEvents(sessionId, count) {
+  async getSystemEvents(sessionId, count, options) {
     const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
-      count: count !== void 0 ? String(count) : void 0
+      count: count !== void 0 ? String(count) : void 0,
+      application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
     });
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId)
@@ -1375,7 +1431,8 @@ ${body}` : ""}`
     var _a;
     const platforms = normalizePlatformFilter(options == null ? void 0 : options.platforms);
     const url = buildApiUrl(this.baseUrl, "/api/thread/apps", {
-      platform: platforms.length > 0 ? platforms : void 0
+      platform: platforms.length > 0 ? platforms : void 0,
+      application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
     });
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
@@ -1469,7 +1526,9 @@ ${body}` : ""}`
    */
   async getModels(sessionId, options) {
     var _a;
-    const url = buildApiUrl(this.baseUrl, "/api/thread/models");
+    const url = buildApiUrl(this.baseUrl, "/api/thread/models", {
+      application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
+    });
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1487,13 +1546,12 @@ ${body}` : ""}`
    * Set the model for a session.
    */
   async setModel(sessionId, rig, options) {
-    var _a, _b;
+    var _a;
     const apiKey = (_a = options == null ? void 0 : options.apiKey) != null ? _a : this.apiKey;
-    const applicationId = (_b = options == null ? void 0 : options.applicationId) == null ? void 0 : _b.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/thread/model", {
       rig,
       app: options == null ? void 0 : options.app,
-      application_id: applicationId || void 0,
+      application_id: applicationIdParam(options == null ? void 0 : options.applicationId),
       client_id: options == null ? void 0 : options.clientId
     });
     const headers = new Headers(withSessionHeader(sessionId));
@@ -1956,6 +2014,8 @@ function wrapFetchWithPaymentChallenges(fetchImpl, client) {
 import { getAddress } from "viem";
 import { createSiweMessage } from "viem/siwe";
 var EXPIRES_AT_MILLISECONDS_THRESHOLD2 = 1e11;
+var MAX_WIDGET_CHALLENGE_LIFETIME_MS = 10 * 60 * 1e3;
+var MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS = 60 * 1e3;
 function createProviderCredentialAdapter(input) {
   let inferredFingerprint = null;
   let stagedCredential = null;
@@ -2006,6 +2066,7 @@ function createSignedChallengeAdapter(config) {
         joinUrl(baseUrl, config.noncePath),
         { wallet_address: signer.address, chain_id: signer.chainId }
       );
+      assertChallengeBinding(challenge);
       const message = config.buildMessage({ signer, challenge });
       const signature = await signer.signMessage(message);
       return exchangeJson(fetchImpl, joinUrl(baseUrl, config.verifyPath), {
@@ -2071,6 +2132,7 @@ function createWidgetSessionProvider(input) {
   let latestFingerprint = null;
   let nextFingerprintRequestId = 0;
   let latestResolvedFingerprint = null;
+  let lastForcedAccessToken = null;
   const listeners = /* @__PURE__ */ new Set();
   const notify = () => {
     for (const listener of listeners) listener();
@@ -2103,12 +2165,23 @@ function createWidgetSessionProvider(input) {
       };
     }
     latestFingerprint = fingerprint;
+    if ((pending == null ? void 0 : pending.fingerprint) === fingerprint) {
+      return (await pending.promise).accessToken;
+    }
     const refreshAt = cached ? cached.expiresAt * 1e3 - refreshBeforeExpiryMs : 0;
+    if (forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && cached.accessToken === lastForcedAccessToken && now() < refreshAt) {
+      return cached.accessToken;
+    }
     if (!forceRefresh && (cached == null ? void 0 : cached.fingerprint) === fingerprint && now() < refreshAt) {
       return cached.accessToken;
     }
-    if (cached) {
-      const stale = cached;
+    const stale = cached;
+    const retainStaleDuringForcedExchange = Boolean(
+      forceRefresh && (stale == null ? void 0 : stale.fingerprint) === fingerprint && now() < refreshAt
+    );
+    if (retainStaleDuringForcedExchange && stale) {
+      lastForcedAccessToken = stale.accessToken;
+    } else if (stale) {
       cached = null;
       void revokeSession(stale);
     }
@@ -2117,6 +2190,7 @@ function createWidgetSessionProvider(input) {
         if ((pending == null ? void 0 : pending.promise) === promise) pending = null;
       };
       var clearPending = clearPending2;
+      const forcedExchange = forceRefresh;
       const promise = adapter.exchange({ baseUrl: input.baseUrl, fetch: fetchImpl }).then(async (session) => {
         const isCurrent = !disposed && epoch === startEpoch && fingerprint === latestFingerprint;
         if (!isCurrent) {
@@ -2124,6 +2198,10 @@ function createWidgetSessionProvider(input) {
           throw new Error("Widget session exchange was superseded");
         }
         cached = __spreadProps(__spreadValues({}, session), { fingerprint });
+        lastForcedAccessToken = forcedExchange ? session.accessToken : null;
+        if (retainStaleDuringForcedExchange && stale) {
+          void revokeSession(stale);
+        }
         notify();
         return session;
       });
@@ -2138,6 +2216,7 @@ function createWidgetSessionProvider(input) {
     cached = null;
     pending = null;
     latestResolvedFingerprint = null;
+    lastForcedAccessToken = null;
     notify();
     if (session) await revokeSession(session);
   };
@@ -2155,6 +2234,7 @@ function createWidgetSessionProvider(input) {
       cached = null;
       pending = null;
       latestResolvedFingerprint = null;
+      lastForcedAccessToken = null;
       notify();
       listeners.clear();
     },
@@ -2166,6 +2246,55 @@ function createWidgetSessionProvider(input) {
     }
   });
   return provider;
+}
+var WidgetChallengeBindingError = class extends Error {
+  constructor(message) {
+    super(`Widget challenge rejected before signing: ${message}`);
+    this.name = "WidgetChallengeBindingError";
+  }
+};
+function assertChallengeBinding(challenge) {
+  var _a, _b;
+  if (!((_a = challenge.nonce) == null ? void 0 : _a.trim())) {
+    throw new WidgetChallengeBindingError("challenge has no nonce");
+  }
+  const now = Date.now();
+  const issued = Date.parse(challenge.issuedAt);
+  if (Number.isNaN(issued)) {
+    throw new WidgetChallengeBindingError(
+      "challenge has no parseable issuedAt"
+    );
+  }
+  if (issued > now + MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS) {
+    throw new WidgetChallengeBindingError("challenge was issued in the future");
+  }
+  const expires = Date.parse(challenge.expirationTime);
+  if (Number.isNaN(expires)) {
+    throw new WidgetChallengeBindingError(
+      "challenge has no parseable expirationTime"
+    );
+  }
+  if (expires <= now) {
+    throw new WidgetChallengeBindingError("challenge is already expired");
+  }
+  if (expires <= issued || expires - issued > MAX_WIDGET_CHALLENGE_LIFETIME_MS) {
+    throw new WidgetChallengeBindingError(
+      "challenge validity window is not bounded"
+    );
+  }
+  const pageOrigin = typeof window !== "undefined" && ((_b = window.location) == null ? void 0 : _b.origin) ? window.location.origin : null;
+  if (!pageOrigin) return;
+  if (challenge.uri !== pageOrigin) {
+    throw new WidgetChallengeBindingError(
+      `challenge uri "${challenge.uri}" is not this page's origin "${pageOrigin}"`
+    );
+  }
+  const pageHost = new URL(pageOrigin).host;
+  if (challenge.domain !== pageHost) {
+    throw new WidgetChallengeBindingError(
+      `challenge domain "${challenge.domain}" is not this page's host "${pageHost}"`
+    );
+  }
 }
 async function challengeJson(fetchImpl, url, body) {
   const response = await fetchImpl(url, requestInit(body));
@@ -3812,8 +3941,8 @@ var ClientSession = class extends TypedEventEmitter {
   scheduleSigningRequestRecovery(immediate = false) {
     if (this.closed || this.signingRecoveryInFlight) return;
     const elapsed = Date.now() - this.lastSigningRecoveryAt;
-    const delay = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
-    if (delay === 0) {
+    const delay2 = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
+    if (delay2 === 0) {
       void this.recoverSigningRequests();
       return;
     }
@@ -3821,7 +3950,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.signingRecoveryTimer = setTimeout(() => {
       this.signingRecoveryTimer = null;
       if (!this.closed) void this.recoverSigningRequests();
-    }, delay);
+    }, delay2);
   }
   /**
    * A signing event is transient, but its backend-owned operation is durable.
@@ -4529,6 +4658,7 @@ export {
   ClientSession as Session,
   TypedEventEmitter,
   UserState,
+  WidgetChallengeBindingError,
   aaModeFromExecutionKind,
   appIdentityKey,
   appendFeeCallToPayload,

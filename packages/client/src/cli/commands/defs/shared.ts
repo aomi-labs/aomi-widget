@@ -33,7 +33,7 @@ function parseEmbeddedProvider(
  * expects.  Accepts both the friendly short form ("mainnet-beta", "devnet",
  * "testnet") and the canonical CAIP-2 form ("solana:mainnet", etc.).
  */
-function parseSvmCluster(raw: string | undefined): SvmCluster | undefined {
+export function parseSvmCluster(raw: string | undefined): SvmCluster | undefined {
   if (!raw) return undefined;
   const lower = raw.trim().toLowerCase();
   switch (lower) {
@@ -202,6 +202,18 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   const embeddedProviderToken =
     str(args["embedded-provider-token"]) ??
     process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
+
+  // `--public-key` is an EVM identity. A base58 Solana address here used to be
+  // silently rerouted by app-name sniffing; now it is a loud error.
+  if (
+    configuredPublicKey &&
+    !/^0x[0-9a-fA-F]{40}$/.test(configuredPublicKey.trim())
+  ) {
+    fatal(
+      "`--public-key` must be a 0x-prefixed EVM address. " +
+        "For a Solana identity, run `aomi wallet set --solana <key>` or pass `--solana-private-key`.",
+    );
+  }
 
   if (
     configuredPublicKey &&

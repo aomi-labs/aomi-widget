@@ -43,7 +43,9 @@ export type {
 
 export type {
   AomiAppDescriptor,
+  AomiArtifactStatus,
   AomiPlatformFilter,
+  ApplicationId,
   AomiRequestOptions,
   AomiRequestQueryValue,
   AomiClientOptions,
@@ -88,6 +90,7 @@ export type {
 export {
   createProviderCredentialAdapter,
   createSiweWidgetAuthAdapter,
+  WidgetChallengeBindingError,
   createSiwsWidgetAuthAdapter,
   createWidgetSessionProvider,
   type ProviderCredential,

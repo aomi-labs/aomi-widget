@@ -278,19 +278,18 @@ export function SolanaRuntimeDriver() {
     () => ({
       connection: {
         is_connected: true,
-        primary_family: "svm",
         provider_label: "Local Solana Driver",
       },
-      solana: {
+      svm: {
         address: signer.publicKey.toBase58(),
         cluster: DRIVER_CLUSTER,
         wallet_name: "Local Dev Signer",
         transport: "embedded",
-        capabilities: {
-          can_sign_transaction: true,
-          can_send_transaction: true,
-          can_sign_and_send_transaction: true,
-        },
+        capabilities: [
+          "can_sign_transaction",
+          "can_send_transaction",
+          "can_sign_and_send_transaction",
+        ],
       },
     }),
     [signer],

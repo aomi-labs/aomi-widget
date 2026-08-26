@@ -13,6 +13,11 @@ function asObject(value: unknown): UnknownRecord | undefined {
 // whose first entry is the primary operating wallet; older backends sent a
 // single object. Collapse to the primary object at the boundary so the rest
 // of the pipeline keeps a single shape.
+//
+// First-entry-wins deliberately mirrors the backend's own
+// `EvmWalletState::primary()` (`self.wallets.first()`). A non-object first
+// entry yields NO evm block: position zero is still the primary, and the FE
+// must never silently select a later wallet in its place.
 function asEvmObject(value: unknown): UnknownRecord | undefined {
   return Array.isArray(value) ? asObject(value[0]) : asObject(value);
 }

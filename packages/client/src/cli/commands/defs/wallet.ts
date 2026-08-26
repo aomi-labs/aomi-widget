@@ -25,13 +25,27 @@ const walletSetDef = defineCommand({
       description: "Solana base58 secret key to persist",
       alias: ["s"],
     },
+    cluster: {
+      type: "string",
+      description:
+        'Solana cluster to persist with --solana: "mainnet-beta" (default), ' +
+        '"devnet", or "testnet". Also accepts CAIP-2 form "solana:mainnet" etc.',
+    },
   },
   async run({ args }) {
     const solanaKey = args.solana as string | undefined;
     if (solanaKey) {
+      const { parseSvmCluster } = await import("./shared");
       const { setSvmWalletCommand } = await import("../preferences");
-      setSvmWalletCommand(solanaKey);
+      setSvmWalletCommand(
+        solanaKey,
+        parseSvmCluster(args.cluster as string | undefined),
+      );
       return;
+    }
+    if (args.cluster) {
+      const { fatal } = await import("../../errors");
+      fatal("`--cluster` only applies with `--solana`.");
     }
 
     // --evm flag or positional (backward-compat default = EVM)

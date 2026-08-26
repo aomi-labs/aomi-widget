@@ -24,6 +24,10 @@
         {
           "type": "registry:component",
           "path": "components/aomi-widget.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/backend-aa-provisioner.tsx"
         }
       ],
       "dependencies": [
@@ -136,6 +140,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/plugin-registry.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/execution/backend-aa-context.tsx"
         },
         {
           "type": "registry:component",
@@ -629,6 +637,14 @@
         {
           "type": "registry:component",
           "path": "components/assistant-ui/threadlist-sidebar.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/aomi-logo.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/aomi-mark.tsx"
         }
       ],
       "dependencies": [

@@ -1,9 +1,11 @@
 import type { FC, SVGProps } from "react";
 import {
+  ArcIcon,
   ArbitrumIcon,
   BaseIcon,
   EthereumIcon,
   LineaIcon,
+  MegaETHIcon,
   MonadIcon,
   OptimismIcon,
   PolygonIcon,
@@ -23,6 +25,8 @@ const CHAIN_ICONS: Record<number, FC<SVGProps<SVGSVGElement>>> = {
   143: MonadIcon,
   10143: MonadIcon,
   4663: RobinhoodIcon,
+  4326: MegaETHIcon,
+  5042002: ArcIcon,
 };
 
 /**

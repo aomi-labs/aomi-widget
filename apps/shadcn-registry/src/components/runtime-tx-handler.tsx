@@ -350,8 +350,9 @@ export function RuntimeTxHandler() {
               });
 
           if (!adapter.sendTransaction) {
-            await rejectWalletRequest(req.id, "Wallet provider is not ready");
-            return;
+            throw new Error(
+              "This wallet cannot send transactions. Reconnect a wallet that can and retry.",
+            );
           }
 
           const defaultChainId =
@@ -512,10 +513,21 @@ export function RuntimeTxHandler() {
         }
       } catch (error) {
         console.error("[RuntimeTxHandler] Request failed:", error);
-        await rejectWalletRequest(
-          req.id,
-          error instanceof Error ? error.message : "Request failed",
-        );
+        const reason =
+          error instanceof Error ? error.message : "Request failed";
+        // A rejection only travels back to the agent. Surface it to the user
+        // too: when the wallet never prompts, a silent reject reads as the
+        // request having been ignored.
+        showNotification({
+          type: "error",
+          title:
+            req.kind === "signing"
+              ? "Could not sign the request"
+              : "Could not send the transaction",
+          message: reason,
+          duration: 8000,
+        });
+        await rejectWalletRequest(req.id, reason);
       }
     }
   }, [

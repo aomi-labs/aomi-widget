@@ -459,7 +459,7 @@ describe("AomiClient app catalog", () => {
     vi.restoreAllMocks();
   });
 
-  it("passes platform filters and normalizes artifact readiness", async () => {
+  it("passes application and platform filters and normalizes artifact availability", async () => {
     const response = {
       ok: true,
       status: 200,
@@ -469,7 +469,9 @@ describe("AomiClient app catalog", () => {
           name: "somm-agent",
           application_id: 42,
           platform: "somm.finance",
-          artifact_ready: true,
+          artifact_ready: false,
+          artifact_status: "fetch_backoff",
+          chain_ids: [5_042_002, 1, 5_042_002, 0, -1, "8453"],
         },
       ]),
     } as unknown as Response;
@@ -481,21 +483,60 @@ describe("AomiClient app catalog", () => {
       const client = new AomiClient({ baseUrl: "http://unit.test" });
 
       const apps = await client.getApps("session-1", {
+        applicationId: 42,
         platforms: ["somm.finance", "community"],
       });
 
       expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
-        "http://unit.test/api/thread/apps?platform=somm.finance&platform=community",
+        "http://unit.test/api/thread/apps?platform=somm.finance&platform=community&application_id=42",
       );
       expect(apps).toEqual([
         {
           name: "somm-agent",
           applicationId: 42,
           platform: "somm.finance",
-          artifactReady: true,
+          artifactReady: false,
+          artifactStatus: "fetch_backoff",
+          chainIds: [1, 5_042_002],
           secrets: [],
         },
       ]);
+    } finally {
+      vi.stubGlobal("fetch", originalFetch);
+    }
+  });
+
+  it("routes models and system events by application id", async () => {
+    const responses = [
+      {
+        ok: true,
+        status: 200,
+        json: vi.fn(async () => ["gpt-5"]),
+      },
+      {
+        ok: true,
+        status: 200,
+        json: vi.fn(async () => []),
+      },
+    ] as unknown as Response[];
+    const nativeFetch = vi.fn(async () => responses.shift() as Response);
+    const originalFetch = globalThis.fetch;
+    vi.stubGlobal("fetch", nativeFetch);
+
+    try {
+      const client = new AomiClient({ baseUrl: "http://unit.test" });
+
+      await client.getModels("session-1", { applicationId: 2936606 });
+      await client.getSystemEvents("session-1", 25, {
+        applicationId: 2936606,
+      });
+
+      expect(String(nativeFetch.mock.calls[0]?.[0])).toBe(
+        "http://unit.test/api/thread/models?application_id=2936606",
+      );
+      expect(String(nativeFetch.mock.calls[1]?.[0])).toBe(
+        "http://unit.test/api/thread/events?count=25&application_id=2936606",
+      );
     } finally {
       vi.stubGlobal("fetch", originalFetch);
     }
@@ -1268,4 +1309,72 @@ describe("createAccountBearerProvider", () => {
       vi.useRealTimers();
     }
   });
+});
+
+describe("AomiClient.createThread cold-app retry", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Run `work` with timers faked, draining backoff waits as they are set. */
+  const withoutWaiting = async <T>(work: () => Promise<T>): Promise<T> => {
+    vi.useFakeTimers();
+    const promise = work();
+    // Mark a rejection handled up front: the assertion only awaits after the
+    // timers below have run, and an unattended rejection in between surfaces
+    // as an unhandled-rejection error.
+    promise.catch(() => {});
+    // Each retry schedules one timer; advancing repeatedly drains the chain
+    // without the test paying the real backoff.
+    for (let tick = 0; tick < 8; tick += 1) {
+      await vi.advanceTimersByTimeAsync(5_000);
+    }
+    return promise;
+  };
+
+  it("retries a cold-app 503 and resolves once the app is warm", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(
+        Response.json({ thread_id: "thread-1", title: null }),
+      );
+    const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+
+    await expect(
+      withoutWaiting(() => client.createThread("thread-1")),
+    ).resolves.toMatchObject({ session_id: "thread-1" });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("throws a status-parseable error once retries are exhausted", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValue(new Response(null, { status: 503 }));
+    const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+
+    // The message shape matters: getHttpStatus() parses `HTTP <code>` out of
+    // it to route failures downstream.
+    await expect(
+      withoutWaiting(() => client.createThread("thread-1")),
+    ).rejects.toThrow("Failed to create thread: HTTP 503");
+    expect(fetch).toHaveBeenCalledTimes(4);
+  });
+
+  it.each([400, 402, 404])(
+    "surfaces %i immediately without retrying",
+    async (status) => {
+      const fetch = vi
+        .fn<typeof globalThis.fetch>()
+        .mockResolvedValue(new Response(null, { status }));
+      const client = new AomiClient({ baseUrl: "http://unit.test", fetch });
+
+      // 402 especially: a quota failure is a decision the payment gate must
+      // see at once, not something to sit behind seconds of backoff.
+      await expect(client.createThread("thread-1")).rejects.toThrow(
+        `Failed to create thread: HTTP ${status}`,
+      );
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
 });

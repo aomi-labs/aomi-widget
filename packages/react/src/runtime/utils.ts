@@ -203,6 +203,8 @@ export function collectTxOutcomes(
 export function toInboundMessage(
   msg: AomiMessage,
   txOutcomes?: TxOutcomes | null,
+  /** Position in the raw list, the id fallback for a notice with no key. */
+  rawIndex = 0,
 ): ThreadMessageLike | null {
   // System records exist in the transcript for model/runtime coordination, not
   // as chat turns. Live notices are presented through the event notification
@@ -213,7 +215,38 @@ export function toInboundMessage(
     return null;
   }
 
+  // A notice explains a turn that produced no answer. It rides the durable
+  // message projection precisely so the explanation survives a reload — the
+  // transient `system_error` event cannot, since the backend drains it.
+  if (msg.sender === "notice") {
+    return {
+      id: noticeMessageId(msg, rawIndex),
+      role: "assistant",
+      content: [{ type: "text" as const, text: msg.content ?? "" }],
+      createdAt: new Date(),
+      metadata: {
+        custom: {
+          aomiNoticeKind: "error",
+          aomiNoticeTitle: "Error",
+        },
+      },
+    };
+  }
+
   return buildInboundMessage(msg, txOutcomes);
+}
+
+/**
+ * Id for a projected notice.
+ *
+ * Prefers the backend's own `message_key`, which is unique per failure. Content
+ * cannot serve here — every notice carries identical copy, so two failed turns
+ * in one thread would render under the same id. The index fallback covers
+ * legacy rows with no key; it is still position-stable within a projection,
+ * which is what keeps the card from remounting on every poll.
+ */
+function noticeMessageId(msg: AomiMessage, index: number): string {
+  return `aomi-notice-${msg.message_key ?? `idx-${index}`}`;
 }
 
 /**

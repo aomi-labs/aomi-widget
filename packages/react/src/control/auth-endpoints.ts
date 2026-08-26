@@ -19,6 +19,7 @@ import type {
   AomiAppDescriptor,
   AomiClient,
   AomiPlatformFilter,
+  ApplicationId,
 } from "@aomi-labs/client";
 import { resolveAutoModel } from "../utils/model-selection";
 
@@ -46,6 +47,8 @@ type UseAuthEndpointsOptions = {
   apiKey: string | null;
   /** Optional backend platform filter for the app catalog. */
   appPlatforms?: AomiPlatformFilter;
+  /** Hosted app this runtime is scoped to; routed on by the edge. */
+  applicationId?: ApplicationId;
 };
 
 function getDefaultApp(apps: string[]): string | null {
@@ -64,6 +67,7 @@ export function useAuthEndpointsImpl({
   getControlSessionId,
   apiKey,
   appPlatforms,
+  applicationId,
 }: UseAuthEndpointsOptions): {
   state: AuthEndpointsState;
   actions: AuthEndpointsActions;
@@ -71,64 +75,19 @@ export function useAuthEndpointsImpl({
   const appPlatformsKey = Array.isArray(appPlatforms)
     ? appPlatforms.join("\0")
     : (appPlatforms ?? "");
+  // Primitive so the callbacks below stay stable across renders.
+  const appId = applicationId?.toString() ?? "";
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [defaultModel, setDefaultModel] = useState<string | null>(null);
   const [authorizedApps, setAuthorizedApps] = useState<string[]>([]);
   const [appDescriptors, setAppDescriptors] = useState<AomiAppDescriptor[]>([]);
   const [defaultApp, setDefaultApp] = useState<string | null>(null);
 
-  // Fetch apps whenever the auth context changes. Scoped to apiKey/clientId
-  // state, NOT to thread switches — see header comment for history.
-  useEffect(() => {
-    const fetchApps = async () => {
-      try {
-        const descriptors = await aomiClientRef.current.getApps(
-          getControlSessionId(),
-          {
-            apiKey: apiKeyRef.current ?? undefined,
-            platforms: appPlatforms,
-          },
-        );
-        const names = namesFromDescriptors(descriptors);
-        setAuthorizedApps(names);
-        setAppDescriptors(descriptors);
-        setDefaultApp(getDefaultApp(names));
-      } catch (error) {
-        console.error("Failed to fetch apps:", error);
-        setAuthorizedApps(["default"]);
-        setAppDescriptors([{ name: "default" }]);
-        setDefaultApp("default");
-      }
-    };
-    void fetchApps();
-    // apiKey is the only meaningful trigger; everything else is refs.
-  }, [aomiClientRef, getControlSessionId, apiKey, appPlatformsKey]);
-
-  // Fetch models on mount only.
-  useEffect(() => {
-    const fetchModels = async () => {
-      try {
-        const models = await aomiClientRef.current.getModels(
-          getControlSessionId(),
-        );
-        setAvailableModels(models);
-        setDefaultModel(resolveAutoModel(models));
-      } catch (error) {
-        console.error("Failed to fetch models:", error);
-      }
-    };
-    void fetchModels();
-  }, [aomiClientRef, getControlSessionId]);
-
-  // ---------------------------------------------------------------------------
-  // Imperative refresh actions (used by the control bar to force a re-fetch
-  // after the user takes an action that might change authorization).
-  // ---------------------------------------------------------------------------
-
   const getAvailableModels = useCallback(async (): Promise<string[]> => {
     try {
       const models = await aomiClientRef.current.getModels(
         getControlSessionId(),
+        { applicationId: appId },
       );
       setAvailableModels(models);
       setDefaultModel(resolveAutoModel(models));
@@ -137,7 +96,7 @@ export function useAuthEndpointsImpl({
       console.error("Failed to fetch models:", error);
       return [];
     }
-  }, [aomiClientRef, getControlSessionId]);
+  }, [aomiClientRef, getControlSessionId, appId]);
 
   const getAuthorizedApps = useCallback(async (): Promise<string[]> => {
     try {
@@ -146,6 +105,7 @@ export function useAuthEndpointsImpl({
         {
           apiKey: apiKeyRef.current ?? undefined,
           platforms: appPlatforms,
+          applicationId: appId,
         },
       );
       const names = namesFromDescriptors(descriptors);
@@ -160,7 +120,17 @@ export function useAuthEndpointsImpl({
       setDefaultApp("default");
       return ["default"];
     }
-  }, [aomiClientRef, apiKeyRef, getControlSessionId, appPlatformsKey]);
+  }, [aomiClientRef, apiKeyRef, getControlSessionId, appPlatformsKey, appId]);
+
+  // Fetch models on mount. Fetch apps whenever the auth context changes —
+  // apiKey is the trigger; scoped to apiKey/clientId state, NOT to thread
+  // switches (see header comment for history).
+  useEffect(() => {
+    void getAvailableModels();
+  }, [getAvailableModels]);
+  useEffect(() => {
+    void getAuthorizedApps();
+  }, [getAuthorizedApps, apiKey]);
 
   return {
     state: {

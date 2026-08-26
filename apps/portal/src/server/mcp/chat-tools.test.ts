@@ -11,6 +11,9 @@ vi.mock("@portal/server/mcp/chat-backend", () => ({
 vi.mock("@portal/server/mcp/thread", () => ({
   newMcpThreadId: () => "mcp-generated",
 }));
+vi.mock("@portal/server/mcp/wallet-selection", () => ({
+  resolveSessionWallets: vi.fn(),
+}));
 
 import {
   ensureThread,
@@ -19,6 +22,7 @@ import {
   listThreads,
   sendChat,
 } from "@portal/server/mcp/chat-backend";
+import { resolveSessionWallets } from "@portal/server/mcp/wallet-selection";
 import { CHAT_MCP_TOOLS, dispatchChatTool } from "./chat-tools";
 
 const USER = "user-1";
@@ -37,6 +41,10 @@ beforeEach(() => {
     ok({ messages: [], system_events: [], is_processing: false }),
   );
   vi.mocked(listThreads).mockResolvedValue(ok([]));
+  vi.mocked(resolveSessionWallets).mockResolvedValue({
+    ok: true,
+    wallets: { evm: "0xselected" },
+  });
 });
 
 describe("MCP chat tools", () => {
@@ -73,6 +81,7 @@ describe("MCP chat tools", () => {
       "hello",
       "default",
       undefined,
+      { evm: "0xselected" },
     );
     expect(outcome.result).toMatchObject({
       session_id: "mcp-generated",
@@ -110,6 +119,7 @@ describe("MCP chat tools", () => {
       "continue",
       undefined,
       undefined,
+      { evm: "0xselected" },
     );
   });
 
@@ -124,6 +134,7 @@ describe("MCP chat tools", () => {
       "use Base",
       undefined,
       { family: "evm", chain_id: 8453 },
+      { evm: "0xselected" },
     );
 
     await dispatchChatTool(USER, "aomi_chat", {
@@ -136,7 +147,67 @@ describe("MCP chat tools", () => {
       "use Solana devnet",
       undefined,
       { family: "solana", cluster: "solana:devnet" },
+      { evm: "0xselected" },
     );
+  });
+
+  it("refuses the turn when the account's wallet is ambiguous", async () => {
+    vi.mocked(resolveSessionWallets).mockResolvedValue({
+      ok: false,
+      failure: {
+        error: "wallet_selection_required",
+        selection_required: [
+          {
+            family: "evm",
+            wallets: [
+              { address: "0xone", is_primary: true },
+              { address: "0xtwo", is_primary: false },
+            ],
+          },
+        ],
+        guidance: "ask the user",
+      },
+    });
+
+    const outcome = await dispatchChatTool(USER, "aomi_chat", {
+      message: "swap 15 USDC",
+    });
+
+    // The turn must not reach the agent: a chat that cannot name its wallet
+    // would get a confident answer about an arbitrary one.
+    expect(sendChat).not.toHaveBeenCalled();
+    expect(outcome.isError).toBe(true);
+    expect(outcome.result).toMatchObject({
+      error: "wallet_selection_required",
+      session_id: "mcp-generated",
+    });
+  });
+
+  it("forwards a caller-chosen wallet to selection", async () => {
+    await dispatchChatTool(USER, "aomi_chat", {
+      message: "swap",
+      wallet: { evm_address: "0xChosen" },
+      chain_context: { family: "evm", chain_id: 1 },
+    });
+
+    expect(resolveSessionWallets).toHaveBeenCalledWith({
+      canonicalUserId: USER,
+      sessionId: "mcp-generated",
+      requested: { evm: "0xChosen" },
+      familyInPlay: "evm",
+    });
+  });
+
+  it("rejects a malformed wallet argument", async () => {
+    const outcome = await dispatchChatTool(USER, "aomi_chat", {
+      message: "swap",
+      wallet: { evm_address: "0xok", nonsense: true },
+    });
+    expect(outcome).toEqual({
+      result: { error: "wallet contains unsupported fields" },
+      isError: true,
+    });
+    expect(sendChat).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported Solana cluster context", async () => {

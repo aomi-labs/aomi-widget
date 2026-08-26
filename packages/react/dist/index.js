@@ -324,56 +324,22 @@ function useAuthEndpointsImpl({
   apiKeyRef,
   getControlSessionId: getControlSessionId2,
   apiKey,
-  appPlatforms
+  appPlatforms,
+  applicationId
 }) {
+  var _a;
   const appPlatformsKey = Array.isArray(appPlatforms) ? appPlatforms.join("\0") : appPlatforms != null ? appPlatforms : "";
+  const appId = (_a = applicationId == null ? void 0 : applicationId.toString()) != null ? _a : "";
   const [availableModels, setAvailableModels] = useState3([]);
   const [defaultModel, setDefaultModel] = useState3(null);
   const [authorizedApps, setAuthorizedApps] = useState3([]);
   const [appDescriptors, setAppDescriptors] = useState3([]);
   const [defaultApp, setDefaultApp] = useState3(null);
-  useEffect3(() => {
-    const fetchApps = async () => {
-      var _a;
-      try {
-        const descriptors = await aomiClientRef.current.getApps(
-          getControlSessionId2(),
-          {
-            apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
-            platforms: appPlatforms
-          }
-        );
-        const names = namesFromDescriptors(descriptors);
-        setAuthorizedApps(names);
-        setAppDescriptors(descriptors);
-        setDefaultApp(getDefaultApp(names));
-      } catch (error) {
-        console.error("Failed to fetch apps:", error);
-        setAuthorizedApps(["default"]);
-        setAppDescriptors([{ name: "default" }]);
-        setDefaultApp("default");
-      }
-    };
-    void fetchApps();
-  }, [aomiClientRef, getControlSessionId2, apiKey, appPlatformsKey]);
-  useEffect3(() => {
-    const fetchModels = async () => {
-      try {
-        const models = await aomiClientRef.current.getModels(
-          getControlSessionId2()
-        );
-        setAvailableModels(models);
-        setDefaultModel(resolveAutoModel(models));
-      } catch (error) {
-        console.error("Failed to fetch models:", error);
-      }
-    };
-    void fetchModels();
-  }, [aomiClientRef, getControlSessionId2]);
   const getAvailableModels = useCallback3(async () => {
     try {
       const models = await aomiClientRef.current.getModels(
-        getControlSessionId2()
+        getControlSessionId2(),
+        { applicationId: appId }
       );
       setAvailableModels(models);
       setDefaultModel(resolveAutoModel(models));
@@ -382,15 +348,16 @@ function useAuthEndpointsImpl({
       console.error("Failed to fetch models:", error);
       return [];
     }
-  }, [aomiClientRef, getControlSessionId2]);
+  }, [aomiClientRef, getControlSessionId2, appId]);
   const getAuthorizedApps = useCallback3(async () => {
-    var _a;
+    var _a2;
     try {
       const descriptors = await aomiClientRef.current.getApps(
         getControlSessionId2(),
         {
-          apiKey: (_a = apiKeyRef.current) != null ? _a : void 0,
-          platforms: appPlatforms
+          apiKey: (_a2 = apiKeyRef.current) != null ? _a2 : void 0,
+          platforms: appPlatforms,
+          applicationId: appId
         }
       );
       const names = namesFromDescriptors(descriptors);
@@ -405,7 +372,13 @@ function useAuthEndpointsImpl({
       setDefaultApp("default");
       return ["default"];
     }
-  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appPlatformsKey]);
+  }, [aomiClientRef, apiKeyRef, getControlSessionId2, appPlatformsKey, appId]);
+  useEffect3(() => {
+    void getAvailableModels();
+  }, [getAvailableModels]);
+  useEffect3(() => {
+    void getAuthorizedApps();
+  }, [getAuthorizedApps, apiKey]);
   return {
     state: {
       availableModels,
@@ -1154,7 +1127,8 @@ function ControlContextProvider({
   sessionId,
   getThreadMetadata,
   updateThreadMetadata,
-  appPlatforms
+  appPlatforms,
+  applicationId
 }) {
   const aomiClientRef = useRef(aomiClient);
   aomiClientRef.current = aomiClient;
@@ -1197,7 +1171,8 @@ function ControlContextProvider({
     apiKeyRef,
     getControlSessionId: getCurrentControlSessionId,
     apiKey: apiKey.state.apiKey,
-    appPlatforms
+    appPlatforms,
+    applicationId
   });
   const availableModelsRef = useRef(authEndpoints.state.availableModels);
   availableModelsRef.current = authEndpoints.state.availableModels;
@@ -1793,11 +1768,30 @@ function collectTxOutcomes(messages) {
     svmByTx: svmByTx != null ? svmByTx : /* @__PURE__ */ new Map()
   };
 }
-function toInboundMessage(msg, txOutcomes) {
+function toInboundMessage(msg, txOutcomes, rawIndex = 0) {
+  var _a;
   if (msg.sender === "system") {
     return null;
   }
+  if (msg.sender === "notice") {
+    return {
+      id: noticeMessageId(msg, rawIndex),
+      role: "assistant",
+      content: [{ type: "text", text: (_a = msg.content) != null ? _a : "" }],
+      createdAt: /* @__PURE__ */ new Date(),
+      metadata: {
+        custom: {
+          aomiNoticeKind: "error",
+          aomiNoticeTitle: "Error"
+        }
+      }
+    };
+  }
   return buildInboundMessage(msg, txOutcomes);
+}
+function noticeMessageId(msg, index) {
+  var _a;
+  return `aomi-notice-${(_a = msg.message_key) != null ? _a : `idx-${index}`}`;
 }
 var TASK_TOOL_NAME = "task";
 function readTaskPartAgentId(part) {
@@ -2048,11 +2042,11 @@ var selectProjectedMessageEntries = (messages, projection) => {
 var projectInboundMessages = (messages, projection) => {
   const txOutcomes = collectTxOutcomes(messages);
   const projectedMessages = [];
-  for (const { message } of selectProjectedMessageEntries(
+  for (const { message, rawIndex } of selectProjectedMessageEntries(
     messages,
     projection
   )) {
-    const converted = toInboundMessage(message, txOutcomes);
+    const converted = toInboundMessage(message, txOutcomes, rawIndex);
     if (converted) projectedMessages.push(converted);
   }
   return mergeAssistantTurns(projectedMessages);
@@ -2087,23 +2081,24 @@ var getHttpStatus = (error) => {
 };
 var isPaymentRequiredError = (error) => getHttpStatus(error) === 402;
 var PAYMENT_REQUIRED_MESSAGE = "You're out of funds, please set up a payment method.";
-var buildPaymentRequiredMessage = () => ({
-  id: `aomi-payment-required-${Date.now()}`,
+var TURN_ERROR_MESSAGE = "This app hit an error and couldn't respond.";
+var buildNoticeMessage = (kind, title, text) => ({
+  id: `aomi-${kind}-${Date.now()}`,
   role: "assistant",
-  content: [
-    {
-      type: "text",
-      text: PAYMENT_REQUIRED_MESSAGE
-    }
-  ],
+  content: [{ type: "text", text }],
   createdAt: /* @__PURE__ */ new Date(),
   metadata: {
     custom: {
-      aomiNoticeKind: "payment_required",
-      aomiNoticeTitle: "Credits needed"
+      aomiNoticeKind: kind,
+      aomiNoticeTitle: title
     }
   }
 });
+var buildPaymentRequiredMessage = () => buildNoticeMessage(
+  "payment_required",
+  "Credits needed",
+  PAYMENT_REQUIRED_MESSAGE
+);
 var previewText = (value, max = 80) => {
   const singleLine = value.replace(/\s+/g, " ").trim();
   if (singleLine.length <= max) return singleLine;
@@ -2172,22 +2167,22 @@ var updateTurnPhase = (threadContext, threadId, turnPhase) => {
     })
   });
 };
-var appendPaymentRequiredMessage = (threadContext, threadId) => {
-  var _a, _b;
+var appendNoticeMessage = (threadContext, threadId, message) => {
+  var _a, _b, _c, _d;
+  const kind = (_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind;
   const messages = threadContext.getThreadMessages(threadId);
-  let hasPaymentNotice = false;
+  let hasNotice = false;
   for (let i = messages.length - 1; i >= 0; i--) {
-    const message = messages[i];
-    if (message.role !== "assistant") continue;
-    hasPaymentNotice = ((_b = (_a = message.metadata) == null ? void 0 : _a.custom) == null ? void 0 : _b.aomiNoticeKind) === "payment_required";
+    const existing = messages[i];
+    if (existing.role !== "assistant") continue;
+    hasNotice = ((_d = (_c = existing.metadata) == null ? void 0 : _c.custom) == null ? void 0 : _d.aomiNoticeKind) === kind;
     break;
   }
-  if (hasPaymentNotice) return;
-  threadContext.setThreadMessages(threadId, [
-    ...messages,
-    buildPaymentRequiredMessage()
-  ]);
+  if (hasNotice) return;
+  threadContext.setThreadMessages(threadId, [...messages, message]);
 };
+var buildTurnErrorMessage = () => buildNoticeMessage("error", "Error", TURN_ERROR_MESSAGE);
+var appendPaymentRequiredMessage = (threadContext, threadId) => appendNoticeMessage(threadContext, threadId, buildPaymentRequiredMessage());
 function useRuntimeOrchestrator(aomiClient, options) {
   const threadContext = useThreadContext();
   const threadContextRef = useRef6(threadContext);
@@ -2991,28 +2986,27 @@ function useWalletStateSync(context, sessions, remoteThreads) {
   const { remoteThreadIdsRef } = remoteThreads;
   const walletSnapshot = useCallback11(
     (nextUser) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i;
       return {
         connection: {
+          // Serialize exactly the backend ProviderState. FE-local and account
+          // identity fields are deliberately not forwarded here.
           is_connected: (_a = UserStateHelpers.isConnected(nextUser)) != null ? _a : false,
-          primary_family: (_b = nextUser.connection) == null ? void 0 : _b.primary_family,
-          provider: (_c = UserStateHelpers.walletProvider(nextUser)) != null ? _c : void 0,
-          wallet_provider_subject: (_d = UserStateHelpers.walletProviderSubject(nextUser)) != null ? _d : void 0,
-          auth_method: (_e = UserStateHelpers.authMethod(nextUser)) != null ? _e : void 0,
-          auth_value: (_f = UserStateHelpers.authValue(nextUser)) != null ? _f : void 0,
-          auth_verified_at: (_g = UserStateHelpers.authVerifiedAt(nextUser)) != null ? _g : void 0
+          provider: (_b = UserStateHelpers.walletProvider(nextUser)) != null ? _b : void 0,
+          provider_label: typeof ((_c = nextUser.connection) == null ? void 0 : _c.provider_label) === "string" ? nextUser.connection.provider_label : void 0,
+          auth_method: (_d = UserStateHelpers.authMethod(nextUser)) != null ? _d : void 0
         },
         evm: {
           address: UserStateHelpers.address(nextUser),
           chain_id: UserStateHelpers.chainId(nextUser),
-          ens_name: typeof ((_h = nextUser.evm) == null ? void 0 : _h.ens_name) === "string" ? nextUser.evm.ens_name : void 0
+          ens_name: typeof ((_e = nextUser.evm) == null ? void 0 : _e.ens_name) === "string" ? nextUser.evm.ens_name : void 0
         },
         svm: {
           address: UserStateHelpers.svmAddress(nextUser),
-          cluster: (_i = nextUser.svm) == null ? void 0 : _i.cluster,
-          wallet_name: (_j = nextUser.svm) == null ? void 0 : _j.wallet_name,
-          transport: (_k = nextUser.svm) == null ? void 0 : _k.transport,
-          capabilities: (_l = nextUser.svm) == null ? void 0 : _l.capabilities
+          cluster: (_f = nextUser.svm) == null ? void 0 : _f.cluster,
+          wallet_name: (_g = nextUser.svm) == null ? void 0 : _g.wallet_name,
+          transport: (_h = nextUser.svm) == null ? void 0 : _h.transport,
+          capabilities: (_i = nextUser.svm) == null ? void 0 : _i.capabilities
         }
       };
     },
@@ -3802,6 +3796,11 @@ function AomiRuntimeCore({
         title: "Error",
         message
       });
+      appendNoticeMessage(
+        threadContextRef.current,
+        event.sessionId,
+        buildTurnErrorMessage()
+      );
     });
     return () => {
       unsubscribeNotice();
@@ -4078,6 +4077,7 @@ function AomiRuntimeInner({
       getThreadMetadata: threadContext.getThreadMetadata,
       updateThreadMetadata: threadContext.updateThreadMetadata,
       appPlatforms,
+      applicationId,
       children: /* @__PURE__ */ jsx8(
         EventContextProvider,
         {

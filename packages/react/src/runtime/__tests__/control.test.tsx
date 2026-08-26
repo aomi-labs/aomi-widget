@@ -18,6 +18,30 @@ afterEach(() => {
 });
 
 describe("Control context", () => {
+  it("routes app discovery and model discovery by application id", async () => {
+    const getApps = vi.fn(async () => [{ name: "somm-agent" }]);
+    const getModels = vi.fn(async () => ["auto-model"]);
+    setAomiClientConfig({ getApps, getModels });
+
+    renderRuntime({
+      applicationId: 2936606,
+      appPlatforms: ["somm.finance"],
+    });
+
+    await waitFor(() => {
+      expect(getApps).toHaveBeenCalledTimes(1);
+      expect(getModels).toHaveBeenCalledTimes(1);
+    });
+
+    expect(getApps.mock.calls[0]?.[1]).toMatchObject({
+      applicationId: "2936606",
+      platforms: ["somm.finance"],
+    });
+    expect(getModels.mock.calls[0]?.[1]).toMatchObject({
+      applicationId: "2936606",
+    });
+  });
+
   it("does not refetch authorized apps when the wallet address changes", async () => {
     // Refetching on every wallet/network switch caused the app picker to
     // visually reset (e.g. when toggling between EVM and Solana wallets,

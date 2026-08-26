@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { useAomiRuntime, usePerThreadControl } from "@aomi-labs/react";
 import { HeaderControls } from "@portal/components/shell/header-controls";
+import { OverlayPortal } from "@portal/components/shell/overlay-portal";
 import { PackagesModal } from "@portal/components/shell/packages-modal";
 import { SettingsModal } from "@portal/components/settings/settings-modal";
 import {
@@ -219,13 +220,20 @@ export function PortalAomiFrame() {
           }}
         />
         <SvmWalletBindingGate />
+        {/* Inside the frame so they see the Aomi runtime (the settings
+            account tab needs the live thread id); portalled to <body> so one
+            backdrop still covers the sidebar and chat as one surface. */}
+        {overlay === "settings" && (
+          <OverlayPortal>
+            <SettingsModal onClose={() => setOverlay("none")} />
+          </OverlayPortal>
+        )}
+        {overlay === "packages" && (
+          <OverlayPortal>
+            <PackagesModal onClose={() => setOverlay("none")} />
+          </OverlayPortal>
+        )}
       </AomiFrame.Root>
-      {overlay === "settings" && (
-        <SettingsModal onClose={() => setOverlay("none")} />
-      )}
-      {overlay === "packages" && (
-        <PackagesModal onClose={() => setOverlay("none")} />
-      )}
     </main>
   );
 }

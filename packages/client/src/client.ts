@@ -30,6 +30,7 @@ import type {
   Logger,
   AomiHttpMethod,
   AomiPlatformFilter,
+  ApplicationId,
 } from "./types";
 import { UserState, type OwnedUserState } from "./user-state";
 import { createSseSubscriber, type SseSubscriber } from "./sse";
@@ -61,6 +62,13 @@ function joinApiPath(baseUrl: string, path: string): string {
 }
 
 type ApiQueryValue = string | readonly string[] | undefined;
+
+// Every session-scoped request of a hosted-app thread carries application_id
+// (discovery and polls included): the edge routes on it to a backend that
+// holds the app's artifact.
+function applicationIdParam(id: ApplicationId | undefined): string | undefined {
+  return id?.toString().trim() || undefined;
+}
 
 function buildApiUrl(
   baseUrl: string,
@@ -157,6 +165,19 @@ function normalizeThreadWire(wire: ThreadWire): AomiThread {
   } as AomiThread;
 }
 
+/**
+ * Upstream statuses worth retrying on thread creation. Strictly transient
+ * ones only: a 4xx (a 402 quota failure especially, which routes to the
+ * payment gate) is a decision, not a hiccup, and must surface immediately.
+ */
+const CREATE_THREAD_RETRY_STATUSES = new Set([502, 503, 504]);
+
+/** Backoff between thread-creation attempts. Length sets the retry count. */
+const CREATE_THREAD_RETRY_DELAYS_MS = [400, 1_000, 2_000];
+
+const delay = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
   const headers = new Headers(init);
   headers.set(SESSION_ID_HEADER, sessionId);
@@ -212,13 +233,8 @@ export function wrapFetchWithAccountBearer(
 
 function supportsTokenRefreshSubscription(
   provider: GetAccountBearer | undefined,
-): provider is GetAccountBearer & {
-  subscribe: (listener: () => void) => () => void;
-} {
-  return (
-    typeof (provider as { subscribe?: unknown } | undefined)?.subscribe ===
-    "function"
-  );
+): provider is GetAccountBearer & Required<Pick<GetAccountBearer, "subscribe">> {
+  return typeof provider?.subscribe === "function";
 }
 
 async function postState<T>(
@@ -311,6 +327,7 @@ export class AomiClient {
   private readonly fetchImpl: typeof fetch;
   private readonly rawFetchImpl: typeof fetch;
   private readonly logger?: Logger;
+  private readonly accountBearer?: GetAccountBearer;
   private readonly sseSubscriber: SseSubscriber;
 
   constructor(options: AomiClientOptions) {
@@ -331,6 +348,7 @@ export class AomiClient {
       options.getAccountBearer,
     );
     this.logger = options.logger;
+    this.accountBearer = options.getAccountBearer;
 
     this.sseSubscriber = createSseSubscriber({
       backendUrl: this.baseUrl,
@@ -341,11 +359,42 @@ export class AomiClient {
       fetchImpl: this.rawFetchImpl,
       logger: this.logger,
     });
-    if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-      options.getAccountBearer.subscribe(() => {
-        this.sseSubscriber.reconnect("account-token-refreshed");
-      });
+    this.wireTokenRefreshReconnect();
+    if (
+      options.getAccountBearer?.required === true &&
+      !supportsTokenRefreshSubscription(options.getAccountBearer)
+    ) {
+      // A required bearer without subscribe() means live streams keep running
+      // on a superseded token after every refresh and die silently upstream.
+      // The most common cause is a host wrapping the provider and losing its
+      // methods (Object.assign(fn, { required }) keeps only what was copied).
+      console.warn(
+        "[aomi-client] getAccountBearer.required is set but subscribe() is missing: " +
+          "SSE will not reconnect after token refresh. Pass the WidgetSessionProvider " +
+          "through unwrapped, or preserve its subscribe/dispose/revoke methods.",
+      );
     }
+  }
+
+  /**
+   * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
+   *
+   * Historically evaluated ONCE in the constructor, which silently dropped
+   * reconnect for a stable bearer whose `subscribe` appears after construction.
+   * Re-attempted lazily on every SSE subscription so that shape is picked up on
+   * the next stream instead of never. Replacing the bearer function itself still
+   * requires a stable host/widget bridge; AomiClient intentionally retains the
+   * source supplied at construction.
+   */
+  private tokenRefreshWired = false;
+  private wireTokenRefreshReconnect(): void {
+    if (this.tokenRefreshWired) return;
+    const bearer = this.accountBearer;
+    if (!supportsTokenRefreshSubscription(bearer)) return;
+    this.tokenRefreshWired = true;
+    bearer.subscribe(() => {
+      this.sseSubscriber.reconnect("account-token-refreshed");
+    });
   }
 
   // ===========================================================================
@@ -409,13 +458,12 @@ export class AomiClient {
     sessionId: string,
     userState?: OwnedUserState,
     clientId?: string,
-    options?: { app?: string; applicationId?: number | string | null },
+    options?: { app?: string; applicationId?: ApplicationId },
   ): Promise<AomiStateResponse> {
     const normalizedUserState = UserState.normalize(userState);
-    const applicationId = options?.applicationId?.toString().trim();
     const stateContext = {
       app: options?.app,
-      application_id: applicationId || undefined,
+      application_id: applicationIdParam(options?.applicationId),
     };
     const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", {
       ...stateContext,
@@ -435,7 +483,7 @@ export class AomiClient {
     this.logger?.debug("[aomi][client] GET /api/thread/state start", {
       sessionId,
       app: options?.app,
-      applicationId,
+      applicationId: options?.applicationId,
       clientId,
       hasUserState: Boolean(normalizedUserState),
     });
@@ -488,7 +536,7 @@ export class AomiClient {
     message: string,
     options?: {
       app?: string;
-      applicationId?: number | string | null;
+      applicationId?: ApplicationId;
       apiKey?: string;
       userState?: OwnedUserState;
       clientId?: string;
@@ -500,10 +548,9 @@ export class AomiClient {
     const app = options?.app ?? "default";
     const apiKey = options?.apiKey ?? this.apiKey;
     const normalizedUserState = UserState.normalize(options?.userState);
-    const applicationId = options?.applicationId?.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
       app,
-      application_id: applicationId || undefined,
+      application_id: applicationIdParam(options?.applicationId),
       message,
       user_state: normalizedUserState
         ? JSON.stringify(normalizedUserState)
@@ -515,7 +562,7 @@ export class AomiClient {
     this.logger?.debug("[aomi][client] POST /api/thread/chat prepared", {
       sessionId,
       app,
-      applicationId,
+      applicationId: options?.applicationId,
       clientId: options?.clientId,
       paymentMethod: options?.paymentMethod,
       hasUserState: Boolean(normalizedUserState),
@@ -561,7 +608,7 @@ export class AomiClient {
   async sendSystemMessage(
     sessionId: string,
     message: string,
-    options?: { app?: string; applicationId?: number | string | null },
+    options?: { app?: string; applicationId?: ApplicationId },
   ): Promise<AomiSystemResponse> {
     const payload: Record<string, unknown> = { message };
     if (options?.app) {
@@ -592,7 +639,7 @@ export class AomiClient {
    */
   async interrupt(
     sessionId: string,
-    options?: { app?: string; applicationId?: number | string | null },
+    options?: { app?: string; applicationId?: ApplicationId },
   ): Promise<AomiInterruptResponse> {
     this.logger?.debug("[aomi][client] POST /api/thread/interrupt prepared", {
       sessionId,
@@ -740,8 +787,11 @@ export class AomiClient {
     sessionId: string,
     onUpdate: (event: AomiSSEEvent) => void,
     onError?: (error: unknown) => void,
-    options?: { applicationId?: number | string | null },
+    options?: { applicationId?: ApplicationId },
   ): () => void {
+    // A provider whose subscribe() appeared after construction (late-bound
+    // host bridges) gets wired here, before the stream it must protect.
+    this.wireTokenRefreshReconnect();
     return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
   }
 
@@ -821,10 +871,27 @@ export class AomiClient {
       platform: options?.platform,
       client_id: options?.clientId,
     });
-    const response = await this.fetchImpl(url, {
+    let response = await this.fetchImpl(url, {
       method: "POST",
       headers: withSessionHeader(threadId),
     });
+
+    // A cold app 503s at the edge until some origin has its artifact loaded —
+    // a warm-up race the very first request of a session is most likely to
+    // lose. Retrying it beats surfacing a hard failure for a state the system
+    // already knows is temporary.
+    for (
+      let attempt = 0;
+      attempt < CREATE_THREAD_RETRY_DELAYS_MS.length &&
+      CREATE_THREAD_RETRY_STATUSES.has(response.status);
+      attempt += 1
+    ) {
+      await delay(CREATE_THREAD_RETRY_DELAYS_MS[attempt]!);
+      response = await this.fetchImpl(url, {
+        method: "POST",
+        headers: withSessionHeader(threadId),
+      });
+    }
 
     if (!response.ok) {
       throw new Error(`Failed to create thread: HTTP ${response.status}`);
@@ -918,9 +985,11 @@ export class AomiClient {
   async getSystemEvents(
     sessionId: string,
     count?: number,
+    options?: { applicationId?: ApplicationId },
   ): Promise<AomiSystemEvent[]> {
     const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
       count: count !== undefined ? String(count) : undefined,
+      application_id: applicationIdParam(options?.applicationId),
     });
     const response = await this.fetchImpl(url, {
       headers: withSessionHeader(sessionId),
@@ -945,11 +1014,16 @@ export class AomiClient {
    */
   async getApps(
     sessionId: string,
-    options?: { apiKey?: string; platforms?: AomiPlatformFilter },
+    options?: {
+      apiKey?: string;
+      platforms?: AomiPlatformFilter;
+      applicationId?: ApplicationId;
+    },
   ): Promise<AomiAppDescriptor[]> {
     const platforms = normalizePlatformFilter(options?.platforms);
     const url = buildApiUrl(this.baseUrl, "/api/thread/apps", {
       platform: platforms.length > 0 ? platforms : undefined,
+      application_id: applicationIdParam(options?.applicationId),
     });
 
     const apiKey = options?.apiKey ?? this.apiKey;
@@ -1080,9 +1154,11 @@ export class AomiClient {
    */
   async getModels(
     sessionId: string,
-    options?: { apiKey?: string },
+    options?: { apiKey?: string; applicationId?: ApplicationId },
   ): Promise<string[]> {
-    const url = buildApiUrl(this.baseUrl, "/api/thread/models");
+    const url = buildApiUrl(this.baseUrl, "/api/thread/models", {
+      application_id: applicationIdParam(options?.applicationId),
+    });
     const apiKey = options?.apiKey ?? this.apiKey;
     const headers = new Headers(withSessionHeader(sessionId));
     if (apiKey) {
@@ -1108,7 +1184,7 @@ export class AomiClient {
     rig: string,
     options?: {
       app?: string;
-      applicationId?: number | string | null;
+      applicationId?: ApplicationId;
       apiKey?: string;
       clientId?: string;
     },
@@ -1119,11 +1195,10 @@ export class AomiClient {
     created: boolean;
   }> {
     const apiKey = options?.apiKey ?? this.apiKey;
-    const applicationId = options?.applicationId?.toString().trim();
     const url = buildApiUrl(this.baseUrl, "/api/thread/model", {
       rig,
       app: options?.app,
-      application_id: applicationId || undefined,
+      application_id: applicationIdParam(options?.applicationId),
       client_id: options?.clientId,
     });
 

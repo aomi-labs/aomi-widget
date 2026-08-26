@@ -52,6 +52,16 @@ export type GetAccountBearer = ((options?: {
    * (widget) session set this; additive account bearers leave it unset.
    */
   required?: boolean;
+  /**
+   * Notifies consumers when the bearer rotates or is revoked. AomiClient uses
+   * this to reconnect live SSE streams with the new credential.
+   *
+   * The property is optional because API-key and cookie-backed integrations do
+   * not own a refreshable account bearer. WidgetSessionProvider always exposes
+   * it. Wrappers around a widget provider must preserve this subscription or
+   * provide their own stable forwarding subscription.
+   */
+  subscribe?: (listener: () => void) => () => void;
 };
 
 export type AomiRequestQueryValue =
@@ -63,6 +73,9 @@ export type AomiRequestQueryValue =
   | undefined;
 
 export type AomiPlatformFilter = string | readonly string[] | null | undefined;
+
+/** Stable id of a hosted app; null/empty means "not app-scoped". */
+export type ApplicationId = number | string | null;
 
 export type AomiHttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -86,7 +99,21 @@ export interface AomiRequestOptions {
 // =============================================================================
 
 export interface AomiMessage {
-  sender?: "user" | "agent" | "system" | string;
+  /**
+   * `notice` is a durable runtime record — today, a turn the provider refused.
+   * Unlike `system`, which the projection drops, a notice is shown to the user
+   * and survives a reload.
+   */
+  sender?: "user" | "agent" | "system" | "notice" | string;
+  /**
+   * Backend-allocated identity for this message, stable across polls and
+   * reloads. Absent on legacy rows the runtime hydrated without one.
+   *
+   * The only sound id for a rendered notice: every failure notice carries the
+   * same copy, so anything derived from content collides across distinct
+   * failures in one thread.
+   */
+  message_key?: string;
   content?: string;
   timestamp?: string;
   is_streaming?: boolean;
@@ -560,6 +587,9 @@ export interface AomiSecretSlot {
   required: boolean;
 }
 
+/** Hosted application artifact availability reported by the backend catalog. */
+export type AomiArtifactStatus = "ready" | "pending" | "fetch_backoff";
+
 /**
  * GET /api/thread/apps
  * One entry per app the user can use. `secrets` is empty for apps that
@@ -574,7 +604,10 @@ export interface AomiAppDescriptor {
   isActive?: boolean | null;
   isPublic?: boolean | null;
   artifactReady?: boolean | null;
+  artifactStatus?: AomiArtifactStatus | null;
   secrets?: AomiSecretSlot[];
+  /** Exact EVM chain IDs declared by the official app release. */
+  chainIds?: number[];
 }
 
 export type AomiSSEEventType =

@@ -412,6 +412,13 @@ var init_validation = __esm({
 });
 
 // src/cli/commands/defs/shared.ts
+var shared_exports = {};
+__export(shared_exports, {
+  buildCliConfig: () => buildCliConfig,
+  getPositionals: () => getPositionals,
+  globalArgs: () => globalArgs,
+  parseSvmCluster: () => parseSvmCluster
+});
 import { privateKeyToAccount } from "viem/accounts";
 function parseEmbeddedProvider(raw) {
   if (!raw) return void 0;
@@ -477,6 +484,11 @@ function buildCliConfig(args) {
     (_d = str(args["embedded-provider"])) != null ? _d : process.env.AOMI_EMBEDDED_PROVIDER
   );
   const embeddedProviderToken = (_e = str(args["embedded-provider-token"])) != null ? _e : process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
+  if (configuredPublicKey && !/^0x[0-9a-fA-F]{40}$/.test(configuredPublicKey.trim())) {
+    fatal(
+      "`--public-key` must be a 0x-prefixed EVM address. For a Solana identity, run `aomi wallet set --solana <key>` or pass `--solana-private-key`."
+    );
+  }
   if (configuredPublicKey && derivedPublicKey && configuredPublicKey.toLowerCase() !== derivedPublicKey.toLowerCase()) {
     fatal(
       "`--public-key` does not match the address derived from `--private-key`."
@@ -1290,7 +1302,7 @@ var init_sse = __esm({
 
 // src/app-descriptor.ts
 function normalizeAppDescriptor(item) {
-  var _a3, _b;
+  var _a3, _b, _c, _d;
   if (typeof item === "string") {
     const name2 = item.trim();
     return name2 ? { name: name2 } : null;
@@ -1328,22 +1340,44 @@ function normalizeAppDescriptor(item) {
   } else if (typeof raw.artifact_ready === "boolean") {
     descriptor.artifactReady = raw.artifact_ready;
   }
+  const artifactStatus = (_c = raw.artifactStatus) != null ? _c : raw.artifact_status;
+  if (typeof artifactStatus === "string" && ARTIFACT_STATUSES.has(artifactStatus)) {
+    descriptor.artifactStatus = artifactStatus;
+  }
   descriptor.secrets = Array.isArray(raw.secrets) ? raw.secrets : [];
+  const rawChainIds = (_d = raw.chainIds) != null ? _d : raw.chain_ids;
+  if (Array.isArray(rawChainIds)) {
+    descriptor.chainIds = [
+      ...new Set(
+        rawChainIds.filter(
+          (chainId3) => typeof chainId3 === "number" && Number.isSafeInteger(chainId3) && chainId3 > 0
+        )
+      )
+    ].sort((left, right) => left - right);
+  }
   for (const key of [
     "id",
     "application_id",
     "app_release_tag",
     "is_active",
     "is_public",
-    "artifact_ready"
+    "artifact_ready",
+    "artifact_status",
+    "chain_ids"
   ]) {
     delete descriptor[key];
   }
   return descriptor;
 }
+var ARTIFACT_STATUSES;
 var init_app_descriptor = __esm({
   "src/app-descriptor.ts"() {
     "use strict";
+    ARTIFACT_STATUSES = /* @__PURE__ */ new Set([
+      "ready",
+      "pending",
+      "fetch_backoff"
+    ]);
   }
 });
 
@@ -1357,6 +1391,9 @@ function joinApiPath(baseUrl, path) {
   const normalizedBase = baseUrl === "/" ? "" : baseUrl.replace(/\/+$/, "");
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
   return `${normalizedBase}${normalizedPath}` || normalizedPath;
+}
+function applicationIdParam(id) {
+  return (id == null ? void 0 : id.toString().trim()) || void 0;
 }
 function buildApiUrl(baseUrl, path, query) {
   const url = joinApiPath(baseUrl, path);
@@ -1497,7 +1534,7 @@ async function postState(baseUrl, path, payload, sessionId, fetchImpl, apiKey, l
   }
   return await response.json();
 }
-var SESSION_ID_HEADER, THREAD_ID_HEADER, APP_KEY_HEADER, AomiClient;
+var SESSION_ID_HEADER, THREAD_ID_HEADER, APP_KEY_HEADER, CREATE_THREAD_RETRY_STATUSES, CREATE_THREAD_RETRY_DELAYS_MS, delay, AomiClient;
 var init_client = __esm({
   "src/client.ts"() {
     "use strict";
@@ -1507,9 +1544,23 @@ var init_client = __esm({
     SESSION_ID_HEADER = "X-Session-Id";
     THREAD_ID_HEADER = "X-Thread-Id";
     APP_KEY_HEADER = "Aomi-App-Key";
+    CREATE_THREAD_RETRY_STATUSES = /* @__PURE__ */ new Set([502, 503, 504]);
+    CREATE_THREAD_RETRY_DELAYS_MS = [400, 1e3, 2e3];
+    delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     AomiClient = class {
       constructor(options) {
-        var _a3;
+        /**
+         * Attach the token-refresh -> SSE-reconnect wiring, idempotently.
+         *
+         * Historically evaluated ONCE in the constructor, which silently dropped
+         * reconnect for a stable bearer whose `subscribe` appears after construction.
+         * Re-attempted lazily on every SSE subscription so that shape is picked up on
+         * the next stream instead of never. Replacing the bearer function itself still
+         * requires a stable host/widget bridge; AomiClient intentionally retains the
+         * source supplied at construction.
+         */
+        this.tokenRefreshWired = false;
+        var _a3, _b;
         this.baseUrl = options.baseUrl.replace(/\/+$/, "");
         this.apiKey = options.apiKey;
         const fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
@@ -1523,6 +1574,7 @@ var init_client = __esm({
           options.getAccountBearer
         );
         this.logger = options.logger;
+        this.accountBearer = options.getAccountBearer;
         this.sseSubscriber = createSseSubscriber({
           backendUrl: this.baseUrl,
           getHeaders: (sessionId) => withSessionHeader(sessionId, { Accept: "text/event-stream" }),
@@ -1531,11 +1583,21 @@ var init_client = __esm({
           fetchImpl: this.rawFetchImpl,
           logger: this.logger
         });
-        if (supportsTokenRefreshSubscription(options.getAccountBearer)) {
-          options.getAccountBearer.subscribe(() => {
-            this.sseSubscriber.reconnect("account-token-refreshed");
-          });
+        this.wireTokenRefreshReconnect();
+        if (((_b = options.getAccountBearer) == null ? void 0 : _b.required) === true && !supportsTokenRefreshSubscription(options.getAccountBearer)) {
+          console.warn(
+            "[aomi-client] getAccountBearer.required is set but subscribe() is missing: SSE will not reconnect after token refresh. Pass the WidgetSessionProvider through unwrapped, or preserve its subscribe/dispose/revoke methods."
+          );
         }
+      }
+      wireTokenRefreshReconnect() {
+        if (this.tokenRefreshWired) return;
+        const bearer = this.accountBearer;
+        if (!supportsTokenRefreshSubscription(bearer)) return;
+        this.tokenRefreshWired = true;
+        bearer.subscribe(() => {
+          this.sseSubscriber.reconnect("account-token-refreshed");
+        });
       }
       // ===========================================================================
       // Chat & State
@@ -1587,12 +1649,11 @@ ${body}` : ""}`
        * Fetch current session state (messages, processing status, title).
        */
       async fetchState(sessionId, userState, clientId, options) {
-        var _a3, _b, _c, _d;
+        var _a3, _b, _c;
         const normalizedUserState = UserState.normalize(userState);
-        const applicationId = (_a3 = options == null ? void 0 : options.applicationId) == null ? void 0 : _a3.toString().trim();
         const stateContext = {
           app: options == null ? void 0 : options.app,
-          application_id: applicationId || void 0
+          application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
         };
         const urlWithSyncParams = buildApiUrl(this.baseUrl, "/api/thread/state", __spreadProps(__spreadValues({}, stateContext), {
           user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
@@ -1604,10 +1665,10 @@ ${body}` : ""}`
           stateContext
         );
         const shouldRetryWithoutSyncParams = Boolean(normalizedUserState) || Boolean(clientId);
-        (_b = this.logger) == null ? void 0 : _b.debug("[aomi][client] GET /api/thread/state start", {
+        (_a3 = this.logger) == null ? void 0 : _a3.debug("[aomi][client] GET /api/thread/state start", {
           sessionId,
           app: options == null ? void 0 : options.app,
-          applicationId,
+          applicationId: options == null ? void 0 : options.applicationId,
           clientId,
           hasUserState: Boolean(normalizedUserState)
         });
@@ -1617,7 +1678,7 @@ ${body}` : ""}`
           sessionId
         );
         if (!response.ok && shouldRetryWithoutSyncParams && (response.status === 400 || response.status === 414)) {
-          (_c = this.logger) == null ? void 0 : _c.debug(
+          (_b = this.logger) == null ? void 0 : _b.debug(
             "[aomi][client] GET /api/thread/state retrying without sync params",
             {
               sessionId,
@@ -1632,7 +1693,7 @@ ${body}` : ""}`
             sessionId
           );
         }
-        (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] GET /api/thread/state response", {
+        (_c = this.logger) == null ? void 0 : _c.debug("[aomi][client] GET /api/thread/state response", {
           sessionId,
           status: response.status,
           ok: response.ok
@@ -1646,23 +1707,22 @@ ${body}` : ""}`
        * Send a chat message and return updated session state.
        */
       async sendMessage(sessionId, message, options) {
-        var _a3, _b, _c, _d, _e, _f, _g;
+        var _a3, _b, _c, _d, _e, _f;
         const app = (_a3 = options == null ? void 0 : options.app) != null ? _a3 : "default";
         const apiKey = (_b = options == null ? void 0 : options.apiKey) != null ? _b : this.apiKey;
         const normalizedUserState = UserState.normalize(options == null ? void 0 : options.userState);
-        const applicationId = (_c = options == null ? void 0 : options.applicationId) == null ? void 0 : _c.toString().trim();
         const url = buildApiUrl(this.baseUrl, "/api/thread/chat", {
           app,
-          application_id: applicationId || void 0,
+          application_id: applicationIdParam(options == null ? void 0 : options.applicationId),
           message,
           user_state: normalizedUserState ? JSON.stringify(normalizedUserState) : void 0,
           client_id: options == null ? void 0 : options.clientId,
-          payment_method: (_d = options == null ? void 0 : options.paymentMethod) != null ? _d : void 0
+          payment_method: (_c = options == null ? void 0 : options.paymentMethod) != null ? _c : void 0
         });
-        (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST /api/thread/chat prepared", {
+        (_d = this.logger) == null ? void 0 : _d.debug("[aomi][client] POST /api/thread/chat prepared", {
           sessionId,
           app,
-          applicationId,
+          applicationId: options == null ? void 0 : options.applicationId,
           clientId: options == null ? void 0 : options.clientId,
           paymentMethod: options == null ? void 0 : options.paymentMethod,
           hasUserState: Boolean(normalizedUserState),
@@ -1672,7 +1732,7 @@ ${body}` : ""}`
         if (apiKey) {
           headers.set(APP_KEY_HEADER, apiKey);
         }
-        (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST start", {
+        (_e = this.logger) == null ? void 0 : _e.debug("[aomi][client] POST start", {
           path: "/api/thread/chat",
           sessionId,
           hasApiKey: Boolean(apiKey),
@@ -1682,7 +1742,7 @@ ${body}` : ""}`
           method: "POST",
           headers
         });
-        (_g = this.logger) == null ? void 0 : _g.debug("[aomi][client] POST response", {
+        (_f = this.logger) == null ? void 0 : _f.debug("[aomi][client] POST response", {
           path: "/api/thread/chat",
           sessionId,
           status: response.status,
@@ -1833,6 +1893,7 @@ ${body}` : ""}`
        * Returns an unsubscribe function.
        */
       subscribeSSE(sessionId, onUpdate, onError, options) {
+        this.wireTokenRefreshReconnect();
         return this.sseSubscriber.subscribe(sessionId, onUpdate, onError, options);
       }
       // ===========================================================================
@@ -1891,10 +1952,17 @@ ${body}` : ""}`
           platform: options == null ? void 0 : options.platform,
           client_id: options == null ? void 0 : options.clientId
         });
-        const response = await this.fetchImpl(url, {
+        let response = await this.fetchImpl(url, {
           method: "POST",
           headers: withSessionHeader(threadId)
         });
+        for (let attempt = 0; attempt < CREATE_THREAD_RETRY_DELAYS_MS.length && CREATE_THREAD_RETRY_STATUSES.has(response.status); attempt += 1) {
+          await delay(CREATE_THREAD_RETRY_DELAYS_MS[attempt]);
+          response = await this.fetchImpl(url, {
+            method: "POST",
+            headers: withSessionHeader(threadId)
+          });
+        }
         if (!response.ok) {
           throw new Error(`Failed to create thread: HTTP ${response.status}`);
         }
@@ -1973,9 +2041,10 @@ ${body}` : ""}`
       /**
        * Get system events for a session.
        */
-      async getSystemEvents(sessionId, count) {
+      async getSystemEvents(sessionId, count, options) {
         const url = buildApiUrl(this.baseUrl, "/api/thread/events", {
-          count: count !== void 0 ? String(count) : void 0
+          count: count !== void 0 ? String(count) : void 0,
+          application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
         });
         const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
@@ -1998,7 +2067,8 @@ ${body}` : ""}`
         var _a3;
         const platforms = normalizePlatformFilter(options == null ? void 0 : options.platforms);
         const url = buildApiUrl(this.baseUrl, "/api/thread/apps", {
-          platform: platforms.length > 0 ? platforms : void 0
+          platform: platforms.length > 0 ? platforms : void 0,
+          application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
         });
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
@@ -2092,7 +2162,9 @@ ${body}` : ""}`
        */
       async getModels(sessionId, options) {
         var _a3;
-        const url = buildApiUrl(this.baseUrl, "/api/thread/models");
+        const url = buildApiUrl(this.baseUrl, "/api/thread/models", {
+          application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
+        });
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
@@ -2110,13 +2182,12 @@ ${body}` : ""}`
        * Set the model for a session.
        */
       async setModel(sessionId, rig, options) {
-        var _a3, _b;
+        var _a3;
         const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
-        const applicationId = (_b = options == null ? void 0 : options.applicationId) == null ? void 0 : _b.toString().trim();
         const url = buildApiUrl(this.baseUrl, "/api/thread/model", {
           rig,
           app: options == null ? void 0 : options.app,
-          application_id: applicationId || void 0,
+          application_id: applicationIdParam(options == null ? void 0 : options.applicationId),
           client_id: options == null ? void 0 : options.clientId
         });
         const headers = new Headers(withSessionHeader(sessionId));
@@ -3849,8 +3920,8 @@ var init_session = __esm({
       scheduleSigningRequestRecovery(immediate = false) {
         if (this.closed || this.signingRecoveryInFlight) return;
         const elapsed = Date.now() - this.lastSigningRecoveryAt;
-        const delay = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
-        if (delay === 0) {
+        const delay2 = immediate ? 0 : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
+        if (delay2 === 0) {
           void this.recoverSigningRequests();
           return;
         }
@@ -3858,7 +3929,7 @@ var init_session = __esm({
         this.signingRecoveryTimer = setTimeout(() => {
           this.signingRecoveryTimer = null;
           if (!this.closed) void this.recoverSigningRequests();
-        }, delay);
+        }, delay2);
       }
       /**
        * A signing event is transient, but its backend-owned operation is durable.
@@ -4041,37 +4112,22 @@ function txTimestamp(existingById, id, fallbackNow) {
   var _a3, _b;
   return (_b = (_a3 = existingById.get(id)) == null ? void 0 : _a3.timestamp) != null ? _b : fallbackNow;
 }
-function buildCliUserState(publicKey, chainId3, options) {
-  var _a3, _b, _c;
-  const app = (_a3 = options == null ? void 0 : options.app) == null ? void 0 : _a3.trim().toLowerCase();
-  const evm = {};
-  const publicKeyIsSolana = publicKey !== void 0 && !publicKey.trim().startsWith("0x");
-  const publicKeyIsEvm = publicKey !== void 0 && publicKey.trim().startsWith("0x");
-  const svmAddress3 = (_b = options == null ? void 0 : options.svmAddress) != null ? _b : publicKeyIsSolana ? publicKey : void 0;
-  const hasBoth = publicKeyIsEvm && svmAddress3 !== void 0;
-  const isSolanaApp = !hasBoth && !publicKeyIsEvm && (app === "sol" || app === "solana" || app === "svm" || app === "byreal" || publicKeyIsSolana || svmAddress3 !== void 0);
-  const hasEvm = hasBoth || !isSolanaApp && publicKeyIsEvm;
-  const hasSvm = hasBoth || isSolanaApp;
+function buildCliUserState(evmAddress2, chainId3, options) {
   const userState = {};
-  if (hasEvm && publicKey !== void 0) {
-    evm.address = publicKey;
-  }
-  if (hasEvm && chainId3 !== void 0) {
-    evm.chain_id = chainId3;
-  }
-  if (Object.keys(evm).length > 0) {
+  if (evmAddress2 !== void 0) {
+    const evm = { address: evmAddress2 };
+    if (chainId3 !== void 0) {
+      evm.chain_id = chainId3;
+    }
     userState.evm = evm;
   }
-  if (hasSvm) {
-    userState.svm = {
-      address: svmAddress3 != null ? svmAddress3 : publicKey,
-      cluster: (_c = options == null ? void 0 : options.svmCluster) != null ? _c : svmAddress3 !== void 0 ? "solana:mainnet" : void 0
-    };
+  if ((options == null ? void 0 : options.svmAddress) !== void 0) {
+    userState.svm = { address: options.svmAddress };
+    if (options.svmCluster !== void 0) {
+      userState.svm.cluster = options.svmCluster;
+    }
   }
-  const anyConnected = Boolean(
-    hasEvm && publicKey !== void 0 || hasSvm && (svmAddress3 != null ? svmAddress3 : publicKey) !== void 0
-  );
-  if (anyConnected) {
+  if (userState.evm || userState.svm) {
     userState.connection = {
       is_connected: true
     };
@@ -4101,10 +4157,12 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
       continue;
     }
     const data = normalizePendingTxData(tx);
+    const from = normalizeMaybeAddress(tx.from);
     nextPendingTxs.push({
       id,
       kind: "transaction",
       txId: pendingId,
+      from,
       to,
       value: parseOptionalString(tx.value),
       data,
@@ -4114,6 +4172,7 @@ function pendingTxsFromBackendUserState(userState, existingPendingTxs = []) {
       payload: {
         pending_tx_id: pendingId,
         txId: pendingId,
+        from,
         to,
         value: parseOptionalString(tx.value),
         data,
@@ -5309,7 +5368,22 @@ var init_cli_session = __esm({
       /** Load the active session from disk. Returns null if none exists. */
       static load() {
         const state = readState();
-        return state ? new _CliSession(state) : null;
+        if (!state) return null;
+        const cli = new _CliSession(state);
+        if (cli.ensureSvmClusterInvariant()) cli.save();
+        return cli;
+      }
+      /**
+       * A persisted Solana address must always carry a persisted cluster so that
+       * display, state file, and wire agree. State files written before
+       * `wallet set --solana` persisted clusters get stamped with mainnet once.
+       */
+      ensureSvmClusterInvariant() {
+        if (this.state.svmPublicKey && !this.state.svmCluster) {
+          this.state.svmCluster = "solana:mainnet";
+          return true;
+        }
+        return false;
       }
       /** Load existing session or create a fresh one from config. */
       static loadOrCreate(config) {
@@ -5361,6 +5435,7 @@ var init_cli_session = __esm({
           auth: seed == null ? void 0 : seed.auth
         };
         const cli = new _CliSession(state);
+        cli.ensureSvmClusterInvariant();
         cli.save();
         return cli;
       }
@@ -5505,6 +5580,7 @@ var init_cli_session = __esm({
           this.state.clientId = crypto.randomUUID();
           changed = true;
         }
+        if (this.ensureSvmClusterInvariant()) changed = true;
         if (changed) this.save();
       }
       setModel(model) {
@@ -5529,9 +5605,12 @@ var init_cli_session = __esm({
         this.state.publicKey = publicKey;
         this.save();
       }
-      setSvmWallet(privateKey, publicKey) {
+      setSvmWallet(privateKey, publicKey, cluster) {
         this.state.svmPrivateKey = privateKey;
         this.state.svmPublicKey = publicKey;
+        if (cluster !== void 0) {
+          this.state.svmCluster = cluster;
+        }
         this.save();
       }
       /** The Solana private key to use for signing. Prefers the transiently-
@@ -5540,12 +5619,15 @@ var init_cli_session = __esm({
       resolvedSvmPrivateKey(fromConfig) {
         return fromConfig != null ? fromConfig : this.state.svmPrivateKey;
       }
+      /** The effective runtime Solana cluster: `--cluster` wins, then the
+       * persisted choice, then mainnet. Persistence paths stamp their defaults
+       * before saving so display, state, and this resolver stay aligned. */
+      resolvedSvmCluster(fromConfig) {
+        var _a3;
+        return (_a3 = fromConfig != null ? fromConfig : this.state.svmCluster) != null ? _a3 : "solana:mainnet";
+      }
       setChainId(id) {
         this.state.chainId = id;
-        this.save();
-      }
-      setSvmCluster(cluster) {
-        this.state.svmCluster = cluster;
         this.save();
       }
       addSecretHandles(handles) {
@@ -5744,7 +5826,6 @@ Available: ${available}`);
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
       createClientSession(config, options) {
-        var _a3;
         const paymentFetch = createCliPaymentFetch(config, options == null ? void 0 : options.onPayment);
         const session = new ClientSession(
           {
@@ -5764,9 +5845,8 @@ Available: ${available}`);
         );
         session.resolveUserState(
           buildCliUserState(this.state.publicKey, this.state.chainId, {
-            app: this.state.app,
             svmAddress: this.state.svmPublicKey,
-            svmCluster: (_a3 = config == null ? void 0 : config.svmCluster) != null ? _a3 : this.state.svmCluster
+            svmCluster: this.resolvedSvmCluster(config == null ? void 0 : config.svmCluster)
           })
         );
         return session;
@@ -6206,15 +6286,9 @@ function deriveSvmAddress(solanaPrivateKey) {
     return void 0;
   }
 }
-function resolveSvmAddressForChat(config, publicKey, persistedSvmAddress, solanaPrivateKey) {
+function resolveSvmAddressForChat(persistedSvmAddress, solanaPrivateKey) {
   var _a3;
-  const derived = deriveSvmAddress(solanaPrivateKey);
-  if (derived || persistedSvmAddress) {
-    return derived != null ? derived : persistedSvmAddress;
-  }
-  const app = (_a3 = config.app) == null ? void 0 : _a3.trim().toLowerCase();
-  const acceptsSvmPublicKey = !app || app === "default" || config.svmCluster !== void 0 || app === "sol" || app === "solana" || app === "svm" || app === "byreal";
-  return acceptsSvmPublicKey && publicKey && !publicKey.startsWith("0x") ? publicKey : void 0;
+  return (_a3 = deriveSvmAddress(solanaPrivateKey)) != null ? _a3 : persistedSvmAddress;
 }
 function shouldBroadcastWalletStateChange(config, previous, next) {
   var _a3, _b;
@@ -6227,16 +6301,15 @@ function shouldBroadcastWalletStateChange(config, previous, next) {
   return normalizeAddress2(previous == null ? void 0 : previous.publicKey) !== normalizeAddress2(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaProvider) !== next.aaProvider || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress2((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress2((_b = next.smartAccount) != null ? _b : void 0);
 }
 async function syncWalletStateForChat(config, previous, next, cli, session) {
-  var _a3;
-  if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey) {
+  if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey && !next.svmAddress) {
     return;
   }
   const userState = buildCliUserState(next.publicKey, next.chainId, {
-    app: config.app,
     svmAddress: next.svmAddress,
-    // An EVM-only command must not silently reset a persisted devnet/testnet
-    // Solana wallet to mainnet in the shared default-runtime context.
-    svmCluster: (_a3 = config.svmCluster) != null ? _a3 : cli.svmCluster
+    // --cluster wins, then the persisted choice, then mainnet — so an
+    // EVM-only command cannot silently reset a persisted devnet/testnet
+    // Solana wallet in the shared default-runtime context.
+    svmCluster: cli.resolvedSvmCluster(config.svmCluster)
   });
   session.resolveUserState(userState);
   await session.syncUserState();
@@ -6273,8 +6346,6 @@ async function chatCommand(config, message, verbose) {
   });
   const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
   const svmAddress3 = resolveSvmAddressForChat(
-    config,
-    cli.publicKey,
     cli.svmPublicKey,
     resolvedSolanaKey
   );
@@ -7906,6 +7977,242 @@ var init_simulate = __esm({
   }
 });
 
+// src/cli/eip5792.ts
+import { getAddress as getAddress4, toHex } from "viem";
+function normalizeAddress3(value, field) {
+  try {
+    return getAddress4(value);
+  } catch (e) {
+    throw new Error(`${field} must be a valid EVM address.`);
+  }
+}
+function normalizeChainId(value) {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error("chainId must be a positive safe integer.");
+  }
+  return value;
+}
+function normalizeData(value, index) {
+  const data = value != null ? value : "0x";
+  if (!/^0x(?:[0-9a-fA-F]{2})*$/.test(data)) {
+    throw new Error(`Call ${index + 1} data must be a hex byte string.`);
+  }
+  return data.toLowerCase();
+}
+function toEip5792SendCallsParams(input2) {
+  const chainId3 = normalizeChainId(input2.chainId);
+  if (input2.calls.length === 0) {
+    throw new Error("At least one EVM call is required.");
+  }
+  return {
+    version: "2.0.0",
+    from: normalizeAddress3(input2.from, "from"),
+    chainId: toHex(chainId3),
+    atomicRequired: false,
+    calls: input2.calls.map((call, index) => {
+      if (call.chainId !== chainId3) {
+        throw new Error("All calls must use the exported chainId.");
+      }
+      if (call.value < BigInt(0)) {
+        throw new Error(`Call ${index + 1} value cannot be negative.`);
+      }
+      return {
+        to: normalizeAddress3(call.to, `Call ${index + 1} to`),
+        data: normalizeData(call.data, index),
+        value: toHex(call.value)
+      };
+    })
+  };
+}
+var init_eip5792 = __esm({
+  "src/cli/eip5792.ts"() {
+    "use strict";
+  }
+});
+
+// src/cli/wallet-export.ts
+function parseWalletExportFormat(value) {
+  const format = (value == null ? void 0 : value.trim().toLowerCase()) || "eip5792";
+  if (WALLET_EXPORT_FORMATS.includes(format)) {
+    return format;
+  }
+  throw new Error(
+    `Unknown export format "${value}". Use "eip5792", "moss", or "metamask".`
+  );
+}
+function formatWalletExport(params, format) {
+  if (format === "eip5792") {
+    return params;
+  }
+  if (format === "moss") {
+    return params.calls;
+  }
+  if (params.calls.length !== 1) {
+    throw new Error(
+      "The metamask format supports exactly one call. Export one transaction at a time, or use the eip5792 or moss format for multiple calls."
+    );
+  }
+  return {
+    chainId: Number(BigInt(params.chainId)),
+    payload: params.calls[0]
+  };
+}
+var WALLET_EXPORT_FORMATS;
+var init_wallet_export = __esm({
+  "src/cli/wallet-export.ts"() {
+    "use strict";
+    WALLET_EXPORT_FORMATS = ["eip5792", "moss", "metamask"];
+  }
+});
+
+// src/cli/commands/export.ts
+var export_exports = {};
+__export(export_exports, {
+  exportCommand: () => exportCommand
+});
+import { getAddress as getAddress5 } from "viem";
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+function normalizeSender(value, label) {
+  try {
+    return getAddress5(value);
+  } catch (e) {
+    throw new Error(`${label} is not a valid EVM address.`);
+  }
+}
+function resolvePendingEvmTransactions(cli, selectors) {
+  const pending = selectors.map((selector) => {
+    const evm = cli.findPendingTx(selector);
+    const svm = cli.findPendingSolTx(selector);
+    if (!selector.includes(":") && evm && svm) {
+      throw new Error(
+        `Transaction "${selector}" is ambiguous. Use the chain-qualified selector shown by \`aomi tx list\`.`
+      );
+    }
+    if (!evm && svm) {
+      throw new Error(
+        `Transaction "${selector}" is a Solana request; EIP-5792 export supports pending EVM transactions only.`
+      );
+    }
+    if (!evm) {
+      const available = cli.pendingSelectors().join(", ") || "(none)";
+      throw new Error(
+        `Transaction "${selector}" not found.
+Available: ${available}`
+      );
+    }
+    if (evm.kind !== "transaction") {
+      throw new Error(
+        `Transaction "${selector}" is an EVM signing request; EIP-5792 export supports transaction calls only.`
+      );
+    }
+    return evm;
+  });
+  if (new Set(pending.map((tx) => tx.id)).size !== pending.length) {
+    throw new Error(
+      "Duplicate transaction IDs are not allowed in a single `aomi tx export` call."
+    );
+  }
+  return pending;
+}
+function resolveSender(pending, sessionSender) {
+  const normalizedSessionSender = sessionSender ? normalizeSender(sessionSender, "The active session sender") : void 0;
+  const senders = pending.map((tx) => {
+    const stagedSender = tx.from ? normalizeSender(tx.from, `Transaction "${tx.id}" sender`) : void 0;
+    if (stagedSender && normalizedSessionSender && stagedSender.toLowerCase() !== normalizedSessionSender.toLowerCase()) {
+      throw new Error(
+        `Transaction "${tx.id}" sender ${stagedSender} does not match the active session sender ${normalizedSessionSender}.`
+      );
+    }
+    const sender = stagedSender != null ? stagedSender : normalizedSessionSender;
+    if (!sender) {
+      throw new Error(
+        `Transaction "${tx.id}" has no sender and the active session has no EVM address.`
+      );
+    }
+    return sender;
+  });
+  if (new Set(senders.map((sender) => sender.toLowerCase())).size !== 1) {
+    throw new Error("Selected transactions must use one sender.");
+  }
+  return senders[0];
+}
+function resolveChainIds(pending, sessionChainId) {
+  const chainIds = pending.map((tx) => {
+    var _a3;
+    const chainId3 = (_a3 = tx.chainId) != null ? _a3 : sessionChainId;
+    if (!Number.isSafeInteger(chainId3) || (chainId3 != null ? chainId3 : 0) <= 0) {
+      throw new Error(
+        `Transaction "${tx.id}" has no valid chain ID; export will not default to Ethereum.`
+      );
+    }
+    return chainId3;
+  });
+  if (new Set(chainIds).size !== 1) {
+    throw new Error("Selected transactions must use one chain.");
+  }
+  return chainIds;
+}
+async function exportCommand(config, txIds, rawFormat) {
+  if (txIds.length === 0) {
+    fatal(
+      "Usage: aomi tx export <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs."
+    );
+  }
+  let format;
+  try {
+    format = parseWalletExportFormat(rawFormat);
+  } catch (error) {
+    fatal(errorMessage(error));
+  }
+  const cli = CliSession.load();
+  if (!cli) {
+    fatal("No active session. Run `aomi chat` first.");
+  }
+  cli.mergeConfig(config);
+  const session = cli.createClientSession(config);
+  try {
+    const state = await session.client.fetchState(
+      cli.sessionId,
+      void 0,
+      cli.clientId
+    );
+    cli.syncPendingFromUserState(state.user_state);
+  } finally {
+    session.close();
+  }
+  try {
+    const pending = resolvePendingEvmTransactions(cli, txIds);
+    const sender = resolveSender(pending, cli.publicKey);
+    const chainIds = resolveChainIds(pending, cli.chainId);
+    const calls = pending.flatMap(
+      (tx, index) => pendingTxToCallList(__spreadProps(__spreadValues({}, tx), { chainId: chainIds[index] }))
+    );
+    const payload = toEip5792SendCallsParams({
+      from: sender,
+      chainId: chainIds[0],
+      calls
+    });
+    process.stdout.write(
+      `${JSON.stringify(formatWalletExport(payload, format), null, 2)}
+`
+    );
+  } catch (error) {
+    fatal(errorMessage(error));
+  }
+}
+var init_export = __esm({
+  "src/cli/commands/export.ts"() {
+    "use strict";
+    init_cli_session();
+    init_eip5792();
+    init_errors();
+    init_transactions();
+    init_wallet_export();
+  }
+});
+
 // src/cli/commands/sessions.ts
 var sessions_exports = {};
 __export(sessions_exports, {
@@ -8263,7 +8570,9 @@ function currentWalletCommand(config = { secrets: {} }) {
       hasSavedSigner: Boolean(cli.privateKey)
     } : null,
     state.svmPublicKey ? {
-      family: "solana",
+      // "svm" is the canonical family name (matches the backend wire key
+      // and the account-graph API); "solana" was the deprecated alias.
+      family: "svm",
       address: state.svmPublicKey,
       cluster: (_b = state.svmCluster) != null ? _b : null,
       hasSavedSigner: Boolean(state.svmPrivateKey)
@@ -8285,7 +8594,8 @@ function currentWalletCommand(config = { secrets: {} }) {
   }
   if (state.svmPublicKey) {
     const signerStatus = state.svmPrivateKey ? "saved signer" : "address only";
-    console.log(`Solana: ${state.svmPublicKey} (${signerStatus})`);
+    const clusterSuffix = state.svmCluster ? `, ${state.svmCluster}` : "";
+    console.log(`Solana: ${state.svmPublicKey} (${signerStatus}${clusterSuffix})`);
   }
   printDataFileLocation({ verbose: config.verbose });
 }
@@ -8499,20 +8809,22 @@ function setWalletCommand(privateKeyInput) {
   console.log(`EVM wallet set to ${account.address}`);
   printDataFileLocation();
 }
-function setSvmWalletCommand(keyInput) {
+function setSvmWalletCommand(keyInput, cluster) {
+  var _a3;
   let keypair;
   try {
     keypair = parseSolanaKeypairSecret(keyInput.trim());
   } catch (err) {
     fatal(
       `Invalid Solana private key: ${err instanceof Error ? err.message : err}
-Usage: aomi wallet set --solana <base58-secret-key>`
+Usage: aomi wallet set --solana <base58-secret-key> [--cluster <cluster>]`
     );
   }
   const publicKey = keypair.publicKey.toBase58();
   const cli = loadOrCreateForSettings();
-  cli.setSvmWallet(keyInput.trim(), publicKey);
-  console.log(`Solana wallet set to ${publicKey}`);
+  const effectiveCluster = (_a3 = cluster != null ? cluster : cli.svmCluster) != null ? _a3 : "solana:mainnet";
+  cli.setSvmWallet(keyInput.trim(), publicKey, effectiveCluster);
+  console.log(`Solana wallet set to ${publicKey} (cluster ${effectiveCluster})`);
   printDataFileLocation();
 }
 function setChainCommand(chainIdInput) {
@@ -9110,21 +9422,20 @@ async function accountLoginCommand(config, options = {}) {
   printDataFileLocation({ verbose: config.verbose });
 }
 async function accountLoginWithSiws(cli, config) {
-  var _a3, _b, _c;
+  var _a3;
   const privateKey = (_a3 = cli.resolvedSvmPrivateKey(config.solanaPrivateKey)) != null ? _a3 : process.env.SOLANA_PRIVATE_KEY;
   if (!privateKey) {
     fatal(
       "No Solana private key configured.\nRun `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`."
     );
   }
-  const chainId3 = (_c = (_b = config.svmCluster) != null ? _b : cli.svmCluster) != null ? _c : "solana:mainnet";
+  const chainId3 = cli.resolvedSvmCluster(config.svmCluster);
   const result = await signInWithCliSiws({
     baseUrl: cli.baseUrl,
     privateKey,
     chainId: chainId3
   });
-  cli.setSvmWallet(privateKey, result.address);
-  cli.setSvmCluster(chainId3);
+  cli.setSvmWallet(privateKey, result.address, chainId3);
   cli.setAuthSession(result.auth);
   if (config.json) {
     printJson({
@@ -9268,7 +9579,7 @@ async function accountLinksCommand(config) {
   printDataFileLocation({ verbose: config.verbose });
 }
 async function accountLinkCommand(config, options = {}) {
-  var _a3, _b, _c, _d, _e;
+  var _a3, _b, _c;
   const cli = loadMergedCli(config);
   const client = requireAccountGraphClient(cli);
   const provider = normalizeProviderOption(options.provider);
@@ -9287,15 +9598,14 @@ async function accountLinkCommand(config, options = {}) {
         "No Solana private key configured.\nRun `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`."
       );
     }
-    const chainId3 = (_c = (_b = config.svmCluster) != null ? _b : cli.svmCluster) != null ? _c : "solana:mainnet";
+    const chainId3 = cli.resolvedSvmCluster(config.svmCluster);
     const result = await linkCliSiwsWallet({
       baseUrl: cli.baseUrl,
       sessionToken: cli.auth.sessionToken,
       privateKey,
       chainId: chainId3
     });
-    cli.setSvmWallet(privateKey, result.address);
-    cli.setSvmCluster(chainId3);
+    cli.setSvmWallet(privateKey, result.address, chainId3);
     const account = await client.getAccount();
     if (config.json) {
       printJson(__spreadProps(__spreadValues({}, result), { account }));
@@ -9312,7 +9622,7 @@ async function accountLinkCommand(config, options = {}) {
     const result = await getDeviceProviderCredential({
       baseUrl: cli.baseUrl,
       provider,
-      sessionToken: (_e = (_d = cli.auth) == null ? void 0 : _d.sessionToken) != null ? _e : ""
+      sessionToken: (_c = (_b = cli.auth) == null ? void 0 : _b.sessionToken) != null ? _c : ""
     });
     if (result.status === "conflict") {
       fatal("This login method is already linked to another Aomi account.");
@@ -10548,6 +10858,31 @@ var txSimulateDef = defineCommand2({
     await simulateCommand2(buildCliConfig(args), txIds);
   }
 });
+var txExportDef = defineCommand2({
+  meta: {
+    name: "export",
+    description: "Export pending EVM calls for an external wallet"
+  },
+  args: __spreadProps(__spreadValues({}, globalArgs), {
+    format: {
+      type: "string",
+      description: "Output format: eip5792 (default), moss, or metamask"
+    },
+    txIds: {
+      type: "positional",
+      description: "Pending EVM transaction IDs to export",
+      required: false
+    }
+  }),
+  async run({ args }) {
+    const { exportCommand: exportCommand2 } = await Promise.resolve().then(() => (init_export(), export_exports));
+    await exportCommand2(
+      buildCliConfig(args),
+      getPositionals(args),
+      typeof args.format === "string" ? args.format : void 0
+    );
+  }
+});
 var txSignDef = defineCommand2({
   meta: { name: "sign", description: "Sign and submit pending transactions" },
   args: __spreadProps(__spreadValues({}, globalArgs), {
@@ -10584,6 +10919,7 @@ var txDef = defineCommand2({
   subCommands: {
     list: txListDef,
     simulate: txSimulateDef,
+    export: txExportDef,
     sign: txSignDef
   }
 });
@@ -10818,15 +11154,27 @@ var walletSetDef = defineCommand7({
       type: "string",
       description: "Solana base58 secret key to persist",
       alias: ["s"]
+    },
+    cluster: {
+      type: "string",
+      description: 'Solana cluster to persist with --solana: "mainnet-beta" (default), "devnet", or "testnet". Also accepts CAIP-2 form "solana:mainnet" etc.'
     }
   },
   async run({ args }) {
     var _a3;
     const solanaKey = args.solana;
     if (solanaKey) {
+      const { parseSvmCluster: parseSvmCluster2 } = await Promise.resolve().then(() => (init_shared(), shared_exports));
       const { setSvmWalletCommand: setSvmWalletCommand2 } = await Promise.resolve().then(() => (init_preferences(), preferences_exports));
-      setSvmWalletCommand2(solanaKey);
+      setSvmWalletCommand2(
+        solanaKey,
+        parseSvmCluster2(args.cluster)
+      );
       return;
+    }
+    if (args.cluster) {
+      const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
+      fatal2("`--cluster` only applies with `--solana`.");
     }
     const evmKey = (_a3 = args.evm) != null ? _a3 : args.privateKey;
     if (!evmKey) {
@@ -11317,7 +11665,7 @@ init_shared();
 // package.json
 var package_default = {
   name: "@aomi-labs/client",
-  version: "0.5.1",
+  version: "0.6.3",
   description: "Platform-agnostic TypeScript client for the Aomi backend API",
   type: "module",
   main: "./dist/index.cjs",

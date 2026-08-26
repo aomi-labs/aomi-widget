@@ -1,14 +1,7 @@
 import type { Metadata } from "next";
 import { GoogleAnalytics } from "@next/third-parties/google";
-import { Source_Serif_4 } from "next/font/google";
+import { COLOR_THEME_INIT_SCRIPT } from "./(marketing)/color-theme";
 import "./globals.css";
-import { Provider } from "./provider";
-
-const sourceSerif = Source_Serif_4({
-  subsets: ["latin"],
-  weight: ["600"],
-  variable: "--font-source-serif-4",
-});
 
 export const metadata: Metadata = {
   title: "Best Blockchain Harness for Agentic AI | Aomi",
@@ -46,7 +39,8 @@ export const metadata: Metadata = {
 };
 
 // TODO: Replace with actual GA Measurement ID from Shy
-const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-XXXXXXXXXX";
+const GA_MEASUREMENT_ID =
+  process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || "G-XXXXXXXXXX";
 
 export default function RootLayout({
   children,
@@ -59,9 +53,10 @@ export default function RootLayout({
       className="bg-background text-foreground"
       suppressHydrationWarning
     >
-      <body className={`${sourceSerif.variable} min-h-screen antialiased`}>
-        <Provider>{children}</Provider>
-      </body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: COLOR_THEME_INIT_SCRIPT }} />
+      </head>
+      <body className="min-h-screen antialiased">{children}</body>
       {GA_MEASUREMENT_ID && GA_MEASUREMENT_ID !== "G-XXXXXXXXXX" && (
         <GoogleAnalytics gaId={GA_MEASUREMENT_ID} />
       )}

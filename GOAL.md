@@ -1,4 +1,316 @@
+# Canonical Landing
+
+Current session goal: **NON-HOMEPAGE GTM COPY ALIGNMENT VERIFIED 2026-08-26**
+— updated the approved language across About, Human Interface, Agent Toolings,
+REST APIs, Plugin SDK, Trading, DeFi, Fintech, Wallets, and Contact while
+preserving every page's audience-specific GTM, components, layout, styling,
+interaction, and animation. All ten routes return 200 with the approved copy;
+Playwright checks at 1440px and 390px confirm the intended headings and zero
+horizontal overflow. The landing production build, TypeScript, ESLint,
+Prettier, and `git diff --check` pass.
+
+Current session goal: **AGENT TOOLINGS COMPOSITION POLISH VERIFIED
+2026-08-26** — restyle the Choose Your Surface flow cards with the same flat,
+compact visual language as the Simulate and Sign stages, then move the section
+heading and support copy into the unused space above the execution path so the
+three input cards can begin immediately and the whole section becomes shorter;
+on desktop, place the title in the rightmost intro column above Simulate and
+Sign, with the supporting copy to its left above the harness. Keep the
+Interactive Setup code surface at one compact height across Skills, MCP, and CLI
+while tightening the internal vertical gaps. Browser measurements confirm all
+three setup states remain exactly 560px tall with their full desktop transcripts
+visible, the title occupies the rightmost desktop intro column, and the 390px
+layout has zero horizontal overflow. Scoped ESLint, Prettier, and
+`git diff --check` pass.
+
+Current session goal: **TRADING HERO REFERENCE LAYOUT VERIFIED 2026-08-26** —
+matched the supplied hero composition with the large Integrations screen on the
+upper-left, the Build/Create screen overlapping from the lower-right, and the
+copy column on the right; removed the unreferenced proof rail and preserved a
+copy-first, overflow-safe mobile stack. Desktop and 390px browser checks confirm
+the requested hierarchy, overlap, dark presentation, and mobile containment.
+
+Current session goal: **WORLD MARKETS MOTION AND DARK TELEGRAM POLISH VERIFIED
+2026-08-26** — animate the World and Telegram marks around the orbit while
+keeping them upright, simplify the handoff title to “Connect your world
+account,” make the dark Telegram fixture read like a real Telegram window, and
+replace the bright mandate cards with muted dark surfaces and white text.
+Browser checks confirm changing orbit transforms, upright moving badges, the
+updated account title, distinct Telegram-dark incoming and outgoing surfaces,
+and muted authority and enforcement cards. Landing TypeScript, scoped ESLint
+and Prettier, and `git diff --check` pass.
+
+Current session goal: **TRADING HERO COPY AND PADDED BUILD PROOF VERIFIED
+2026-08-26** — split the Trading hero into “Automate trading with ready-to-go
+integrations” and the subtitle “plus expanded action space,” replaced the rear
+Build screenshot with the supplied narrower Create view, and kept the layered
+proof inside deliberate page padding instead of bleeding across the viewport.
+Desktop and 390px browser checks confirm the requested copy hierarchy, readable
+rear and foreground screens, deliberate side padding, and an overflow-safe
+mobile stack. Landing TypeScript, scoped ESLint and Prettier, asset dimensions,
+and `git diff --check` pass.
+
+Current session goal: **SUBPAGE HERO SCALE AND SETUP CONTROL POLISH VERIFIED
+2026-08-26** — removed the redundant Agent terminal label, sized the Agent
+Toolings segmented selector to the shared 46px button token, split the DeFi hero
+into a concise title and mandate subtitle, and tied every subpage hero to the
+homepage scale across desktop, tablet, and mobile. Browser checks covered 15
+product, solution, pricing, company, and research routes at 1440px and 390px;
+none exceeds the homepage hero, the selector slides through all three states,
+and the DeFi mobile route has zero horizontal overflow. Landing TypeScript,
+scoped ESLint and Prettier, and `git diff --check` pass.
+
+Current session goal: **DARK-MODE VISUAL POLISH VERIFIED 2026-08-26** —
+remove the homepage FAQ hover wash, eliminate the four nested-radius crescents
+around the Human Interface demo, stop global pressed-button styling from leaking
+into widget traces, keep the footer mark and wordmark the same color, and restore
+Sign-stage text contrast in dark mode. Verified in Playwright in light and dark
+themes at desktop and 390px widths; landing lint and production build pass.
+
+Current session goal: **CANONICAL LANDING IMPLEMENTATION CLEANUP VERIFIED
+2026-08-25** — remove migration-era version names and generated-export
+scaffolding from the one production landing implementation, give every retained
+asset a semantic name, and delete unused export files without changing the
+approved design, navigation, animation, or responsive behavior. The canonical
+implementation now lives under `_marketing` and `assets/landing`; the homepage
+keeps only six Latin font files, 30 named logo files, and three named runtime
+dependencies. Desktop and 390px browser checks confirm working dropdown and
+drawer navigation, all 19 mobile links, fixed navigation, no horizontal
+overflow, no asset or console errors, and retained running animations. All 16
+internal navigation routes return 200. Landing TypeScript, repository ESLint,
+production build, authored-file Prettier, JavaScript syntax, asset-reference
+integrity, and `git diff --check` pass.
+
+Current session goal: **PRICING FAQ HEADING VERIFIED 2026-08-25** — rename the
+pricing FAQ section heading from “Questions people ask.” to “FAQ”.
+
+Current session goal: **WALLETS EXECUTION POSITIONING VERIFIED 2026-08-25** —
+position the Wallets solution around protocol-agnostic execution, hosted or API
+access for existing and new agentic stacks, reusable transaction harnesses, and
+an access-control model with full permission guardrails, plus the component
+library that renders each action.
+
+Current session goal: **WIDGET ZERO-COST HEADLINE VERIFIED 2026-08-25** — change
+the Human Interface product headline to “Zero cost integration at all product
+surfaces.”
+
+Current session goal: **PLUGIN SDK PIPELINE COPY VERIFIED 2026-08-25** — rename
+the Plugin SDK build-to-deploy and managed-platform headings to “Integration
+toolings & deployment pipeline” and “Developer console just like Vercel.”
+
+Current session goal: **CONTAINED SOLUTION FACT RAILS VERIFIED 2026-08-25** —
+align the Fintech and DeFi four-cell fact rails with the REST API reference:
+full-width divider rules around a centered 1220px bar, consistent 120px cell
+height and inset spacing, and responsive two-column and single-column states.
+
+Current session goal: **SITE-WIDE TYPOGRAPHY GUARDRAILS VERIFIED 2026-08-25** —
+replace legacy per-card 9–13px marketing copy with one semantic landing scale:
+23px card headings, 16.5px body/card copy, and 14px metadata, eyebrows, and
+actions. The homepage reference, product pages, solution pages, editorial
+routes, legal pages, agent guides, and research shell inherit those CSS-level
+roles; dense terminal, code, chart, and embedded-dashboard fixtures keep their
+compact UI scale. Desktop and 360px browser audits find no undersized marketing
+card headings or horizontal overflow. Scoped Prettier, landing TypeScript,
+ESLint, and `git diff --check` pass; the production build reaches compilation
+but cannot download Google Fonts in the current network environment. The dev
+page remains available at `http://localhost:3001`.
+
+Current session goal: **TRADING HERO PRODUCT PROOF VERIFIED 2026-08-25** —
+scale the Aomi Build dashboard and Integrations screenshots into a dominant
+background-and-foreground composition inspired by the supplied landing-page
+reference. The proof now fills and intentionally bleeds through the right side
+on desktop; its foreground screen sits lower and farther right so the Build
+prompt remains visible beneath it. The composition stays clear of the editorial
+copy and returns to an overflow-safe stack on mobile.
+
+Current session goal: **TRADING UX POSITIONING VERIFIED 2026-08-25** — lead
+the Trading page with ready-to-go product integrations and expanded action
+space, then carry that positioning through the hero proof, metadata, World
+Markets flow, and validation language while preserving “Working example” as
+the explicit framing for World Markets × Aomi. The longer lead receives a
+wider desktop column and headline measure; scoped Prettier, landing TypeScript,
+route, and `git diff --check` pass.
+
+Current session goal: **WALLET CHAT TYPE SCALE VERIFIED 2026-08-25** — reduce
+the embedded wallet-chat fixture's oversized welcome title, prompt,
+suggestions, header, and footer typography with fixture-scoped overrides, so
+the published widget remains unchanged elsewhere. Browser checks confirm the
+smaller 11px composer type and zero horizontal overflow; landing TypeScript,
+scoped Prettier, route, and `git diff --check` pass.
+
+Current session goal: **SITE-WIDE FLAT SLIDERS VERIFIED 2026-08-25** — the
+the static homepage and React marketing routes now use one interaction model for
+segmented sliders: a single shadowless blue indicator moves beneath
+transparent buttons, while hover leaves both active and inactive buttons
+visually unchanged. The shared liquid-glass layer can no longer reintroduce a
+second hover or selected pill. Browser checks confirm the Fintech mandate,
+Trading Product flow/Authority, Widget UI/Terminal, homepage UI/Terminal, and
+Agent Toolings Skills/MCP/CLI controls have flat tracks, identical idle/hover
+button styles, and working indicator travel; Pricing uses the same CSS model.
+Landing TypeScript, scoped Prettier, all affected route checks, and
+`git diff --check` pass.
+
+Current session goal: **DEFI CALLOUT PANELS VERIFIED 2026-08-25** — apply the
+reference pale-blue panel, blue left rule, dark text, and inset spacing to the
+DeFi control-gap and vault-ChangeSet supporting copy without changing either
+message or the styling of other DeFi section headings. Desktop and mobile
+browser checks confirm both callouts render correctly with no horizontal
+overflow; landing TypeScript, scoped Prettier, route, and `git diff --check`
+pass.
+
+Current session goal: **DEFI HERO FINTECH STYLE VERIFIED 2026-08-25** — align
+the DeFi hero with the Fintech reference using the same quiet paper canvas,
+desktop column proportions, spacing, headline measure, responsive stacking,
+and rounded blue-tinted artifact border while preserving the DeFi content and
+controls. Browser checks confirm the desktop composition, a 16px artifact
+radius, zero 390px horizontal overflow, and no console errors; landing
+TypeScript, scoped Prettier, route, and `git diff --check` pass.
+
+Current session goal: **MANAGED BUILD DESTINATION VERIFIED 2026-08-25** — add
+an end-of-pipeline section to the Plugin SDK page that positions Aomi Build as
+the managed destination for deployed Apps. The supplied platform overview and
+project-home screenshots are anonymized with a neutral demo identity, layered
+in the requested editorial stack on desktop, and become a readable vertical
+stack on mobile. The Operate headline now reads “Monitoring transactions, tool
+calls, and fees with
+institution-grade provision.” Browser checks confirm both images load, the CTA
+targets Build, desktop overlap is intentional, and mobile has zero horizontal
+overflow; TypeScript, scoped ESLint and Prettier, route and asset checks, and
+`git diff --check` pass.
+
+Current session goal: **FLAT INTERACTIONS VERIFIED 2026-08-25** — the Agent
+Toolings Skills/MCP/CLI selector now uses one shadowless blue pill whose only
+animation is horizontal sliding, its setup facts use regular weight, and the
+REST API execution-boundary copy uses the pale-blue note-panel treatment. The
+REST API source selector, homepage integration and UI/Terminal selectors,
+primary navbar labels, and Plugin SDK file tree and Usage/Logs tabs no longer
+change on hover; their active states remain plain and explicit. Browser checks
+confirm identical idle/hover computed styles, working navigation, tab, and file
+selection, and the retained selected states. TypeScript, scoped ESLint, scoped
+Prettier, route checks, and `git diff --check` pass.
+
+Current session goal: **SEGMENTED-CONTROL HOVER REMOVAL VERIFIED 2026-08-25** —
+removed the hover-only color change from the Agent Toolings Skills/MCP/CLI
+segmented control while preserving its selected state and tab behavior. Browser
+checks confirm the unselected color stays identical before and during hover and
+that MCP still selects correctly; TypeScript, scoped ESLint, Prettier, and
+`git diff --check` pass.
+
+Current session goal: **SYSTEM-ONLY THEME VERIFIED 2026-08-25** — removed the
+manual light/dark control, its unused component/styles, and the layout space it
+reserved from the homepage and React subpages. Theme selection now follows only
+the system `prefers-color-scheme` setting, including live light/dark changes,
+with no saved manual override. Browser checks confirm zero manual controls and
+zero horizontal overflow on both surfaces; TypeScript, scoped ESLint, Prettier,
+JavaScript syntax, route/asset checks, and `git diff --check` pass.
+
+## Marketing dark-theme contrast
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-25** — keep
+World Markets flow copy, mandate values, DeFi CTA labels, and the Pricing CTA
+primary action readable when the system selects dark mode. The same components
+remain readable in light mode; scoped Prettier, browser console, and
+`git diff --check` pass.
+
+Previous session goal: **NAV-MATCHED THEME SWITCHER VERIFIED 2026-08-25** —
+the fixed light/dark switcher diameter exactly matched the navigation height on
+desktop and mobile before the manual control was removed.
+
+Previous session goal: **FIXED AND COMPACT MOBILE NAVIGATION VERIFIED
+2026-08-25** — the static homepage navigation now remains fixed at its
+22px desktop and 18px mobile viewport offsets while scrolling. Mobile
+navigation is reduced to a 48px pill with a 32px homepage menu control and a
+36px React menu control, tighter horizontal insets, and 20px clearance from the
+homepage theme control. Browser checks confirm it stays visible at scrollY 1100
+and 1800, the 19-link drawer still opens, and mobile overflow remains zero.
+TypeScript, Prettier, route/asset checks, and `git diff --check` pass.
+
+## Validation-grid official logos
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-25** — replace
+the landing validation grid's letter placeholders and text-only entries with
+official partner, chain, protocol, and backer artwork, while preserving its
+existing labels, layout, grayscale treatment, and marquee behavior.
+
+Previous session goal: **UPPER-RIGHT THEME CONTROL VERIFIED 2026-08-25** — the
+The appearance control now lives in one fixed upper-right position, outside the
+navigation, on both the static homepage and every React marketing subpage. At
+phone widths the navigation reserves room for it, with no overlap or horizontal
+overflow. Desktop and mobile browser checks confirm one working theme control,
+functional mobile drawers, and clean spacing; TypeScript, scoped ESLint,
+JavaScript syntax, all marketing route/asset checks, and `git diff --check`
+pass. The current worktree is running at http://localhost:3001/.
+
+Previous session goal: **MOBILE ADAPTATION VERIFIED 2026-08-25** — the
+canonical marketing surface now reflows from 320px phones through tablet
+widths instead of retaining the static homepage's 1160px desktop canvas. The
+homepage has a native, touch-friendly 19-link drawer; hero/front-back install
+views, validation rails, comparison content, feature cards, FAQ, and footer
+stack without document-level horizontal overflow. The existing React mobile
+drawer also navigates correctly. All 15 marketing routes are overflow-clean at
+320px, the homepage is clean at 390px and 768px, and the 1440px desktop remains
+visually identical to the approved design with all 39 motion signatures unchanged. JavaScript
+syntax, landing TypeScript, scoped ESLint, route/asset checks, and
+`git diff --check` pass. No obsolete versioned route copy was restored.
+
+## Marketing light/dark theme
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-25** — apply
+the Aomi design palette through semantic landing roles, honor system theme on
+first visit, persist an explicit choice across the static homepage and React
+marketing routes, and prevent a pre-hydration color flash. Dark-mode grids,
+borders, product canvases, code samples, and the Trading/World Markets visuals
+now use restrained, readable surface roles rather than leftover light colors.
+The homepage and every navbar route expose the same accessible theme control;
+TypeScript, scoped ESLint, Prettier, `git diff --check`, and browser checks for
+toggle persistence, route continuity, contrast, and console errors pass.
+
 # Auth BFF BetterAuth Cleanup Goal
+
+## Application-scoped discovery regressions
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-24** — keep
+hosted-app discovery, model discovery, and system-event requests pinned to the
+configured `application_id`, and normalize the backend's explicit artifact
+availability status for partner UIs. The client is patch-bumped to
+`@aomi-labs/client@0.6.1`; publishing is intentionally outside this PR.
+
+## EIP-5792 transaction export
+
+Current session goal: **EXPANDED AND LOCALLY VERIFIED 2026-08-24** — ship the
+wallet-neutral, read-only `aomi tx export <id>...` command in
+`@aomi-labs/client@0.6.2` with explicit `eip5792`, `moss`, and `metamask`
+formats. EIP-5792 `wallet_sendCalls` version `2.0.0` remains the canonical and
+default representation; MOSS emits the ordered call array, while MetaMask emits
+the decimal chain argument and one raw transaction payload expected by Agent
+Wallet. The MetaMask adapter rejects multiple calls instead of silently losing
+batch or atomic semantics. The command still refreshes authoritative staged EVM
+calls, validates one sender and chain, and never signs, broadcasts, injects the
+execution-time service fee, or reports backend completion. The full 1,574-test
+repository suite, repository lint, root typecheck, client build, CLI help, and
+npm package dry run pass. MegaETH MOSS CLI v0.1.6 accepts the exported call
+shape through normalization and reaches wallet-profile loading; live MOSS or
+MetaMask submission still requires the user's external wallet authentication
+and approvals.
+
+## Chain logo refresh
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-21** — add
+official monochrome MegaETH and Arc Testnet SVG marks to the shared chain icon
+registry and ship the generated widget artifacts. The widget-lib package is
+patch-bumped to `@aomi-labs/widget-lib@2.0.4`; its 353-test registry suite,
+client registry-artifact test, package build, and repository lint pass.
+
+## Canonical CLI wallet/user-state contract
+
+Current session goal: **IMPLEMENTED AND STAGING VERIFIED 2026-08-22** — the
+working-tree-only CLI wallet cleanup is reconciled against current frontend and
+backend `origin/main`. The persisted SVM cluster invariant now also covers a
+one-shot key added to an existing session; React sends exactly the backend
+`ProviderState`, is patch-bumped to `0.6.3`, and has rebuilt publish artifacts;
+stale documentation references are gone. A real built CLI against staging
+backend main `2fae659e` persisted and round-tripped an isolated SVM devnet
+wallet under the canonical `svm` key, with no legacy `solana` key. No publish is part of this session; the change ships via PR.
 
 ## Build staging candidate-release secrets
 
@@ -131,8 +443,13 @@ selection. Disconnected read-only chat retains the selected chain instead of
 falling back to Ethereum. Arc is represented as USDC-native with 6 display
 decimals while backend RPC accounting retains 18-decimal native precision.
 Publishable packages are patch-bumped to `@aomi-labs/account@0.1.12`,
-`@aomi-labs/client@0.4.5`, `@aomi-labs/react@0.5.12`, and
+`@aomi-labs/client@0.6.3`, `@aomi-labs/react@0.5.12`, and
 `@aomi-labs/widget-lib@1.4.27`.
+
+The official package catalog now accepts exact chain IDs from release
+metadata. Circle StableFX is decorated as an Arc-only package, remains visible
+on other networks, and cannot be installed until Arc Testnet is selected. An
+unknown or disconnected wallet chain fails closed for chain-scoped installs.
 
 ## Browser Response Latency
 
