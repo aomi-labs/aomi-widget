@@ -1,5 +1,17 @@
 # Auth BFF BetterAuth Cleanup Goal
 
+## Landing browser-wallet authentication recovery
+
+Current session goal: **IMPLEMENTED AND PREVIEW VERIFIED 2026-08-26** — restore
+account sign-in for external wallets on `aomi.dev`. The landing demo now uses
+the Portal's wallet-signed widget session instead of its unconfigured Para
+login, forwards that account bearer to the frame client, and sends widget API
+traffic directly to `chat.aomi.dev`. The production database showed no account
+or bound-wallet row for the reported Rabby address, confirming that its prior
+login never reached signature verification. The hosted preview and Portal
+nonce route were verified cross-origin; a wallet-extension confirmation still
+requires a browser with Rabby installed.
+
 ## Build staging candidate-release secrets
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-19** —

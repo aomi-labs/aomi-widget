@@ -1,12 +1,39 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
-import { AomiFrame } from "@aomi-labs/widget-lib";
+import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { AomiLogo } from "../components/aomi-logo";
-import { LandingWalletKitProvider } from "../components/landing-wallet-kit-provider";
+import {
+  landingPortalUrl,
+  LandingWalletKitProvider,
+} from "../components/landing-wallet-kit-provider";
 import styles from "./hero.module.css";
 
-const DEMO_BACKEND_URL = "/";
+function LandingDemoFrame() {
+  const walletKit = useAomiWalletKit();
+
+  return (
+    <AomiFrame.Root
+      key={walletKit.accountUser?.id ?? "anonymous"}
+      height="100%"
+      width="100%"
+      className={`${styles.demoFrame} aui-suggestions-marquee`}
+      defaultSidebarOpen={false}
+      walletPosition="footer"
+      walletFamilies={["evm", "solana"]}
+      backendUrl={landingPortalUrl}
+      accountSessionAvailable={Boolean(walletKit.accountUser)}
+      clientOptions={{ getAccountBearer: walletKit.getAccountBearer }}
+    >
+      <AomiFrame.Header />
+      <AomiFrame.Composer
+        withControl
+        welcomeTitle="What should happen on-chain?"
+        controlBarProps={{ hideApiKey: true, hideNetwork: false }}
+      />
+    </AomiFrame.Root>
+  );
+}
 
 export function Hero() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -269,22 +296,7 @@ export function Hero() {
               className="mb-14 h-[680px] w-full max-w-[900px] origin-bottom-left transition-all duration-300"
             >
               <LandingWalletKitProvider>
-                <AomiFrame.Root
-                  height="100%"
-                  width="100%"
-                  className={`${styles.demoFrame} aui-suggestions-marquee`}
-                  defaultSidebarOpen={false}
-                  walletPosition="footer"
-                  walletFamilies={["evm", "solana"]}
-                  backendUrl={DEMO_BACKEND_URL}
-                >
-                  <AomiFrame.Header />
-                  <AomiFrame.Composer
-                    withControl
-                    welcomeTitle="What should happen on-chain?"
-                    controlBarProps={{ hideApiKey: true, hideNetwork: false }}
-                  />
-                </AomiFrame.Root>
+                <LandingDemoFrame />
               </LandingWalletKitProvider>
             </div>
           ) : (
