@@ -16,8 +16,7 @@ import {
 import { accountScopedFetch } from "@portal/lib/settings-api";
 import {
   explainAccountError,
-  fetchGrants,
-  fetchWalletPolicies,
+  fetchAccountAcl,
   provisionAgentWallet,
   revokeProviderGrant,
 } from "./account-api";
@@ -163,13 +162,10 @@ export function useAccountAcl(): AccountAcl {
 
   const refresh = useCallback(async () => {
     try {
-      const [nextWallets, nextGrants] = await Promise.all([
-        fetchWalletPolicies(),
-        fetchGrants(),
-      ]);
+      const account = await fetchAccountAcl();
       if (!mounted.current) return;
-      setWallets(nextWallets);
-      setGrants(nextGrants);
+      setWallets(account.wallets);
+      setGrants(account.grants);
       setStatus("ready");
       setError(undefined);
     } catch (cause) {

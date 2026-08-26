@@ -147,21 +147,103 @@ export interface AomiUser {
   updated_at?: number;
 }
 
-export interface AomiAuthIdentity {
+export type AomiChainKind = "evm" | "svm";
+export type AomiAccountRecordStatus =
+  | "provisioning"
+  | "active"
+  | "expired"
+  | "revoked"
+  | "unavailable";
+
+export interface AomiOnchainAddress {
+  chain: AomiChainKind;
+  address: string;
+}
+
+export interface AomiAuthProvider {
   id: number;
-  application?: string | null;
-  wallet_provider: string;
-  auth_method: string;
-  auth_verified_at?: number | null;
+  provider: string;
+  method: string;
+  verified_at?: number | null;
   is_primary: boolean;
   created_at: number;
 }
 
-export interface AomiIdentityWallet {
-  wallet_id?: string | null;
-  address: string;
-  chain_type: string;
-  wallet_provider: string;
+export interface AomiSigningAuthorization {
+  address: AomiOnchainAddress;
+  provider?: string | null;
+  mode: "auto" | "manual" | "client_auto" | "denied";
+  version: number;
+  is_primary: boolean;
+  provider_managed: boolean;
+  can_use_auto: boolean;
+  last_authorized_at?: number | null;
+  last_authorized_by?: AomiOnchainAddress | null;
+}
+
+export interface AomiDelegatedAccount {
+  id: number;
+  address: AomiOnchainAddress;
+  provider: string;
+  kind: string;
+  status: AomiAccountRecordStatus;
+  created_at: number;
+  updated_at: number;
+  expires_at?: number | null;
+  revoked_at?: number | null;
+  revocation_reason?: string | null;
+}
+
+export interface AomiOperatingAccount {
+  id: number;
+  owner: AomiOnchainAddress;
+  operating: AomiOnchainAddress;
+  chain_ref: string;
+  provider: string;
+  kind: string;
+  status: AomiAccountRecordStatus;
+  version: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export type AomiPolicyWindow =
+  | { unit: "slots"; value: number }
+  | { unit: "blocks"; value: number }
+  | { unit: "seconds"; value: number };
+
+export type AomiOnchainPolicyRule =
+  | { type: "allowed_call_target"; target: AomiOnchainAddress }
+  | { type: "lifetime_native_asset_limit"; amount: string }
+  | {
+      type: "recurring_native_asset_limit";
+      amount: string;
+      window: AomiPolicyWindow;
+    };
+
+export interface AomiOnchainPolicy {
+  version: number;
+  rules: AomiOnchainPolicyRule[];
+}
+
+export type AomiProviderBinding = {
+  provider: "swig";
+  binding: { swig_account: AomiOnchainAddress; role_id: number };
+};
+
+export interface AomiOnchainPolicyBinding {
+  id: number;
+  owner: AomiOnchainAddress;
+  delegate: AomiOnchainAddress;
+  operating_account: AomiOperatingAccount;
+  provider: string;
+  policy: AomiOnchainPolicy;
+  provider_binding: AomiProviderBinding;
+  status: AomiAccountRecordStatus;
+  created_at: number;
+  updated_at: number;
+  confirmed_at?: number | null;
+  revoked_at?: number | null;
 }
 
 export interface AomiUsageStats {
@@ -174,9 +256,13 @@ export interface AomiUsageStats {
 
 export interface AomiAccountProfile {
   user: AomiUser;
-  auth_identities?: AomiAuthIdentity[];
-  identity_wallets?: AomiIdentityWallet[];
-  usage?: AomiUsageStats;
+  auth_providers: AomiAuthProvider[];
+  usage: AomiUsageStats;
+  onchain_addresses: AomiOnchainAddress[];
+  signing_authorizations: AomiSigningAuthorization[];
+  delegated_accounts: AomiDelegatedAccount[];
+  operating_accounts: AomiOperatingAccount[];
+  onchain_policy_bindings: AomiOnchainPolicyBinding[];
 }
 
 export interface AomiCreateApprovalRequest {

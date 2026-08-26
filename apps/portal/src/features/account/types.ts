@@ -1,7 +1,7 @@
 /**
  * Wallet signing ACL types — synced from the design mock
  * (aomi-chat-design contracts.ts). Mirrors the backend `SigningMode`
- * on `public_keys` and `delegated_approval` rows.
+ * on the canonical account response.
  */
 
 /**
@@ -61,7 +61,7 @@ export interface WalletPolicy {
 }
 
 /**
- * A `delegated_approval` row — the capability axis. Its presence + validity is
+ * A `DelegatedAccount` — the capability axis. Its presence + validity is
  * what lets an `auto` ACL actually reconcile.
  */
 export interface DelegationGrant {

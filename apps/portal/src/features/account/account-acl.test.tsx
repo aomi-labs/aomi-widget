@@ -46,50 +46,43 @@ vi.mock("@aomi-labs/react", async (importOriginal) => ({
   useOptionalAomiRuntime: () => ({ currentThreadId: "thread-aa-test" }),
 }));
 
-/** Backend `AccountWalletView` rows — the exact wire shape of /api/account/wallets. */
-const WALLETS = {
-  wallets: [
+/** Canonical `AccountWithDelegation` read model. */
+const ACCOUNT = {
+  signing_authorizations: [
     {
-      address: CONNECTED_EVM,
-      chain_type: "evm",
-      wallet_provider: null,
-      signing: "client",
+      address: { chain: "evm", address: CONNECTED_EVM.toLowerCase() },
+      provider: null,
       is_primary: true,
-      signing_mode: "manual",
-      authorization_version: 2,
+      mode: "manual",
+      version: 2,
       last_authorized_at: 1_752_000_000,
-      last_authorized_by: CONNECTED_EVM,
-      has_delegated_grant: false,
+      last_authorized_by: {
+        chain: "evm",
+        address: CONNECTED_EVM.toLowerCase(),
+      },
       provider_managed: false,
       can_use_auto: false,
     },
     {
-      address: PRIVY_SVM,
-      chain_type: "svm",
-      wallet_provider: "privy",
-      signing: "delegated",
+      address: { chain: "svm", address: PRIVY_SVM },
+      provider: "privy",
       is_primary: false,
-      signing_mode: "server_auto",
-      authorization_version: 4,
-      has_delegated_grant: true,
+      mode: "auto",
+      version: 4,
       provider_managed: false,
       can_use_auto: true,
-      expires_at: 1_785_000_000,
     },
   ],
-};
-
-const GRANTS = {
-  grants: [
+  delegated_accounts: [
     {
       id: 41,
+      address: { chain: "svm", address: PRIVY_SVM },
       provider: "privy",
-      grant_kind: "session_delegation",
+      kind: "session_delegation",
       status: "active",
       created_at: 1_750_000_000,
+      updated_at: 1_750_000_000,
       expires_at: 1_785_000_000,
-      chain_type: "svm",
-      address: PRIVY_SVM,
     },
   ],
 };
@@ -105,9 +98,7 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
       const override = overrides[url.pathname];
       if (override) return override();
 
-      if (url.pathname === "/api/account/wallets")
-        return Response.json(WALLETS);
-      if (url.pathname === "/api/account/grants") return Response.json(GRANTS);
+      if (url.pathname === "/api/account") return Response.json(ACCOUNT);
       if (url.pathname === "/api/account/authorization/challenge") {
         return Response.json({
           permit: {
@@ -211,14 +202,15 @@ describe("account ACL wiring", () => {
     seedAccountOverview(null);
   });
 
-  it("loads wallets and grants from the account routes", async () => {
+  it("loads authorizations and delegated accounts from the canonical account route", async () => {
     const { calls } = installFetchRecorder();
 
     await renderAcl();
 
-    await screen.findByText("0x71C7…976F");
-    expect(paths(calls)).toContain("/api/account/wallets");
-    expect(paths(calls)).toContain("/api/account/grants");
+    await screen.findByText("0x71c7…976f");
+    expect(paths(calls).filter((path) => path === "/api/account")).toHaveLength(
+      1,
+    );
     // Privy provenance + live grant render from the wire inside the expanded row.
     await click(await screen.findByText("Privy"));
     expect(screen.getByText(/Privy · Session delegation/)).toBeTruthy();
@@ -228,7 +220,7 @@ describe("account ACL wiring", () => {
     const { calls } = installFetchRecorder();
 
     await renderAcl();
-    const row = await screen.findByText("0x71C7…976F");
+    const row = await screen.findByText("0x71c7…976f");
 
     await click(row);
     await click(await screen.findByText("Auto-approve"));
@@ -239,7 +231,7 @@ describe("account ACL wiring", () => {
     );
     expect(bodyOf(calls, "/api/account/authorization/challenge")).toEqual({
       chain_type: "evm",
-      wallet: CONNECTED_EVM,
+      wallet: CONNECTED_EVM.toLowerCase(),
       mode: "client_auto",
     });
     expect(walletKit.signTypedData).toHaveBeenCalledOnce();
@@ -247,38 +239,35 @@ describe("account ACL wiring", () => {
       signature: "0xsignature",
     });
     // Committed state is re-read rather than assumed.
-    expect(
-      paths(calls).filter((p) => p === "/api/account/wallets"),
-    ).toHaveLength(2);
+    expect(paths(calls).filter((p) => p === "/api/account")).toHaveLength(2);
   });
 
   it("allows a user-controlled Para wallet to accept transactions", async () => {
-    const paraWallets = {
-      wallets: [
+    const paraAccount = {
+      signing_authorizations: [
         {
-          ...WALLETS.wallets[0],
-          wallet_provider: "para",
+          ...ACCOUNT.signing_authorizations[0],
+          provider: "para",
           provider_managed: false,
           can_use_auto: false,
         },
       ],
+      delegated_accounts: [],
     };
     const { calls } = installFetchRecorder({
-      "/api/account/wallets": () => Response.json(paraWallets),
-      "/api/account/grants": () => Response.json({ grants: [] }),
+      "/api/account": () => Response.json(paraAccount),
     });
 
     await renderAcl();
-    await click(await screen.findByText("0x71C7…976F"));
+    await click(await screen.findByText("0x71c7…976f"));
 
     const accept = await screen.findByRole("button", {
       name: /^Auto-approve/,
     });
     expect(accept).toHaveProperty("disabled", false);
-    expect(screen.getByRole("button", { name: /^Bypass permissions/ })).toHaveProperty(
-      "disabled",
-      true,
-    );
+    expect(
+      screen.getByRole("button", { name: /^Bypass permissions/ }),
+    ).toHaveProperty("disabled", true);
     expect(screen.getByRole("button", { name: /^Locked/ })).toHaveProperty(
       "disabled",
       false,
@@ -305,7 +294,7 @@ describe("account ACL wiring", () => {
     const { calls } = installFetchRecorder();
 
     await renderAcl();
-    const row = await screen.findByText("0x71C7…976F");
+    const row = await screen.findByText("0x71c7…976f");
 
     await click(row);
     await click(await screen.findByText("Auto-approve"));
@@ -330,7 +319,7 @@ describe("account ACL wiring", () => {
     });
 
     await renderAcl();
-    await click(await screen.findByText("0x71C7…976F"));
+    await click(await screen.findByText("0x71c7…976f"));
     await click(await screen.findByText("Auto-approve"));
     await click(await screen.findByText("Sign to authorize"));
 
@@ -393,19 +382,19 @@ describe("account ACL wiring", () => {
   });
 
   it("provisions a Para agent wallet through the provider route", async () => {
-    const paraWallets = {
-      wallets: [
+    const paraAccount = {
+      signing_authorizations: [
         {
-          ...WALLETS.wallets[0],
-          wallet_provider: "para",
+          ...ACCOUNT.signing_authorizations[0],
+          provider: "para",
           provider_managed: false,
           can_use_auto: false,
         },
       ],
+      delegated_accounts: [],
     };
     const { calls } = installFetchRecorder({
-      "/api/account/wallets": () => Response.json(paraWallets),
-      "/api/account/grants": () => Response.json({ grants: [] }),
+      "/api/account": () => Response.json(paraAccount),
     });
 
     await renderAcl();
