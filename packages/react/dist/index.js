@@ -35,7 +35,6 @@ var __objRest = (source, exclude) => {
 import { AomiClient as AomiClient2 } from "@aomi-labs/client";
 import {
   toViemSignTypedDataArgs,
-  hydrateTxPayloadFromUserState,
   toAAWalletCalls,
   toAAWalletCall,
   appendFeeCallToPayload,
@@ -1364,7 +1363,6 @@ function dropWalletBlocks(state) {
   return (_a = UserState.normalize({
     connection: { is_connected: false },
     evm: chainId === void 0 ? void 0 : { chain_id: chainId },
-    pending: state.pending,
     ext: state.ext,
     preferences: state.preferences
   })) != null ? _a : { connection: { is_connected: false } };
@@ -1519,7 +1517,7 @@ import {
 
 // src/runtime/orchestrator.ts
 import { useCallback as useCallback9, useEffect as useEffect6, useRef as useRef6, useState as useState6 } from "react";
-import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
+import { CLIENT_TYPE_WEB_UI, parseAomiTaskEvent } from "@aomi-labs/client";
 
 // src/runtime/session-manager.ts
 import {
@@ -1563,7 +1561,7 @@ var SessionManager = class {
       if (threadId === activeThreadId) continue;
       if (session.getIsProcessing()) continue;
       if (session.getIsPolling()) continue;
-      if (session.getPendingRequests().length > 0) continue;
+      if (session.getPendingActions().length > 0) continue;
       closedThreadIds.push(threadId);
     }
     for (const threadId of closedThreadIds) {
@@ -2230,10 +2228,10 @@ function useRuntimeOrchestrator(aomiClient, options) {
       );
       cleanups.push(
         session.on(
-          "wallet_requests_changed",
-          (requests) => {
+          "actions_changed",
+          (actions) => {
             var _a2, _b2;
-            return (_b2 = (_a2 = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _b2.call(_a2, requests);
+            return (_b2 = (_a2 = optionsRef.current).onActionsChange) == null ? void 0 : _b2.call(_a2, actions);
           }
         )
       );
@@ -2256,7 +2254,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
       cleanups.push(forwardEvent("tool_complete"));
       const forwardTaskEvent = (type) => session.on(type, (event) => {
         var _a2, _b2;
-        threadContextRef.current.applyTaskEvent(threadId, event);
+        const task = parseAomiTaskEvent(event);
+        if (!task) return;
+        threadContextRef.current.applyTaskEvent(threadId, task);
         (_b2 = (_a2 = optionsRef.current).onEvent) == null ? void 0 : _b2.call(_a2, {
           type,
           payload: event,
@@ -2266,10 +2266,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
       cleanups.push(forwardTaskEvent("task_started"));
       cleanups.push(forwardTaskEvent("task_activity"));
       cleanups.push(forwardTaskEvent("task_completed"));
-      cleanups.push(forwardEvent("system_notice"));
       cleanups.push(forwardEvent("system_error"));
-      cleanups.push(forwardEvent("async_callback"));
-      cleanups.push(forwardEvent("user_state_request"));
       listenerCleanups.current.set(threadId, () => {
         for (const cleanup of cleanups) cleanup();
       });
@@ -2288,9 +2285,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
       const cachedMessages = threadContextRef.current.getThreadMessages(threadId);
       const existingSession = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
       if (existingSession && (hydratedThreadIds.current.has(threadId) || cachedMessages.length > 0)) {
-        (_c = (_b = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _c.call(
+        (_c = (_b = optionsRef.current).onActionsChange) == null ? void 0 : _c.call(
           _b,
-          existingSession.getPendingRequests()
+          existingSession.getActions()
         );
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(existingSession.getIsProcessing());
@@ -2304,9 +2301,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
           const session = getSession(threadId);
           await session.fetchCurrentState();
           hydratedThreadIds.current.add(threadId);
-          (_b2 = (_a2 = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _b2.call(
+          (_b2 = (_a2 = optionsRef.current).onActionsChange) == null ? void 0 : _b2.call(
             _a2,
-            session.getPendingRequests()
+            session.getActions()
           );
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(session.getIsProcessing());
@@ -2383,7 +2380,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
           threadId,
           sessionId: session.sessionId,
           isProcessing: session.getIsProcessing(),
-          pendingRequestCount: session.getPendingRequests().length
+          pendingActionCount: session.getPendingActions().length
         });
         (_d = (_c = optionsRef.current).onSendSuccess) == null ? void 0 : _d.call(_c, threadId);
         if (!session.getIsProcessing()) {
@@ -2398,9 +2395,9 @@ function useRuntimeOrchestrator(aomiClient, options) {
           optimisticMessageId,
           "sent"
         );
-        (_f = (_e = optionsRef.current).onPendingRequestsChange) == null ? void 0 : _f.call(
+        (_f = (_e = optionsRef.current).onActionsChange) == null ? void 0 : _f.call(
           _e,
-          session.getPendingRequests()
+          session.getActions()
         );
       } catch (error) {
         clearTimeout(submittingFallbackTimer);
@@ -2697,122 +2694,97 @@ function useOptionalAomiRuntime() {
   return useContext6(AomiRuntimeContext);
 }
 
-// src/handlers/wallet-handler.ts
+// src/handlers/action-handler.ts
 import { useCallback as useCallback10, useRef as useRef7, useState as useState7 } from "react";
-function useWalletHandler({
+function useActionHandler({
   getSession
 }) {
-  const [pendingRequests, setPendingRequests] = useState7([]);
-  const [hasBlockingWalletRequests, setHasBlockingWalletRequests] = useState7(false);
-  const requestsRef = useRef7(pendingRequests);
-  const inFlightRequestSetRef = useRef7(/* @__PURE__ */ new Set());
-  const suppressedRequestSetRef = useRef7(/* @__PURE__ */ new Set());
-  const syncVisibleRequests = useCallback10(() => {
-    setPendingRequests(
-      requestsRef.current.filter(
-        (request) => !suppressedRequestSetRef.current.has(request.id)
-      )
+  const [pendingActions, setPendingActions] = useState7([]);
+  const [hasBlockingActions, setHasBlockingActions] = useState7(false);
+  const actionsRef = useRef7(pendingActions);
+  const inFlight = useRef7(/* @__PURE__ */ new Set());
+  const suppressed = useRef7(/* @__PURE__ */ new Set());
+  const sync = useCallback10(() => {
+    setPendingActions(
+      actionsRef.current.filter((action) => !suppressed.current.has(action.id))
     );
-    setHasBlockingWalletRequests(
-      requestsRef.current.length > 0 || inFlightRequestSetRef.current.size > 0
-    );
+    setHasBlockingActions(actionsRef.current.length > 0 || inFlight.current.size > 0);
   }, []);
-  const setRequests = useCallback10(
-    (requests) => {
-      const incomingIds = new Set(requests.map((request) => request.id));
-      for (const id of suppressedRequestSetRef.current) {
-        if (!incomingIds.has(id) && !inFlightRequestSetRef.current.has(id)) {
-          suppressedRequestSetRef.current.delete(id);
-        }
+  const setActions = useCallback10(
+    (actions) => {
+      const pending = actions.filter((action) => action.state === "pending");
+      const ids = new Set(pending.map((action) => action.id));
+      for (const id of suppressed.current) {
+        if (!ids.has(id) && !inFlight.current.has(id)) suppressed.current.delete(id);
       }
-      const preservedInFlight = requestsRef.current.filter(
-        (request) => inFlightRequestSetRef.current.has(request.id) && !incomingIds.has(request.id)
+      const preserved = actionsRef.current.filter(
+        (action) => inFlight.current.has(action.id) && !ids.has(action.id)
       );
-      requestsRef.current = [...requests, ...preservedInFlight];
-      syncVisibleRequests();
+      actionsRef.current = [...pending, ...preserved];
+      sync();
     },
-    [syncVisibleRequests]
+    [sync]
   );
-  const startRequest = useCallback10(
+  const startAction = useCallback10(
     (id) => {
-      if (!requestsRef.current.some((request) => request.id === id)) {
-        return;
-      }
-      inFlightRequestSetRef.current.add(id);
-      suppressedRequestSetRef.current.add(id);
-      syncVisibleRequests();
+      if (!actionsRef.current.some((action) => action.id === id)) return;
+      inFlight.current.add(id);
+      suppressed.current.add(id);
+      sync();
     },
-    [syncVisibleRequests]
+    [sync]
   );
-  const resolveRequest = useCallback10(
+  const finish = useCallback10(
+    (id) => {
+      actionsRef.current = actionsRef.current.filter((action) => action.id !== id);
+      inFlight.current.delete(id);
+      sync();
+    },
+    [sync]
+  );
+  const respondToAction = useCallback10(
     async (id, result) => {
       const session = getSession();
-      if (!session) {
-        console.error(
-          "[wallet-handler] No session available to resolve request"
-        );
-        return;
-      }
-      startRequest(id);
+      if (!session) throw new Error("No session available to respond to Action");
+      startAction(id);
       try {
-        await session.resolve(id, result);
-      } catch (err) {
-        console.error("[wallet-handler] Failed to resolve request:", err);
+        await session.respondToAction(id, result);
       } finally {
-        requestsRef.current = requestsRef.current.filter(
-          (request) => request.id !== id
-        );
-        inFlightRequestSetRef.current.delete(id);
-        syncVisibleRequests();
+        finish(id);
       }
     },
-    [getSession, startRequest, syncVisibleRequests]
+    [finish, getSession, startAction]
   );
-  const dismissRequest = useCallback10(
-    (id) => {
-      var _a;
-      (_a = getSession()) == null ? void 0 : _a.dismiss(id);
-      requestsRef.current = requestsRef.current.filter(
-        (request) => request.id !== id
-      );
-      inFlightRequestSetRef.current.delete(id);
-      suppressedRequestSetRef.current.add(id);
-      syncVisibleRequests();
-    },
-    [getSession, syncVisibleRequests]
-  );
-  const rejectRequest = useCallback10(
-    async (id, error) => {
+  const rejectAction = useCallback10(
+    async (id, reason) => {
       const session = getSession();
-      if (!session) {
-        console.error(
-          "[wallet-handler] No session available to reject request"
-        );
-        return;
-      }
-      startRequest(id);
+      if (!session) throw new Error("No session available to reject Action");
+      startAction(id);
       try {
-        await session.reject(id, error);
-      } catch (err) {
-        console.error("[wallet-handler] Failed to reject request:", err);
+        await session.rejectAction(id, reason);
       } finally {
-        requestsRef.current = requestsRef.current.filter(
-          (request) => request.id !== id
-        );
-        inFlightRequestSetRef.current.delete(id);
-        syncVisibleRequests();
+        finish(id);
       }
     },
-    [getSession, startRequest, syncVisibleRequests]
+    [finish, getSession, startAction]
+  );
+  const dismissAction = useCallback10(
+    (id) => {
+      actionsRef.current = actionsRef.current.filter((action) => action.id !== id);
+      inFlight.current.delete(id);
+      suppressed.current.add(id);
+      sync();
+    },
+    [sync]
   );
   return {
-    pendingRequests,
-    hasBlockingWalletRequests,
-    setRequests,
-    startRequest,
-    dismissRequest,
-    resolveRequest,
-    rejectRequest
+    pendingActions,
+    hasBlockingActions,
+    setActions,
+    startAction,
+    dismissAction,
+    respondToAction,
+    rejectAction
   };
 }
 
@@ -3314,7 +3286,7 @@ function AomiRuntimeCore({
     markControlSynced
   } = useControl();
   const sessionManagerRef = useRef9(null);
-  const walletHandler = useWalletHandler({
+  const actionHandler = useActionHandler({
     getSession: () => {
       var _a;
       return (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId);
@@ -3366,7 +3338,7 @@ function AomiRuntimeCore({
         });
       }
     },
-    onPendingRequestsChange: walletHandler.setRequests,
+    onActionsChange: actionHandler.setActions,
     onEvent: (event) => eventContext.dispatch(event)
   });
   sessionManagerRef.current = sessionManager;
@@ -3673,13 +3645,13 @@ function AomiRuntimeCore({
       showNotification: notificationContext.showNotification,
       dismissNotification: notificationContext.dismissNotification,
       clearAllNotifications: notificationContext.clearAll,
-      // Wallet API
-      pendingWalletRequests: walletHandler.pendingRequests,
-      hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
-      startWalletRequest: walletHandler.startRequest,
-      dismissWalletRequest: walletHandler.dismissRequest,
-      resolveWalletRequest: walletHandler.resolveRequest,
-      rejectWalletRequest: walletHandler.rejectRequest,
+      // Action API
+      pendingActions: actionHandler.pendingActions,
+      hasBlockingActions: actionHandler.hasBlockingActions,
+      startAction: actionHandler.startAction,
+      dismissAction: actionHandler.dismissAction,
+      respondToAction: actionHandler.respondToAction,
+      rejectAction: actionHandler.rejectAction,
       simulateBatchTransactions,
       // Event API
       subscribe: eventContext.subscribe,
@@ -3701,7 +3673,7 @@ function AomiRuntimeCore({
       sendMessage,
       cancelGeneration,
       notificationContext,
-      walletHandler,
+      actionHandler,
       simulateBatchTransactions,
       eventContext
     ]
@@ -3858,7 +3830,7 @@ function useNotificationHandler({
 // src/index.ts
 import {
   isAomiTaskEventType,
-  parseAomiTaskEvent,
+  parseAomiTaskEvent as parseAomiTaskEvent2,
   AOMI_TASK_EVENT_TYPES
 } from "@aomi-labs/client";
 export {
@@ -3885,12 +3857,11 @@ export {
   formatAddress,
   getChainInfo,
   getNetworkName,
-  hydrateTxPayloadFromUserState,
   initThreadControl,
   isAomiTaskEventType,
   normalizeAppDescriptor,
   normalizeSimulatedFee,
-  parseAomiTaskEvent,
+  parseAomiTaskEvent2 as parseAomiTaskEvent,
   parseChainId,
   readTaskPartAgentId,
   reduceTaskRuns,
@@ -3899,6 +3870,7 @@ export {
   toAAWalletCalls,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
+  useActionHandler,
   useAomiRuntime,
   useApiKey,
   useAuthEndpoints,
@@ -3914,7 +3886,6 @@ export {
   useTaskRun,
   useThreadContext,
   useThreadTaskRuns,
-  useUser,
-  useWalletHandler
+  useUser
 };
 //# sourceMappingURL=index.js.map

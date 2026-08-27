@@ -11,7 +11,7 @@ const geistSans = Geist({
 
 export const metadata: Metadata = {
   title: "Aomi Wallet",
-  description: "Approve Aomi wallet requests with Para in Telegram.",
+  description: "Respond to Aomi Actions with Para in Telegram.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

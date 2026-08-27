@@ -1,69 +1,90 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { Aomi, AgentRun } from "../src";
-import type { AgentAction, AgentDelta } from "../src";
+import type { Action, EventPage } from "../src";
 
-const evmAction: AgentAction = {
-  id: "action-1",
-  type: "external_transaction",
-  chainFamily: "evm",
-  executionKind: "eoa",
-  chainId: 8453,
-  signer: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-  broadcaster: "wallet",
-  generation: 1,
-  contextGeneration: 0,
-  revision: 1,
-  status: "finalized",
-  createdAt: "2026-08-25T00:00:00Z",
-  expiresAt: null,
-  description: "Supply USDC",
-  transactions: [
-    {
-      id: "leg-1",
-      from: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      to: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      value: "0",
-      data: "0x1234",
-      gas: "21000",
-      maxFeePerGas: null,
-      maxPriorityFeePerGas: null,
-      gasPrice: null,
-      nonce: null,
-      transactionType: null,
-      accessList: [],
-      description: "Supply",
-      simulation: { success: true, gasUsed: "21000", error: null },
-      intentHash: `0x${"1".repeat(64)}`,
-    },
-  ],
-};
+const occurredAt = Date.parse("2026-08-25T00:00:00Z");
 
-function delta(overrides: Partial<AgentDelta> = {}): AgentDelta {
+function evmAction(overrides: Partial<Action> = {}): Action {
   return {
-    sessionId: "agent-1",
-    status: "complete",
-    cursor: "stream-v1.cursor-1",
-    messages: [
-      {
-        id: "message-1",
-        role: "agent",
-        content: "Done",
-        createdAt: "2026-08-25T00:00:01Z",
-        streaming: false,
-      },
-    ],
-    activity: [],
-    actions: [evmAction],
-    title: "Aave supply",
-    hasMore: false,
+    type: "action",
+    event_id: "event-action-1",
+    sequence: 2,
+    turn_id: "turn-1",
+    occurred_at: occurredAt,
+    id: "action-1",
+    revision: 1,
+    state: "completed",
+    request: {
+      type: "execute_evm",
+      transactions: [
+        {
+          chain_id: 8453,
+          from: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          to: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          value: "0",
+          data: "0x1234",
+          label: "Supply",
+          kind: "supply",
+        },
+      ],
+    },
+    result: {
+      status: "submitted",
+      legs: [
+        { id: "leg_1", status: "submitted", transactionId: "0xsubmitted" },
+      ],
+    },
+    created_at: occurredAt,
+    expires_at: null,
     ...overrides,
   };
 }
 
+function page(
+  sessionId: string,
+  events: EventPage["events"],
+  cursor = `cursor-${events.at(-1)?.sequence ?? 0}`,
+): EventPage {
+  return { session_id: sessionId, cursor, events, has_more: false };
+}
+
 describe("high-level Aomi Agent", () => {
-  it("is awaitable while exposing compatible action, simulation, and completion events", async () => {
-    const fetch = vi.fn().mockResolvedValue(Response.json(delta()));
+  it("is awaitable and exposes canonical Action and completion events", async () => {
+    const completeAction = evmAction();
+    const fetch = vi.fn().mockResolvedValue(
+      Response.json(
+        page("agent-1", [
+          {
+            type: "message",
+            event_id: "event-message-1",
+            sequence: 1,
+            turn_id: "turn-1",
+            occurred_at: occurredAt,
+            sender: "agent",
+            content: "Done",
+            is_streaming: false,
+          },
+          completeAction,
+          {
+            type: "title_changed",
+            event_id: "event-title-1",
+            sequence: 3,
+            turn_id: "turn-1",
+            occurred_at: occurredAt,
+            title: "Aave supply",
+          },
+          {
+            type: "turn_state_changed",
+            event_id: "event-turn-1",
+            sequence: 4,
+            turn_id: "turn-1",
+            occurred_at: occurredAt,
+            state: "complete",
+          },
+        ]),
+      ),
+    );
     const aomi = new Aomi({
       baseUrl: "https://api.example",
       fetch,
@@ -81,10 +102,8 @@ describe("high-level Aomi Agent", () => {
       sessionId: "agent-1",
     });
     const actions = vi.fn();
-    const simulations = vi.fn();
     const completed = vi.fn();
     run.on("action", actions);
-    run.on("simulation", simulations);
     run.on("completed", completed);
 
     const result = await run;
@@ -93,64 +112,94 @@ describe("high-level Aomi Agent", () => {
     expect(result).toMatchObject({
       sessionId: "agent-1",
       title: "Aave supply",
-      actions: [
-        {
-          id: "action-1",
-          chainFamily: "evm",
-          kind: "calls",
-          status: "finalized",
-        },
-      ],
+      actions: [{ id: "action-1", state: "completed", revision: 1 }],
     });
-    expect(actions).toHaveBeenCalledTimes(1);
-    expect(simulations).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "passed", warnings: [] }),
-    );
+    expect(actions).toHaveBeenCalledWith(completeAction);
     expect(completed).toHaveBeenCalledWith(result);
     expect(JSON.parse(fetch.mock.calls[0][1].body as string)).toMatchObject({
       sessionId: "agent-1",
       message: "Supply 100 USDC to Aave",
-      wallets: {
+      userState: {
+        connection: { is_connected: true },
         evm: {
           address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          chainId: 8453,
+          chain_id: 8453,
         },
       },
     });
   });
 
-  it("reuses the wallet controller to resolve Agent requests automatically", async () => {
-    const pendingAction: AgentAction = {
-      ...evmAction,
+  it("uses the wallet controller to answer a pending Action automatically", async () => {
+    const pending = evmAction({
       id: "wallet-action",
+      event_id: "event-action-pending",
       revision: 3,
-      status: "pending",
-    };
+      state: "pending",
+      result: null,
+    });
+    const submitted = evmAction({
+      ...pending,
+      event_id: "event-action-submitted",
+      sequence: 4,
+      revision: 4,
+      state: "submitted",
+      result: {
+        status: "submitted",
+        legs: [
+          { id: "leg_1", status: "submitted", transactionId: "0xagenttx" },
+        ],
+      },
+    });
     const sendCalls = vi.fn().mockResolvedValue({ hashes: ["0xagenttx"] });
     const fetch = vi.fn(async (url: string, init?: RequestInit) => {
       if (url.endsWith("/v1/agent/chat") && init?.method === "POST") {
         return Response.json(
-          delta({
-            sessionId: "agent-wallet",
-            status: "awaiting_user",
-            cursor: "stream-v1.cursor-1",
-            messages: [],
-            actions: [pendingAction],
-          }),
+          page("agent-wallet", [
+            {
+              type: "turn_state_changed",
+              event_id: "event-processing",
+              sequence: 1,
+              turn_id: "turn-1",
+              occurred_at: occurredAt,
+              state: "processing",
+            },
+            pending,
+            {
+              type: "turn_state_changed",
+              event_id: "event-awaiting",
+              sequence: 3,
+              turn_id: "turn-1",
+              occurred_at: occurredAt,
+              state: "awaiting_action",
+            },
+          ]),
         );
       }
       if (url.includes("/actions/wallet-action/result")) {
-        return Response.json({
-          action: { ...pendingAction, revision: 4, status: "submitted" },
-        });
+        return Response.json({ action: submitted });
       }
       if (url.includes("/v1/agent/chat/agent-wallet")) {
         return Response.json(
-          delta({
-            sessionId: "agent-wallet",
-            cursor: "stream-v1.cursor-2",
-            actions: [{ ...pendingAction, revision: 4, status: "submitted" }],
-          }),
+          page("agent-wallet", [
+            {
+              type: "message",
+              event_id: "event-message-complete",
+              sequence: 5,
+              turn_id: "turn-1",
+              occurred_at: occurredAt,
+              sender: "agent",
+              content: "Executed",
+              is_streaming: false,
+            },
+            {
+              type: "turn_state_changed",
+              event_id: "event-complete",
+              sequence: 6,
+              turn_id: "turn-1",
+              occurred_at: occurredAt,
+              state: "complete",
+            },
+          ]),
         );
       }
       throw new Error(`Unexpected request ${url}`);
@@ -171,29 +220,39 @@ describe("high-level Aomi Agent", () => {
       sessionId: "agent-wallet",
       pollIntervalMs: 1,
     });
-    const walletRequests = vi.fn();
-    run.on("wallet_request", walletRequests);
+    const actions = vi.fn();
+    run.on("action", actions);
 
     const result = await run.result();
 
     expect(result.sessionId).toBe("agent-wallet");
-    expect(walletRequests).toHaveBeenCalledWith(
-      expect.objectContaining({ id: "txreq-wallet-action" }),
-    );
-    expect(sendCalls).toHaveBeenCalledTimes(1);
+    expect(actions).toHaveBeenCalledWith(pending);
+    expect(actions).toHaveBeenCalledWith(submitted);
+    expect(sendCalls).toHaveBeenCalledWith({
+      chainId: 8453,
+      calls: [
+        {
+          to: "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          value: "0",
+          data: "0x1234",
+        },
+      ],
+    });
     const resolution = fetch.mock.calls.find(([url]) =>
       url.includes("/actions/wallet-action/result"),
     );
-    expect(JSON.parse(resolution?.[1]?.body as string)).toMatchObject({
-      status: "submitted",
+    expect(JSON.parse(resolution?.[1]?.body as string)).toEqual({
       revision: 3,
-      legs: [
-        {
-          id: "leg-1",
-          status: "submitted",
-          transactionId: "0xagenttx",
-        },
-      ],
+      result: {
+        status: "submitted",
+        legs: [
+          {
+            id: "leg_1",
+            status: "submitted",
+            transactionId: "0xagenttx",
+          },
+        ],
+      },
     });
   });
 });

@@ -11,9 +11,9 @@ import {
 import type { UserState as UserStateShape } from "@aomi-labs/client";
 import {
   AomiRuntimeApiProvider,
+  type Action,
+  type ActionResult,
   type AomiRuntimeApi,
-  type WalletRequest,
-  type WalletRequestResult,
 } from "@aomi-labs/react";
 import { RuntimeTxHandler } from "../../../shadcn-registry/src/components/runtime-tx-handler";
 import {
@@ -23,8 +23,8 @@ import {
 } from "../../../shadcn-registry/src/lib/wallet-kit";
 import { registerAomiParaWalletProvider } from "@aomi-labs/widget-lib/providers/para";
 import {
-  createSolanaDriverRequest,
-  type SolanaDriverRequestKind,
+  createSolanaDriverAction,
+  type SolanaDriverActionKind,
 } from "./solana-runtime-driver-request";
 
 type DriverMode =
@@ -126,15 +126,15 @@ async function postDriverReport(
   }
 }
 
-function getRequestKindForMode(mode: DriverMode): SolanaDriverRequestKind {
+function getActionKindForMode(mode: DriverMode): SolanaDriverActionKind {
   switch (mode) {
     case "send_fallback":
     case "send_direct":
-      return "solana_send";
+      return "execute_svm";
     case "sign_and_send_direct":
-      return "solana_sign_and_send";
+      return "execute_svm";
     default:
-      return "signing";
+      return "sign";
   }
 }
 
@@ -185,11 +185,9 @@ function ParaSolanaRuntimeDriverInner() {
     [],
   );
   const [driverMode, setDriverMode] = useState<DriverMode>("sign");
-  const [pendingWalletRequests, setPendingWalletRequests] = useState<
-    WalletRequest[]
-  >([]);
+  const [pendingActions, setPendingActions] = useState<Action[]>([]);
   const [reportStatus, setReportStatus] = useState<DriverReportStatus>("idle");
-  const [lastResult, setLastResult] = useState<WalletRequestResult | null>(
+  const [lastResult, setLastResult] = useState<ActionResult | null>(
     null,
   );
   const [lastError, setLastError] = useState<string | null>(null);
@@ -207,24 +205,20 @@ function ParaSolanaRuntimeDriverInner() {
     [adapter],
   );
 
-  const resolveWalletRequest = useCallback(
-    async (id: string, result: WalletRequestResult) => {
-      setPendingWalletRequests((prev) =>
-        prev.filter((request) => request.id !== id),
-      );
+  const respondToAction = useCallback(
+    async (id: string, result: ActionResult) => {
+      setPendingActions((prev) => prev.filter((action) => action.id !== id));
       setLastResult(result);
       setLastError(null);
       setReportStatus("completed");
-      appendLog("ok", `request ${id} resolved as ${result.kind}`);
+      appendLog("ok", `action ${id} resolved as ${result.status}`);
     },
     [appendLog],
   );
 
-  const rejectWalletRequest = useCallback(
+  const rejectAction = useCallback(
     async (id: string, error?: string) => {
-      setPendingWalletRequests((prev) =>
-        prev.filter((request) => request.id !== id),
-      );
+      setPendingActions((prev) => prev.filter((action) => action.id !== id));
       setLastResult(null);
       setLastError(error ?? "request_rejected");
       setReportStatus("failed");
@@ -233,10 +227,8 @@ function ParaSolanaRuntimeDriverInner() {
     [appendLog],
   );
 
-  const dismissWalletRequest = useCallback((id: string) => {
-    setPendingWalletRequests((prev) =>
-      prev.filter((request) => request.id !== id),
-    );
+  const dismissAction = useCallback((id: string) => {
+    setPendingActions((prev) => prev.filter((action) => action.id !== id));
   }, []);
 
   const runtimeApi = useMemo<AomiRuntimeApi>(
@@ -265,12 +257,12 @@ function ParaSolanaRuntimeDriverInner() {
       showNotification: () => "para-solana-runtime-driver-notification",
       dismissNotification: () => undefined,
       clearAllNotifications: () => undefined,
-      pendingWalletRequests,
-      hasBlockingWalletRequests: pendingWalletRequests.length > 0,
-      startWalletRequest: () => undefined,
-      dismissWalletRequest,
-      resolveWalletRequest,
-      rejectWalletRequest,
+      pendingActions,
+      hasBlockingActions: pendingActions.length > 0,
+      startAction: () => undefined,
+      dismissAction,
+      respondToAction,
+      rejectAction,
       simulateBatchTransactions: async () => {
         throw new Error(
           "simulateBatchTransactions is not used in Solana driver",
@@ -281,11 +273,11 @@ function ParaSolanaRuntimeDriverInner() {
     }),
     [
       currentUserState,
-      dismissWalletRequest,
-      pendingWalletRequests,
-      rejectWalletRequest,
+      dismissAction,
+      pendingActions,
+      rejectAction,
       reportStatus,
-      resolveWalletRequest,
+      respondToAction,
     ],
   );
 
@@ -296,7 +288,7 @@ function ParaSolanaRuntimeDriverInner() {
   const reportRunState = useCallback(
     async (
       status: DriverReportStatus,
-      extra?: { result?: WalletRequestResult | null; error?: string | null },
+      extra?: { result?: ActionResult | null; error?: string | null },
     ) => {
       if (!runId) {
         return;
@@ -334,7 +326,7 @@ function ParaSolanaRuntimeDriverInner() {
         return;
       }
 
-      const kind = getRequestKindForMode(mode);
+      const kind = getActionKindForMode(mode);
       const supportsSign =
         adapter.identity.solanaCapabilities?.canSignTransaction ||
         Boolean(adapter.signSolanaTransaction);
@@ -348,7 +340,7 @@ function ParaSolanaRuntimeDriverInner() {
         return;
       }
 
-      setPendingWalletRequests([]);
+      setPendingActions([]);
       setLastResult(null);
       setLastError(null);
       setLogs([]);
@@ -357,7 +349,7 @@ function ParaSolanaRuntimeDriverInner() {
 
       appendLog(
         "info",
-        `enqueuing ${kind} request for ${adapter.identity.svmAddress}`,
+        `enqueuing ${kind} Action for ${adapter.identity.svmAddress}`,
       );
 
       try {
@@ -366,15 +358,14 @@ function ParaSolanaRuntimeDriverInner() {
           adapter.identity.svmAddress,
           appendLog,
         );
-        const pendingSolanaId = requestCounterRef.current++;
-        setPendingWalletRequests([
-          createSolanaDriverRequest({
+        requestCounterRef.current++;
+        setPendingActions([
+          createSolanaDriverAction({
             kind,
             unsignedTx,
             signer: adapter.identity.svmAddress,
             description: `Para runtime driver ${kind}`,
             cluster: DRIVER_CLUSTER,
-            pendingSolanaId,
           }),
         ]);
       } catch (error) {
@@ -576,7 +567,7 @@ function ParaSolanaRuntimeDriverInner() {
                 >
                   {reportStatus === "running"
                     ? "Running…"
-                    : `Run ${getRequestKindForMode(driverMode)}`}
+                    : `Run ${getActionKindForMode(driverMode)}`}
                 </button>
               </div>
 

@@ -17,11 +17,14 @@ import type { AomiMessage, SendResult, SessionEventMap } from "../src/index";
 
 const BACKEND_URL = process.env.AOMI_BASE_URL ?? "https://api.aomi.dev";
 const TEST_TIMEOUT = 30_000; // 30s — AI responses can be slow
-const describeLive = process.env.AOMI_LIVE_TESTS === "1" ? describe : describe.skip;
+const describeLive =
+  process.env.AOMI_LIVE_TESTS === "1" ? describe : describe.skip;
 
 const sessions: Session[] = [];
 
-function createSession(opts?: Partial<Parameters<typeof Session.prototype.constructor>[1]>): Session {
+function createSession(
+  opts?: Partial<Parameters<typeof Session.prototype.constructor>[1]>,
+): Session {
   const session = new Session(
     { baseUrl: BACKEND_URL },
     { app: "default", ...opts },
@@ -65,9 +68,7 @@ describeLive("Session.send() (live backend)", () => {
       expect(userMsg).toBeDefined();
 
       // Should have agent response
-      const agentMsg = result.messages.find(
-        (m) => m.sender === "agent" || m.sender === "assistant",
-      );
+      const agentMsg = result.messages.find((m) => m.sender === "agent");
       expect(agentMsg).toBeDefined();
       expect(agentMsg?.content).toBeTruthy();
     },
@@ -84,13 +85,15 @@ describeLive("Session.send() (live backend)", () => {
       expect(result1.messages.length).toBeGreaterThanOrEqual(2);
 
       // Turn 2 — references context from turn 1
-      const result2 = await session.send("What number did I ask you to remember?");
+      const result2 = await session.send(
+        "What number did I ask you to remember?",
+      );
       expect(result2.messages.length).toBeGreaterThanOrEqual(4);
 
       // The agent's second response should mention "42"
       const lastAgent = [...result2.messages]
         .reverse()
-        .find((m) => m.sender === "agent" || m.sender === "assistant");
+        .find((m) => m.sender === "agent");
       expect(lastAgent?.content).toContain("42");
     },
     TEST_TIMEOUT,
@@ -131,9 +134,7 @@ describeLive("Session.sendAsync() (live backend)", () => {
 
       // Final messages should contain agent response
       const finalMessages = session.getMessages();
-      const agentMsg = finalMessages.find(
-        (m) => m.sender === "agent" || m.sender === "assistant",
-      );
+      const agentMsg = finalMessages.find((m) => m.sender === "agent");
       expect(agentMsg).toBeDefined();
     },
     TEST_TIMEOUT,
@@ -270,13 +271,13 @@ describeLive("Session accessors (live backend)", () => {
   );
 
   it(
-    "getPendingRequests() returns empty for non-wallet messages",
+    "getPendingActions() returns empty for turns without Actions",
     async () => {
       const session = createSession();
 
       await session.send("What is 2+2?");
 
-      expect(session.getPendingRequests()).toEqual([]);
+      expect(session.getPendingActions()).toEqual([]);
     },
     TEST_TIMEOUT,
   );

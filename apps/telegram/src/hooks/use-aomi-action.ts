@@ -3,38 +3,38 @@
 import { useEffect, useState } from "react";
 import {
   Session,
-  type WalletRequest,
+  type Action,
   type WidgetSessionProvider,
 } from "@aomi-labs/client";
 
 import { aomiBffUrl } from "@/app/config";
 
-export type AomiWalletRequestState = {
+export type AomiActionState = {
   error: string | null;
-  request: WalletRequest | null;
+  action: Action | null;
   session: Session | null;
   status: "idle" | "loading" | "waiting" | "ready" | "error";
 };
 
-function chooseRequest(
-  requests: WalletRequest[],
+function chooseAction(
+  actions: Action[],
   requestId: string | null,
-): WalletRequest | null {
+): Action | null {
   if (requestId) {
-    return requests.find((request) => request.id === requestId) ?? null;
+    return actions.find((action) => action.id === requestId) ?? null;
   }
-  return requests.length === 1 ? requests[0] : null;
+  return actions.length === 1 ? actions[0] : null;
 }
 
-export function useAomiWalletRequest(input: {
+export function useAomiAction(input: {
   enabled: boolean;
   provider: WidgetSessionProvider | null;
   requestId: string | null;
   sessionId: string | null;
-}): AomiWalletRequestState {
-  const [state, setState] = useState<AomiWalletRequestState>({
+}): AomiActionState {
+  const [state, setState] = useState<AomiActionState>({
     error: null,
-    request: null,
+    action: null,
     session: null,
     status: "idle",
   });
@@ -53,29 +53,29 @@ export function useAomiWalletRequest(input: {
       },
     );
 
-    const sync = (requests = session.getPendingRequests()) => {
+    const sync = (actions = session.getPendingActions()) => {
       if (!active) return;
-      const request = chooseRequest(requests, input.requestId);
-      const ambiguous = !input.requestId && requests.length > 1;
+      const action = chooseAction(actions, input.requestId);
+      const ambiguous = !input.requestId && actions.length > 1;
       setState({
-        error: ambiguous ? "multiple_wallet_requests" : null,
-        request,
+        error: ambiguous ? "multiple_actions" : null,
+        action,
         session,
-        status: ambiguous ? "error" : request ? "ready" : "waiting",
+        status: ambiguous ? "error" : action ? "ready" : "waiting",
       });
     };
 
     queueMicrotask(() => {
       if (active) {
-        setState({ error: null, request: null, session, status: "loading" });
+        setState({ error: null, action: null, session, status: "loading" });
       }
     });
-    const stopRequests = session.on("wallet_requests_changed", sync);
+    const stopActions = session.on("actions_changed", sync);
     const stopErrors = session.on("error", ({ error }) => {
       if (!active) return;
       setState({
         error: error instanceof Error ? error.message : "wallet_session_failed",
-        request: null,
+        action: null,
         session,
         status: "error",
       });
@@ -89,7 +89,7 @@ export function useAomiWalletRequest(input: {
         setState({
           error:
             error instanceof Error ? error.message : "wallet_session_failed",
-          request: null,
+          action: null,
           session,
           status: "error",
         });
@@ -97,7 +97,7 @@ export function useAomiWalletRequest(input: {
 
     return () => {
       active = false;
-      stopRequests();
+      stopActions();
       stopErrors();
       session.close();
     };
@@ -105,5 +105,5 @@ export function useAomiWalletRequest(input: {
 
   return input.enabled && input.provider && input.sessionId
     ? state
-    : { error: null, request: null, session: null, status: "idle" };
+    : { error: null, action: null, session: null, status: "idle" };
 }

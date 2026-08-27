@@ -1,61 +1,67 @@
-import type { WalletRequest, WalletRequestKind } from "@aomi-labs/react";
+import type { Action } from "@aomi-labs/react";
 
-export type SolanaDriverRequestKind = Extract<
-  WalletRequestKind,
-  "signing" | "solana_send" | "solana_sign_and_send"
->;
+export type SolanaDriverActionKind = "sign" | "execute_svm";
 
-type SolanaDriverRequestInput = {
-  kind: SolanaDriverRequestKind;
+type SolanaDriverActionInput = {
+  kind: SolanaDriverActionKind;
   unsignedTx: string;
   signer: string;
   description: string;
   cluster: string;
-  pendingSolanaId: number;
 };
 
-export function createSolanaDriverRequest({
+export function createSolanaDriverAction({
   kind,
   unsignedTx,
   signer,
   description,
   cluster,
-  pendingSolanaId,
-}: SolanaDriverRequestInput): WalletRequest {
+}: SolanaDriverActionInput): Action {
+  const id = `act_${crypto.randomUUID().replaceAll("-", "")}`;
   const timestamp = Date.now();
-
-  if (kind === "signing") {
-    const requestId = `sign:${crypto.randomUUID()}`;
-    return {
-      id: requestId,
-      kind,
-      payload: {
-        requestId,
-        chainFamily: "svm",
-        executionKind: "transaction",
-        signer,
-        cluster,
-        description,
-        payloads: [{ kind: "svm_transaction", transactionBase64: unsignedTx }],
-      },
-      timestamp,
-    };
-  }
-
-  const requestId = `${kind}-${pendingSolanaId}`;
-  if (kind === "solana_send") {
-    return {
-      id: requestId,
-      kind,
-      payload: { unsignedTx, description, cluster, pendingSolanaId },
-      timestamp,
-    };
-  }
-
-  return {
-    id: requestId,
-    kind,
-    payload: { unsignedTx, description, cluster, pendingSolanaId },
-    timestamp,
+  const meta = {
+    event_id: `event_${id}`,
+    sequence: 1,
+    turn_id: "turn_driver",
+    occurred_at: timestamp,
+    type: "action" as const,
+    id,
+    revision: 0,
+    state: "pending" as const,
+    created_at: timestamp,
+    expires_at: null,
   };
+  return kind === "sign"
+    ? {
+        ...meta,
+        request: {
+          type: "sign",
+          requestId: id,
+          chainFamily: "svm",
+          executionKind: "transaction",
+          signer,
+          cluster,
+          description,
+          payloads: [
+            { kind: "svm_transaction", transaction_base64: unsignedTx },
+          ],
+        },
+      }
+    : {
+        ...meta,
+        request: {
+          type: "execute_svm",
+          transactions: [
+            {
+              payer: signer,
+              cluster,
+              version: "v0",
+              instructions: [],
+              unsigned_transaction_base64: unsignedTx,
+              description,
+              kind: "driver",
+            },
+          ],
+        },
+      };
 }

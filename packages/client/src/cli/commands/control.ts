@@ -55,8 +55,8 @@ export async function eventsCommand(config: CliConfig): Promise<void> {
 
   const session = cli.createClientSession(config);
   try {
-    const delta = await session.client.agent.check(cli.sessionId);
-    console.log(JSON.stringify(delta.activity, null, 2));
+    const page = await session.client.agent.poll(cli.sessionId);
+    console.log(JSON.stringify(page.events, null, 2));
   } finally {
     session.close();
   }
@@ -71,6 +71,7 @@ export async function interruptCommand(config: CliConfig): Promise<void> {
 
   const session = cli.createClientSession(config);
   try {
+    await session.fetchCurrentState();
     await session.interrupt();
     if (config.json) {
       printJson({ sessionId: cli.sessionId, interrupted: true });
@@ -86,10 +87,8 @@ export async function interruptCommand(config: CliConfig): Promise<void> {
 export async function appsCommand(config: CliConfig): Promise<void> {
   const client = createControlClient(config);
   const cli = CliSession.load();
-  const response = await client.pipeline.listApps();
-  const apps = Array.isArray(response.apps)
-    ? (response.apps as Array<Record<string, unknown>>)
-    : [];
+  const response = await client.pipeline.apps.list();
+  const apps = response.entries.map((entry) => ({ name: entry.name }));
 
   if (apps.length === 0) {
     if (config.json) {
@@ -113,15 +112,7 @@ export async function appsCommand(config: CliConfig): Promise<void> {
   for (const descriptor of apps) {
     const name = String(descriptor.name ?? "");
     const marker = currentApp === name ? "  (current)" : "";
-    const secrets = Array.isArray(descriptor.secrets)
-      ? (descriptor.secrets as Array<{ name?: unknown; required?: unknown }>)
-      : [];
-    const required = secrets
-      .filter((secret) => secret.required === true)
-      .map((secret) => String(secret.name));
-    const requiredSuffix =
-      required.length > 0 ? `  [requires: ${required.join(", ")}]` : "";
-    console.log(`${name}${marker}${requiredSuffix}`);
+    console.log(`${name}${marker}`);
   }
 }
 

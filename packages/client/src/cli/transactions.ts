@@ -1,5 +1,5 @@
 import type { ExecutionResult, AAWalletCall } from "../aa";
-import type { WalletRequest } from "../session";
+import type { Action } from "../agent/types";
 import type {
   WalletEip712Payload,
   WalletSolanaSignMessagePayload,
@@ -9,28 +9,43 @@ import type {
 import { toAAWalletCall } from "../wallet-utils";
 import type { PendingSolTx, PendingTx, SignedSolTx, SignedTx } from "./state";
 
-export function walletRequestToPendingTx(
-  request: WalletRequest,
+export function actionToPendingTx(
+  action: Action,
 ): Omit<PendingTx, "id"> | null {
-  if (request.kind === "transaction") {
-    const payload = request.payload as WalletTxPayload;
-    const first = payload.calls?.[0];
+  if (action.request.type === "execute_evm") {
+    const first = action.request.transactions[0];
+    if (!first) return null;
+    const payload: WalletTxPayload = {
+      requestId: action.id,
+      chainId: first.chain_id,
+      calls: action.request.transactions.map((transaction, index) => ({
+        txId: index + 1,
+        to: transaction.to,
+        value: transaction.value,
+        data: transaction.data,
+        chainId: transaction.chain_id,
+        from: transaction.from,
+        gas: transaction.gas,
+        description: transaction.label,
+      })),
+      txIds: action.request.transactions.map((_, index) => index + 1),
+    };
     return {
       kind: "transaction",
-      agentRequestId: payload.requestId,
+      agentRequestId: action.id,
       txId: payload.txId,
-      to: payload.to ?? first?.to,
-      value: payload.value ?? first?.value,
-      data: payload.data ?? first?.data,
-      chainId: payload.chainId ?? first?.chainId,
-      description: first?.description,
-      timestamp: request.timestamp,
-      payload: request.payload as unknown as Record<string, unknown>,
+      to: first.to,
+      value: first.value,
+      data: first.data,
+      chainId: first.chain_id,
+      description: first.label,
+      timestamp: action.created_at,
+      payload: payload as unknown as Record<string, unknown>,
     };
   }
 
-  if (request.kind === "signing" && request.payload.chainFamily === "evm") {
-    const signable = request.payload.payloads[0];
+  if (action.request.type === "sign" && action.request.chainFamily === "evm") {
+    const signable = action.request.payloads[0];
     if (
       !signable ||
       (signable.kind !== "evm_personal" && signable.kind !== "evm_typed_data")
@@ -38,23 +53,23 @@ export function walletRequestToPendingTx(
       return null;
     }
     const payload: WalletEip712Payload = {
-      requestId: request.id,
-      signer: request.payload.signer,
-      chainId: request.payload.chainId,
-      description: request.payload.description,
+      requestId: action.id,
+      signer: action.request.signer,
+      chainId: action.request.chainId,
+      description: action.request.description,
       ...(signable.kind === "evm_personal"
         ? { non_typed_data: signable.message }
         : {
-            typed_data: signable.typedData as WalletEip712Payload["typed_data"],
+            typed_data: signable.typed_data as WalletEip712Payload["typed_data"],
           }),
     };
     return {
       kind: "eip712_sign",
-      agentRequestId: request.id,
+      agentRequestId: action.id,
       eip712Id: payload.eip712Id,
       description: payload.description,
-      timestamp: request.timestamp,
-      payload: request.payload as unknown as Record<string, unknown>,
+      timestamp: action.created_at,
+      payload: action.request as unknown as Record<string, unknown>,
     };
   }
 
@@ -63,66 +78,67 @@ export function walletRequestToPendingTx(
 
 /**
  * Convert a `solana_sign` [`WalletRequest`] into a [`PendingSolTx`] without
- * the display id. Companion to [`walletRequestToPendingTx`] — split out
+ * the display id. Companion to [`actionToPendingTx`] — split out
  * because Solana state is its own typed array, not a discriminated union
  * member of the EVM/EIP-712 record.
  */
-export function walletRequestToPendingSolTx(
-  request: WalletRequest,
+export function actionToPendingSolTx(
+  action: Action,
 ): Omit<PendingSolTx, "id"> | null {
-  if (request.kind === "signing" && request.payload.chainFamily === "svm") {
-    const signable = request.payload.payloads[0];
+  if (action.request.type === "sign" && action.request.chainFamily === "svm") {
+    const signable = action.request.payloads[0];
     if (!signable) return null;
     if (signable.kind === "svm_message") {
       return {
-        agentRequestId: request.id,
+        agentRequestId: action.id,
         requestKind: "solana_sign_message",
-        message: signable.messageBase64,
-        cluster: request.payload.cluster,
-        signer: request.payload.signer,
-        description: request.payload.description,
-        timestamp: request.timestamp,
-        payload: request.payload as unknown as Record<string, unknown>,
+        message: signable.message_base64,
+        cluster: action.request.cluster,
+        signer: action.request.signer,
+        description: action.request.description,
+        timestamp: action.created_at,
+        payload: action.request as unknown as Record<string, unknown>,
       };
     }
     if (signable.kind === "svm_transaction") {
       return {
-        agentRequestId: request.id,
+        agentRequestId: action.id,
         requestKind: "solana_sign",
-        unsignedTx: signable.transactionBase64,
-        cluster: request.payload.cluster,
-        signer: request.payload.signer,
-        description: request.payload.description,
-        timestamp: request.timestamp,
-        payload: request.payload as unknown as Record<string, unknown>,
+        unsignedTx: signable.transaction_base64,
+        cluster: action.request.cluster,
+        signer: action.request.signer,
+        description: action.request.description,
+        timestamp: action.created_at,
+        payload: action.request as unknown as Record<string, unknown>,
       };
     }
     return null;
   }
-  if (
-    request.kind !== "solana_send" &&
-    request.kind !== "solana_sign_and_send"
-  ) {
-    return null;
-  }
-  const payload = request.payload as WalletSolanaSignPayload;
-  if (
-    (payload.pendingSolanaId === undefined && !payload.requestId) ||
-    payload.unsignedTx === undefined
-  ) {
-    return null;
-  }
+  if (action.request.type !== "execute_svm") return null;
+  const first = action.request.transactions[0];
+  if (!first?.unsigned_transaction_base64) return null;
+  const payload: WalletSolanaSignPayload = {
+    requestId: action.id,
+    unsignedTx: first.unsigned_transaction_base64,
+    cluster: first.cluster,
+    description: first.description,
+    transactions: action.request.transactions.map((transaction, index) => ({
+      id: String(index),
+      unsignedTx: transaction.unsigned_transaction_base64 ?? "",
+      description: transaction.description,
+    })),
+  };
 
   return {
-    agentRequestId: payload.requestId,
+    agentRequestId: action.id,
     solanaId: payload.pendingSolanaId,
     solanaIds: payload.pendingSolanaIds,
-    requestKind: request.kind,
+    requestKind: "solana_sign_and_send",
     unsignedTx: payload.unsignedTx,
     cluster: payload.cluster,
     description: payload.description,
-    timestamp: request.timestamp,
-    payload: request.payload as unknown as Record<string, unknown>,
+    timestamp: action.created_at,
+    payload: payload as unknown as Record<string, unknown>,
   };
 }
 

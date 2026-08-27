@@ -9,7 +9,6 @@ import {
   type StoredSessionRecord,
 } from "../state";
 import { createCliAuthTokenProvider } from "../auth";
-import { pendingTxsFromBackendUserState } from "../user-state";
 import {
   estimateTokenCount,
   printKeyValueTable,
@@ -22,7 +21,7 @@ type RemoteSessionStats = {
   messageCount: number;
   tokenCountEstimate: number;
   toolCalls: number;
-  pendingTxs: ReturnType<typeof pendingTxsFromBackendUserState>;
+  pendingActions: number;
 };
 
 async function fetchRemoteSessionStats(
@@ -35,20 +34,25 @@ async function fetchRemoteSessionStats(
   });
 
   try {
-    const delta = await client.agent.check(record.sessionId);
-    const messages = delta.messages.map((message) => ({
-      id: message.id,
-      sender: message.role,
-      content: message.content,
-      timestamp: message.createdAt,
-      is_streaming: message.streaming,
-    }));
+    const page = await client.agent.poll(record.sessionId);
+    const messages = page.events
+      .filter((event) => event.type === "message")
+      .map((message) => ({
+        id: message.message_key ?? message.event_id,
+        sender: message.sender,
+        content: message.content,
+        timestamp: new Date(message.occurred_at * 1_000).toISOString(),
+        is_streaming: message.is_streaming,
+      }));
+    const title = page.events.findLast((event) => event.type === "title_changed");
     return {
-      topic: delta.title ?? "Untitled Session",
+      topic: title?.type === "title_changed" ? (title.title ?? "Untitled Session") : "Untitled Session",
       messageCount: messages.length,
       tokenCountEstimate: estimateTokenCount(messages),
-      toolCalls: delta.messages.filter((message) => message.toolResult).length,
-      pendingTxs: record.state.pendingTxs ?? [],
+      toolCalls: page.events.filter((event) => event.type === "tool_complete").length,
+      pendingActions: page.events.filter(
+        (event) => event.type === "action" && event.state === "pending",
+      ).length,
     };
   } catch {
     return null;
@@ -60,7 +64,7 @@ function printSessionSummary(
   stats: RemoteSessionStats | null,
   isActive: boolean,
 ): void {
-  const pendingTxs = stats?.pendingTxs ?? record.state.pendingTxs ?? [];
+  const pendingTxs = record.state.pendingTxs ?? [];
   const signedTxs = record.state.signedTxs ?? [];
   const header = isActive
     ? `🧵 Session id: ${record.sessionId} (session-${record.localId}, active)`
@@ -77,7 +81,7 @@ function printSessionSummary(
     ["🛠 tool calls", stats ? String(stats.toolCalls) : "n/a"],
     [
       "💸 transactions",
-      `${pendingTxs.length + signedTxs.length} (${pendingTxs.length} pending, ${signedTxs.length} signed)`,
+      `${pendingTxs.length + signedTxs.length} (${stats?.pendingActions ?? 0} Actions awaiting response, ${signedTxs.length} signed)`,
     ],
   ]);
 

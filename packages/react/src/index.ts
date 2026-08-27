@@ -4,6 +4,9 @@
 export { AomiClient } from "@aomi-labs/client";
 export type { AomiClientOptions } from "@aomi-labs/client";
 export type {
+  Action,
+  ActionRequest,
+  ActionResult,
   AomiAppDescriptor,
   AomiPlatformFilter,
   AomiMessage,
@@ -12,10 +15,14 @@ export type {
   NativeWalletSponsorship,
   SponsorshipPaymasterServiceContext,
   WalletCapabilities,
+  WalletEip712Payload,
+  WalletSolanaSignMessagePayload,
+  WalletSolanaSignPayload,
+  WalletTxPayload,
+  ViemSignMessageArgs,
 } from "@aomi-labs/client";
 export {
   toViemSignTypedDataArgs,
-  hydrateTxPayloadFromUserState,
   toAAWalletCalls,
   toAAWalletCall,
   appendFeeCallToPayload,
@@ -68,24 +75,13 @@ export type {
 // =============================================================================
 // Handler Hooks
 // =============================================================================
-export { useWalletHandler } from "./handlers/wallet-handler";
+export { useActionHandler } from "./handlers/action-handler";
 export { useNotificationHandler } from "./handlers/notification-handler";
 export type {
-  WalletRequest,
-  WalletTxPayload,
-  WalletEip712Payload,
-  WalletSignablePayload,
-  WalletSigningPayload,
-  WalletSolanaSignMessagePayload,
-  WalletSolanaSignPayload,
-  WalletSolanaLegResult,
-  WalletRequestKind,
-  WalletRequestStatus,
-  WalletRequestResult,
-  WalletHandlerConfig,
-  WalletHandlerApi,
-  ViemSignMessageArgs,
-} from "./handlers/wallet-handler";
+  ActionHandlerApi,
+  ActionHandlerConfig,
+  ActionStatus,
+} from "./handlers/action-handler";
 export type {
   NotificationHandlerConfig,
   NotificationApi,

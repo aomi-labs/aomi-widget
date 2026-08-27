@@ -14,9 +14,9 @@ import bs58 from "bs58";
 import {
   AomiRuntimeApiProvider,
   UserState,
+  type Action,
+  type ActionResult,
   type AomiRuntimeApi,
-  type WalletRequest,
-  type WalletRequestResult,
   type WalletSolanaSignPayload,
 } from "@aomi-labs/react";
 import type { UserState as UserStateShape } from "@aomi-labs/client";
@@ -24,8 +24,8 @@ import { RuntimeTxHandler } from "../../../shadcn-registry/src/components/runtim
 import { AomiWalletKitContextProvider } from "../../../shadcn-registry/src/lib/wallet-kit/context";
 import type { AomiWalletKit } from "../../../shadcn-registry/src/lib/wallet-kit/types";
 import {
-  createSolanaDriverRequest,
-  type SolanaDriverRequestKind,
+  createSolanaDriverAction,
+  type SolanaDriverActionKind,
 } from "./solana-runtime-driver-request";
 
 type DriverMode =
@@ -232,15 +232,15 @@ async function postDriverReport(
   }
 }
 
-function getRequestKindForMode(mode: DriverMode): SolanaDriverRequestKind {
+function getActionKindForMode(mode: DriverMode): SolanaDriverActionKind {
   switch (mode) {
     case "send_fallback":
     case "send_direct":
-      return "solana_send";
+      return "execute_svm";
     case "sign_and_send_direct":
-      return "solana_sign_and_send";
+      return "execute_svm";
     default:
-      return "signing";
+      return "sign";
   }
 }
 
@@ -258,11 +258,9 @@ export function SolanaRuntimeDriver() {
   );
 
   const [driverMode, setDriverMode] = useState<DriverMode>("send_fallback");
-  const [pendingWalletRequests, setPendingWalletRequests] = useState<
-    WalletRequest[]
-  >([]);
+  const [pendingActions, setPendingActions] = useState<Action[]>([]);
   const [reportStatus, setReportStatus] = useState<DriverReportStatus>("idle");
-  const [lastResult, setLastResult] = useState<WalletRequestResult | null>(
+  const [lastResult, setLastResult] = useState<ActionResult | null>(
     null,
   );
   const [lastError, setLastError] = useState<string | null>(null);
@@ -386,23 +384,23 @@ export function SolanaRuntimeDriver() {
     return baseAdapter;
   }, [appendLog, connection, driverMode, signer]);
 
-  const resolveWalletRequest = useCallback(
-    async (id: string, result: WalletRequestResult) => {
-      setPendingWalletRequests((prev) =>
-        prev.filter((request) => request.id !== id),
+  const respondToAction = useCallback(
+    async (id: string, result: ActionResult) => {
+      setPendingActions((prev) =>
+        prev.filter((action) => action.id !== id),
       );
       setLastResult(result);
       setLastError(null);
       setReportStatus("completed");
-      appendLog("ok", `request ${id} resolved as ${result.kind}`);
+      appendLog("ok", `action ${id} resolved as ${result.status}`);
     },
     [appendLog],
   );
 
-  const rejectWalletRequest = useCallback(
+  const rejectAction = useCallback(
     async (id: string, error?: string) => {
-      setPendingWalletRequests((prev) =>
-        prev.filter((request) => request.id !== id),
+      setPendingActions((prev) =>
+        prev.filter((action) => action.id !== id),
       );
       setLastResult(null);
       setLastError(error ?? "request_rejected");
@@ -412,9 +410,9 @@ export function SolanaRuntimeDriver() {
     [appendLog],
   );
 
-  const dismissWalletRequest = useCallback((id: string) => {
-    setPendingWalletRequests((prev) =>
-      prev.filter((request) => request.id !== id),
+  const dismissAction = useCallback((id: string) => {
+    setPendingActions((prev) =>
+      prev.filter((action) => action.id !== id),
     );
   }, []);
 
@@ -444,12 +442,12 @@ export function SolanaRuntimeDriver() {
       showNotification: () => "solana-runtime-driver-notification",
       dismissNotification: () => undefined,
       clearAllNotifications: () => undefined,
-      pendingWalletRequests,
-      hasBlockingWalletRequests: pendingWalletRequests.length > 0,
-      startWalletRequest: () => undefined,
-      dismissWalletRequest,
-      resolveWalletRequest,
-      rejectWalletRequest,
+      pendingActions,
+      hasBlockingActions: pendingActions.length > 0,
+      startAction: () => undefined,
+      dismissAction,
+      respondToAction,
+      rejectAction,
       simulateBatchTransactions: async () => {
         throw new Error(
           "simulateBatchTransactions is not used in Solana driver",
@@ -460,11 +458,11 @@ export function SolanaRuntimeDriver() {
     }),
     [
       currentUserState,
-      dismissWalletRequest,
-      pendingWalletRequests,
-      rejectWalletRequest,
+      dismissAction,
+      pendingActions,
+      rejectAction,
       reportStatus,
-      resolveWalletRequest,
+      respondToAction,
     ],
   );
 
@@ -475,7 +473,7 @@ export function SolanaRuntimeDriver() {
   const reportRunState = useCallback(
     async (
       status: DriverReportStatus,
-      extra?: { result?: WalletRequestResult | null; error?: string | null },
+      extra?: { result?: ActionResult | null; error?: string | null },
     ) => {
       if (!runId) {
         return;
@@ -495,16 +493,16 @@ export function SolanaRuntimeDriver() {
 
   const enqueueRequest = useCallback(
     async (mode: DriverMode) => {
-      setPendingWalletRequests([]);
+      setPendingActions([]);
       setLastResult(null);
       setLastError(null);
       setLogs([]);
       setReportStatus("running");
       setDriverMode(mode);
 
-      const kind = getRequestKindForMode(mode);
-      const requiresFunds = kind !== "signing";
-      appendLog("info", `enqueuing ${kind} request against ${DRIVER_RPC_URL}`);
+      const kind = getActionKindForMode(mode);
+      const requiresFunds = kind !== "sign";
+      appendLog("info", `enqueuing ${kind} Action against ${DRIVER_RPC_URL}`);
 
       try {
         const unsignedTx = await buildUnsignedSolanaTransaction(
@@ -513,15 +511,14 @@ export function SolanaRuntimeDriver() {
           appendLog,
           requiresFunds,
         );
-        const pendingSolanaId = requestCounterRef.current++;
-        setPendingWalletRequests([
-          createSolanaDriverRequest({
+        requestCounterRef.current++;
+        setPendingActions([
+          createSolanaDriverAction({
             kind,
             unsignedTx,
             signer: signer.publicKey.toBase58(),
             description: `Runtime driver ${kind}`,
             cluster: DRIVER_CLUSTER,
-            pendingSolanaId,
           }),
         ]);
       } catch (error) {
@@ -652,7 +649,7 @@ export function SolanaRuntimeDriver() {
                 >
                   {reportStatus === "running"
                     ? "Running…"
-                    : `Run ${getRequestKindForMode(driverMode)}`}
+                    : `Run ${getActionKindForMode(driverMode)}`}
                 </button>
               </div>
             </section>
@@ -672,7 +669,7 @@ export function SolanaRuntimeDriver() {
                   Pending Queue
                 </h2>
                 <pre className="overflow-x-auto text-xs text-stone-200">
-                  {JSON.stringify(pendingWalletRequests, null, 2)}
+                  {JSON.stringify(pendingActions, null, 2)}
                 </pre>
               </div>
             </section>

@@ -109,13 +109,13 @@ var AgentTransport = class {
     this.requestResponse = requestResponse;
     this.sessions = new AgentSessionsTransport(requestResponse);
   }
-  start(request, options = {}) {
+  start(intent, options = {}) {
     return this.json("POST", "/v1/agent/chat", {
       headers: mutationHeaders(options),
-      body: request
+      body: intent
     });
   }
-  check(sessionId, options = {}) {
+  poll(sessionId, options = {}) {
     var _a;
     return this.json("GET", `/v1/agent/chat/${encodeURIComponent(sessionId)}`, {
       query: {
@@ -124,18 +124,24 @@ var AgentTransport = class {
       }
     });
   }
-  interrupt(sessionId) {
+  interrupt(sessionId, turnId, idempotencyKey = randomIdempotencyKey()) {
     return this.json(
       "POST",
       `/v1/agent/chat/${encodeURIComponent(sessionId)}/interrupt`,
-      { headers: mutationHeaders() }
+      {
+        headers: { "idempotency-key": idempotencyKey },
+        body: { turnId }
+      }
     );
   }
-  async resolveAction(sessionId, actionId, result, idempotencyKey = randomIdempotencyKey()) {
+  async respondToAction(sessionId, actionId, revision, result, idempotencyKey = randomIdempotencyKey()) {
     const response = await this.json(
       "POST",
       `/v1/agent/chat/${encodeURIComponent(sessionId)}/actions/${encodeURIComponent(actionId)}/result`,
-      { headers: { "idempotency-key": idempotencyKey }, body: result }
+      {
+        headers: { "idempotency-key": idempotencyKey },
+        body: { revision, result }
+      }
     );
     return response.action;
   }
@@ -149,7 +155,7 @@ var AgentSessionsTransport = class {
   constructor(requestResponse) {
     this.requestResponse = requestResponse;
   }
-  async list(options = {}) {
+  list(options = {}) {
     return this.json("GET", "/v1/agent/sessions", {
       query: { cursor: options.cursor, limit: options.limit }
     });
@@ -166,20 +172,13 @@ var AgentSessionsTransport = class {
     return sessions;
   }
   get(sessionId) {
-    return this.json(
-      "GET",
-      `/v1/agent/sessions/${encodeURIComponent(sessionId)}`
-    );
+    return this.json("GET", `/v1/agent/sessions/${encodeURIComponent(sessionId)}`);
   }
   update(sessionId, patch) {
-    return this.json(
-      "PATCH",
-      `/v1/agent/sessions/${encodeURIComponent(sessionId)}`,
-      {
-        headers: mutationHeaders(),
-        body: patch
-      }
-    );
+    return this.json("PATCH", `/v1/agent/sessions/${encodeURIComponent(sessionId)}`, {
+      headers: mutationHeaders(),
+      body: patch
+    });
   }
   async delete(sessionId) {
     await parseAgentResponse(
@@ -191,28 +190,9 @@ var AgentSessionsTransport = class {
     );
   }
   async json(method, path, options) {
-    return parseAgentResponse(
-      await this.requestResponse(method, path, options)
-    );
+    return parseAgentResponse(await this.requestResponse(method, path, options));
   }
 };
-async function parseAgentResponse(response) {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
-  if (response.ok) {
-    if (response.status === 204) return void 0;
-    return await response.json();
-  }
-  const body = await response.json().catch(() => null);
-  const code = (_b = (_a = body == null ? void 0 : body.error) == null ? void 0 : _a.code) != null ? _b : "agent_request_failed";
-  throw new AgentApiError(
-    response.status,
-    code,
-    (_d = (_c = body == null ? void 0 : body.error) == null ? void 0 : _c.message) != null ? _d : `Agent request failed with HTTP ${response.status}`,
-    response.status === 408 || response.status === 429 || response.status >= 500,
-    (_g = (_f = (_e = body == null ? void 0 : body.error) == null ? void 0 : _e.requestId) != null ? _f : response.headers.get("x-request-id")) != null ? _g : void 0,
-    (_h = body == null ? void 0 : body.error) == null ? void 0 : _h.details
-  );
-}
 function mutationHeaders(options = {}) {
   var _a;
   return __spreadValues({
@@ -220,7 +200,30 @@ function mutationHeaders(options = {}) {
   }, options.paymentSignature ? { "payment-signature": options.paymentSignature } : {});
 }
 function randomIdempotencyKey() {
-  return `idem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
+  var _a, _b, _c;
+  return (_c = (_b = (_a = globalThis.crypto) == null ? void 0 : _a.randomUUID) == null ? void 0 : _b.call(_a)) != null ? _c : `agent_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+async function parseAgentResponse(response) {
+  var _a;
+  if (response.ok) {
+    if (response.status === 204) return void 0;
+    return await response.json();
+  }
+  let body;
+  try {
+    body = await response.json();
+  } catch (e) {
+  }
+  const raw = body == null ? void 0 : body.error;
+  const code = typeof raw === "string" ? raw : typeof raw === "object" && raw !== null && "code" in raw ? String(raw.code) : "agent_request_failed";
+  throw new AgentApiError(
+    response.status,
+    code,
+    code.replaceAll("_", " "),
+    response.status === 408 || response.status === 429 || response.status >= 500,
+    (_a = response.headers.get("x-request-id")) != null ? _a : void 0,
+    raw
+  );
 }
 
 // src/pipeline/schema.ts
@@ -474,79 +477,6 @@ var PipelineTransport = class {
       options
     );
   }
-  /** @deprecated Use `pipeline.apps.list()` filesystem discovery. */
-  listApps(options = {}) {
-    return json(this.requestResponse, "GET", "/v1/pipeline/apps", {
-      query: { limit: options.limit }
-    });
-  }
-  /** @deprecated Use `pipeline.app(app).directory()`. */
-  getApp(app) {
-    return json(
-      this.requestResponse,
-      "GET",
-      `/v1/pipeline/apps/${encodeURIComponent(required("app", app))}`
-    );
-  }
-  /** @deprecated Crawl the filesystem discovery surface. */
-  searchApps(options = {}) {
-    return json(this.requestResponse, "GET", "/v1/pipeline/search/apps", {
-      query: { q: options.q, limit: options.limit }
-    });
-  }
-  /** @deprecated Use fixed chain routes or scoped operations. */
-  listTools(options = {}) {
-    return json(this.requestResponse, "GET", "/v1/pipeline/tools", {
-      query: {
-        app: options.app,
-        namespace: options.namespace,
-        limit: options.limit
-      }
-    });
-  }
-  /** @deprecated Use fixed chain routes or scoped operations. */
-  getTool(toolId, options = {}) {
-    return json(
-      this.requestResponse,
-      "GET",
-      `/v1/pipeline/tools/${encodeURIComponent(required("toolId", toolId))}`,
-      { query: { app: options.app } }
-    );
-  }
-  /** @deprecated Crawl the filesystem discovery surface. */
-  searchTools(options = {}) {
-    return json(this.requestResponse, "GET", "/v1/pipeline/search/tools", {
-      query: { q: options.q, app: options.app, limit: options.limit }
-    });
-  }
-  /** @deprecated Use `pipeline.skills.list()` filesystem discovery. */
-  listSkills(options = {}) {
-    return json(this.requestResponse, "GET", "/v1/pipeline/skills", {
-      query: { limit: options.limit }
-    });
-  }
-  /** @deprecated Use `pipeline.skill(skill).directory()`. */
-  getSkill(skillId) {
-    return json(
-      this.requestResponse,
-      "GET",
-      `/v1/pipeline/skills/${encodeURIComponent(required("skillId", skillId))}`
-    );
-  }
-  /** @deprecated Use fixed chain lifecycle or scoped `invoke()`. */
-  callTool(request, options) {
-    return json(this.requestResponse, "POST", "/v1/pipeline/tool-calls", {
-      headers: executionHeaders(options),
-      body: request
-    });
-  }
-  /** @deprecated Use chain-specific Build composition. */
-  run(request, options) {
-    return json(this.requestResponse, "POST", "/v1/pipeline/runs", {
-      headers: executionHeaders(options),
-      body: request
-    });
-  }
 };
 async function invokeOperation(requestResponse, path, args, options = {}) {
   if (options.validate !== false) {
@@ -573,15 +503,16 @@ async function parsePipelineResponse(response) {
   throw await pipelineError(response);
 }
 async function pipelineError(response) {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
+  var _a, _b, _c, _d;
   const body = await response.json().catch(() => null);
+  const error = asRecord(body == null ? void 0 : body.error);
   return new PipelineApiError(
     response.status,
-    (_b = (_a = body == null ? void 0 : body.error) == null ? void 0 : _a.code) != null ? _b : "pipeline_request_failed",
-    (_d = (_c = body == null ? void 0 : body.error) == null ? void 0 : _c.message) != null ? _d : `Pipeline request failed with HTTP ${response.status}`,
+    (_a = stringValue(error == null ? void 0 : error.code)) != null ? _a : "pipeline_request_failed",
+    (_b = stringValue(error == null ? void 0 : error.message)) != null ? _b : `Pipeline request failed with HTTP ${response.status}`,
     response.status === 408 || response.status === 429 || response.status >= 500,
-    (_g = (_f = (_e = body == null ? void 0 : body.error) == null ? void 0 : _e.requestId) != null ? _f : response.headers.get("x-request-id")) != null ? _g : void 0,
-    (_h = body == null ? void 0 : body.error) == null ? void 0 : _h.details
+    (_d = (_c = stringValue(error == null ? void 0 : error.requestId)) != null ? _c : response.headers.get("x-request-id")) != null ? _d : void 0,
+    error == null ? void 0 : error.details
   );
 }
 function jsonBody(value) {
@@ -632,11 +563,14 @@ function mutationHeaders2(options) {
     )
   }, options.paymentSignature ? { "payment-signature": options.paymentSignature } : {});
 }
-function executionHeaders(options) {
-  return mutationHeaders2(options);
-}
 function randomIdempotencyKey2() {
   return `idem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
+}
+function asRecord(value) {
+  return typeof value === "object" && value !== null ? value : void 0;
+}
+function stringValue(value) {
+  return typeof value === "string" ? value : void 0;
 }
 
 // src/guest-auth.ts
@@ -1645,41 +1579,41 @@ var WalletController = class extends TypedEventEmitter {
     super();
     this.wallet = wallet;
   }
-  canHandle(request) {
+  canHandle(action) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
-    if (request.kind === "transaction") {
+    const request = action.request;
+    if (request.type === "execute_evm") {
+      return Boolean(((_b = (_a = this.wallet) == null ? void 0 : _a.evm) == null ? void 0 : _b.sendCalls) || ((_d = (_c = this.wallet) == null ? void 0 : _c.evm) == null ? void 0 : _d.sendTransaction));
+    }
+    if (request.type === "execute_svm") {
       return Boolean(
-        ((_b = (_a = this.wallet) == null ? void 0 : _a.evm) == null ? void 0 : _b.sendCalls) || ((_d = (_c = this.wallet) == null ? void 0 : _c.evm) == null ? void 0 : _d.sendTransaction)
+        ((_f = (_e = this.wallet) == null ? void 0 : _e.svm) == null ? void 0 : _f.signAndSendTransaction) || ((_h = (_g = this.wallet) == null ? void 0 : _g.svm) == null ? void 0 : _h.sendTransaction)
       );
     }
-    if (request.kind === "signing") {
-      if (request.payload.chainFamily === "evm") {
-        const wallet2 = (_e = this.wallet) == null ? void 0 : _e.evm;
-        return Boolean(
-          wallet2 && request.payload.payloads.every(
-            (payload) => payload.kind === "evm_personal" ? wallet2.signMessage : payload.kind === "evm_typed_data" ? wallet2.signTypedData : false
-          )
-        );
-      }
-      const wallet = (_f = this.wallet) == null ? void 0 : _f.svm;
+    if (request.chainFamily === "evm") {
+      const wallet2 = (_i = this.wallet) == null ? void 0 : _i.evm;
       return Boolean(
-        wallet && request.payload.payloads.every(
-          (payload) => payload.kind === "svm_message" ? wallet.signMessage : payload.kind === "svm_transaction" ? wallet.signTransaction : false
+        wallet2 && request.payloads.every(
+          (payload) => payload.kind === "evm_personal" ? wallet2.signMessage : payload.kind === "evm_typed_data" ? wallet2.signTypedData : false
         )
       );
     }
+    const wallet = (_j = this.wallet) == null ? void 0 : _j.svm;
     return Boolean(
-      ((_h = (_g = this.wallet) == null ? void 0 : _g.svm) == null ? void 0 : _h.signAndSendTransaction) || ((_j = (_i = this.wallet) == null ? void 0 : _i.svm) == null ? void 0 : _j.sendTransaction)
+      wallet && request.payloads.every(
+        (payload) => payload.kind === "svm_message" ? wallet.signMessage : payload.kind === "svm_transaction" ? wallet.signTransaction : false
+      )
     );
   }
-  async execute(request) {
-    this.emit("request", request);
+  async execute(action) {
+    if (action.state !== "pending") throw new Error(`Action "${action.id}" is not pending`);
+    this.emit("action", action);
     try {
-      const result = await this.executeRequest(request);
-      this.emit("resolved", { request, result });
+      const result = await this.executeRequest(action);
+      this.emit("resolved", { action, result });
       return result;
     } catch (error) {
-      this.emit("rejected", { request, error });
+      this.emit("rejected", { action, error });
       throw error;
     }
   }
@@ -1698,202 +1632,154 @@ var WalletController = class extends TypedEventEmitter {
       }, this.svmCluster() ? { cluster: this.svmCluster() } : {})
     } : {});
   }
-  executeRequest(request) {
-    switch (request.kind) {
-      case "transaction":
-        return this.executeEvmTransactions(request);
-      case "signing":
-        return this.executeSigning(request);
-      case "solana_send":
-      case "solana_sign_and_send":
-        return this.executeSvmTransactions(request);
+  executeRequest(action) {
+    switch (action.request.type) {
+      case "execute_evm":
+        return this.executeEvm(action.request);
+      case "execute_svm":
+        return this.executeSvm(action.request);
+      case "sign":
+        return this.executeSigning(action.request);
     }
   }
-  async executeEvmTransactions(request) {
-    var _a, _b, _c, _d;
+  async executeEvm(request) {
+    var _a;
     const wallet = (_a = this.wallet) == null ? void 0 : _a.evm;
     if (!wallet) throw new Error("No EVM wallet adapter is configured");
-    const senders = new Set(
-      ((_b = request.payload.calls) != null ? _b : []).map((call) => {
-        var _a2;
-        return (_a2 = call.from) == null ? void 0 : _a2.toLowerCase();
-      }).filter((address3) => Boolean(address3))
-    );
-    if (senders.size > 0 && (senders.size !== 1 || !senders.has(wallet.address.toLowerCase()))) {
-      throw new Error("The active EVM wallet is not the requested sender");
+    const first = request.transactions[0];
+    if (!first) throw new Error("EVM Action contains no transactions");
+    if (request.transactions.some(
+      (transaction) => transaction.chain_id !== first.chain_id || transaction.from.toLowerCase() !== wallet.address.toLowerCase()
+    )) {
+      throw new Error("The active EVM wallet does not match the Action");
     }
-    const calls = ((_c = request.payload.calls) == null ? void 0 : _c.length) ? request.payload.calls.map(({ to, data, value }) => ({
-      to,
-      data,
-      value
-    })) : request.payload.to ? [
-      {
-        to: request.payload.to,
-        data: request.payload.data,
-        value: request.payload.value
-      }
-    ] : [];
-    if (calls.length === 0) throw new Error("Wallet request contains no calls");
-    const chainId3 = (_d = request.payload.chainId) != null ? _d : this.evmChainId();
-    if (!chainId3) throw new Error("EVM wallet request has no chainId");
-    if (this.evmChainId() !== chainId3) {
-      if (!wallet.switchChain) {
-        throw new Error(`EVM wallet cannot switch to chain ${chainId3}`);
-      }
-      await wallet.switchChain(chainId3);
+    if (this.evmChainId() !== first.chain_id) {
+      if (!wallet.switchChain) throw new Error(`EVM wallet cannot switch to chain ${first.chain_id}`);
+      await wallet.switchChain(first.chain_id);
     }
+    const calls = request.transactions.map(({ to, data, value }) => ({ to, data, value }));
     const hashes = [];
     if (wallet.sendCalls) {
-      hashes.push(
-        ...transactionHashes(await wallet.sendCalls({ chainId: chainId3, calls }))
-      );
+      hashes.push(...transactionHashes(await wallet.sendCalls({ chainId: first.chain_id, calls })));
     } else if (wallet.sendTransaction) {
       for (const call of calls) {
         hashes.push(
           ...transactionHashes(
-            await wallet.sendTransaction(__spreadValues({ chainId: chainId3 }, call))
+            await wallet.sendTransaction(__spreadValues({ chainId: first.chain_id }, call))
           )
         );
       }
-    } else {
-      throw new Error("EVM wallet cannot send calls");
     }
-    if (hashes.length === 0) {
-      throw new Error("EVM wallet returned no transaction hash");
-    }
+    if (hashes.length === 0) throw new Error("EVM wallet returned no transaction hash");
     return {
-      kind: "transaction",
-      txHash: hashes.at(-1),
-      txHashes: hashes,
-      completedTxIds: request.payload.txIds,
-      executionKind: "eoa",
-      batched: calls.length > 1,
-      callCount: calls.length
+      status: "submitted",
+      legs: request.transactions.map((transaction, index) => {
+        var _a2;
+        return {
+          id: `leg_${index + 1}`,
+          status: "submitted",
+          transactionId: (_a2 = hashes[index]) != null ? _a2 : hashes.at(-1)
+        };
+      })
     };
+  }
+  async executeSvm(request) {
+    var _a, _b;
+    const wallet = (_a = this.wallet) == null ? void 0 : _a.svm;
+    if (!wallet) throw new Error("No SVM wallet adapter is configured");
+    const first = request.transactions[0];
+    if (!first) throw new Error("SVM Action contains no transactions");
+    if (request.transactions.some(
+      (transaction) => transaction.cluster !== first.cluster || transaction.payer !== wallet.address
+    )) {
+      throw new Error("The active SVM wallet does not match the Action");
+    }
+    await this.switchSvmCluster(first.cluster);
+    const legs = [];
+    for (const [index, transaction] of request.transactions.entries()) {
+      const transactionBase64 = transaction.unsigned_transaction_base64;
+      if (!transactionBase64) throw new Error("SVM Action has no unsigned transaction bytes");
+      const result = wallet.signAndSendTransaction ? await wallet.signAndSendTransaction({
+        transactionBase64,
+        cluster: transaction.cluster
+      }) : wallet.sendTransaction ? await wallet.sendTransaction({ transactionBase64, cluster: transaction.cluster }) : void 0;
+      if (result === void 0) throw new Error("SVM wallet cannot send transactions");
+      legs.push(__spreadValues({
+        id: `leg_${index + 1}`,
+        status: "submitted",
+        transactionId: (_b = transactionHashes(result)[0]) != null ? _b : signature(result)
+      }, typeof result === "object" && "signedTransaction" in result ? { signedTransactionBase64: result.signedTransaction } : {}));
+    }
+    return { status: "submitted", legs };
   }
   async executeSigning(request) {
     var _a, _b;
-    const signatures = [];
-    if (request.payload.chainFamily === "evm") {
+    const outputs = [];
+    if (request.chainFamily === "evm") {
       const wallet = (_a = this.wallet) == null ? void 0 : _a.evm;
       if (!wallet) throw new Error("No EVM wallet adapter is configured");
-      if (wallet.address.toLowerCase() !== request.payload.signer.toLowerCase()) {
+      if (wallet.address.toLowerCase() !== request.signer.toLowerCase()) {
         throw new Error("The active EVM wallet is not the requested signer");
       }
-      if (request.payload.chainId && this.evmChainId() !== request.payload.chainId) {
-        if (!wallet.switchChain) {
-          throw new Error(
-            `EVM wallet cannot switch to chain ${request.payload.chainId}`
-          );
-        }
-        await wallet.switchChain(request.payload.chainId);
+      if (request.chainId && this.evmChainId() !== request.chainId) {
+        if (!wallet.switchChain) throw new Error(`EVM wallet cannot switch to chain ${request.chainId}`);
+        await wallet.switchChain(request.chainId);
       }
-      for (const payload of request.payload.payloads) {
+      for (const [index, payload] of request.payloads.entries()) {
         if (payload.kind === "evm_personal") {
-          if (!wallet.signMessage)
-            throw new Error("EVM wallet cannot sign messages");
-          signatures.push(
-            signature(
-              await wallet.signMessage({
-                message: payload.message,
-                chainId: request.payload.chainId
-              })
+          if (!wallet.signMessage) throw new Error("EVM wallet cannot sign messages");
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signature: signature(
+              await wallet.signMessage({ message: payload.message, chainId: request.chainId })
             )
-          );
+          });
         } else if (payload.kind === "evm_typed_data") {
-          if (!wallet.signTypedData) {
-            throw new Error("EVM wallet cannot sign typed data");
-          }
-          signatures.push(
-            signature(
-              await wallet.signTypedData({
-                typedData: payload.typedData,
-                chainId: request.payload.chainId
-              })
+          if (!wallet.signTypedData) throw new Error("EVM wallet cannot sign typed data");
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signature: signature(
+              await wallet.signTypedData({ typedData: payload.typed_data, chainId: request.chainId })
             )
-          );
+          });
         } else {
-          throw new Error("EVM signing request contains an SVM payload");
+          throw new Error("EVM signing Action contains an SVM payload");
         }
       }
     } else {
       const wallet = (_b = this.wallet) == null ? void 0 : _b.svm;
       if (!wallet) throw new Error("No SVM wallet adapter is configured");
-      if (wallet.address !== request.payload.signer) {
-        throw new Error("The active SVM wallet is not the requested signer");
-      }
-      await this.switchSvmCluster(request.payload.cluster);
-      for (const payload of request.payload.payloads) {
+      if (wallet.address !== request.signer) throw new Error("The active SVM wallet is not the requested signer");
+      await this.switchSvmCluster(request.cluster);
+      for (const [index, payload] of request.payloads.entries()) {
         if (payload.kind === "svm_message") {
-          if (!wallet.signMessage)
-            throw new Error("SVM wallet cannot sign messages");
-          signatures.push(
-            signature(
+          if (!wallet.signMessage) throw new Error("SVM wallet cannot sign messages");
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signature: signature(
               await wallet.signMessage({
-                messageBase64: payload.messageBase64,
-                cluster: request.payload.cluster
+                messageBase64: payload.message_base64,
+                cluster: request.cluster
               })
             )
-          );
+          });
         } else if (payload.kind === "svm_transaction") {
-          if (!wallet.signTransaction) {
-            throw new Error("SVM wallet cannot sign transactions");
-          }
-          signatures.push(
-            signedTransaction(
+          if (!wallet.signTransaction) throw new Error("SVM wallet cannot sign transactions");
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signedTransactionBase64: signedTransaction(
               await wallet.signTransaction({
-                transactionBase64: payload.transactionBase64,
-                cluster: request.payload.cluster
+                transactionBase64: payload.transaction_base64,
+                cluster: request.cluster
               })
             )
-          );
+          });
         } else {
-          throw new Error("SVM signing request contains an EVM payload");
+          throw new Error("SVM signing Action contains an EVM payload");
         }
       }
     }
-    return { kind: "signing", signatures };
-  }
-  async executeSvmTransactions(request) {
-    var _a, _b, _c, _d;
-    const wallet = (_a = this.wallet) == null ? void 0 : _a.svm;
-    if (!wallet) throw new Error("No SVM wallet adapter is configured");
-    await this.switchSvmCluster(request.payload.cluster);
-    const transactions = ((_b = request.payload.transactions) == null ? void 0 : _b.length) ? request.payload.transactions : request.payload.unsignedTx ? [
-      {
-        id: (_c = request.payload.requestId) != null ? _c : request.id,
-        unsignedTx: request.payload.unsignedTx,
-        description: request.payload.description
-      }
-    ] : [];
-    if (transactions.length === 0) {
-      throw new Error("SVM wallet request contains no transaction");
-    }
-    const legs = [];
-    for (const transaction of transactions) {
-      const result = wallet.signAndSendTransaction ? await wallet.signAndSendTransaction({
-        transactionBase64: transaction.unsignedTx,
-        cluster: request.payload.cluster
-      }) : wallet.sendTransaction ? await wallet.sendTransaction({
-        transactionBase64: transaction.unsignedTx,
-        cluster: request.payload.cluster
-      }) : void 0;
-      if (result === void 0) {
-        throw new Error("SVM wallet cannot send transactions");
-      }
-      legs.push(__spreadValues({
-        id: transaction.id,
-        status: "submitted",
-        signature: (_d = transactionHashes(result)[0]) != null ? _d : signature(result)
-      }, typeof result === "object" && "signedTransaction" in result ? { signedTx: result.signedTransaction } : {}));
-    }
-    const last = legs.at(-1);
-    return {
-      kind: request.kind,
-      signature: last.signature,
-      signedTx: last.signedTx,
-      legs
-    };
+    return { status: "signed", outputs };
   }
   evmChainId() {
     var _a, _b;
@@ -1909,45 +1795,36 @@ var WalletController = class extends TypedEventEmitter {
     var _a, _b;
     if (!cluster || cluster === this.svmCluster()) return;
     const switchCluster = (_b = (_a = this.wallet) == null ? void 0 : _a.svm) == null ? void 0 : _b.switchCluster;
-    if (!switchCluster) {
-      throw new Error(`SVM wallet cannot switch to ${cluster}`);
-    }
+    if (!switchCluster) throw new Error(`SVM wallet cannot switch to ${cluster}`);
     await switchCluster(cluster);
   }
 };
 function transactionHashes(result) {
   if (typeof result === "string") return [result];
-  const value = asRecord(result);
+  const value = asRecord2(result);
   if (!value) return [];
-  if (Array.isArray(value.hashes)) {
-    return value.hashes.filter(
-      (hash2) => typeof hash2 === "string"
-    );
-  }
-  if (Array.isArray(value.transactionHashes)) {
-    return value.transactionHashes.filter(
-      (hash2) => typeof hash2 === "string"
-    );
-  }
+  if (Array.isArray(value.hashes)) return value.hashes.filter(isString);
+  if (Array.isArray(value.transactionHashes)) return value.transactionHashes.filter(isString);
   const hash = typeof value.hash === "string" ? value.hash : typeof value.transactionHash === "string" ? value.transactionHash : void 0;
   return hash ? [hash] : [];
 }
 function signature(result) {
   if (typeof result === "string") return result;
-  const value = asRecord(result);
+  const value = asRecord2(result);
   if (typeof (value == null ? void 0 : value.signature) === "string") return value.signature;
   throw new Error("Wallet returned no signature");
 }
 function signedTransaction(result) {
   if (typeof result === "string") return result;
-  const value = asRecord(result);
-  if (typeof (value == null ? void 0 : value.signedTransaction) === "string") {
-    return value.signedTransaction;
-  }
+  const value = asRecord2(result);
+  if (typeof (value == null ? void 0 : value.signedTransaction) === "string") return value.signedTransaction;
   throw new Error("Wallet returned no signed transaction");
 }
-function asRecord(value) {
-  return value && typeof value === "object" && !Array.isArray(value) ? value : void 0;
+function asRecord2(value) {
+  return typeof value === "object" && value !== null ? value : void 0;
+}
+function isString(value) {
+  return typeof value === "string";
 }
 
 // src/user-state/normalize.ts
@@ -1971,11 +1848,6 @@ function pick(record, ...keys) {
   }
   return void 0;
 }
-function assignDefined(target, key, value) {
-  if (value !== void 0) {
-    target[key] = value;
-  }
-}
 function renameKey(obj, from, to) {
   if (from === to) return;
   if (Object.prototype.hasOwnProperty.call(obj, from)) {
@@ -1991,32 +1863,6 @@ function liftFlat(obj, flat, to, fromKeys) {
   if (value !== void 0) {
     obj[to] = value;
   }
-}
-var OPAQUE_PENDING_KEYS = /* @__PURE__ */ new Set(["typed_data", "typedData", "domain"]);
-function camelToSnake(key) {
-  return key.replace(/([A-Z])/g, "_$1").toLowerCase();
-}
-function snakeizePendingValue(value) {
-  if (Array.isArray(value)) {
-    return value.map(snakeizePendingValue);
-  }
-  const obj = asObject(value);
-  if (!obj) return value;
-  const out = {};
-  for (const [key, val] of Object.entries(obj)) {
-    const snake = camelToSnake(key);
-    out[snake] = OPAQUE_PENDING_KEYS.has(key) || OPAQUE_PENDING_KEYS.has(snake) ? val : snakeizePendingValue(val);
-  }
-  return out;
-}
-function snakeizeBucket(bucket) {
-  const obj = asObject(bucket);
-  if (!obj) return void 0;
-  const out = {};
-  for (const [id, value] of Object.entries(obj)) {
-    out[id] = snakeizePendingValue(value);
-  }
-  return out;
 }
 function buildConnection(src, flat) {
   const c = __spreadValues({}, src != null ? src : {});
@@ -2060,37 +1906,6 @@ function buildSvm(src, flat) {
   liftFlat(s, flat, "address", ["svm_address", "svmAddress"]);
   dropNullKeys(s, "capabilities");
   return Object.keys(s).length ? s : void 0;
-}
-function buildPending(src, flat) {
-  var _a, _b, _c;
-  const p = {};
-  assignDefined(
-    p,
-    "evm_txs",
-    snakeizeBucket(
-      (_a = pick(src, "evm_txs", "evmTxs")) != null ? _a : pick(flat, "pending_txs", "pendingTxs")
-    )
-  );
-  assignDefined(
-    p,
-    "evm_sigs",
-    snakeizeBucket(
-      (_b = pick(src, "evm_sigs", "evmSigs")) != null ? _b : pick(flat, "pending_eip712s", "pendingEip712s")
-    )
-  );
-  assignDefined(
-    p,
-    "svm_ixs",
-    snakeizeBucket(
-      (_c = pick(src, "svm_ixs", "svmIxs", "solana_txs", "solanaTxs")) != null ? _c : pick(flat, "pending_solana_txs", "pendingSolanaTxs")
-    )
-  );
-  assignDefined(
-    p,
-    "svm_sigs",
-    snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs"))
-  );
-  return Object.keys(p).length ? p : void 0;
 }
 function dropNullKeys(obj, ...keys) {
   for (const key of keys) {
@@ -2160,8 +1975,6 @@ function normalizeUserState(userState) {
   if (evm) out.evm = evm;
   const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
   if (svm) out.svm = svm;
-  const pending = buildPending(asObject(pick(src, "pending")), src);
-  if (pending) out.pending = pending;
   const ext = pick(src, "ext");
   if (ext !== void 0) out.ext = ext;
   const preferences = pick(src, "preferences");
@@ -2208,9 +2021,6 @@ function reconcileUserState(previousUserState, incomingUserState) {
   if (connectedNotBroken && prevSvm && (sameSvm || !incSvm)) {
     out.svm = incSvm ? deepMergePreserve(prevSvm, incSvm) : prevSvm;
   }
-  if (!asObject(inc.pending) && asObject(prev.pending)) {
-    out.pending = prev.pending;
-  }
   if (inc.ext === void 0 && prev.ext !== void 0) {
     out.ext = prev.ext;
   }
@@ -2226,8 +2036,7 @@ function reconcileUserState(previousUserState, incomingUserState) {
 function toOwnedUserState(userState) {
   const normalized = normalizeUserState(userState);
   if (!normalized) return void 0;
-  const _a = normalized, { pending: _pending } = _a, owned = __objRest(_a, ["pending"]);
-  return owned;
+  return normalized;
 }
 
 // src/user-state/accessors.ts
@@ -2417,98 +2226,6 @@ function resolveWalletState(userState, address3, chainId3) {
   });
 }
 
-// src/session/wallet.ts
-var SessionWalletController = class {
-  constructor(deps) {
-    this.deps = deps;
-    this.requests = [];
-    this.nextId = 1;
-    this.resolvedRequestIds = /* @__PURE__ */ new Set();
-    this.resolvingRequestIds = /* @__PURE__ */ new Set();
-  }
-  get length() {
-    return this.requests.length;
-  }
-  list() {
-    return [...this.requests];
-  }
-  find(id) {
-    return this.requests.find((request) => request.id === id);
-  }
-  enqueue(kind, payload) {
-    const id = this.requestId(kind, payload);
-    const existing = this.find(id);
-    const request = this.request(kind, payload, id, existing == null ? void 0 : existing.timestamp);
-    if (this.resolvedRequestIds.has(id) && !existing) return request;
-    this.requests = existing ? this.requests.map((current) => current.id === id ? request : current) : [...this.requests, request];
-    this.changed();
-    return request;
-  }
-  async resolve(requestId, result) {
-    const request = this.pending(requestId);
-    if (result.kind !== request.kind) {
-      throw new Error(
-        `WalletRequestResult.kind mismatch for "${requestId}": request is "${request.kind}" but result is "${result.kind}".`
-      );
-    }
-    if (this.resolvingRequestIds.has(requestId)) return;
-    this.resolvingRequestIds.add(requestId);
-    try {
-      await this.deps.resolveAction(request, result);
-      this.finish(request);
-    } finally {
-      this.resolvingRequestIds.delete(requestId);
-    }
-  }
-  async reject(requestId, reason) {
-    const request = this.pending(requestId);
-    if (this.resolvingRequestIds.has(requestId)) return;
-    this.resolvingRequestIds.add(requestId);
-    try {
-      await this.deps.rejectAction(request, reason);
-      this.finish(request);
-    } finally {
-      this.resolvingRequestIds.delete(requestId);
-    }
-  }
-  dismiss(requestId) {
-    const request = this.find(requestId);
-    if (request) this.finish(request);
-  }
-  pending(requestId) {
-    const request = this.find(requestId);
-    if (!request) {
-      throw new Error(`No pending wallet request with id "${requestId}"`);
-    }
-    return request;
-  }
-  finish(request) {
-    this.requests = this.requests.filter(
-      (current) => current.id !== request.id
-    );
-    this.resolvedRequestIds.add(request.id);
-    this.changed();
-  }
-  requestId(kind, payload) {
-    if (kind === "transaction") {
-      const requestId = payload.requestId;
-      if (requestId) return `txreq-${requestId}`;
-    } else if (kind === "signing") {
-      return payload.requestId;
-    } else {
-      const requestId = payload.requestId;
-      if (requestId) return requestId;
-    }
-    return `wreq-${this.nextId++}`;
-  }
-  request(kind, payload, id, timestamp2 = Date.now()) {
-    return { id, kind, payload, timestamp: timestamp2 };
-  }
-  changed() {
-    this.deps.onChange(this.list());
-  }
-};
-
 // src/aa/policy.ts
 function aaModeFromExecutionKind(executionKind) {
   if (!executionKind) return void 0;
@@ -2519,17 +2236,21 @@ function aaModeFromExecutionKind(executionKind) {
 }
 
 // src/session/index.ts
+var TERMINAL_TURN_STATES = /* @__PURE__ */ new Set([
+  "complete",
+  "interrupted",
+  "failed"
+]);
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
     var _a, _b, _c, _d;
     super();
-    this.agentActions = /* @__PURE__ */ new Map();
+    this.actions = /* @__PURE__ */ new Map();
     this.pollTimer = null;
     this.pollingActive = false;
     this.pollInFlight = false;
     this.pollFailureCount = 0;
     this._isProcessing = false;
-    this._backendWasProcessing = false;
     this._messages = [];
     this.closed = false;
     this.pendingResolve = null;
@@ -2543,109 +2264,51 @@ var ClientSession = class extends TypedEventEmitter {
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.model = sessionOptions == null ? void 0 : sessionOptions.model;
     this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
-    const initialUserState = UserState.reconcile(
-      void 0,
-      sessionOptions == null ? void 0 : sessionOptions.userState
-    );
-    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(
-      initialUserState != null ? initialUserState : {},
-      "client_type",
-      sessionOptions.clientType
-    ) : initialUserState;
+    const initial = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
+    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initial != null ? initial : {}, "client_type", sessionOptions.clientType) : initial;
     this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
     this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
-    this.walletController = new SessionWalletController({
-      onChange: (requests) => this.emit("wallet_requests_changed", requests),
-      resolveAction: (request, result) => this.resolveAgentAction(request, result),
-      rejectAction: (request, reason) => this.rejectAgentAction(request, reason)
-    });
   }
-  // ===========================================================================
-  // Public API — Chat
-  // ===========================================================================
-  /**
-   * Send a message and wait for the AI to finish processing.
-   *
-   * The returned promise resolves when `is_processing` becomes `false` AND
-   * there are no pending wallet requests. If a wallet request arrives
-   * mid-processing, polling continues but the promise pauses until the
-   * request is resolved or rejected via `resolve()` / `reject()`.
-   */
   async send(message) {
-    this.assertOpen();
-    const response = await this.submitChat(message);
-    if (!this.agentActive(response) && this.walletController.length === 0) {
-      return { messages: this._messages, title: this._title };
-    }
-    this._isProcessing = true;
-    this.emit("processing_start", void 0);
+    const page = await this.submit(message);
+    if (this.isTerminal()) return this.result();
+    this.beginProcessing();
+    if (this.turnState !== "awaiting_action" || page.has_more) this.startPolling();
     return new Promise((resolve) => {
       this.pendingResolve = resolve;
-      this.startPolling();
     });
   }
-  /**
-   * Send a message without waiting for completion.
-   * Polling starts in the background; listen to events for updates.
-   */
   async sendAsync(message) {
-    this.assertOpen();
-    const response = await this.submitChat(message);
-    if (this.agentActive(response)) {
-      this._isProcessing = true;
-      this.emit("processing_start", void 0);
-      this.startPolling();
+    const page = await this.submit(message);
+    if (!this.isTerminal()) {
+      this.beginProcessing();
+      if (this.turnState !== "awaiting_action" || page.has_more) this.startPolling();
     }
-    return response;
+    return page;
   }
-  // ===========================================================================
-  // Public API — Wallet Request Resolution
-  // ===========================================================================
-  /**
-   * Resolve a pending wallet request. The `result.kind` discriminator must
-   * match the originating request's kind — sending a `transaction` result for a `signing`
-   * request would post the wrong wire event with empty fields, so we
-   * fail fast at runtime instead.
-   */
-  async resolve(requestId, result) {
-    await this.walletController.resolve(requestId, result);
-    this.resumeAfterWalletResponse();
+  async respondToAction(actionId, result) {
+    const action = this.pendingAction(actionId);
+    const next = await this.client.agent.respondToAction(
+      this.sessionId,
+      action.id,
+      action.revision,
+      result
+    );
+    this.applyAction(next);
+    this.beginProcessing();
+    this.startPolling();
+    return next;
   }
-  /**
-   * Reject a pending wallet request.
-   * Sends an error to the backend and resumes polling.
-   */
-  async reject(requestId, reason) {
-    await this.walletController.reject(requestId, reason);
-    this.resumeAfterWalletResponse();
+  rejectAction(actionId, reason = "Request rejected") {
+    return this.respondToAction(actionId, { status: "rejected", reason });
   }
-  /**
-   * Drop a pending wallet request locally without completing it. Hosts should
-   * normally use `resolve` or `reject`; this is reserved for externally
-   * acknowledged lifecycle cleanup.
-   */
-  dismiss(requestId) {
-    this.walletController.dismiss(requestId);
-    this.resumeAfterWalletResponse();
-  }
-  // ===========================================================================
-  // Public API — Control
-  // ===========================================================================
-  /**
-   * Cancel the AI's current response.
-   */
   async interrupt() {
+    if (!this.turnId) throw new Error("No active turn to interrupt");
     this.stopPolling();
-    this.applyAgentDelta(await this.client.agent.interrupt(this.sessionId));
-    this._isProcessing = false;
-    this.emit("processing_end", void 0);
-    this.resolvePending();
+    this.applyEventPage(await this.client.agent.interrupt(this.sessionId, this.turnId));
+    this.finishProcessing();
   }
-  /**
-   * Close the session. Stops polling, unsubscribes SSE, removes all listeners.
-   * The session cannot be used after closing.
-   */
   close() {
     if (this.closed) return;
     this.closed = true;
@@ -2653,36 +2316,34 @@ var ClientSession = class extends TypedEventEmitter {
     this.resolvePending();
     this.removeAllListeners();
   }
-  // ===========================================================================
-  // Public API — Accessors
-  // ===========================================================================
-  /** Current messages in the session. */
   getMessages() {
-    return this._messages;
+    return [...this._messages];
   }
-  /** Current session title. */
   getTitle() {
     return this._title;
   }
-  /** Latest authoritative backend user_state snapshot seen by this session. */
   getUserState() {
     return this.userState ? __spreadValues({}, this.userState) : void 0;
   }
-  /** Pending wallet requests waiting for resolve/reject. */
-  getPendingRequests() {
-    return this.walletController.list();
+  getPendingActions() {
+    return this.getActions().filter((action) => action.state === "pending");
   }
-  /** Whether the AI is currently processing. */
+  getActions() {
+    return [...this.actions.values()].sort(
+      (left, right) => left.sequence - right.sequence
+    );
+  }
+  getTurnState() {
+    return this.turnState;
+  }
+  getTurnId() {
+    return this.turnId;
+  }
   getIsProcessing() {
     return this._isProcessing;
   }
-  /** Last status observed from the canonical Agent transport. */
-  getAgentStatus() {
-    return this.agentStatus;
-  }
-  /** Current canonical Agent actions, preserving backend order of discovery. */
-  getAgentActions() {
-    return [...this.agentActions.values()];
+  getIsPolling() {
+    return this.pollingActive;
   }
   syncRuntimeOptions(options) {
     var _a;
@@ -2690,15 +2351,12 @@ var ClientSession = class extends TypedEventEmitter {
     this.model = options.model;
     this.applicationId = options.applicationId;
     this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
-    if (options.userState) {
-      this.resolveUserState(options.userState);
-    }
+    if (options.userState) this.resolveUserState(options.userState);
   }
   resolveUserState(userState, opts) {
-    const previousSerialized = stableUserStateString(this.userState);
+    const previous = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
-    const nextSerialized = stableUserStateString(this.userState);
-    if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previousSerialized !== nextSerialized) {
+    if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previous !== stableUserStateString(this.userState)) {
       this.emit("user_state_updated", this.userState);
     }
   }
@@ -2713,80 +2371,153 @@ var ClientSession = class extends TypedEventEmitter {
   }
   removeExtValue(key) {
     const next = removeExtValue(this.userState, key);
-    if (next) {
-      this.resolveUserState(next);
-    }
+    if (next) this.resolveUserState(next);
   }
   resolveWallet(address3, chainId3) {
     this.resolveUserState(resolveWalletState(this.userState, address3, chainId3));
   }
-  async syncUserState() {
+  async sync() {
     this.assertOpen();
-    const delta = await this.client.agent.check(this.sessionId, {
-      cursor: this.agentCursor
-    });
-    this.applyAgentDelta(delta);
-    return delta;
+    return this.fetchPage();
   }
-  // ===========================================================================
-  // Public API — Polling Control
-  // ===========================================================================
-  /** Whether the session is currently polling for state updates. */
-  getIsPolling() {
-    return this.pollingActive;
-  }
-  /**
-   * Fetch the current state from the backend (one-shot).
-   * Automatically starts polling if the backend is processing.
-   */
   async fetchCurrentState() {
-    this.assertOpen();
-    const delta = await this.client.agent.check(this.sessionId, {
-      cursor: this.agentCursor
-    });
-    this.applyAgentDelta(delta);
-    const active = this.agentActive(delta);
-    if (active && !this.pollingActive) {
-      this._isProcessing = true;
-      this.emit("processing_start", void 0);
+    const page = await this.sync();
+    if (!this.isTerminal() && this.turnState !== "awaiting_action") {
+      this.beginProcessing();
       this.startPolling();
-    } else if (!active) {
-      this._isProcessing = false;
+    } else if (this.isTerminal()) {
+      this.finishProcessing();
     }
+    if (page.has_more) this.startPolling();
   }
-  /**
-   * Start polling for state updates. Idempotent — no-op if already polling.
-   * Useful for resuming polling after resolving a wallet request.
-   */
   startPolling() {
     var _a;
     if (this.pollingActive || this.closed) return;
     this.pollingActive = true;
-    this._backendWasProcessing = true;
     (_a = this.logger) == null ? void 0 : _a.debug("[session] polling started", this.sessionId);
     if (typeof document !== "undefined") {
-      document.addEventListener(
-        "visibilitychange",
-        this.handleVisibilityChange
-      );
+      document.addEventListener("visibilitychange", this.handleVisibilityChange);
     }
-    this.schedulePoll(this.currentPollInterval());
+    this.schedulePoll(0);
   }
-  /** Stop polling for state updates. Idempotent — no-op if not polling. */
   stopPolling() {
     var _a;
     this.pollingActive = false;
-    if (this.pollTimer) {
-      clearTimeout(this.pollTimer);
-      this.pollTimer = null;
-    }
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = null;
     if (typeof document !== "undefined") {
-      document.removeEventListener(
-        "visibilitychange",
-        this.handleVisibilityChange
-      );
+      document.removeEventListener("visibilitychange", this.handleVisibilityChange);
     }
     (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
+  }
+  async submit(message) {
+    var _a;
+    this.assertOpen();
+    const text = message.trim();
+    if (!text) throw new TypeError("message is required");
+    const applicationId = Number(this.applicationId);
+    const operation = ((_a = this.startOperation) == null ? void 0 : _a.message) === text ? this.startOperation : {
+      message: text,
+      idempotencyKey: `idem_${crypto.randomUUID().replaceAll("-", "")}`
+    };
+    this.startOperation = operation;
+    try {
+      const page = await this.client.agent.start(
+        __spreadValues(__spreadValues(__spreadValues({
+          sessionId: this.sessionId,
+          clientId: this.clientId,
+          message: text
+        }, Number.isSafeInteger(applicationId) && applicationId > 0 ? { applicationId } : { app: this.app }), this.model ? { model: this.model } : {}), this.userState ? {
+          userState: UserState.toOwned(this.userState)
+        } : {}),
+        { idempotencyKey: operation.idempotencyKey }
+      );
+      this.startOperation = void 0;
+      this.applyEventPage(page);
+      return page;
+    } catch (error) {
+      if (error instanceof AgentApiError && !error.retryable) {
+        this.startOperation = void 0;
+      }
+      throw error;
+    }
+  }
+  async fetchPage(waitMs = 0) {
+    try {
+      const page = await this.client.agent.poll(this.sessionId, {
+        cursor: this.cursor,
+        waitMs
+      });
+      this.applyEventPage(page);
+      return page;
+    } catch (error) {
+      if (!(error instanceof AgentApiError) || error.code !== "cursor_mismatch") {
+        throw error;
+      }
+      this.cursor = void 0;
+      const page = await this.client.agent.poll(this.sessionId);
+      this.applyEventPage(page);
+      return page;
+    }
+  }
+  applyEventPage(page) {
+    var _a, _b;
+    if (page.session_id !== this.sessionId) {
+      throw new TypeError("Agent response session does not match the request");
+    }
+    let messagesChanged = false;
+    for (const event of page.events) {
+      this.emit("event", event);
+      this.emit(event.type, event);
+      switch (event.type) {
+        case "message":
+          this.applyMessage(event);
+          messagesChanged = true;
+          break;
+        case "turn_state_changed":
+          this.turnId = (_a = event.turn_id) != null ? _a : this.turnId;
+          this.turnState = event.state;
+          break;
+        case "title_changed":
+          if (event.title !== void 0) this._title = event.title;
+          break;
+        case "action":
+          this.turnId = (_b = event.turn_id) != null ? _b : this.turnId;
+          this.applyAction(event);
+          break;
+      }
+    }
+    this.cursor = page.cursor;
+    if (messagesChanged) this.emit("messages", [...this._messages]);
+  }
+  applyMessage(event) {
+    var _a, _b, _c;
+    const id = (_a = event.message_key) != null ? _a : event.event_id;
+    const message = {
+      id,
+      message_key: (_b = event.message_key) != null ? _b : void 0,
+      sender: event.sender,
+      content: event.content,
+      timestamp: eventTimestamp(event.occurred_at),
+      is_streaming: (_c = event.is_streaming) != null ? _c : false
+    };
+    const index = this._messages.findIndex((current) => current.id === id);
+    if (index >= 0) this._messages[index] = message;
+    else this._messages.push(message);
+  }
+  applyAction(action) {
+    const previous = this.actions.get(action.id);
+    if (previous && previous.revision > action.revision) return;
+    this.actions.set(action.id, action);
+    this.emit("action", action);
+    this.emit("actions_changed", this.getActions());
+  }
+  pendingAction(id) {
+    const action = this.actions.get(id);
+    if (!action || action.state !== "pending") {
+      throw new Error(`No pending Action with id "${id}"`);
+    }
+    return action;
   }
   async pollTick() {
     var _a;
@@ -2794,23 +2525,13 @@ var ClientSession = class extends TypedEventEmitter {
     this.pollTimer = null;
     this.pollInFlight = true;
     try {
-      const delta = await this.client.agent.check(this.sessionId, {
-        cursor: this.agentCursor,
-        waitMs: 25e3
-      });
-      if (!this.pollingActive) return;
+      const page = await this.fetchPage(25e3);
       this.pollFailureCount = 0;
-      this.applyAgentDelta(delta);
-      const active = this.agentActive(delta);
-      if (this._backendWasProcessing && !active) {
+      if (this.isTerminal()) {
         this.emit("backend_idle", void 0);
-      }
-      this._backendWasProcessing = active;
-      if (!active && this.walletController.length === 0) {
+        this.finishProcessing();
+      } else if (this.turnState === "awaiting_action" && !page.has_more) {
         this.stopPolling();
-        this._isProcessing = false;
-        this.emit("processing_end", void 0);
-        this.resolvePending();
       }
     } catch (error) {
       this.pollFailureCount += 1;
@@ -2820,13 +2541,32 @@ var ClientSession = class extends TypedEventEmitter {
       this.pollInFlight = false;
       if (this.pollingActive) {
         this.schedulePoll(
-          Math.min(
-            this.currentPollInterval() * 2 ** this.pollFailureCount,
-            5e3
-          )
+          Math.min(this.currentPollInterval() * 2 ** this.pollFailureCount, 5e3)
         );
       }
     }
+  }
+  beginProcessing() {
+    if (this._isProcessing) return;
+    this._isProcessing = true;
+    this.emit("processing_start", void 0);
+  }
+  finishProcessing() {
+    this.stopPolling();
+    if (this._isProcessing) this.emit("processing_end", void 0);
+    this._isProcessing = false;
+    this.resolvePending();
+  }
+  isTerminal() {
+    return this.turnState !== void 0 && TERMINAL_TURN_STATES.has(this.turnState);
+  }
+  result() {
+    return { messages: [...this._messages], title: this._title };
+  }
+  resolvePending() {
+    const resolve = this.pendingResolve;
+    this.pendingResolve = null;
+    resolve == null ? void 0 : resolve(this.result());
   }
   currentPollInterval() {
     return typeof document !== "undefined" && document.hidden ? 2e3 : this.pollIntervalMs;
@@ -2834,293 +2574,15 @@ var ClientSession = class extends TypedEventEmitter {
   schedulePoll(delayMs) {
     if (!this.pollingActive || this.closed) return;
     if (this.pollTimer) clearTimeout(this.pollTimer);
-    this.pollTimer = setTimeout(() => {
-      void this.pollTick();
-    }, delayMs);
-  }
-  /** Shared completion path for send()/sendAsync() after the chat POST. */
-  async submitChat(message) {
-    var _a;
-    const applicationId = Number(this.applicationId);
-    const operation = ((_a = this.agentStartOperation) == null ? void 0 : _a.message) === message ? this.agentStartOperation : {
-      message,
-      idempotencyKey: `idem_${crypto.randomUUID().replaceAll("-", "")}`
-    };
-    this.agentStartOperation = operation;
-    let delta;
-    try {
-      delta = await this.client.agent.start(
-        __spreadProps(__spreadValues(__spreadValues({
-          sessionId: this.sessionId,
-          clientId: this.clientId,
-          message
-        }, Number.isSafeInteger(applicationId) && applicationId > 0 ? { applicationId } : { app: this.app }), this.model ? { model: this.model } : {}), {
-          wallets: this.agentWallets()
-        }),
-        { idempotencyKey: operation.idempotencyKey }
-      );
-    } catch (error) {
-      if (error instanceof AgentApiError && !error.retryable) {
-        this.agentStartOperation = void 0;
-      }
-      throw error;
-    }
-    this.agentStartOperation = void 0;
-    this.applyAgentDelta(delta);
-    return delta;
-  }
-  agentActive(delta) {
-    return delta.status === "processing" || delta.status === "awaiting_user";
-  }
-  agentWallets() {
-    var _a, _b, _c;
-    const normalized = UserState.normalize(this.userState);
-    const chainId3 = Number((_a = normalized == null ? void 0 : normalized.evm) == null ? void 0 : _a.chain_id);
-    return __spreadValues(__spreadValues({}, ((_b = normalized == null ? void 0 : normalized.evm) == null ? void 0 : _b.address) ? {
-      evm: __spreadValues({
-        address: normalized.evm.address
-      }, Number.isSafeInteger(chainId3) && chainId3 > 0 ? { chainId: chainId3 } : {})
-    } : {}), ((_c = normalized == null ? void 0 : normalized.svm) == null ? void 0 : _c.address) ? {
-      svm: __spreadValues({
-        address: normalized.svm.address
-      }, normalized.svm.cluster ? { cluster: normalized.svm.cluster } : {})
-    } : {});
-  }
-  applyAgentDelta(delta) {
-    if (delta.sessionId !== this.sessionId) {
-      throw new TypeError("Agent response session does not match the request");
-    }
-    this.agentCursor = delta.cursor;
-    this.agentStatus = delta.status;
-    let messagesChanged = false;
-    for (const incoming of delta.messages) {
-      const message = this.agentMessage(incoming);
-      const index = message.id ? this._messages.findIndex((current) => current.id === message.id) : -1;
-      if (index >= 0) this._messages[index] = message;
-      else this._messages.push(message);
-      messagesChanged = true;
-    }
-    if (messagesChanged) this.emit("messages", [...this._messages]);
-    if (delta.title && delta.title !== this._title) {
-      this._title = delta.title;
-      this.emit("title_changed", { title: delta.title });
-    }
-    this.applyAgentActivity(delta.activity);
-    this.syncAgentActions(delta.actions);
-  }
-  agentMessage(message) {
-    var _a;
-    return __spreadValues(__spreadValues({
-      id: message.id,
-      sender: message.role,
-      content: message.content,
-      timestamp: message.createdAt,
-      is_streaming: message.streaming,
-      tool_result: (_a = message.toolResult) != null ? _a : null
-    }, message.toolName ? { tool_name: message.toolName } : {}), message.toolArguments !== void 0 ? { tool_arguments: message.toolArguments } : {});
-  }
-  applyAgentActivity(activity) {
-    for (const event of activity) {
-      const type = typeof event.type === "string" ? event.type : void 0;
-      if (type === "tool_complete" || type === "task_started" || type === "task_activity" || type === "task_completed") {
-        this.emit(type, event);
-      }
-    }
-  }
-  syncAgentActions(actions) {
-    const visible = /* @__PURE__ */ new Set();
-    for (const action of actions) {
-      const previous = this.agentActions.get(action.id);
-      this.agentActions.set(action.id, action);
-      if (!previous || previous.revision !== action.revision || previous.status !== action.status) {
-        this.emit("agent_action", action);
-      }
-      if (action.status !== "pending") continue;
-      visible.add(action.id);
-      this.enqueueAgentAction(action);
-    }
-    for (const request of this.walletController.list()) {
-      const actionId = this.actionIdForRequest(request.id);
-      if (this.agentActions.has(actionId) && !visible.has(actionId)) {
-        this.walletController.dismiss(request.id);
-      }
-    }
-  }
-  enqueueAgentAction(action) {
-    var _a, _b, _c, _d, _e;
-    if (action.type === "external_transaction" && action.chainFamily === "evm") {
-      const typed2 = action;
-      this.walletController.enqueue("transaction", {
-        requestId: typed2.id,
-        chainId: typed2.chainId,
-        aaPreference: "none",
-        calls: typed2.transactions.map((transaction, index) => {
-          var _a2;
-          return {
-            txId: index + 1,
-            to: transaction.to,
-            value: transaction.value,
-            data: transaction.data,
-            chainId: typed2.chainId,
-            from: transaction.from,
-            gas: (_a2 = transaction.gas) != null ? _a2 : void 0,
-            description: transaction.description
-          };
-        }),
-        txIds: typed2.transactions.map((_, index) => index + 1)
-      });
-      return;
-    }
-    if (action.type === "external_transaction") {
-      const typed2 = action;
-      const transaction = typed2.transactions[0];
-      if (transaction) {
-        this.walletController.enqueue("solana_sign_and_send", {
-          requestId: typed2.id,
-          unsignedTx: transaction.unsignedTransactionBase64,
-          description: typed2.description,
-          cluster: typed2.cluster,
-          transactions: typed2.transactions.map((item) => ({
-            id: item.id,
-            unsignedTx: item.unsignedTransactionBase64,
-            description: item.description
-          }))
-        });
-      }
-      return;
-    }
-    const typed = action;
-    this.walletController.enqueue("signing", {
-      requestId: typed.id,
-      chainFamily: typed.chainFamily,
-      executionKind: typed.executionKind === "account_abstraction" || typed.executionKind === "hosted" ? "erc4337" : typed.executionKind,
-      signer: typed.signer,
-      chainId: (_a = typed.chainId) != null ? _a : void 0,
-      cluster: (_b = typed.cluster) != null ? _b : void 0,
-      description: typed.description,
-      payloads: typed.payloads.map((payload) => {
-        if (payload.kind === "evm_personal") {
-          return { kind: payload.kind, message: payload.message };
-        }
-        if (payload.kind === "evm_typed_data") {
-          return { kind: payload.kind, typedData: payload.typedData };
-        }
-        if (payload.kind === "svm_message") {
-          return { kind: payload.kind, messageBase64: payload.messageBase64 };
-        }
-        return {
-          kind: payload.kind,
-          transactionBase64: payload.transactionBase64
-        };
-      }),
-      broadcaster: typed.broadcaster,
-      operationId: (_c = typed.operationId) != null ? _c : void 0,
-      executor: typed.executor,
-      expiresAt: (_d = typed.expiresAt) != null ? _d : void 0,
-      callsDigest: typed.callsDigest,
-      calls: typed.calls,
-      fees: typed.fees,
-      sponsorship: (_e = typed.sponsorship) != null ? _e : void 0
-    });
-  }
-  async resolveAgentAction(request, result) {
-    var _a, _b, _c;
-    const action = this.agentActions.get(this.actionIdForRequest(request.id));
-    if (!action)
-      throw new Error(`No Agent action for wallet request "${request.id}"`);
-    let actionResult;
-    if (action.type === "signing_request" && result.kind === "signing") {
-      actionResult = {
-        status: "signed",
-        revision: action.revision,
-        outputs: action.payloads.map((payload, index) => __spreadValues({
-          id: payload.id
-        }, payload.kind === "svm_transaction" ? { signedTransactionBase64: result.signatures[index] } : { signature: result.signatures[index] }))
-      };
-    } else if (action.type === "external_transaction" && action.chainFamily === "evm" && result.kind === "transaction") {
-      const completed = new Set(
-        (_a = result.completedTxIds) != null ? _a : action.transactions.map((_, index) => index + 1)
-      );
-      const failed = new Set((_b = result.failedTxIds) != null ? _b : []);
-      actionResult = {
-        status: "submitted",
-        revision: action.revision,
-        legs: action.transactions.map((transaction, index) => {
-          var _a2, _b2, _c2;
-          return __spreadValues(__spreadValues({
-            id: transaction.id,
-            status: completed.has(index + 1) ? "submitted" : failed.has(index + 1) ? "failed" : "skipped"
-          }, completed.has(index + 1) ? { transactionId: (_b2 = (_a2 = result.txHashes) == null ? void 0 : _a2[index]) != null ? _b2 : result.txHash } : {}), failed.has(index + 1) ? { reason: (_c2 = result.failureReason) != null ? _c2 : "Transaction failed" } : {});
-        })
-      };
-    } else if (action.type === "external_transaction" && action.chainFamily === "svm" && (result.kind === "solana_send" || result.kind === "solana_sign_and_send")) {
-      const byId = new Map(
-        ((_c = result.legs) != null ? _c : []).map((leg) => [leg.id, leg])
-      );
-      if (action.transactions.length > 1 && byId.size === 0) {
-        throw new Error(
-          `SVM Agent batch "${action.id}" requires per-leg wallet results`
-        );
-      }
-      actionResult = {
-        status: "submitted",
-        revision: action.revision,
-        legs: action.transactions.map((transaction, index) => {
-          var _a2, _b2;
-          const leg = (_a2 = byId.get(transaction.id)) != null ? _a2 : index === 0 && action.transactions.length === 1 ? {
-            id: transaction.id,
-            status: "submitted",
-            signature: result.signature,
-            signedTx: result.signedTx
-          } : void 0;
-          return __spreadValues(__spreadValues(__spreadValues({
-            id: transaction.id,
-            status: (_b2 = leg == null ? void 0 : leg.status) != null ? _b2 : "skipped"
-          }, (leg == null ? void 0 : leg.signature) ? { transactionId: leg.signature } : {}), (leg == null ? void 0 : leg.signedTx) ? { signedTransactionBase64: leg.signedTx } : {}), (leg == null ? void 0 : leg.reason) ? { reason: leg.reason } : {});
-        })
-      };
-    } else {
-      throw new Error(`Agent action/result kind mismatch for "${request.id}"`);
-    }
-    await this.client.agent.resolveAction(
-      this.sessionId,
-      action.id,
-      actionResult
-    );
-  }
-  async rejectAgentAction(request, reason) {
-    const action = this.agentActions.get(this.actionIdForRequest(request.id));
-    if (!action)
-      throw new Error(`No Agent action for wallet request "${request.id}"`);
-    await this.client.agent.resolveAction(this.sessionId, action.id, {
-      status: "rejected",
-      revision: action.revision,
-      reason: reason != null ? reason : "Request rejected"
-    });
-  }
-  actionIdForRequest(requestId) {
-    return requestId.startsWith("txreq-") ? requestId.slice(6) : requestId;
-  }
-  resumeAfterWalletResponse() {
-    if (!this._isProcessing) {
-      this._isProcessing = true;
-      this.emit("processing_start", void 0);
-    }
-    this.startPolling();
-  }
-  resolvePending() {
-    if (this.pendingResolve) {
-      const resolve = this.pendingResolve;
-      this.pendingResolve = null;
-      resolve({ messages: this._messages, title: this._title });
-    }
+    this.pollTimer = setTimeout(() => void this.pollTick(), delayMs);
   }
   assertOpen() {
-    if (this.closed) {
-      throw new Error("Session is closed");
-    }
+    if (this.closed) throw new Error("Session is closed");
   }
 };
+function eventTimestamp(value) {
+  return new Date(value < 1e12 ? value * 1e3 : value).toISOString();
+}
 
 // src/sdk/agent.ts
 var AgentRun = class extends TypedEventEmitter {
@@ -3128,17 +2590,11 @@ var AgentRun = class extends TypedEventEmitter {
     super();
     this.wallet = wallet;
     this.actions = /* @__PURE__ */ new Map();
-    this.processingRequests = /* @__PURE__ */ new Set();
+    this.processingActions = /* @__PURE__ */ new Set();
     const walletState = wallet.userState();
     const userState = options.userState ? UserState.reconcile(walletState, options.userState) : walletState;
-    this.session = new ClientSession(client, __spreadProps(__spreadValues({}, options), {
-      userState
-    }));
-    this.session.on("agent_action", (action) => this.receiveAction(action));
-    this.session.on("wallet_requests_changed", (requests) => {
-      for (const request of requests)
-        this.receiveWalletRequest(request, options);
-    });
+    this.session = new ClientSession(client, __spreadProps(__spreadValues({}, options), { userState }));
+    this.session.on("action", (action) => this.receiveAction(action, options));
     this.session.on("error", ({ error }) => this.emit("error", { error }));
     this.completion = Promise.resolve().then(() => this.session.send(prompt)).then((result) => {
       const completed = __spreadProps(__spreadValues({}, result), {
@@ -3164,25 +2620,22 @@ var AgentRun = class extends TypedEventEmitter {
   interrupt() {
     return this.session.interrupt();
   }
-  resolve(requestId, result) {
-    return this.session.resolve(requestId, result);
+  respond(actionId, result) {
+    return this.session.respondToAction(actionId, result);
   }
-  reject(requestId, reason) {
-    return this.session.reject(requestId, reason);
+  reject(actionId, reason) {
+    return this.session.rejectAction(actionId, reason);
   }
-  receiveAction(action) {
-    const presented = presentAction(action);
-    this.actions.set(presented.id, presented);
-    this.emit("action", presented);
-    const simulation = actionSimulation(action);
-    if (simulation) this.emit("simulation", simulation);
-  }
-  receiveWalletRequest(request, options) {
-    if (this.processingRequests.has(request.id)) return;
-    this.emit("wallet_request", request);
-    if (options.autoWallet === false || !this.wallet.canHandle(request)) return;
-    this.processingRequests.add(request.id);
-    void this.wallet.execute(request).then((result) => this.session.resolve(request.id, result)).catch((error) => this.emit("error", { error })).finally(() => this.processingRequests.delete(request.id));
+  receiveAction(action, options) {
+    const previous = this.actions.get(action.id);
+    if (previous && previous.revision > action.revision) return;
+    this.actions.set(action.id, action);
+    this.emit("action", action);
+    if (action.state !== "pending" || options.autoWallet === false || this.processingActions.has(action.id) || !this.wallet.canHandle(action)) {
+      return;
+    }
+    this.processingActions.add(action.id);
+    void this.wallet.execute(action).then((result) => this.session.respondToAction(action.id, result)).catch((error) => this.emit("error", { error })).finally(() => this.processingActions.delete(action.id));
   }
 };
 var AomiAgent = class {
@@ -3197,78 +2650,6 @@ var AomiAgent = class {
     return new AgentRun(this.client, normalized, this.wallet, options);
   }
 };
-function presentAction(action) {
-  var _a, _b, _c;
-  if (action.type === "external_transaction" && action.chainFamily === "evm") {
-    return {
-      id: action.id,
-      chainFamily: "evm",
-      kind: "calls",
-      status: action.status,
-      chainId: action.chainId,
-      description: action.description,
-      calls: action.transactions.map((transaction) => {
-        var _a2;
-        return {
-          to: transaction.to,
-          data: transaction.data,
-          value: transaction.value,
-          from: transaction.from,
-          gas: (_a2 = transaction.gas) != null ? _a2 : void 0,
-          description: transaction.description
-        };
-      })
-    };
-  }
-  if (action.type === "external_transaction") {
-    const transaction = action.transactions[0];
-    return {
-      id: action.id,
-      chainFamily: "svm",
-      kind: "transaction",
-      status: action.status,
-      cluster: action.cluster,
-      description: action.description,
-      transaction: {
-        transaction: (_a = transaction == null ? void 0 : transaction.unsignedTransactionBase64) != null ? _a : "",
-        encoding: "base64",
-        cluster: action.cluster,
-        feePayer: action.signer
-      }
-    };
-  }
-  return {
-    id: action.id,
-    chainFamily: action.chainFamily,
-    kind: "signing",
-    status: action.status,
-    description: action.description,
-    signer: action.signer,
-    chainId: (_b = action.chainId) != null ? _b : void 0,
-    cluster: (_c = action.cluster) != null ? _c : void 0
-  };
-}
-function actionSimulation(action) {
-  if (action.type !== "external_transaction" || action.chainFamily !== "evm") {
-    return void 0;
-  }
-  const simulations = action.transactions.flatMap(
-    (transaction) => transaction.simulation ? [transaction.simulation] : []
-  );
-  if (simulations.length === 0) return void 0;
-  const warnings = simulations.flatMap(
-    (simulation) => simulation.error ? [simulation.error] : []
-  );
-  return {
-    status: simulations.every((simulation) => simulation.success) ? "passed" : "failed",
-    balanceChanges: [],
-    fees: [],
-    warnings,
-    gas: {
-      estimates: simulations.map((simulation) => simulation.gasUsed)
-    }
-  };
-}
 
 // src/sdk/build.ts
 var EvmStaged = class {
@@ -3332,11 +2713,11 @@ var EvmBuild = class {
   }
   async commit(options) {
     const result = await this.transport.commit(this.raw, options);
-    if (!result.walletRequest || !this.wallet.canHandle(result.walletRequest)) {
+    if (!result.action || !this.wallet.canHandle(result.action)) {
       return result;
     }
     return __spreadProps(__spreadValues({}, result), {
-      walletResult: await this.wallet.execute(result.walletRequest)
+      actionResult: await this.wallet.execute(result.action)
     });
   }
   toJSON() {
@@ -3402,11 +2783,11 @@ var SvmBuild = class {
   }
   async commit(options) {
     const result = await this.transport.commit(this.raw, options);
-    if (!result.walletRequest || !this.wallet.canHandle(result.walletRequest)) {
+    if (!result.action || !this.wallet.canHandle(result.action)) {
       return result;
     }
     return __spreadProps(__spreadValues({}, result), {
-      walletResult: await this.wallet.execute(result.walletRequest)
+      actionResult: await this.wallet.execute(result.action)
     });
   }
   toJSON() {
@@ -3996,21 +3377,15 @@ function parseAomiTaskEvent(event) {
 
 // src/wallet-utils.ts
 import { getAddress as getAddress2 } from "viem";
-function asRecord2(value) {
+function asRecord3(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return void 0;
   return value;
 }
-function pendingTxsFromUserState(userState) {
-  var _a, _b;
-  const normalized = UserState.normalize(userState);
-  const pending = asRecord2(normalized == null ? void 0 : normalized.pending);
-  return (_b = asRecord2(pending == null ? void 0 : pending.evm_txs)) != null ? _b : asRecord2((_a = asRecord2(userState)) == null ? void 0 : _a.pending_txs);
-}
 function getToolArgs(payload) {
   var _a;
-  const root = asRecord2(payload);
-  const nestedArgs = asRecord2(root == null ? void 0 : root.args);
+  const root = asRecord3(payload);
+  const nestedArgs = asRecord3(root == null ? void 0 : root.args);
   return (_a = nestedArgs != null ? nestedArgs : root) != null ? _a : {};
 }
 function parseChainKind(value) {
@@ -4128,22 +3503,11 @@ function normalizeAddress(value) {
     return void 0;
   }
 }
-function normalizePendingTxData(pendingEntry) {
-  const data = typeof pendingEntry.data === "string" ? pendingEntry.data : void 0;
-  if (!data) {
-    return void 0;
-  }
-  const kind = typeof pendingEntry.kind === "string" ? pendingEntry.kind.toLowerCase() : void 0;
-  if (kind === "native_transfer") {
-    return void 0;
-  }
-  return data;
-}
 function normalizeTxPayload(payload) {
   var _a, _b, _c, _d, _e, _f, _g;
-  const root = asRecord2(payload);
+  const root = asRecord3(payload);
   const args = getToolArgs(payload);
-  const ctx = asRecord2(root == null ? void 0 : root.ctx);
+  const ctx = asRecord3(root == null ? void 0 : root.ctx);
   const txIds = parseTxIds((_a = args.tx_ids) != null ? _a : args.txIds);
   if (txIds.length === 0) return null;
   const to = normalizeAddress(args.to);
@@ -4165,67 +3529,6 @@ function normalizeTxPayload(payload) {
     aaStrict,
     requestId
   };
-}
-function hydrateTxPayloadFromUserState(payload, userState, options) {
-  var _a, _b, _c, _d, _e, _f, _g;
-  const strict = (options == null ? void 0 : options.strict) === true;
-  const txIds = Array.isArray(payload.txIds) && payload.txIds.length > 0 ? payload.txIds : payload.txId !== void 0 ? [payload.txId] : [];
-  if (txIds.length === 0) {
-    if (strict) {
-      throw new Error("pending_tx_not_found");
-    }
-    return payload;
-  }
-  const pendingTxsRaw = pendingTxsFromUserState(userState);
-  if (!pendingTxsRaw) {
-    if (strict) {
-      throw new Error("pending_tx_not_found");
-    }
-    return payload;
-  }
-  const calls = [];
-  for (const txId of txIds) {
-    const pendingEntry = asRecord2(pendingTxsRaw[String(txId)]);
-    if (!pendingEntry) {
-      if (strict) {
-        throw new Error("pending_tx_not_found");
-      }
-      continue;
-    }
-    const to = normalizeAddress(pendingEntry.to);
-    if (!to) {
-      if (strict) {
-        throw new Error("pending_transaction_missing_call_data");
-      }
-      continue;
-    }
-    calls.push({
-      txId,
-      to,
-      value: parseValue(pendingEntry.value),
-      data: normalizePendingTxData(pendingEntry),
-      chainId: (_b = (_a = parseChainId3(pendingEntry.chain_id)) != null ? _a : parseChainId3(pendingEntry.chainId)) != null ? _b : parseChainId3(payload.chainId),
-      from: typeof pendingEntry.from === "string" ? pendingEntry.from : void 0,
-      gas: typeof pendingEntry.gas === "string" ? pendingEntry.gas : void 0,
-      description: typeof pendingEntry.label === "string" ? pendingEntry.label : typeof pendingEntry.description === "string" ? pendingEntry.description : void 0
-    });
-  }
-  if (calls.length === 0) {
-    if (strict) {
-      throw new Error("pending_tx_not_found");
-    }
-    return payload;
-  }
-  const first = calls[0];
-  return __spreadProps(__spreadValues({}, payload), {
-    txIds,
-    txId: (_c = payload.txId) != null ? _c : first.txId,
-    to: (_d = payload.to) != null ? _d : first.to,
-    value: (_e = payload.value) != null ? _e : first.value,
-    data: (_f = payload.data) != null ? _f : first.data,
-    chainId: (_g = payload.chainId) != null ? _g : first.chainId,
-    calls
-  });
 }
 function normalizeSolanaSignPayload(payload) {
   var _a, _b, _c, _d, _e, _f;
@@ -4257,7 +3560,7 @@ function normalizeSolanaSignMessagePayload(payload) {
 }
 function normalizeSolanaWalletRequest(payload) {
   var _a, _b, _c;
-  const root = asRecord2(payload);
+  const root = asRecord3(payload);
   const args = getToolArgs(payload);
   const solanaRequest = __spreadValues(__spreadValues({}, root != null ? root : {}), args);
   const chainKind = (_c = (_b = (_a = parseChainKind(args.chain_kind)) != null ? _a : parseChainKind(args.chain_family)) != null ? _b : parseChainKind(root == null ? void 0 : root.chain_kind)) != null ? _c : parseChainKind(root == null ? void 0 : root.chain_family);
@@ -4334,14 +3637,14 @@ function toViemSignTypedDataArgs(payload) {
     return null;
   }
   return {
-    domain: asRecord2(typedData.domain),
+    domain: asRecord3(typedData.domain),
     types: Object.fromEntries(
       Object.entries((_a = typedData.types) != null ? _a : {}).filter(
         ([typeName]) => typeName !== "EIP712Domain"
       )
     ),
     primaryType,
-    message: asRecord2(typedData.message)
+    message: asRecord3(typedData.message)
   };
 }
 function toViemSignMessageArgs(payload) {
@@ -4837,11 +4140,11 @@ function resolveChainCapabilities(capabilities, chainId3) {
   if (!capabilities) {
     return void 0;
   }
-  const asRecord3 = capabilities;
+  const asRecord4 = capabilities;
   const eip155Key = `eip155:${chainId3}`;
   const decimalKey = String(chainId3);
   const hexKey = `0x${chainId3.toString(16)}`;
-  return (_b = (_a = asRecord3[eip155Key]) != null ? _a : asRecord3[decimalKey]) != null ? _b : asRecord3[hexKey];
+  return (_b = (_a = asRecord4[eip155Key]) != null ? _a : asRecord4[decimalKey]) != null ? _b : asRecord4[hexKey];
 }
 
 // src/aa/fee.ts
@@ -4979,7 +4282,6 @@ export {
   ensureSvmWalletBoundVia,
   executeWalletCalls,
   handlePaymentChallenges,
-  hydrateTxPayloadFromUserState,
   isAomiTaskEventType,
   isUnboundWalletError,
   megaeth,

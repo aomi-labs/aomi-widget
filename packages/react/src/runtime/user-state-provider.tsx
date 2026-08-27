@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import type {
-  AgentSessionRecord,
+  AgentSession,
   AomiClient,
   UserState,
 } from "@aomi-labs/client";
@@ -327,7 +327,7 @@ function useRemoteThreadListSync(
           getControlState().clientId,
           currentContext.currentThreadId,
         );
-        const threadList: AgentSessionRecord[] = await listThreadsWithAuthRetry(
+        const threadList: AgentSession[] = await listThreadsWithAuthRetry(
           controlSessionId,
           () => cancelled,
         );

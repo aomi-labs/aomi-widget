@@ -16,7 +16,7 @@ import {
   type WalletEip712Payload,
 } from "../../wallet-utils";
 import type { AomiSimulateFee, AomiSimulateResponse } from "../../types";
-import type { WalletRequestResult, WalletSolanaLegResult } from "../../session";
+import type { ActionResult } from "../../agent/types";
 import { CliSession } from "../cli-session";
 import { CliExit, fatal } from "../errors";
 import {
@@ -33,8 +33,8 @@ import {
   formatTxLine,
   pendingTxToCallList,
   toSignedTransactionRecord,
-  walletRequestToPendingSolTx,
-  walletRequestToPendingTx,
+  actionToPendingSolTx,
+  actionToPendingTx,
 } from "../transactions";
 import type { CliConfig } from "../types";
 import { toPendingTxMetadata, toSignedTxMetadata } from "../tables";
@@ -54,10 +54,10 @@ export async function txCommand(config: CliConfig): Promise<void> {
   const session = cli.createClientSession(config);
   try {
     await session.fetchCurrentState();
-    for (const request of session.getPendingRequests()) {
-      const evm = walletRequestToPendingTx(request);
+    for (const action of session.getPendingActions()) {
+      const evm = actionToPendingTx(action);
       if (evm) cli.addPendingTx(evm);
-      const svm = walletRequestToPendingSolTx(request);
+      const svm = actionToPendingSolTx(action);
       if (svm) cli.addPendingSolTx(svm);
     }
   } catch {
@@ -279,9 +279,9 @@ async function signSolanaPending(params: {
     console.log(
       `✅ Signed message! signature: ${outcome.signatureBase64.slice(0, 24)}...`,
     );
-    await session.resolve(pendingTx.agentRequestId, {
-      kind: "signing",
-      signatures: [outcome.signatureBase64],
+    await session.respondToAction(pendingTx.agentRequestId, {
+      status: "signed",
+      outputs: [{ id: "payload_1", signature: outcome.signatureBase64 }],
     });
     cli.addSignedSolTx({
       id: pendingTx.id,
@@ -315,7 +315,7 @@ async function signSolanaPending(params: {
   ) {
     const rpcUrl = config.chainRpcUrl ?? defaultSolanaRpcUrl(pendingTx.cluster);
     const connection = new Connection(rpcUrl, "confirmed");
-    const legs: WalletSolanaLegResult[] = [];
+    const legs: Extract<ActionResult, { status: "submitted" }>["legs"] = [];
     let lastSubmitted:
       | { signature: string; signedTx: string; signer: string }
       | undefined;
@@ -337,10 +337,10 @@ async function signSolanaPending(params: {
           );
         }
         legs.push({
-          id: transaction.id,
+          id: `leg_${index + 1}`,
           status: "submitted",
-          signature,
-          signedTx: outcome.signedTxBase64,
+          transactionId: signature,
+          signedTransactionBase64: outcome.signedTxBase64,
         });
         lastSubmitted = {
           signature,
@@ -360,14 +360,15 @@ async function signSolanaPending(params: {
         });
       } catch (error) {
         legs.push({
-          id: transaction.id,
+          id: `leg_${index + 1}`,
           status: "failed",
           reason: error instanceof Error ? error.message : "Request failed",
         });
         legs.push(
-          ...batchTransactions.slice(index + 1).map((remaining) => ({
-            id: remaining.id,
+          ...batchTransactions.slice(index + 1).map((_, skippedIndex) => ({
+            id: `leg_${index + skippedIndex + 2}`,
             status: "skipped" as const,
+            reason: "Skipped after an earlier transaction failed",
           })),
         );
         break;
@@ -380,12 +381,7 @@ async function signSolanaPending(params: {
           "No Solana batch transaction confirmed",
       );
     }
-    await session.resolve(pendingTx.agentRequestId, {
-      kind: requestKind,
-      signature: lastSubmitted.signature,
-      signedTx: lastSubmitted.signedTx,
-      legs,
-    });
+    await session.respondToAction(pendingTx.agentRequestId, { status: "submitted", legs });
     cli.removePendingSolTx(pendingTx.id);
     console.log(
       `✅ Confirmed ${legs.filter((leg) => leg.status === "submitted").length}/${batchTransactions.length} Solana batch transactions.`,
@@ -422,15 +418,19 @@ async function signSolanaPending(params: {
       );
     }
     console.log(`✅ Confirmed! signature: ${signature}`);
-    await session.resolve(pendingTx.agentRequestId, {
-      kind: requestKind,
-      signature,
-      signedTx: outcome.signedTxBase64,
+    await session.respondToAction(pendingTx.agentRequestId, {
+      status: "submitted",
+      legs: [{
+        id: "leg_1",
+        status: "submitted",
+        transactionId: signature,
+        signedTransactionBase64: outcome.signedTxBase64,
+      }],
     });
   } else {
-    await session.resolve(pendingTx.agentRequestId, {
-      kind: "signing",
-      signatures: [outcome.signedTxBase64],
+    await session.respondToAction(pendingTx.agentRequestId, {
+      status: "signed",
+      outputs: [{ id: "payload_1", signedTransactionBase64: outcome.signedTxBase64 }],
     });
   }
 
@@ -512,17 +512,21 @@ async function recoverConfirmedTransactions(params: {
     if (!record.agentRequestId || !record.txHash) continue;
     await session.fetchCurrentState();
     const pending = session
-      .getPendingRequests()
-      .find((request) => request.id === record.agentRequestId);
+      .getPendingActions()
+      .find((action) => action.id === record.agentRequestId);
     if (pending) {
       const hashes = record.txHashes?.length
         ? record.txHashes
         : [record.txHash];
-      await session.resolve(record.agentRequestId, {
-        kind: "transaction",
-        txHash: record.txHash,
-        txHashes: hashes,
-        completedTxIds: hashes.map((_, index) => index + 1),
+      await session.respondToAction(record.agentRequestId, {
+        status: "submitted",
+        legs: pending.request.type === "execute_evm"
+          ? pending.request.transactions.map((_, index) => ({
+              id: `leg_${index + 1}`,
+              status: "submitted" as const,
+              transactionId: hashes[index] ?? record.txHash!,
+            }))
+          : [],
       });
       replayed += 1;
     }
@@ -726,7 +730,7 @@ export async function signCommand(
     console.log(`IDs:     ${pendingTxs.map((tx) => tx.id).join(", ")}`);
 
     let signedRecords: SignedTx[] = [];
-    let agentResult: WalletRequestResult | undefined;
+    let agentResult: ActionResult | undefined;
     let partialFailureReason: string | undefined;
 
     if (pendingTxs.every((tx) => tx.kind === "transaction")) {
@@ -761,7 +765,7 @@ export async function signCommand(
       }
 
       session.resolveWallet(account.address, primaryChainId);
-      await session.syncUserState();
+      await session.sync();
 
       // Simulate batch to validate and compute service fee.
       let simFee: AomiSimulateFee | undefined;
@@ -903,14 +907,20 @@ export async function signCommand(
           .slice(actionTxHashes.length)
           .map((_, index) => actionTxHashes.length + index + 1);
         agentResult = {
-          kind: "transaction",
-          txHash: actionTxHashes[actionTxHashes.length - 1],
-          txHashes: actionTxHashes,
-          completedTxIds,
-          failedTxIds,
-          failureReason: partialFailureReason,
-          batched: baseCallList.length > 1,
-          callCount: baseCallList.length,
+          status: "submitted",
+          legs: baseCallList.map((_, index) =>
+            completedTxIds.includes(index + 1)
+              ? {
+                  id: `leg_${index + 1}`,
+                  status: "submitted" as const,
+                  transactionId: actionTxHashes[index],
+                }
+              : {
+                  id: `leg_${index + 1}`,
+                  status: "failed" as const,
+                  reason: partialFailureReason ?? "Transaction failed",
+                },
+          ),
         };
       }
       const remainingTxIds = pendingTxs
@@ -971,7 +981,10 @@ export async function signCommand(
         },
       ];
       if (agentRequestId) {
-        agentResult = { kind: "signing", signatures: [signature] };
+        agentResult = {
+          status: "signed",
+          outputs: [{ id: "payload_1", signature }],
+        };
       }
     }
 
@@ -985,7 +998,7 @@ export async function signCommand(
     }
 
     if (agentResult) {
-      await session.resolve(agentRequestId, agentResult);
+      await session.respondToAction(agentRequestId, agentResult);
       cli.markSignedAgentActionNotified(agentRequestId);
     }
     console.log("Backend notified.");

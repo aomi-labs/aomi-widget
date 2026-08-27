@@ -3,15 +3,18 @@
 import { createContext, useContext } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
-import type { AomiSimulateResponse, UserState } from "@aomi-labs/client";
+import type {
+  Action,
+  ActionResult,
+  AomiSimulateResponse,
+  UserState,
+} from "@aomi-labs/client";
 import type { ThreadMetadata } from "./state/thread-store";
 import type { EventSubscriber, SSEStatus } from "./contexts/event-context";
 import type {
   Notification,
   NotificationData,
 } from "./contexts/notification-context";
-import type { WalletRequest } from "./handlers/wallet-handler";
-import type { WalletRequestResult } from "@aomi-labs/client";
 
 // =============================================================================
 // AomiRuntimeApi Type
@@ -83,23 +86,16 @@ export type AomiRuntimeApi = {
   clearAllNotifications: () => void;
 
   // -------------------------------------------------------------------------
-  // WALLET API
+  // ACTION API
   // -------------------------------------------------------------------------
-  /** All queued wallet requests (broadcast transactions + generic signing) */
-  pendingWalletRequests: WalletRequest[];
-  /** True while switching wallets or networks could lose an unresolved request. */
-  hasBlockingWalletRequests: boolean;
-  /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
-  startWalletRequest: (id: string) => void;
-  /** Locally dismiss an externally acknowledged request. */
-  dismissWalletRequest: (id: string) => void;
-  /** Complete a wallet request after the backend acknowledges the response */
-  resolveWalletRequest: (
-    id: string,
-    result: WalletRequestResult,
-  ) => Promise<void>;
-  /** Fail a wallet request after the backend acknowledges the error */
-  rejectWalletRequest: (id: string, error?: string) => Promise<void>;
+  /** Canonical runtime Actions awaiting a client response. */
+  pendingActions: Action[];
+  /** True while an Action is visible or awaiting backend acknowledgement. */
+  hasBlockingActions: boolean;
+  startAction: (id: string) => void;
+  dismissAction: (id: string) => void;
+  respondToAction: (id: string, result: ActionResult) => Promise<void>;
+  rejectAction: (id: string, reason?: string) => Promise<void>;
   /** Simulate a batch against the current thread session context. */
   simulateBatchTransactions: (
     transactions: Array<{

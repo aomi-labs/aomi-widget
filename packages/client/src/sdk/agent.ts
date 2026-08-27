@@ -1,36 +1,26 @@
-import type { AgentAction } from "../agent/types";
+import type { Action, ActionResult } from "../agent/types";
 import type { AomiClient } from "../client";
 import { TypedEventEmitter } from "../event";
 import { ClientSession } from "../session";
-import type {
-  SendResult,
-  SessionOptions,
-  WalletRequest,
-  WalletRequestResult,
-} from "../session/types";
-import type { AomiAction, PipelineSimulation } from "../pipeline/types";
+import type { SendResult, SessionOptions } from "../session/types";
 import { UserState, type UserState as UserStateShape } from "../user-state";
 import { WalletController } from "../wallet/controller";
 
-export interface AgentRunOptions extends Omit<
-  SessionOptions,
-  "userState" | "sessionId"
-> {
+export interface AgentRunOptions
+  extends Omit<SessionOptions, "userState" | "sessionId"> {
   sessionId?: string;
   userState?: UserStateShape;
-  /** Set false to surface wallet requests without executing the adapter. */
+  /** Set false to expose Actions without executing the configured wallet. */
   autoWallet?: boolean;
 }
 
 export interface AgentRunResult extends SendResult {
   sessionId: string;
-  actions: AomiAction[];
+  actions: Action[];
 }
 
 export interface AgentRunEventMap extends Record<string, unknown> {
-  action: AomiAction;
-  simulation: PipelineSimulation;
-  wallet_request: WalletRequest;
+  action: Action;
   completed: AgentRunResult;
   error: { error: unknown };
 }
@@ -42,8 +32,8 @@ export class AgentRun
 {
   readonly session: ClientSession;
   private readonly completion: Promise<AgentRunResult>;
-  private readonly actions = new Map<string, AomiAction>();
-  private readonly processingRequests = new Set<string>();
+  private readonly actions = new Map<string, Action>();
+  private readonly processingActions = new Set<string>();
 
   constructor(
     client: AomiClient,
@@ -56,17 +46,9 @@ export class AgentRun
     const userState = options.userState
       ? UserState.reconcile(walletState, options.userState)
       : walletState;
-    this.session = new ClientSession(client, {
-      ...options,
-      userState,
-    });
-    this.session.on("agent_action", (action) => this.receiveAction(action));
-    this.session.on("wallet_requests_changed", (requests) => {
-      for (const request of requests)
-        this.receiveWalletRequest(request, options);
-    });
+    this.session = new ClientSession(client, { ...options, userState });
+    this.session.on("action", (action) => this.receiveAction(action, options));
     this.session.on("error", ({ error }) => this.emit("error", { error }));
-
     this.completion = Promise.resolve()
       .then(() => this.session.send(prompt))
       .then((result) => {
@@ -84,8 +66,6 @@ export class AgentRun
         this.session.close();
         throw error;
       });
-    // Event-only consumers are valid; observing internally prevents a rejected
-    // run from becoming an unhandled promise while preserving result() rejection.
     void this.completion.catch(() => undefined);
   }
 
@@ -106,35 +86,33 @@ export class AgentRun
     return this.session.interrupt();
   }
 
-  resolve(requestId: string, result: WalletRequestResult): Promise<void> {
-    return this.session.resolve(requestId, result);
+  respond(actionId: string, result: ActionResult): Promise<Action> {
+    return this.session.respondToAction(actionId, result);
   }
 
-  reject(requestId: string, reason?: string): Promise<void> {
-    return this.session.reject(requestId, reason);
+  reject(actionId: string, reason?: string): Promise<Action> {
+    return this.session.rejectAction(actionId, reason);
   }
 
-  private receiveAction(action: AgentAction): void {
-    const presented = presentAction(action);
-    this.actions.set(presented.id, presented);
-    this.emit("action", presented);
-    const simulation = actionSimulation(action);
-    if (simulation) this.emit("simulation", simulation);
-  }
-
-  private receiveWalletRequest(
-    request: WalletRequest,
-    options: AgentRunOptions,
-  ): void {
-    if (this.processingRequests.has(request.id)) return;
-    this.emit("wallet_request", request);
-    if (options.autoWallet === false || !this.wallet.canHandle(request)) return;
-    this.processingRequests.add(request.id);
+  private receiveAction(action: Action, options: AgentRunOptions): void {
+    const previous = this.actions.get(action.id);
+    if (previous && previous.revision > action.revision) return;
+    this.actions.set(action.id, action);
+    this.emit("action", action);
+    if (
+      action.state !== "pending" ||
+      options.autoWallet === false ||
+      this.processingActions.has(action.id) ||
+      !this.wallet.canHandle(action)
+    ) {
+      return;
+    }
+    this.processingActions.add(action.id);
     void this.wallet
-      .execute(request)
-      .then((result) => this.session.resolve(request.id, result))
+      .execute(action)
+      .then((result) => this.session.respondToAction(action.id, result))
       .catch((error: unknown) => this.emit("error", { error }))
-      .finally(() => this.processingRequests.delete(request.id));
+      .finally(() => this.processingActions.delete(action.id));
   }
 }
 
@@ -150,76 +128,4 @@ export class AomiAgent {
     if (!normalized) throw new TypeError("prompt is required");
     return new AgentRun(this.client, normalized, this.wallet, options);
   }
-}
-
-function presentAction(action: AgentAction): AomiAction {
-  if (action.type === "external_transaction" && action.chainFamily === "evm") {
-    return {
-      id: action.id,
-      chainFamily: "evm",
-      kind: "calls",
-      status: action.status,
-      chainId: action.chainId,
-      description: action.description,
-      calls: action.transactions.map((transaction) => ({
-        to: transaction.to as `0x${string}`,
-        data: transaction.data as `0x${string}`,
-        value: transaction.value,
-        from: transaction.from as `0x${string}`,
-        gas: transaction.gas ?? undefined,
-        description: transaction.description,
-      })),
-    };
-  }
-  if (action.type === "external_transaction") {
-    const transaction = action.transactions[0];
-    return {
-      id: action.id,
-      chainFamily: "svm",
-      kind: "transaction",
-      status: action.status,
-      cluster: action.cluster,
-      description: action.description,
-      transaction: {
-        transaction: transaction?.unsignedTransactionBase64 ?? "",
-        encoding: "base64",
-        cluster: action.cluster,
-        feePayer: action.signer,
-      },
-    };
-  }
-  return {
-    id: action.id,
-    chainFamily: action.chainFamily,
-    kind: "signing",
-    status: action.status,
-    description: action.description,
-    signer: action.signer,
-    chainId: action.chainId ?? undefined,
-    cluster: action.cluster ?? undefined,
-  };
-}
-
-function actionSimulation(action: AgentAction): PipelineSimulation | undefined {
-  if (action.type !== "external_transaction" || action.chainFamily !== "evm") {
-    return undefined;
-  }
-  const simulations = action.transactions.flatMap((transaction) =>
-    transaction.simulation ? [transaction.simulation] : [],
-  );
-  if (simulations.length === 0) return undefined;
-  const warnings = simulations.flatMap((simulation) =>
-    simulation.error ? [simulation.error] : [],
-  );
-  return {
-    status: simulations.every((simulation) => simulation.success)
-      ? "passed"
-      : "failed",
-    balanceChanges: [],
-    fees: [],
-    warnings,
-    gas: {
-      estimates: simulations.map((simulation) => simulation.gasUsed),
-    },
-  };
 }

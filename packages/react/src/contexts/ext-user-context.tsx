@@ -44,7 +44,6 @@ function dropWalletBlocks(state: UserState): UserState {
     UserState.normalize({
       connection: { is_connected: false },
       evm: chainId === undefined ? undefined : { chain_id: chainId },
-      pending: state.pending,
       ext: state.ext,
       preferences: state.preferences,
     }) ?? { connection: { is_connected: false } }

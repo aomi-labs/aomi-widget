@@ -94,12 +94,12 @@ export class EvmBuild {
 
   async commit(options?: PipelineCommitOptions): Promise<EvmCommitResult> {
     const result = await this.transport.commit(this.raw, options);
-    if (!result.walletRequest || !this.wallet.canHandle(result.walletRequest)) {
+    if (!result.action || !this.wallet.canHandle(result.action)) {
       return result;
     }
     return {
       ...result,
-      walletResult: await this.wallet.execute(result.walletRequest),
+      actionResult: await this.wallet.execute(result.action),
     };
   }
 
@@ -183,12 +183,12 @@ export class SvmBuild {
 
   async commit(options?: PipelineCommitOptions): Promise<SvmCommitResult> {
     const result = await this.transport.commit(this.raw, options);
-    if (!result.walletRequest || !this.wallet.canHandle(result.walletRequest)) {
+    if (!result.action || !this.wallet.canHandle(result.action)) {
       return result;
     }
     return {
       ...result,
-      walletResult: await this.wallet.execute(result.walletRequest),
+      actionResult: await this.wallet.execute(result.action),
     };
   }
 

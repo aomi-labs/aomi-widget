@@ -58,18 +58,6 @@ export interface UserStateSvm extends Record<string, unknown> {
 }
 
 /**
- * Backend-pushed in-flight wallet requests, chain-bucketed. Shape is owned by
- * the backend; parsed by helpers like `pendingTxsFromBackendUserState`. The
- * client forwards them transparently via reconciliation.
- */
-export interface UserStatePending extends Record<string, unknown> {
-  evm_txs?: Record<string, unknown> | null;
-  evm_sigs?: Record<string, unknown> | null;
-  svm_ixs?: Record<string, unknown> | null;
-  svm_sigs?: Record<string, unknown> | null;
-}
-
-/**
  * Client-side user state, canonicalized to the backend's nested snake_case
  * wire shape. EVM and Solana identities are independent blocks (`evm` / `svm`)
  * so a single session can carry both families at once. `normalize` accepts the
@@ -80,18 +68,15 @@ export interface UserState extends Record<string, unknown> {
   connection?: UserStateConnection | null;
   evm?: UserStateEvm | null;
   svm?: UserStateSvm | null;
-  pending?: UserStatePending | null;
   ext?: Record<string, unknown> | null;
   preferences?: Record<string, unknown> | null;
 }
 
 /**
- * The subset of `UserState` the client OWNS and may send to the backend.
- * `pending` is backend-authority in-flight state; the client receives it but
- * never echoes it back. Use {@link toOwnedUserState} to project a stored
- * `UserState` down to this shape at the send boundary.
+ * The client owns every field in UserState. Runtime execution and continuation
+ * data live only in durable Actions and cannot enter this shape.
  */
-export type OwnedUserState = Omit<UserState, "pending">;
+export type OwnedUserState = UserState;
 
 /**
  * Known client surfaces that may want backend-specific UX strategies.

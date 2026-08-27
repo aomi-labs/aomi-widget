@@ -19,8 +19,6 @@ export {
   validatePipelineArguments,
 } from "./pipeline/schema";
 export type {
-  AomiAction,
-  AomiSigningAction,
   EvmCall,
   EvmCallInput,
   EvmCommitResult,
@@ -31,39 +29,22 @@ export type {
   EvmStageInput,
   EvmStagedAction,
   EvmStagedBuild,
-  PipelineAction,
   PipelineActionSummary,
-  PipelineAppResponse,
-  PipelineAppsResponse,
   PipelineBalanceChange,
-  PipelineCatalogResponse,
   PipelineCommitOptions,
   PipelineDirectory,
   PipelineDirectoryEntry,
   PipelineDirectoryEntryKind,
-  PipelineExecutionOptions,
-  PipelineExecutionResponse,
   PipelineFeeEstimate,
   PipelineFilesystemResource,
   PipelineGuardResult,
   PipelineInvokeOptions,
   PipelineJsonSchema,
-  PipelineListOptions,
   PipelineOperationBuildInput,
   PipelineOperationDescriptor,
   PipelineOperationInvocation,
-  PipelineResource,
-  PipelineRunRequest,
-  PipelineSearchOptions,
-  PipelineSearchResponse,
   PipelineSimulation,
   PipelineSimulationStatus,
-  PipelineSkillsResponse,
-  PipelineToolCallRequest,
-  PipelineToolListOptions,
-  PipelineToolResponse,
-  PipelineToolSearchOptions,
-  PipelineToolsResponse,
   PipelineTransactionReceipt,
   SvmAccountMeta,
   SvmCommitResult,
@@ -77,19 +58,24 @@ export type {
   SvmTransaction,
 } from "./pipeline/types";
 export type {
-  AgentAction,
-  AgentActionResult,
-  AgentActivity,
-  AgentDelta,
-  AgentMessage,
-  AgentSessionPage,
-  AgentSessionRecord,
-  AgentStartRequest,
-  AgentStatus,
-  AgentWalletContext,
-  EvmExternalTransactionAction,
-  SigningRequestAction,
-  SvmExternalTransactionAction,
+  Action,
+  ActionRequest,
+  ActionResult,
+  ErrorEvent,
+  Event,
+  EventPage,
+  InterruptIntent,
+  MessageEvent,
+  RespondToActionIntent,
+  Session as AgentSession,
+  SessionPage,
+  StartTurnIntent,
+  TaskEvent,
+  TitleEvent,
+  ToolEvent,
+  TurnState,
+  TurnStateChangedEvent,
+  UserState as AgentUserState,
 } from "./agent/types";
 export {
   authorizationChallenge,
@@ -239,17 +225,7 @@ export {
 
 export { ClientSession as Session, aaModeFromExecutionKind } from "./session";
 
-export type {
-  SessionOptions,
-  SessionEventMap,
-  SendResult,
-  WalletRequest,
-  WalletSignablePayload,
-  WalletSigningPayload,
-  WalletRequestKind,
-  WalletRequestResult,
-  WalletSolanaLegResult,
-} from "./session";
+export type { SessionOptions, SessionEventMap, SendResult } from "./session";
 
 // =============================================================================
 // Event Utilities
@@ -263,7 +239,6 @@ export { TypedEventEmitter } from "./event";
 
 export {
   normalizeTxPayload,
-  hydrateTxPayloadFromUserState,
   normalizeEip712Payload,
   normalizeSolanaSignPayload,
   normalizeSolanaSignMessagePayload,

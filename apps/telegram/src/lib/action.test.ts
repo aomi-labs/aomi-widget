@@ -1,25 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { mainnet } from "viem/chains";
 
-import type { WalletRequest } from "@aomi-labs/client";
+import type { Action } from "@aomi-labs/client";
 
-import { describeRequest, requestedAaMode } from "./wallet-request";
+import { describeAction } from "./action";
 
-describe("Telegram wallet request policy", () => {
-  it("keeps auto and omitted AA preferences on the canonical 7702 path", () => {
-    expect(requestedAaMode({ aaPreference: "auto" })).toBe("7702");
-    expect(requestedAaMode({})).toBe("7702");
-    expect(requestedAaMode({ aaPreference: "eip4337" })).toBe("4337");
-    expect(requestedAaMode({ aaPreference: "none" })).toBe("none");
-  });
+const meta = {
+  type: "action" as const,
+  event_id: "event-1",
+  sequence: 1,
+  turn_id: "turn-1",
+  occurred_at: 1,
+  revision: 1,
+  state: "pending" as const,
+  result: null,
+  created_at: 1,
+  expires_at: null,
+};
 
+describe("Telegram Action presentation", () => {
   it("shows every typed-signing section, including the verifying contract", () => {
-    const request = {
-      id: "sign:11111111-1111-4111-8111-111111111111",
-      kind: "signing",
-      timestamp: 1,
-      payload: {
-        requestId: "sign:11111111-1111-4111-8111-111111111111",
+    const action = {
+      ...meta,
+      id: "action-1",
+      request: {
+        type: "sign",
+        requestId: "sign-1",
         chainFamily: "evm",
         executionKind: "message",
         signer: "0x0000000000000000000000000000000000000003",
@@ -28,11 +34,12 @@ describe("Telegram wallet request policy", () => {
         payloads: [
           {
             kind: "evm_typed_data",
-            typedData: {
+            typed_data: {
               domain: {
                 chainId: 1,
                 name: "Permit",
-                verifyingContract: "0x0000000000000000000000000000000000000001",
+                verifyingContract:
+                  "0x0000000000000000000000000000000000000001",
                 version: "1",
               },
               types: {
@@ -50,8 +57,9 @@ describe("Telegram wallet request policy", () => {
           },
         ],
       },
-    } as unknown as WalletRequest;
-    const summary = describeRequest(request, mainnet);
+    } as unknown as Action;
+
+    const summary = describeAction(action, mainnet);
 
     expect(summary?.fields).toEqual(
       expect.arrayContaining([
@@ -75,27 +83,26 @@ describe("Telegram wallet request policy", () => {
 
   it("shows complete transaction calldata instead of only its selector", () => {
     const calldata = `0x12345678${"ab".repeat(32)}`;
-    const summary = describeRequest(
-      {
-        id: "tx-1",
-        kind: "transaction",
-        timestamp: 1,
-        payload: {
-          calls: [
-            {
-              txId: 1,
-              to: "0x0000000000000000000000000000000000000001",
-              data: calldata,
-              value: "0",
-              chainId: 1,
-            },
-          ],
-        },
+    const action = {
+      ...meta,
+      id: "action-2",
+      request: {
+        type: "execute_evm",
+        transactions: [
+          {
+            chain_id: 1,
+            from: "0x0000000000000000000000000000000000000002",
+            to: "0x0000000000000000000000000000000000000001",
+            data: calldata,
+            value: "0",
+            label: "Transfer",
+            kind: "transfer",
+          },
+        ],
       },
-      mainnet,
-    );
+    } as Action;
 
-    expect(summary?.fields).toContainEqual({
+    expect(describeAction(action, mainnet)?.fields).toContainEqual({
       label: "Calldata",
       value: calldata,
       mono: true,
@@ -103,12 +110,12 @@ describe("Telegram wallet request policy", () => {
   });
 
   it("shows backend-owned calls and fees before ERC-4337 approval", () => {
-    const request = {
-      id: "sign:22222222-2222-4222-8222-222222222222",
-      kind: "signing",
-      timestamp: 1,
-      payload: {
-        requestId: "sign:22222222-2222-4222-8222-222222222222",
+    const action = {
+      ...meta,
+      id: "action-3",
+      request: {
+        type: "sign",
+        requestId: "sign-3",
         chainFamily: "evm",
         executionKind: "erc4337",
         signer: "0x1111111111111111111111111111111111111111",
@@ -130,9 +137,9 @@ describe("Telegram wallet request policy", () => {
         ],
         payloads: [{ kind: "evm_personal", message: "0xabcd" }],
       },
-    } as unknown as WalletRequest;
+    } as unknown as Action;
 
-    const summary = describeRequest(request, mainnet);
+    const summary = describeAction(action, mainnet);
 
     expect(summary?.title).toBe("Approve account action");
     expect(summary?.fields).toEqual(

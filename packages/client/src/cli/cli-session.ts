@@ -14,7 +14,7 @@ import {
   readState,
   hasSameBackendPendingId,
   hasSameSolanaPendingId,
-  syncPendingTxsFromUserState,
+  syncWalletFromUserState,
   writeState,
   type CliAuthSession,
   type CliOAuthGrant,
@@ -543,13 +543,13 @@ export class CliSession {
     this.save();
   }
 
-  syncPendingFromUserState(
-    userState: Parameters<typeof syncPendingTxsFromUserState>[1],
+  syncWalletFromUserState(
+    userState: Parameters<typeof syncWalletFromUserState>[1],
   ): {
     pendingTxs: readonly PendingTx[];
     pendingSolTxs: readonly PendingSolTx[];
   } {
-    const result = syncPendingTxsFromUserState(this.state, userState);
+    const result = syncWalletFromUserState(this.state, userState);
     this.reload();
     return result;
   }

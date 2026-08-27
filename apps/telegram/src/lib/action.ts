@@ -1,58 +1,37 @@
 import {
   CHAINS_BY_ID,
   parseChainId,
-  type WalletRequest,
-  type WalletTxPayload,
+  type Action,
+  type ActionRequest,
 } from "@aomi-labs/client";
 import { formatEther } from "viem";
 import { mainnet, type Chain } from "viem/chains";
 
-export function requestChain(request: WalletRequest | null): Chain {
-  const chainId = request ? requestChainId(request) : undefined;
+export function actionChain(action: Action | null): Chain {
+  const chainId = action ? actionChainId(action) : undefined;
   return (chainId ? CHAINS_BY_ID[chainId] : undefined) ?? mainnet;
 }
 
-export function requestChainId(request: WalletRequest): number | undefined {
-  if (request.kind === "transaction") {
-    const calls = request.payload.calls ?? [];
-    return (
-      calls.map((call) => call.chainId).find((value) => value !== undefined) ??
-      request.payload.chainId
-    );
+export function actionChainId(action: Action): number | undefined {
+  if (action.request.type === "execute_evm") {
+    return action.request.transactions[0]?.chain_id;
   }
-  if (request.kind !== "signing" || request.payload.chainFamily !== "evm") {
+  if (action.request.type !== "sign" || action.request.chainFamily !== "evm") {
     return undefined;
   }
-  return parseChainId(request.payload.chainId);
+  return parseChainId(action.request.chainId);
 }
 
-export function pendingTransactionIds(payload: WalletTxPayload): number[] {
-  if (payload.calls?.length) return payload.calls.map((call) => call.txId);
-  if (payload.txIds?.length) return payload.txIds;
-  return payload.txId === undefined ? [] : [payload.txId];
-}
-
-export function requestedAaMode(
-  payload: WalletTxPayload,
-): "4337" | "7702" | "none" {
-  if (payload.aaPreference === "none") return "none";
-  if (payload.aaPreference === "eip4337") return "4337";
-  // Keep this aligned with the canonical Session policy: `auto` (and an
-  // omitted preference before normalization) requests 7702. Treating it as
-  // `none` would let an `aaStrict` request silently execute through an EOA.
-  return "7702";
-}
-
-export type RequestField = {
+export type ActionField = {
   label: string;
   value: string;
   /** Render in a monospace, wrappable block — addresses, calldata, JSON. */
   mono?: boolean;
 };
 
-export type RequestSummary = {
+export type ActionSummary = {
   title: string;
-  fields: RequestField[];
+  fields: ActionField[];
 };
 
 function formatCalldata(data: string | undefined): string {
@@ -66,15 +45,15 @@ function formatCalldata(data: string | undefined): string {
  * request — because this is the only place a Telegram user sees what they are
  * signing.
  */
-export function describeRequest(
-  request: WalletRequest,
+export function describeAction(
+  action: Action,
   chain: Chain,
-): RequestSummary | null {
-  if (request.kind === "transaction") {
-    const call = request.payload.calls?.[0];
-    const to = call?.to ?? request.payload.to;
-    const rawValue = call?.value ?? request.payload.value ?? "0";
-    const data = call?.data ?? request.payload.data;
+): ActionSummary | null {
+  if (action.request.type === "execute_evm") {
+    const transaction = action.request.transactions[0];
+    const to = transaction?.to;
+    const rawValue = transaction?.value ?? "0";
+    const data = transaction?.data;
 
     let amount = `${rawValue} wei`;
     try {
@@ -83,56 +62,57 @@ export function describeRequest(
       // Leave the raw value visible rather than hiding an unparseable amount.
     }
 
-    const fields: RequestField[] = [
+    const fields: ActionField[] = [
       { label: "Network", value: chain.name },
       { label: "To", value: to ?? "unknown", mono: true },
       { label: "Amount", value: amount },
       { label: "Calldata", value: formatCalldata(data), mono: true },
     ];
-    if (call?.description) {
-      fields.unshift({ label: "Action", value: call.description });
+    if (transaction?.label) {
+      fields.unshift({ label: "Action", value: transaction.label });
     }
     return { title: "Approve transaction", fields };
   }
 
-  if (request.kind !== "signing" || request.payload.chainFamily !== "evm") {
+  if (action.request.type !== "sign" || action.request.chainFamily !== "evm") {
     return null;
   }
 
-  const fields: RequestField[] = [
+  const request: Extract<ActionRequest, { type: "sign" }> = action.request;
+  const fields: ActionField[] = [
     { label: "Network", value: chain.name },
-    { label: "Signer", value: request.payload.signer, mono: true },
+    { label: "Signer", value: request.signer, mono: true },
   ];
-  if (request.payload.description) {
-    fields.unshift({ label: "Action", value: request.payload.description });
+  if (request.description) {
+    fields.unshift({ label: "Action", value: request.description });
   }
 
-  if (request.payload.executor) {
+  if (request.executor) {
     fields.push({
       label: "Executor",
-      value: request.payload.executor,
+      value: request.executor,
       mono: true,
     });
   }
-  if (request.payload.calls?.length) {
+  if (request.calls?.length) {
     fields.push({
       label: "Calls",
-      value: JSON.stringify(request.payload.calls, null, 2),
+      value: JSON.stringify(request.calls, null, 2),
       mono: true,
     });
   }
-  if (request.payload.fees?.length) {
+  if (request.fees?.length) {
     fields.push({
       label: "Fees",
-      value: JSON.stringify(request.payload.fees, null, 2),
+      value: JSON.stringify(request.fees, null, 2),
       mono: true,
     });
   }
 
-  for (const [index, payload] of request.payload.payloads.entries()) {
-    const suffix = request.payload.payloads.length > 1 ? ` ${index + 1}` : "";
+  for (const [index, payload] of request.payloads.entries()) {
+    const suffix = request.payloads.length > 1 ? ` ${index + 1}` : "";
     if (payload.kind === "evm_typed_data") {
-      const typedData = payload.typedData;
+      const typedData = payload.typed_data;
       if (typedData.primaryType) {
         fields.push({ label: `Type${suffix}`, value: typedData.primaryType });
       }
@@ -164,7 +144,7 @@ export function describeRequest(
 
   return {
     title:
-      request.payload.executionKind === "erc4337"
+      request.executionKind === "erc4337"
         ? "Approve account action"
         : "Approve signature",
     fields,
@@ -174,5 +154,5 @@ export function describeRequest(
 export function errorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   if (typeof error === "string" && error) return error;
-  return "wallet_request_failed";
+  return "action_failed";
 }
