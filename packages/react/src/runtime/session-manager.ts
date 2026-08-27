@@ -60,7 +60,7 @@ export class SessionManager {
       if (threadId === activeThreadId) continue;
       if (session.getIsProcessing()) continue;
       if (session.getIsPolling()) continue;
-      if (session.getPendingActions().length > 0) continue;
+      if (session.actions.pending().length > 0) continue;
 
       closedThreadIds.push(threadId);
     }

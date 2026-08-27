@@ -27,6 +27,7 @@ import {
   createSolanaDriverAction,
   type SolanaDriverActionKind,
 } from "./solana-runtime-driver-request";
+import { useDriverActionHandler } from "./use-driver-action-handler";
 
 type DriverMode =
   | "sign"
@@ -260,9 +261,7 @@ export function SolanaRuntimeDriver() {
   const [driverMode, setDriverMode] = useState<DriverMode>("send_fallback");
   const [pendingActions, setPendingActions] = useState<Action[]>([]);
   const [reportStatus, setReportStatus] = useState<DriverReportStatus>("idle");
-  const [lastResult, setLastResult] = useState<ActionResult | null>(
-    null,
-  );
+  const [lastResult, setLastResult] = useState<ActionResult | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [logs, setLogs] = useState<DriverLog[]>([]);
   const requestCounterRef = useRef(1);
@@ -386,9 +385,7 @@ export function SolanaRuntimeDriver() {
 
   const respondToAction = useCallback(
     async (id: string, result: ActionResult) => {
-      setPendingActions((prev) =>
-        prev.filter((action) => action.id !== id),
-      );
+      setPendingActions((prev) => prev.filter((action) => action.id !== id));
       setLastResult(result);
       setLastError(null);
       setReportStatus("completed");
@@ -399,9 +396,7 @@ export function SolanaRuntimeDriver() {
 
   const rejectAction = useCallback(
     async (id: string, error?: string) => {
-      setPendingActions((prev) =>
-        prev.filter((action) => action.id !== id),
-      );
+      setPendingActions((prev) => prev.filter((action) => action.id !== id));
       setLastResult(null);
       setLastError(error ?? "request_rejected");
       setReportStatus("failed");
@@ -410,11 +405,7 @@ export function SolanaRuntimeDriver() {
     [appendLog],
   );
 
-  const dismissAction = useCallback((id: string) => {
-    setPendingActions((prev) =>
-      prev.filter((action) => action.id !== id),
-    );
-  }, []);
+  const executeAction = useDriverActionHandler(pendingActions, respondToAction);
 
   const runtimeApi = useMemo<AomiRuntimeApi>(
     () => ({
@@ -444,8 +435,7 @@ export function SolanaRuntimeDriver() {
       clearAllNotifications: () => undefined,
       pendingActions,
       hasBlockingActions: pendingActions.length > 0,
-      startAction: () => undefined,
-      dismissAction,
+      executeAction,
       respondToAction,
       rejectAction,
       simulateBatchTransactions: async () => {
@@ -458,7 +448,7 @@ export function SolanaRuntimeDriver() {
     }),
     [
       currentUserState,
-      dismissAction,
+      executeAction,
       pendingActions,
       rejectAction,
       reportStatus,
@@ -576,7 +566,7 @@ export function SolanaRuntimeDriver() {
               <h1 className="text-3xl font-semibold">Solana Runtime Driver</h1>
               <p className="max-w-2xl text-sm text-stone-400">
                 Backendless harness for the frontend Solana wallet pipeline.
-                This page injects Solana wallet requests locally, lets{" "}
+                This page injects Solana Actions locally, lets{" "}
                 <code>RuntimeTxHandler</code> process them, and records the
                 result so a local script can poll for pass or fail.
               </p>

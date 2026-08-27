@@ -329,10 +329,10 @@ function signSolanaMessage(messageBase64, keypair) {
   if (message.length === 0) {
     throw new Error("Solana message must decode to at least one byte.");
   }
-  const signature = nacl.sign.detached(message, keypair.secretKey);
+  const signature2 = nacl.sign.detached(message, keypair.secretKey);
   return {
     signer: keypair.publicKey.toBase58(),
-    signatureBase64: encodeBase64(signature)
+    signatureBase64: encodeBase64(signature2)
   };
 }
 var init_solana_signer = __esm({
@@ -1064,6 +1064,291 @@ var init_types = __esm({
       "task_completed"
     ];
     asString = (value) => typeof value === "string" ? value : void 0;
+  }
+});
+
+// src/event.ts
+var TypedEventEmitter;
+var init_event = __esm({
+  "src/event.ts"() {
+    "use strict";
+    TypedEventEmitter = class {
+      constructor() {
+        this.listeners = /* @__PURE__ */ new Map();
+      }
+      on(type, handler) {
+        let set = this.listeners.get(type);
+        if (!set) {
+          set = /* @__PURE__ */ new Set();
+          this.listeners.set(type, set);
+        }
+        set.add(handler);
+        return () => {
+          set.delete(handler);
+          if (set.size === 0) {
+            this.listeners.delete(type);
+          }
+        };
+      }
+      once(type, handler) {
+        const wrapper = ((payload) => {
+          unsub();
+          handler(payload);
+        });
+        const unsub = this.on(type, wrapper);
+        return unsub;
+      }
+      emit(type, payload) {
+        const typeSet = this.listeners.get(type);
+        if (typeSet) {
+          for (const handler of typeSet) {
+            handler(payload);
+          }
+        }
+        if (type !== "*") {
+          const wildcardSet = this.listeners.get("*");
+          if (wildcardSet) {
+            for (const handler of wildcardSet) {
+              handler({ type, payload });
+            }
+          }
+        }
+      }
+      off(type, handler) {
+        const set = this.listeners.get(type);
+        if (set) {
+          set.delete(handler);
+          if (set.size === 0) {
+            this.listeners.delete(type);
+          }
+        }
+      }
+      removeAllListeners() {
+        this.listeners.clear();
+      }
+    };
+  }
+});
+
+// src/actions/capabilities.ts
+function canExecute(action, capabilities) {
+  return Boolean(capabilities[action.request.type]);
+}
+function execute(action, capabilities, signal) {
+  switch (action.request.type) {
+    case "execute_evm": {
+      const capability = capabilities.execute_evm;
+      if (!capability) throw unsupported(action);
+      return capability(action.request, signal);
+    }
+    case "execute_svm": {
+      const capability = capabilities.execute_svm;
+      if (!capability) throw unsupported(action);
+      return capability(action.request, signal);
+    }
+    case "sign": {
+      const capability = capabilities.sign;
+      if (!capability) throw unsupported(action);
+      return capability(action.request, signal);
+    }
+  }
+}
+function unsupported(action) {
+  return new Error(
+    `No capability is configured for Action "${action.request.type}"`
+  );
+}
+var init_capabilities = __esm({
+  "src/actions/capabilities.ts"() {
+    "use strict";
+  }
+});
+
+// src/actions/action-handler.ts
+function publicAttempt(attempt) {
+  return __spreadValues({
+    actionId: attempt.actionId,
+    revision: attempt.revision,
+    state: attempt.state
+  }, attempt.error === void 0 ? {} : { error: attempt.error });
+}
+var ActionHandler;
+var init_action_handler = __esm({
+  "src/actions/action-handler.ts"() {
+    "use strict";
+    init_event();
+    init_capabilities();
+    ActionHandler = class extends TypedEventEmitter {
+      constructor(capabilities, respond) {
+        super();
+        this.capabilities = capabilities;
+        this.respond = respond;
+        this.actions = /* @__PURE__ */ new Map();
+        this.attempts = /* @__PURE__ */ new Map();
+        this.snapshot = [];
+      }
+      ingest(action) {
+        const previous = this.actions.get(action.id);
+        if (previous && previous.revision >= action.revision) return false;
+        this.actions.set(action.id, action);
+        const attempt = this.attempts.get(action.id);
+        if (attempt && (action.revision > attempt.revision || action.state !== "pending")) {
+          attempt.controller.abort();
+          this.attempts.delete(action.id);
+          this.emit("attempt_changed", void 0);
+        }
+        this.snapshot = [...this.actions.values()].sort(
+          (left, right) => left.sequence - right.sequence
+        );
+        this.emit("changed", this.snapshot);
+        return true;
+      }
+      get(id) {
+        return this.actions.get(id);
+      }
+      all() {
+        return this.snapshot;
+      }
+      pending() {
+        return this.all().filter((action) => action.state === "pending");
+      }
+      attempt(id) {
+        const attempt = this.attempts.get(id);
+        if (!attempt) return void 0;
+        return publicAttempt(attempt);
+      }
+      isBlocking() {
+        return this.pending().length > 0 || this.attempts.size > 0;
+      }
+      subscribe(listener) {
+        return this.on("changed", listener);
+      }
+      setCapabilities(capabilities) {
+        this.capabilities = capabilities;
+      }
+      canExecute(id) {
+        const action = this.actions.get(id);
+        return Boolean(
+          action && action.state === "pending" && canExecute(action, this.capabilities)
+        );
+      }
+      execute(id) {
+        const current = this.attempts.get(id);
+        if (current == null ? void 0 : current.promise) return current.promise;
+        if (current == null ? void 0 : current.result)
+          return this.sendResult(this.pendingAction(id), current);
+        const action = this.pendingAction(id);
+        const attempt = {
+          actionId: action.id,
+          revision: action.revision,
+          state: "executing",
+          controller: new AbortController()
+        };
+        this.attempts.set(id, attempt);
+        this.emit("attempt_changed", publicAttempt(attempt));
+        return this.track(action.id, attempt, async () => {
+          try {
+            const result = await execute(
+              action,
+              this.capabilities,
+              attempt.controller.signal
+            );
+            attempt.result = result;
+            return await this.respondWithResult(action, attempt);
+          } catch (error) {
+            this.fail(attempt, error);
+            throw error;
+          }
+        });
+      }
+      submitResult(id, result) {
+        const current = this.attempts.get(id);
+        if (current == null ? void 0 : current.promise) return current.promise;
+        const action = this.pendingAction(id);
+        const attempt = current != null ? current : {
+          actionId: action.id,
+          revision: action.revision,
+          state: "responding",
+          controller: new AbortController()
+        };
+        attempt.result = result;
+        this.attempts.set(id, attempt);
+        return this.sendResult(action, attempt);
+      }
+      reject(id, reason = "Request rejected") {
+        return this.submitResult(id, { status: "rejected", reason });
+      }
+      retry(id) {
+        const attempt = this.attempts.get(id);
+        return (attempt == null ? void 0 : attempt.result) ? this.sendResult(this.pendingAction(id), attempt) : this.execute(id);
+      }
+      abort(id) {
+        const attempt = this.attempts.get(id);
+        if (!attempt) return;
+        attempt.controller.abort();
+        this.attempts.delete(id);
+        this.emit("attempt_changed", void 0);
+      }
+      close() {
+        for (const attempt of this.attempts.values()) attempt.controller.abort();
+        this.attempts.clear();
+        this.actions.clear();
+        this.snapshot = [];
+        this.removeAllListeners();
+      }
+      sendResult(action, attempt) {
+        if (attempt.promise) return attempt.promise;
+        return this.track(action.id, attempt, async () => {
+          try {
+            return await this.respondWithResult(action, attempt);
+          } catch (error) {
+            this.fail(attempt, error);
+            throw error;
+          }
+        });
+      }
+      respondWithResult(action, attempt) {
+        if (!attempt.result) throw new Error(`Action "${action.id}" has no result`);
+        attempt.state = "responding";
+        attempt.error = void 0;
+        this.emit("attempt_changed", publicAttempt(attempt));
+        return this.respond(action, attempt.result).then((next) => {
+          this.ingest(next);
+          this.emit("resolved", next);
+          return next;
+        });
+      }
+      track(id, attempt, operation) {
+        const promise = operation();
+        attempt.promise = promise;
+        const clear = () => {
+          if (this.attempts.get(id) === attempt) attempt.promise = void 0;
+        };
+        void promise.then(clear, clear);
+        return promise;
+      }
+      fail(attempt, error) {
+        if (this.attempts.get(attempt.actionId) !== attempt) return;
+        attempt.state = "failed";
+        attempt.error = error;
+        this.emit("attempt_changed", publicAttempt(attempt));
+      }
+      pendingAction(id) {
+        const action = this.actions.get(id);
+        if (!action || action.state !== "pending") {
+          throw new Error(`No pending Action with id "${id}"`);
+        }
+        return action;
+      }
+    };
+  }
+});
+
+// src/actions/index.ts
+var init_actions = __esm({
+  "src/actions/index.ts"() {
+    "use strict";
+    init_action_handler();
   }
 });
 
@@ -2276,69 +2561,6 @@ ${body}` : ""}`
   }
 });
 
-// src/event.ts
-var TypedEventEmitter;
-var init_event = __esm({
-  "src/event.ts"() {
-    "use strict";
-    TypedEventEmitter = class {
-      constructor() {
-        this.listeners = /* @__PURE__ */ new Map();
-      }
-      on(type, handler) {
-        let set = this.listeners.get(type);
-        if (!set) {
-          set = /* @__PURE__ */ new Set();
-          this.listeners.set(type, set);
-        }
-        set.add(handler);
-        return () => {
-          set.delete(handler);
-          if (set.size === 0) {
-            this.listeners.delete(type);
-          }
-        };
-      }
-      once(type, handler) {
-        const wrapper = ((payload) => {
-          unsub();
-          handler(payload);
-        });
-        const unsub = this.on(type, wrapper);
-        return unsub;
-      }
-      emit(type, payload) {
-        const typeSet = this.listeners.get(type);
-        if (typeSet) {
-          for (const handler of typeSet) {
-            handler(payload);
-          }
-        }
-        if (type !== "*") {
-          const wildcardSet = this.listeners.get("*");
-          if (wildcardSet) {
-            for (const handler of wildcardSet) {
-              handler({ type, payload });
-            }
-          }
-        }
-      }
-      off(type, handler) {
-        const set = this.listeners.get(type);
-        if (set) {
-          set.delete(handler);
-          if (set.size === 0) {
-            this.listeners.delete(type);
-          }
-        }
-      }
-      removeAllListeners() {
-        this.listeners.clear();
-      }
-    };
-  }
-});
-
 // src/session/json.ts
 function stableUserStateString(state) {
   return JSON.stringify(sortJson(state != null ? state : {}));
@@ -2382,13 +2604,13 @@ function removeExtValue(userState, key) {
   delete nextExt[key];
   return __spreadProps(__spreadValues({}, userState), { ext: nextExt });
 }
-function resolveWalletState(userState, address3, chainId3) {
+function resolveWalletState(userState, address3, chainId4) {
   const prevEvm = isRecord2(userState == null ? void 0 : userState.evm) ? userState == null ? void 0 : userState.evm : {};
   const prevConn = isRecord2(userState == null ? void 0 : userState.connection) ? userState == null ? void 0 : userState.connection : {};
   return __spreadProps(__spreadValues({}, userState != null ? userState : {}), {
     evm: __spreadProps(__spreadValues({}, prevEvm), {
       address: address3,
-      chain_id: chainId3 != null ? chainId3 : 1
+      chain_id: chainId4 != null ? chainId4 : 1
     }),
     connection: __spreadProps(__spreadValues({}, prevConn), {
       is_connected: true
@@ -2412,12 +2634,15 @@ var init_policy = __esm({
 
 // src/session/index.ts
 function eventTimestamp(value) {
-  return new Date(value < 1e12 ? value * 1e3 : value).toISOString();
+  return new Date(
+    value < 1e12 ? value * 1e3 : value
+  ).toISOString();
 }
 var TERMINAL_TURN_STATES, ClientSession;
 var init_session = __esm({
   "src/session/index.ts"() {
     "use strict";
+    init_actions();
     init_transport();
     init_client();
     init_event();
@@ -2432,9 +2657,8 @@ var init_session = __esm({
     ]);
     ClientSession = class extends TypedEventEmitter {
       constructor(clientOrOptions, sessionOptions) {
-        var _a3, _b, _c, _d;
+        var _a3, _b, _c, _d, _e;
         super();
-        this.actions = /* @__PURE__ */ new Map();
         this.pollTimer = null;
         this.pollingActive = false;
         this.pollInFlight = false;
@@ -2454,16 +2678,34 @@ var init_session = __esm({
         this.model = sessionOptions == null ? void 0 : sessionOptions.model;
         this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
         const initial = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
-        this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initial != null ? initial : {}, "client_type", sessionOptions.clientType) : initial;
+        this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(
+          initial != null ? initial : {},
+          "client_type",
+          sessionOptions.clientType
+        ) : initial;
         this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
         this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
         this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
+        this.actions = new ActionHandler(
+          (_e = sessionOptions == null ? void 0 : sessionOptions.actions) != null ? _e : {},
+          (action, result) => this.client.agent.respondToAction(
+            this.sessionId,
+            action.id,
+            action.revision,
+            result
+          )
+        );
+        this.actions.on("resolved", () => {
+          this.beginProcessing();
+          this.startPolling();
+        });
       }
       async send(message) {
         const page = await this.submit(message);
         if (this.isTerminal()) return this.result();
         this.beginProcessing();
-        if (this.turnState !== "awaiting_action" || page.has_more) this.startPolling();
+        if (this.turnState !== "awaiting_action" || page.has_more)
+          this.startPolling();
         return new Promise((resolve) => {
           this.pendingResolve = resolve;
         });
@@ -2472,30 +2714,17 @@ var init_session = __esm({
         const page = await this.submit(message);
         if (!this.isTerminal()) {
           this.beginProcessing();
-          if (this.turnState !== "awaiting_action" || page.has_more) this.startPolling();
+          if (this.turnState !== "awaiting_action" || page.has_more)
+            this.startPolling();
         }
         return page;
-      }
-      async respondToAction(actionId, result) {
-        const action = this.pendingAction(actionId);
-        const next = await this.client.agent.respondToAction(
-          this.sessionId,
-          action.id,
-          action.revision,
-          result
-        );
-        this.applyAction(next);
-        this.beginProcessing();
-        this.startPolling();
-        return next;
-      }
-      rejectAction(actionId, reason = "Request rejected") {
-        return this.respondToAction(actionId, { status: "rejected", reason });
       }
       async interrupt() {
         if (!this.turnId) throw new Error("No active turn to interrupt");
         this.stopPolling();
-        this.applyEventPage(await this.client.agent.interrupt(this.sessionId, this.turnId));
+        this.applyEventPage(
+          await this.client.agent.interrupt(this.sessionId, this.turnId)
+        );
         this.finishProcessing();
       }
       close() {
@@ -2503,6 +2732,7 @@ var init_session = __esm({
         this.closed = true;
         this.stopPolling();
         this.resolvePending();
+        this.actions.close();
         this.removeAllListeners();
       }
       getMessages() {
@@ -2513,14 +2743,6 @@ var init_session = __esm({
       }
       getUserState() {
         return this.userState ? __spreadValues({}, this.userState) : void 0;
-      }
-      getPendingActions() {
-        return this.getActions().filter((action) => action.state === "pending");
-      }
-      getActions() {
-        return [...this.actions.values()].sort(
-          (left, right) => left.sequence - right.sequence
-        );
       }
       getTurnState() {
         return this.turnState;
@@ -2541,6 +2763,7 @@ var init_session = __esm({
         this.applicationId = options.applicationId;
         this.clientId = (_a3 = options.clientId) != null ? _a3 : this.clientId;
         if (options.userState) this.resolveUserState(options.userState);
+        if (options.actions) this.actions.setCapabilities(options.actions);
       }
       resolveUserState(userState, opts) {
         const previous = stableUserStateString(this.userState);
@@ -2562,8 +2785,8 @@ var init_session = __esm({
         const next = removeExtValue(this.userState, key);
         if (next) this.resolveUserState(next);
       }
-      resolveWallet(address3, chainId3) {
-        this.resolveUserState(resolveWalletState(this.userState, address3, chainId3));
+      resolveWallet(address3, chainId4) {
+        this.resolveUserState(resolveWalletState(this.userState, address3, chainId4));
       }
       async sync() {
         this.assertOpen();
@@ -2585,7 +2808,10 @@ var init_session = __esm({
         this.pollingActive = true;
         (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling started", this.sessionId);
         if (typeof document !== "undefined") {
-          document.addEventListener("visibilitychange", this.handleVisibilityChange);
+          document.addEventListener(
+            "visibilitychange",
+            this.handleVisibilityChange
+          );
         }
         this.schedulePoll(0);
       }
@@ -2595,7 +2821,10 @@ var init_session = __esm({
         if (this.pollTimer) clearTimeout(this.pollTimer);
         this.pollTimer = null;
         if (typeof document !== "undefined") {
-          document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+          document.removeEventListener(
+            "visibilitychange",
+            this.handleVisibilityChange
+          );
         }
         (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling stopped", this.sessionId);
       }
@@ -2617,7 +2846,9 @@ var init_session = __esm({
               clientId: this.clientId,
               message: text2
             }, Number.isSafeInteger(applicationId) && applicationId > 0 ? { applicationId } : { app: this.app }), this.model ? { model: this.model } : {}), this.userState ? {
-              userState: UserState.toOwned(this.userState)
+              userState: UserState.toOwned(
+                this.userState
+              )
             } : {}),
             { idempotencyKey: operation.idempotencyKey }
           );
@@ -2656,8 +2887,7 @@ var init_session = __esm({
         }
         let messagesChanged = false;
         for (const event of page.events) {
-          this.emit("event", event);
-          this.emit(event.type, event);
+          let emitEvent = true;
           switch (event.type) {
             case "message":
               this.applyMessage(event);
@@ -2672,8 +2902,12 @@ var init_session = __esm({
               break;
             case "action":
               this.turnId = (_b = event.turn_id) != null ? _b : this.turnId;
-              this.applyAction(event);
+              emitEvent = this.actions.ingest(event);
               break;
+          }
+          if (emitEvent) {
+            this.emit("event", event);
+            this.emit(event.type, event);
           }
         }
         this.cursor = page.cursor;
@@ -2693,20 +2927,6 @@ var init_session = __esm({
         const index = this._messages.findIndex((current) => current.id === id);
         if (index >= 0) this._messages[index] = message;
         else this._messages.push(message);
-      }
-      applyAction(action) {
-        const previous = this.actions.get(action.id);
-        if (previous && previous.revision > action.revision) return;
-        this.actions.set(action.id, action);
-        this.emit("action", action);
-        this.emit("actions_changed", this.getActions());
-      }
-      pendingAction(id) {
-        const action = this.actions.get(id);
-        if (!action || action.state !== "pending") {
-          throw new Error(`No pending Action with id "${id}"`);
-        }
-        return action;
       }
       async pollTick() {
         var _a3;
@@ -2730,7 +2950,10 @@ var init_session = __esm({
           this.pollInFlight = false;
           if (this.pollingActive) {
             this.schedulePoll(
-              Math.min(this.currentPollInterval() * 2 ** this.pollFailureCount, 5e3)
+              Math.min(
+                this.currentPollInterval() * 2 ** this.pollFailureCount,
+                5e3
+              )
             );
           }
         }
@@ -2781,12 +3004,12 @@ var init_session2 = __esm({
 });
 
 // src/cli/user-state.ts
-function buildCliUserState(evmAddress2, chainId3, options) {
+function buildCliUserState(evmAddress2, chainId4, options) {
   const userState = {};
   if (evmAddress2 !== void 0) {
     const evm = { address: evmAddress2 };
-    if (chainId3 !== void 0) {
-      evm.chain_id = chainId3;
+    if (chainId4 !== void 0) {
+      evm.chain_id = chainId4;
     }
     userState.evm = evm;
   }
@@ -2830,16 +3053,6 @@ import {
 } from "fs";
 import { basename, join } from "path";
 import { homedir, tmpdir } from "os";
-function getBackendPendingId(tx) {
-  return tx.kind === "transaction" ? tx.txId : tx.eip712Id;
-}
-function hasSameBackendPendingId(existing, next) {
-  const existingBackendId = getBackendPendingId(existing);
-  const nextBackendId = getBackendPendingId(next);
-  return Boolean(
-    existing.agentRequestId && next.agentRequestId && existing.agentRequestId === next.agentRequestId
-  ) || existing.kind === next.kind && existingBackendId !== void 0 && nextBackendId !== void 0 && existingBackendId === nextBackendId;
-}
 function ensureStorageDirs() {
   mkdirSync(SESSIONS_DIR, { recursive: true, mode: STATE_DIR_MODE });
   try {
@@ -2882,24 +3095,10 @@ function toCliSessionState(stored) {
     aaProvider: stored.aaProvider,
     aaMode: stored.aaMode,
     smartAccount: stored.smartAccount,
-    pendingTxs: stored.pendingTxs,
-    pendingSolTxs: stored.pendingSolTxs,
-    signedTxs: stored.signedTxs,
-    signedSolTxs: stored.signedSolTxs,
     secretHandles: stored.secretHandles,
     auth: stored.auth,
     oauthGrants: stored.oauthGrants
   };
-}
-function normalizeSignedTx(tx) {
-  var _b;
-  const _a3 = tx, { AAAddress: _legacyAAAddress } = _a3, rest = __objRest(_a3, ["AAAddress"]);
-  return __spreadProps(__spreadValues({}, rest), {
-    smartAccount4337: (_b = tx.smartAccount4337) != null ? _b : tx.AAAddress
-  });
-}
-function normalizeSignedTxs(signedTxs) {
-  return signedTxs == null ? void 0 : signedTxs.map(normalizeSignedTx);
 }
 function readStoredSession(path) {
   var _a3;
@@ -2931,10 +3130,6 @@ function readStoredSession(path) {
       aaProvider: parsed.aaProvider,
       aaMode: parsed.aaMode,
       smartAccount: parsed.smartAccount,
-      pendingTxs: parsed.pendingTxs,
-      pendingSolTxs: parsed.pendingSolTxs,
-      signedTxs: normalizeSignedTxs(parsed.signedTxs),
-      signedSolTxs: parsed.signedSolTxs,
       secretHandles: parsed.secretHandles,
       auth: normalizeAuthSession(parsed.auth),
       oauthGrants: normalizeOAuthGrants(parsed.oauthGrants),
@@ -3049,7 +3244,6 @@ function migrateLegacyStateIfNeeded() {
     const migrated = __spreadProps(__spreadValues({}, legacy), {
       sessionId: legacy.sessionId,
       baseUrl: legacy.baseUrl,
-      signedTxs: normalizeSignedTxs(legacy.signedTxs),
       localId: 1,
       createdAt: now,
       updatedAt: now
@@ -3180,14 +3374,7 @@ function clearState() {
   migrateLegacyStateIfNeeded();
   writeActiveLocalId(null);
 }
-function hasSameSolanaPendingId(existing, next) {
-  if (existing.agentRequestId && next.agentRequestId) {
-    return existing.agentRequestId === next.agentRequestId;
-  }
-  return existing.solanaId !== void 0 && existing.solanaId === next.solanaId;
-}
 function syncWalletFromUserState(state, userState) {
-  var _a3, _b;
   const normalizedUserState = UserState.normalize(userState);
   const walletSnapshot = walletSnapshotFromUserState(normalizedUserState);
   const isConnected3 = UserState.isConnected(normalizedUserState);
@@ -3202,10 +3389,6 @@ function syncWalletFromUserState(state, userState) {
     state.chainId = void 0;
   }
   writeState(state);
-  return {
-    pendingTxs: (_a3 = state.pendingTxs) != null ? _a3 : [],
-    pendingSolTxs: (_b = state.pendingSolTxs) != null ? _b : []
-  };
 }
 var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, STATE_DIR_MODE, STATE_FILE_MODE, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
 var init_state2 = __esm({
@@ -3265,7 +3448,7 @@ function createCliAuthTokenProvider(readState2, now = Date.now) {
 async function signInWithCliSiwe({
   baseUrl,
   privateKey,
-  chainId: chainId3 = DEFAULT_CHAIN_ID,
+  chainId: chainId4 = DEFAULT_CHAIN_ID,
   fetch: fetchImpl = fetch,
   now = Date.now
 }) {
@@ -3282,7 +3465,7 @@ async function signInWithCliSiwe({
         "Content-Type": "application/json"
       },
       credentials: "include",
-      body: JSON.stringify({ walletAddress: address3, chainId: chainId3 })
+      body: JSON.stringify({ walletAddress: address3, chainId: chainId4 })
     }
   );
   if (!nonceHttpResponse.ok) {
@@ -3299,12 +3482,12 @@ async function signInWithCliSiwe({
   }
   const message = buildSiweMessage({
     address: address3,
-    chainId: chainId3,
+    chainId: chainId4,
     nonce,
     domain: (_a3 = normalizeDomain(nonceResponse.domain)) != null ? _a3 : domainFromBaseUrl(portalUrl),
     uri: (_b = normalizeUri(nonceResponse.uri)) != null ? _b : portalUrl
   });
-  const signature = await account.signMessage({ message });
+  const signature2 = await account.signMessage({ message });
   const verifyHeaders = new Headers({
     Accept: "application/json",
     "Content-Type": "application/json"
@@ -3317,9 +3500,9 @@ async function signInWithCliSiwe({
       credentials: "include",
       body: JSON.stringify({
         message,
-        signature,
+        signature: signature2,
         walletAddress: address3,
-        chainId: chainId3
+        chainId: chainId4
       })
     }
   );
@@ -3348,7 +3531,7 @@ async function signInWithCliSiwe({
       expiresAt,
       walletFamily: "evm",
       walletAddress: typeof ((_f = verifyBody.user) == null ? void 0 : _f.walletAddress) === "string" ? verifyBody.user.walletAddress : address3,
-      chainId: typeof ((_g = verifyBody.user) == null ? void 0 : _g.chainId) === "number" ? verifyBody.user.chainId : chainId3,
+      chainId: typeof ((_g = verifyBody.user) == null ? void 0 : _g.chainId) === "number" ? verifyBody.user.chainId : chainId4,
       betterAuthUserId: typeof ((_h = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _h.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : typeof verifyBody.user_id === "string" ? verifyBody.user_id : typeof ((_i = verifyBody.user) == null ? void 0 : _i.id) === "string" ? verifyBody.user.id : void 0
     }
   };
@@ -3356,7 +3539,7 @@ async function signInWithCliSiwe({
 async function signInWithCliSiws({
   baseUrl,
   privateKey,
-  chainId: chainId3 = DEFAULT_SVM_CLUSTER,
+  chainId: chainId4 = DEFAULT_SVM_CLUSTER,
   fetch: fetchImpl = fetch,
   now = Date.now
 }) {
@@ -3366,7 +3549,7 @@ async function signInWithCliSiws({
   const result = await performCliSiws({
     baseUrl,
     address: address3,
-    chainId: chainId3,
+    chainId: chainId4,
     intent: "sign-in",
     signMessage: (message) => signSolanaMessage(
       Buffer.from(message, "utf8").toString("base64"),
@@ -3386,13 +3569,13 @@ async function signInWithCliSiws({
   const expiresAt = (_b = parseExpiresAt((_a3 = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _a3.expiresAt)) != null ? _b : now() + DEFAULT_SESSION_TTL_MS;
   return {
     address: address3,
-    chainId: chainId3,
+    chainId: chainId4,
     auth: {
       sessionToken: result.sessionToken,
       expiresAt,
       walletFamily: "svm",
       walletAddress: address3,
-      chainScope: chainId3,
+      chainScope: chainId4,
       betterAuthUserId: typeof ((_c = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _c.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : result.betterAuthUserId
     }
   };
@@ -3401,11 +3584,11 @@ async function linkCliSiwsWallet(input2) {
   var _a3, _b, _c;
   const keypair = parseSolanaKeypairSecret(input2.privateKey);
   const address3 = keypair.publicKey.toBase58();
-  const chainId3 = (_a3 = input2.chainId) != null ? _a3 : DEFAULT_SVM_CLUSTER;
+  const chainId4 = (_a3 = input2.chainId) != null ? _a3 : DEFAULT_SVM_CLUSTER;
   const result = await performCliSiws({
     baseUrl: input2.baseUrl,
     address: address3,
-    chainId: chainId3,
+    chainId: chainId4,
     intent: "link",
     sessionToken: input2.sessionToken,
     signMessage: (message) => signSolanaMessage(
@@ -3418,7 +3601,7 @@ async function linkCliSiwsWallet(input2) {
   return {
     status: result.status === "noop" ? "noop" : "linked",
     address: address3,
-    chainId: chainId3
+    chainId: chainId4
   };
 }
 async function performCliSiws(input2) {
@@ -3463,7 +3646,7 @@ async function performCliSiws(input2) {
     uri: (_b = normalizeUri(nonceResponse.uri)) != null ? _b : portalUrl,
     issuedAt: new Date(input2.now())
   });
-  const signature = input2.signMessage(message);
+  const signature2 = input2.signMessage(message);
   const verifyResponse = await input2.fetch(
     joinUrl(portalUrl, "/api/auth/siws/verify"),
     {
@@ -3472,7 +3655,7 @@ async function performCliSiws(input2) {
       credentials: "include",
       body: JSON.stringify({
         message,
-        signature,
+        signature: signature2,
         walletAddress: input2.address,
         chainId: input2.chainId,
         intent: input2.intent
@@ -3936,6 +4119,420 @@ var init_oauth_device_auth = __esm({
   }
 });
 
+// src/wallet/capabilities.ts
+function walletCapabilities(wallets) {
+  var _a3, _b, _c, _d;
+  return __spreadValues(__spreadValues(__spreadValues({}, ((_a3 = wallets.evm) == null ? void 0 : _a3.sendCalls) || ((_b = wallets.evm) == null ? void 0 : _b.sendTransaction) ? { execute_evm: executeEvm(wallets.evm) } : {}), ((_c = wallets.svm) == null ? void 0 : _c.signAndSendTransaction) || ((_d = wallets.svm) == null ? void 0 : _d.sendTransaction) ? { execute_svm: executeSvm(wallets.svm) } : {}), canSign(wallets) ? { sign: sign(wallets) } : {});
+}
+function executeEvm(wallet) {
+  return async (request, signal) => {
+    const { transactions } = request;
+    const first = transactions[0];
+    if (!first) throw new Error("EVM Action contains no transactions");
+    if (transactions.some(
+      (transaction) => transaction.chain_id !== first.chain_id || transaction.from.toLowerCase() !== wallet.address.toLowerCase()
+    )) {
+      throw new Error("The active EVM wallet does not match the Action");
+    }
+    if (chainId3(wallet) !== first.chain_id) {
+      if (!wallet.switchChain) {
+        throw new Error(`EVM wallet cannot switch to chain ${first.chain_id}`);
+      }
+      await wallet.switchChain(first.chain_id);
+    }
+    assertActive(signal);
+    const calls = transactions.map(({ to, data, value }) => ({
+      to,
+      data,
+      value
+    }));
+    const hashes = [];
+    if (wallet.sendCalls) {
+      hashes.push(
+        ...transactionHashes(
+          await wallet.sendCalls({ chainId: first.chain_id, calls })
+        )
+      );
+    } else if (wallet.sendTransaction) {
+      for (const call of calls) {
+        assertActive(signal);
+        hashes.push(
+          ...transactionHashes(
+            await wallet.sendTransaction(__spreadValues({ chainId: first.chain_id }, call))
+          )
+        );
+      }
+    }
+    if (hashes.length === 0) {
+      throw new Error("EVM wallet returned no transaction hash");
+    }
+    return {
+      status: "submitted",
+      legs: transactions.map((_, index) => {
+        var _a3;
+        return {
+          id: `leg_${index + 1}`,
+          status: "submitted",
+          transactionId: (_a3 = hashes[index]) != null ? _a3 : hashes[hashes.length - 1]
+        };
+      })
+    };
+  };
+}
+function executeSvm(wallet) {
+  return async (request, signal) => {
+    var _a3;
+    const { transactions } = request;
+    const first = transactions[0];
+    if (!first) throw new Error("SVM Action contains no transactions");
+    if (transactions.some(
+      (transaction) => transaction.cluster !== first.cluster || transaction.payer !== wallet.address
+    )) {
+      throw new Error("The active SVM wallet does not match the Action");
+    }
+    await switchCluster(wallet, first.cluster);
+    const legs = [];
+    for (const [index, transaction] of transactions.entries()) {
+      assertActive(signal);
+      const transactionBase64 = transaction.unsigned_transaction_base64;
+      if (!transactionBase64) {
+        throw new Error("SVM Action has no unsigned transaction bytes");
+      }
+      const result = wallet.signAndSendTransaction ? await wallet.signAndSendTransaction({
+        transactionBase64,
+        cluster: transaction.cluster
+      }) : wallet.sendTransaction ? await wallet.sendTransaction({
+        transactionBase64,
+        cluster: transaction.cluster
+      }) : void 0;
+      if (result === void 0)
+        throw new Error("SVM wallet cannot send transactions");
+      legs.push(__spreadValues({
+        id: `leg_${index + 1}`,
+        status: "submitted",
+        transactionId: (_a3 = transactionHashes(result)[0]) != null ? _a3 : signature(result)
+      }, typeof result === "object" && "signedTransaction" in result ? { signedTransactionBase64: result.signedTransaction } : {}));
+    }
+    return { status: "submitted", legs };
+  };
+}
+function sign(wallets) {
+  return async (request, signal) => {
+    const outputs = [];
+    if (request.chainFamily === "evm") {
+      const wallet = wallets.evm;
+      if (!wallet) throw new Error("No EVM wallet is configured");
+      if (wallet.address.toLowerCase() !== request.signer.toLowerCase()) {
+        throw new Error("The active EVM wallet is not the requested signer");
+      }
+      if (request.chainId && chainId3(wallet) !== request.chainId) {
+        if (!wallet.switchChain) {
+          throw new Error(
+            `EVM wallet cannot switch to chain ${request.chainId}`
+          );
+        }
+        await wallet.switchChain(request.chainId);
+      }
+      for (const [index, payload] of request.payloads.entries()) {
+        assertActive(signal);
+        if (payload.kind === "evm_personal") {
+          if (!wallet.signMessage)
+            throw new Error("EVM wallet cannot sign messages");
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signature: signature(
+              await wallet.signMessage({
+                message: payload.message,
+                chainId: request.chainId
+              })
+            )
+          });
+        } else if (payload.kind === "evm_typed_data") {
+          if (!wallet.signTypedData) {
+            throw new Error("EVM wallet cannot sign typed data");
+          }
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signature: signature(
+              await wallet.signTypedData({
+                typedData: payload.typed_data,
+                chainId: request.chainId
+              })
+            )
+          });
+        } else {
+          throw new Error("EVM signing Action contains an SVM payload");
+        }
+      }
+    } else {
+      const wallet = wallets.svm;
+      if (!wallet) throw new Error("No SVM wallet is configured");
+      if (wallet.address !== request.signer) {
+        throw new Error("The active SVM wallet is not the requested signer");
+      }
+      await switchCluster(wallet, request.cluster);
+      for (const [index, payload] of request.payloads.entries()) {
+        assertActive(signal);
+        if (payload.kind === "svm_message") {
+          if (!wallet.signMessage)
+            throw new Error("SVM wallet cannot sign messages");
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signature: signature(
+              await wallet.signMessage({
+                messageBase64: payload.message_base64,
+                cluster: request.cluster
+              })
+            )
+          });
+        } else if (payload.kind === "svm_transaction") {
+          if (!wallet.signTransaction) {
+            throw new Error("SVM wallet cannot sign transactions");
+          }
+          const result = await wallet.signTransaction({
+            transactionBase64: payload.transaction_base64,
+            cluster: request.cluster
+          });
+          outputs.push(
+            request.operationId ? { id: `payload_${index + 1}`, signature: signature(result) } : {
+              id: `payload_${index + 1}`,
+              signedTransactionBase64: signedTransaction(result)
+            }
+          );
+        } else {
+          throw new Error("SVM signing Action contains an EVM payload");
+        }
+      }
+    }
+    return { status: "signed", outputs };
+  };
+}
+function canSign({ evm, svm }) {
+  return Boolean(
+    (evm == null ? void 0 : evm.signMessage) || (evm == null ? void 0 : evm.signTypedData) || (svm == null ? void 0 : svm.signMessage) || (svm == null ? void 0 : svm.signTransaction)
+  );
+}
+function chainId3(wallet) {
+  return typeof wallet.chainId === "function" ? wallet.chainId() : wallet.chainId;
+}
+function cluster(wallet) {
+  return typeof wallet.cluster === "function" ? wallet.cluster() : wallet.cluster;
+}
+async function switchCluster(wallet, next) {
+  if (!next || next === cluster(wallet)) return;
+  if (!wallet.switchCluster)
+    throw new Error(`SVM wallet cannot switch to ${next}`);
+  await wallet.switchCluster(next);
+}
+function transactionHashes(result) {
+  var _a3;
+  if (typeof result === "string") return [result];
+  if (Array.isArray(result.hashes)) return result.hashes.filter(isString);
+  if (Array.isArray(result.transactionHashes)) {
+    return result.transactionHashes.filter(isString);
+  }
+  const hash = (_a3 = result.hash) != null ? _a3 : result.transactionHash;
+  return hash ? [hash] : [];
+}
+function signature(result) {
+  if (typeof result === "string") return result;
+  if (result.signature) return result.signature;
+  throw new Error("Wallet returned no signature");
+}
+function signedTransaction(result) {
+  if (typeof result === "string") return result;
+  if (result.signedTransaction) return result.signedTransaction;
+  throw new Error("Wallet returned no signed transaction");
+}
+function assertActive(signal) {
+  if (signal.aborted) throw new Error("Action execution was aborted");
+}
+function isString(value) {
+  return typeof value === "string";
+}
+var init_capabilities2 = __esm({
+  "src/wallet/capabilities.ts"() {
+    "use strict";
+  }
+});
+
+// src/wallet-utils.ts
+function asRecord2(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value))
+    return void 0;
+  return value;
+}
+function isHexBytes(value) {
+  return /^0x(?:[0-9a-fA-F]{2})*$/.test(value);
+}
+function toViemSignTypedDataArgs(payload) {
+  var _a3;
+  const typedData = payload.typed_data;
+  const primaryType = typeof (typedData == null ? void 0 : typedData.primaryType) === "string" && typedData.primaryType.trim().length > 0 ? typedData.primaryType : void 0;
+  if (!typedData || !primaryType) {
+    return null;
+  }
+  return {
+    domain: asRecord2(typedData.domain),
+    types: Object.fromEntries(
+      Object.entries((_a3 = typedData.types) != null ? _a3 : {}).filter(
+        ([typeName]) => typeName !== "EIP712Domain"
+      )
+    ),
+    primaryType,
+    message: asRecord2(typedData.message)
+  };
+}
+function toViemSignMessageArgs(payload) {
+  const nonTypedData = payload.non_typed_data;
+  if (typeof nonTypedData !== "string" || nonTypedData.length === 0) {
+    return null;
+  }
+  return {
+    message: isHexBytes(nonTypedData) ? { raw: nonTypedData } : nonTypedData
+  };
+}
+var init_wallet_utils = __esm({
+  "src/wallet-utils.ts"() {
+    "use strict";
+  }
+});
+
+// src/cli/action-capabilities.ts
+import {
+  createPublicClient,
+  createWalletClient,
+  getAddress,
+  http,
+  isAddress,
+  isHex
+} from "viem";
+import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
+import * as viemChains from "viem/chains";
+import { clusterApiUrl, Connection } from "@solana/web3.js";
+function cliActionCapabilities(cli, config) {
+  var _a3;
+  const wallets = {};
+  const privateKey = (_a3 = config == null ? void 0 : config.privateKey) != null ? _a3 : cli.privateKey;
+  if (privateKey) wallets.evm = evmWallet(privateKey, cli.chainId, config);
+  const solanaKey = cli.resolvedSvmPrivateKey(config == null ? void 0 : config.solanaPrivateKey);
+  if (solanaKey) {
+    wallets.svm = svmWallet(
+      solanaKey,
+      cli.resolvedSvmCluster(config == null ? void 0 : config.svmCluster)
+    );
+  }
+  return walletCapabilities(wallets);
+}
+function evmWallet(privateKey, initialChainId, config) {
+  if (!isHex(privateKey) || privateKey.length !== 66) {
+    throw new Error("EVM private key must be a 32-byte hex value");
+  }
+  const account = privateKeyToAccount4(privateKey);
+  let activeChainId = initialChainId;
+  const chain = (chainId4) => resolveChain(chainId4, config == null ? void 0 : config.chainRpcUrl);
+  const client = (chainId4) => createWalletClient({
+    account,
+    chain: chain(chainId4),
+    transport: http(config == null ? void 0 : config.chainRpcUrl)
+  });
+  return {
+    address: account.address,
+    chainId: () => activeChainId,
+    switchChain: async (chainId4) => {
+      activeChainId = chainId4;
+    },
+    sendTransaction: async ({ chainId: chainId4, to, data, value }) => {
+      if (!isAddress(to) || data !== void 0 && !isHex(data)) {
+        throw new Error("Action contains an invalid EVM transaction");
+      }
+      const hash = await client(chainId4).sendTransaction({
+        account,
+        chain: chain(chainId4),
+        to: getAddress(to),
+        data,
+        value: value === void 0 ? void 0 : BigInt(value)
+      });
+      const receipt = await createPublicClient({
+        chain: chain(chainId4),
+        transport: http(config == null ? void 0 : config.chainRpcUrl)
+      }).waitForTransactionReceipt({ hash });
+      if (receipt.status !== "success") throw new Error("Transaction reverted");
+      return hash;
+    },
+    signMessage: async ({ message, chainId: chainId4 }) => {
+      var _a3;
+      const args = toViemSignMessageArgs({ non_typed_data: message });
+      if (!args) throw new Error("Action contains an invalid EVM message");
+      return client((_a3 = chainId4 != null ? chainId4 : activeChainId) != null ? _a3 : 1).signMessage(__spreadValues({
+        account
+      }, args));
+    },
+    signTypedData: async ({ typedData, chainId: chainId4 }) => {
+      var _b;
+      const args = toViemSignTypedDataArgs({ typed_data: typedData });
+      if (!(args == null ? void 0 : args.message)) throw new Error("Action contains invalid typed data");
+      const _a3 = args, { message } = _a3, request = __objRest(_a3, ["message"]);
+      return client((_b = chainId4 != null ? chainId4 : activeChainId) != null ? _b : 1).signTypedData(__spreadProps(__spreadValues({
+        account
+      }, request), {
+        message
+      }));
+    }
+  };
+}
+function svmWallet(privateKey, initialCluster) {
+  const keypair = parseSolanaKeypairSecret(privateKey);
+  let activeCluster = initialCluster;
+  return {
+    address: keypair.publicKey.toBase58(),
+    cluster: () => activeCluster,
+    switchCluster: async (cluster2) => {
+      activeCluster = cluster2;
+    },
+    signTransaction: async ({ transactionBase64 }) => ({
+      signedTransaction: signSolanaTransaction(transactionBase64, keypair).signedTxBase64
+    }),
+    signAndSendTransaction: async ({ transactionBase64, cluster: cluster2 }) => {
+      const { signedTxBase64 } = signSolanaTransaction(
+        transactionBase64,
+        keypair
+      );
+      const connection = new Connection(solanaRpc(cluster2 != null ? cluster2 : activeCluster));
+      const signature2 = await connection.sendRawTransaction(
+        Buffer.from(signedTxBase64, "base64")
+      );
+      await connection.confirmTransaction(signature2, "confirmed");
+      return { signature: signature2, signedTransaction: signedTxBase64 };
+    },
+    signMessage: async ({ messageBase64 }) => ({
+      signature: signSolanaMessage(messageBase64, keypair).signatureBase64
+    })
+  };
+}
+function resolveChain(chainId4, rpcUrl) {
+  const known = Object.values(viemChains).find((value) => value.id === chainId4);
+  return known != null ? known : {
+    id: chainId4,
+    name: `Chain ${chainId4}`,
+    nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+    rpcUrls: { default: { http: rpcUrl ? [rpcUrl] : [] } }
+  };
+}
+function solanaRpc(cluster2) {
+  if (cluster2 === "solana:devnet") return clusterApiUrl("devnet");
+  if (cluster2 === "solana:testnet") return clusterApiUrl("testnet");
+  return clusterApiUrl("mainnet-beta");
+}
+var init_action_capabilities = __esm({
+  "src/cli/action-capabilities.ts"() {
+    "use strict";
+    init_capabilities2();
+    init_wallet_utils();
+    init_solana_signer();
+  }
+});
+
 // src/cli/cli-session.ts
 async function refreshCliGrant(fetchImpl, baseUrl, grant) {
   var _a3, _b, _c, _d;
@@ -3974,13 +4571,13 @@ var init_cli_session = __esm({
     init_session2();
     init_state2();
     init_user_state2();
-    init_errors();
     init_solana_signer();
     init_auth();
     init_client_factory();
     init_payment2();
     init_oauth_device_auth();
     init_client();
+    init_action_capabilities();
     CliSession = class _CliSession {
       constructor(state) {
         this.state = state;
@@ -4102,22 +4699,6 @@ var init_cli_session = __esm({
       get clientId() {
         return this.state.clientId;
       }
-      get pendingTxs() {
-        var _a3;
-        return (_a3 = this.state.pendingTxs) != null ? _a3 : [];
-      }
-      get pendingSolTxs() {
-        var _a3;
-        return (_a3 = this.state.pendingSolTxs) != null ? _a3 : [];
-      }
-      get signedSolTxs() {
-        var _a3;
-        return (_a3 = this.state.signedSolTxs) != null ? _a3 : [];
-      }
-      get signedTxs() {
-        var _a3;
-        return (_a3 = this.state.signedTxs) != null ? _a3 : [];
-      }
       get secretHandles() {
         var _a3;
         return (_a3 = this.state.secretHandles) != null ? _a3 : {};
@@ -4233,11 +4814,11 @@ var init_cli_session = __esm({
         this.state.publicKey = publicKey;
         this.save();
       }
-      setSvmWallet(privateKey, publicKey, cluster) {
+      setSvmWallet(privateKey, publicKey, cluster2) {
         this.state.svmPrivateKey = privateKey;
         this.state.svmPublicKey = publicKey;
-        if (cluster !== void 0) {
-          this.state.svmCluster = cluster;
+        if (cluster2 !== void 0) {
+          this.state.svmCluster = cluster2;
         }
         this.save();
       }
@@ -4306,165 +4887,9 @@ var init_cli_session = __esm({
         }
         return this.state.clientId;
       }
-      // ---------------------------------------------------------------------------
-      // Transaction methods (auto-persist)
-      // ---------------------------------------------------------------------------
-      /** Add a pending tx with dedup. Returns null if duplicate. */
-      addPendingTx(tx) {
-        if (!this.state.pendingTxs) this.state.pendingTxs = [];
-        const isDuplicate = this.state.pendingTxs.some(
-          (existing) => hasSameBackendPendingId(existing, tx)
-        );
-        if (isDuplicate) return null;
-        const pending = __spreadProps(__spreadValues({}, tx), {
-          id: this.getDisplayTxId(tx)
-        });
-        this.state.pendingTxs.push(pending);
-        this.save();
-        return pending;
-      }
-      removePendingTx(id) {
-        if (!this.state.pendingTxs) return null;
-        const idx = this.state.pendingTxs.findIndex((tx) => tx.id === id);
-        if (idx === -1) return null;
-        const [removed] = this.state.pendingTxs.splice(idx, 1);
-        this.save();
-        return removed;
-      }
-      addSignedTx(tx) {
-        var _a3;
-        if (!this.state.signedTxs) this.state.signedTxs = [];
-        const index = this.state.signedTxs.findIndex(
-          (existing) => tx.pendingTxId !== void 0 && existing.pendingTxId === tx.pendingTxId && existing.kind === tx.kind || existing.id === tx.id && existing.kind === tx.kind
-        );
-        if (index === -1) {
-          this.state.signedTxs.push(tx);
-        } else {
-          this.state.signedTxs[index] = __spreadValues(__spreadValues({}, this.state.signedTxs[index]), tx);
-        }
-        this.state.pendingTxs = ((_a3 = this.state.pendingTxs) != null ? _a3 : []).filter(
-          (pending) => !(pending.kind === tx.kind && (tx.pendingTxId !== void 0 && pending.txId === tx.pendingTxId || pending.id === tx.id))
-        );
-        this.save();
-      }
-      findSignedTransaction(txId) {
-        var _a3;
-        const id = this.chainSelector(txId, "evm");
-        if (!id) return void 0;
-        return [...(_a3 = this.state.signedTxs) != null ? _a3 : []].reverse().find((tx) => tx.kind === "transaction" && tx.id === id);
-      }
-      markSignedTxBackendNotified(pendingTxId) {
-        var _a3;
-        const record = [...(_a3 = this.state.signedTxs) != null ? _a3 : []].reverse().find(
-          (tx) => tx.kind === "transaction" && tx.pendingTxId === pendingTxId
-        );
-        if (!record || record.backendNotified === true) return;
-        record.backendNotified = true;
-        this.save();
-      }
-      markSignedAgentActionNotified(agentRequestId) {
-        var _a3;
-        const record = [...(_a3 = this.state.signedTxs) != null ? _a3 : []].reverse().find((tx) => tx.agentRequestId === agentRequestId);
-        if (!record || record.backendNotified === true) return;
-        record.backendNotified = true;
-        this.save();
-      }
-      /** Add a pending Solana tx with dedup on `solanaId`. */
-      addPendingSolTx(tx) {
-        if (!this.state.pendingSolTxs) this.state.pendingSolTxs = [];
-        const isDuplicate = this.state.pendingSolTxs.some(
-          (existing) => hasSameSolanaPendingId(existing, tx)
-        );
-        if (isDuplicate) return null;
-        const pending = __spreadProps(__spreadValues({}, tx), {
-          id: tx.solanaId === void 0 ? this.getNextSolTxId() : `tx-${tx.solanaId}`
-        });
-        this.state.pendingSolTxs.push(pending);
-        this.save();
-        return pending;
-      }
-      removePendingSolTx(id) {
-        if (!this.state.pendingSolTxs) return null;
-        const idx = this.state.pendingSolTxs.findIndex((tx) => tx.id === id);
-        if (idx === -1) return null;
-        const [removed] = this.state.pendingSolTxs.splice(idx, 1);
-        this.save();
-        return removed;
-      }
-      addSignedSolTx(tx) {
-        if (!this.state.signedSolTxs) this.state.signedSolTxs = [];
-        this.state.signedSolTxs.push(tx);
-        this.save();
-      }
       syncWalletFromUserState(userState) {
-        const result = syncWalletFromUserState(this.state, userState);
+        syncWalletFromUserState(this.state, userState);
         this.reload();
-        return result;
-      }
-      /** Find a pending Solana request by legacy or chain-qualified display id. */
-      findPendingSolTx(txId) {
-        var _a3;
-        const id = this.chainSelector(txId, "svm");
-        return id ? ((_a3 = this.state.pendingSolTxs) != null ? _a3 : []).find((tx) => tx.id === id) : void 0;
-      }
-      /** Find a pending EVM/EIP-712 request by legacy or qualified display id. */
-      findPendingTx(txId) {
-        var _a3;
-        const id = this.chainSelector(txId, "evm");
-        return id ? ((_a3 = this.state.pendingTxs) != null ? _a3 : []).find((tx) => tx.id === id) : void 0;
-      }
-      /** Selectors users can pass to `tx sign`; qualify only colliding ids. */
-      pendingSelectors() {
-        var _a3, _b, _c, _d;
-        const evmIds = new Set(((_a3 = this.state.pendingTxs) != null ? _a3 : []).map((tx) => tx.id));
-        const svmIds = new Set(((_b = this.state.pendingSolTxs) != null ? _b : []).map((tx) => tx.id));
-        return [
-          ...((_c = this.state.pendingTxs) != null ? _c : []).map(
-            (tx) => svmIds.has(tx.id) ? `evm:${tx.id}` : tx.id
-          ),
-          ...((_d = this.state.pendingSolTxs) != null ? _d : []).map(
-            (tx) => evmIds.has(tx.id) ? `svm:${tx.id}` : tx.id
-          )
-        ];
-      }
-      /** Get a pending tx by ID, or fatal() if not found. */
-      requirePendingTx(txId) {
-        const tx = this.findPendingTx(txId);
-        if (!tx) {
-          const available = this.allDisplayIds().join(", ") || "(none)";
-          fatal(`Transaction "${txId}" not found.
-Available: ${available}`);
-        }
-        return tx;
-      }
-      /** Get multiple pending txs by ID, or fatal() if any missing or duplicates. */
-      requirePendingTxs(txIds) {
-        const uniqueIds = Array.from(new Set(txIds));
-        if (uniqueIds.length !== txIds.length) {
-          fatal(
-            "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call."
-          );
-        }
-        return uniqueIds.map((txId) => this.requirePendingTx(txId));
-      }
-      /** Get a pending Solana tx by ID, or fatal() if not found. */
-      requirePendingSolTx(txId) {
-        const tx = this.findPendingSolTx(txId);
-        if (!tx) {
-          const available = this.allDisplayIds().join(", ") || "(none)";
-          fatal(`Solana transaction "${txId}" not found.
-Available: ${available}`);
-        }
-        return tx;
-      }
-      allDisplayIds() {
-        return this.pendingSelectors();
-      }
-      chainSelector(selector, expected) {
-        const match = selector.trim().toLowerCase().match(/^(?:(evm|svm|solana):)?(tx-\d+)$/);
-        if (!match) return selector;
-        const family = match[1] === "solana" ? "svm" : match[1];
-        return family && family !== expected ? void 0 : match[2];
       }
       // ---------------------------------------------------------------------------
       // Bridge to ClientSession
@@ -4497,7 +4922,8 @@ Available: ${available}`);
             clientId: this.state.clientId,
             app: this.state.app,
             model: (_a3 = config == null ? void 0 : config.model) != null ? _a3 : this.state.model,
-            applicationId: config == null ? void 0 : config.applicationId
+            applicationId: config == null ? void 0 : config.applicationId,
+            actions: cliActionCapabilities(this, config)
           }
         );
         session.resolveUserState(
@@ -4544,7 +4970,7 @@ Available: ${available}`);
           return grant;
         };
       }
-      /** Snapshot of the raw state (for backward compat or serialization). */
+      /** Snapshot of the persisted session configuration. */
       toState() {
         return __spreadValues({}, this.state);
       }
@@ -4560,34 +4986,6 @@ Available: ${available}`);
       // ---------------------------------------------------------------------------
       save() {
         writeState(this.state);
-      }
-      getDisplayTxId(tx) {
-        if (typeof tx.txId === "number") return `tx-${tx.txId}`;
-        if (typeof tx.eip712Id === "number") return `tx-${tx.eip712Id}`;
-        return this.getNextTxId();
-      }
-      getNextTxId() {
-        var _a3, _b;
-        const allIds = [
-          ...(_a3 = this.state.pendingTxs) != null ? _a3 : [],
-          ...(_b = this.state.signedTxs) != null ? _b : []
-        ].map((tx) => {
-          const match = tx.id.match(/^tx-(\d+)$/);
-          return match ? parseInt(match[1], 10) : 0;
-        });
-        const max = allIds.length > 0 ? Math.max(...allIds) : 0;
-        return `tx-${max + 1}`;
-      }
-      getNextSolTxId() {
-        var _a3, _b;
-        const allIds = [
-          ...(_a3 = this.state.pendingSolTxs) != null ? _a3 : [],
-          ...(_b = this.state.signedSolTxs) != null ? _b : []
-        ].map((tx) => {
-          const match = tx.id.match(/^tx-(\d+)$/);
-          return match ? parseInt(match[1], 10) : 0;
-        });
-        return `tx-${allIds.length > 0 ? Math.max(...allIds) + 1 : 1}`;
       }
     };
   }
@@ -4813,306 +5211,6 @@ var init_context = __esm({
   }
 });
 
-// src/wallet-utils.ts
-import { getAddress } from "viem";
-function asRecord2(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    return void 0;
-  return value;
-}
-function isHexBytes(value) {
-  return /^0x(?:[0-9a-fA-F]{2})*$/.test(value);
-}
-function toAAWalletCalls(payload, defaultChainId = 1) {
-  var _a3, _b;
-  const calls = ((_a3 = payload.calls) == null ? void 0 : _a3.length) ? payload.calls : payload.to ? [
-    {
-      txId: (_b = payload.txId) != null ? _b : 0,
-      to: payload.to,
-      value: payload.value,
-      data: payload.data,
-      chainId: payload.chainId
-    }
-  ] : [];
-  if (calls.length === 0) {
-    throw new Error("pending_transaction_missing_call_data");
-  }
-  return calls.map((call) => {
-    var _a4, _b2, _c;
-    return {
-      to: call.to,
-      value: BigInt((_a4 = call.value) != null ? _a4 : "0"),
-      data: call.data ? call.data : void 0,
-      chainId: (_c = (_b2 = call.chainId) != null ? _b2 : payload.chainId) != null ? _c : defaultChainId
-    };
-  });
-}
-function toAAWalletCall(payload, defaultChainId = 1) {
-  return toAAWalletCalls(payload, defaultChainId)[0];
-}
-function toViemSignTypedDataArgs(payload) {
-  var _a3;
-  const typedData = payload.typed_data;
-  const primaryType = typeof (typedData == null ? void 0 : typedData.primaryType) === "string" && typedData.primaryType.trim().length > 0 ? typedData.primaryType : void 0;
-  if (!typedData || !primaryType) {
-    return null;
-  }
-  return {
-    domain: asRecord2(typedData.domain),
-    types: Object.fromEntries(
-      Object.entries((_a3 = typedData.types) != null ? _a3 : {}).filter(
-        ([typeName]) => typeName !== "EIP712Domain"
-      )
-    ),
-    primaryType,
-    message: asRecord2(typedData.message)
-  };
-}
-function toViemSignMessageArgs(payload) {
-  const nonTypedData = payload.non_typed_data;
-  if (typeof nonTypedData !== "string" || nonTypedData.length === 0) {
-    return null;
-  }
-  return {
-    message: isHexBytes(nonTypedData) ? { raw: nonTypedData } : nonTypedData
-  };
-}
-var init_wallet_utils = __esm({
-  "src/wallet-utils.ts"() {
-    "use strict";
-  }
-});
-
-// src/cli/transactions.ts
-function actionToPendingTx(action) {
-  if (action.request.type === "execute_evm") {
-    const first = action.request.transactions[0];
-    if (!first) return null;
-    const payload = {
-      requestId: action.id,
-      chainId: first.chain_id,
-      calls: action.request.transactions.map((transaction, index) => ({
-        txId: index + 1,
-        to: transaction.to,
-        value: transaction.value,
-        data: transaction.data,
-        chainId: transaction.chain_id,
-        from: transaction.from,
-        gas: transaction.gas,
-        description: transaction.label
-      })),
-      txIds: action.request.transactions.map((_, index) => index + 1)
-    };
-    return {
-      kind: "transaction",
-      agentRequestId: action.id,
-      txId: payload.txId,
-      to: first.to,
-      value: first.value,
-      data: first.data,
-      chainId: first.chain_id,
-      description: first.label,
-      timestamp: action.created_at,
-      payload
-    };
-  }
-  if (action.request.type === "sign" && action.request.chainFamily === "evm") {
-    const signable = action.request.payloads[0];
-    if (!signable || signable.kind !== "evm_personal" && signable.kind !== "evm_typed_data") {
-      return null;
-    }
-    const payload = __spreadValues({
-      requestId: action.id,
-      signer: action.request.signer,
-      chainId: action.request.chainId,
-      description: action.request.description
-    }, signable.kind === "evm_personal" ? { non_typed_data: signable.message } : {
-      typed_data: signable.typed_data
-    });
-    return {
-      kind: "eip712_sign",
-      agentRequestId: action.id,
-      eip712Id: payload.eip712Id,
-      description: payload.description,
-      timestamp: action.created_at,
-      payload: action.request
-    };
-  }
-  return null;
-}
-function actionToPendingSolTx(action) {
-  if (action.request.type === "sign" && action.request.chainFamily === "svm") {
-    const signable = action.request.payloads[0];
-    if (!signable) return null;
-    if (signable.kind === "svm_message") {
-      return {
-        agentRequestId: action.id,
-        requestKind: "solana_sign_message",
-        message: signable.message_base64,
-        cluster: action.request.cluster,
-        signer: action.request.signer,
-        description: action.request.description,
-        timestamp: action.created_at,
-        payload: action.request
-      };
-    }
-    if (signable.kind === "svm_transaction") {
-      return {
-        agentRequestId: action.id,
-        requestKind: "solana_sign",
-        unsignedTx: signable.transaction_base64,
-        cluster: action.request.cluster,
-        signer: action.request.signer,
-        description: action.request.description,
-        timestamp: action.created_at,
-        payload: action.request
-      };
-    }
-    return null;
-  }
-  if (action.request.type !== "execute_svm") return null;
-  const first = action.request.transactions[0];
-  if (!(first == null ? void 0 : first.unsigned_transaction_base64)) return null;
-  const payload = {
-    requestId: action.id,
-    unsignedTx: first.unsigned_transaction_base64,
-    cluster: first.cluster,
-    description: first.description,
-    transactions: action.request.transactions.map((transaction, index) => {
-      var _a3;
-      return {
-        id: String(index),
-        unsignedTx: (_a3 = transaction.unsigned_transaction_base64) != null ? _a3 : "",
-        description: transaction.description
-      };
-    })
-  };
-  return {
-    agentRequestId: action.id,
-    solanaId: payload.pendingSolanaId,
-    solanaIds: payload.pendingSolanaIds,
-    requestKind: "solana_sign_and_send",
-    unsignedTx: payload.unsignedTx,
-    cluster: payload.cluster,
-    description: payload.description,
-    timestamp: action.created_at,
-    payload
-  };
-}
-function pendingTxToCallList(tx) {
-  if (tx.kind !== "transaction" || !tx.to) {
-    throw new Error("pending_transaction_missing_call_data");
-  }
-  const calls = tx.payload.calls;
-  if (calls == null ? void 0 : calls.length) {
-    return calls.map(
-      (call) => {
-        var _a3;
-        return toAAWalletCall({
-          to: call.to,
-          value: call.value,
-          data: call.data,
-          chainId: (_a3 = call.chainId) != null ? _a3 : tx.chainId
-        });
-      }
-    );
-  }
-  return [
-    toAAWalletCall({
-      to: tx.to,
-      value: tx.value,
-      data: tx.data,
-      chainId: tx.chainId
-    })
-  ];
-}
-function toSignedTransactionRecord(tx, execution, from, chainId3, timestamp2) {
-  return {
-    id: tx.id,
-    kind: "transaction",
-    pendingTxId: tx.txId,
-    txHash: execution.txHash,
-    txHashes: execution.txHashes,
-    executionKind: execution.executionKind,
-    batched: execution.batched,
-    sponsored: execution.sponsored,
-    from,
-    to: tx.to,
-    value: tx.value,
-    chainId: chainId3,
-    timestamp: timestamp2
-  };
-}
-function formatTxLine(tx, prefix) {
-  var _a3;
-  const parts = [`${prefix} ${tx.id}`];
-  if (tx.kind === "transaction") {
-    parts.push(`to: ${(_a3 = tx.to) != null ? _a3 : "?"}`);
-    if (tx.value) parts.push(`value: ${tx.value}`);
-    if (tx.chainId) parts.push(`chain: ${tx.chainId}`);
-    if (tx.data) parts.push(`data: ${tx.data.slice(0, 20)}...`);
-  } else {
-    parts.push(tx.payload.non_typed_data ? "erc191" : "eip712");
-    if (tx.description) parts.push(tx.description);
-  }
-  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-  return parts.join("  ");
-}
-function formatSignedTxLine(tx, prefix) {
-  var _a3;
-  const parts = [`${prefix} ${tx.id}`];
-  if (tx.kind === "eip712_sign") {
-    parts.push(`sig: ${(_a3 = tx.signature) == null ? void 0 : _a3.slice(0, 20)}...`);
-    if (tx.description) parts.push(tx.description);
-  } else {
-    parts.push(`hash: ${tx.txHash}`);
-    if (tx.executionKind) parts.push(`exec: ${tx.executionKind}`);
-    if (tx.aaProvider) parts.push(`provider: ${tx.aaProvider}`);
-    if (tx.aaMode) parts.push(`mode: ${tx.aaMode}`);
-    if (tx.txHashes && tx.txHashes.length > 1) {
-      parts.push(`txs: ${tx.txHashes.length}`);
-    }
-    if (tx.serviceFeeStatus) {
-      parts.push(`fee: ${tx.serviceFeeStatus}`);
-    }
-    if (tx.sponsored) parts.push("sponsored");
-    if (tx.smartAccount4337) parts.push(`4337: ${tx.smartAccount4337}`);
-    if (tx.Delegation7702) parts.push(`delegation: ${tx.Delegation7702}`);
-    if (tx.to) parts.push(`to: ${tx.to}`);
-    if (tx.value) parts.push(`value: ${tx.value}`);
-  }
-  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-  return parts.join("  ");
-}
-function formatPendingSolTxLine(tx, prefix) {
-  var _a3;
-  const parts = [`${prefix} ${tx.id}`, (_a3 = tx.requestKind) != null ? _a3 : "solana_sign"];
-  if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
-  if (tx.description) parts.push(tx.description);
-  if (tx.signer) parts.push(`signer: ${tx.signer}`);
-  if (tx.unsignedTx) parts.push(`tx: ${tx.unsignedTx.slice(0, 20)}...`);
-  if (tx.message) parts.push(`message: ${tx.message.slice(0, 20)}...`);
-  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-  return parts.join("  ");
-}
-function formatSignedSolTxLine(tx, prefix) {
-  var _a3;
-  const parts = [`${prefix} ${tx.id}`, (_a3 = tx.requestKind) != null ? _a3 : "solana_sign"];
-  if (tx.signedTx) parts.push(`signed: ${tx.signedTx.slice(0, 20)}...`);
-  if (tx.signature) parts.push(`sig: ${tx.signature.slice(0, 20)}...`);
-  if (tx.cluster) parts.push(`cluster: ${tx.cluster}`);
-  if (tx.signer) parts.push(`signer: ${tx.signer}`);
-  if (tx.description) parts.push(tx.description);
-  parts.push(`(${new Date(tx.timestamp).toLocaleTimeString()})`);
-  return parts.join("  ");
-}
-var init_transactions = __esm({
-  "src/cli/transactions.ts"() {
-    "use strict";
-    init_wallet_utils();
-  }
-});
-
 // src/cli/commands/chat.ts
 var chat_exports = {};
 __export(chat_exports, {
@@ -5123,12 +5221,6 @@ __export(chat_exports, {
 });
 function normalizeAddress(address3) {
   return address3 == null ? void 0 : address3.toLowerCase();
-}
-function extractMentionedTxIds(content) {
-  var _a3;
-  if (!content) return [];
-  const matches = (_a3 = content.match(/\btx-\d+\b/gi)) != null ? _a3 : [];
-  return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
 }
 function deriveSvmAddress(solanaPrivateKey) {
   if (!solanaPrivateKey) return void 0;
@@ -5206,10 +5298,9 @@ async function chatCommand(config, message, verbose) {
       cli,
       session
     );
-    const previousPendingIds = /* @__PURE__ */ new Set([
-      ...cli.pendingTxs.map((tx) => `evm:${tx.id}`),
-      ...cli.pendingSolTxs.map((tx) => `svm:${tx.id}`)
-    ]);
+    const previousActionIds = new Set(
+      session.actions.all().map((action) => action.id)
+    );
     let printedAgentCount = 0;
     const seenToolResults = /* @__PURE__ */ new Set();
     session.on("tool_complete", (event) => {
@@ -5267,7 +5358,7 @@ async function chatCommand(config, message, verbose) {
         printedAgentCount = printNewAgentMessages(messages, printedAgentCount);
       });
     }
-    if (session.getIsProcessing() && session.getPendingActions().length === 0) {
+    if (session.getIsProcessing() && session.actions.pending().length === 0) {
       await new Promise((resolve) => {
         session.on("backend_idle", () => resolve());
         session.on("processing_end", () => resolve());
@@ -5304,33 +5395,21 @@ async function chatCommand(config, message, verbose) {
       console.log(`${DIM}\u2705 Done${RESET}`);
     }
     cli.syncWalletFromUserState(session.getUserState());
-    for (const action of session.getPendingActions()) {
-      const evm = actionToPendingTx(action);
-      if (evm) cli.addPendingTx(evm);
-      const pending = actionToPendingSolTx(action);
-      if (pending) cli.addPendingSolTx(pending);
-    }
-    cli.reload();
-    const newPendingTxs = [
-      ...cli.pendingTxs.filter((tx) => !previousPendingIds.has(`evm:${tx.id}`)),
-      ...cli.pendingSolTxs.filter(
-        (tx) => !previousPendingIds.has(`svm:${tx.id}`)
-      )
-    ];
-    for (const pending of newPendingTxs) {
-      console.log(`\u26A1 Wallet request queued: ${pending.id}`);
-      if ("kind" in pending && pending.kind === "transaction") {
-        const payload = pending.payload;
-        console.log(`   to:    ${payload.to}`);
-        if (payload.value) console.log(`   value: ${payload.value}`);
-        if (payload.chainId) console.log(`   chain: ${payload.chainId}`);
-      } else if ("kind" in pending && pending.kind === "eip712_sign") {
-        const payload = pending.payload;
-        if (payload.description) {
-          console.log(`   desc:  ${payload.description}`);
-        }
-        if (payload.non_typed_data) {
-          console.log("   type:  erc191");
+    const newActions = session.actions.pending().filter((action) => !previousActionIds.has(action.id));
+    for (const action of newActions) {
+      console.log(`\u26A1 Action awaiting response: ${action.id}`);
+      if (action.request.type === "execute_evm") {
+        console.log(
+          `   EVM transactions: ${action.request.transactions.length}`
+        );
+      } else if (action.request.type === "execute_svm") {
+        console.log(
+          `   SVM transactions: ${action.request.transactions.length}`
+        );
+      } else {
+        console.log(`   ${action.request.chainFamily.toUpperCase()} signature`);
+        if (action.request.description) {
+          console.log(`   ${action.request.description}`);
         }
       }
     }
@@ -5341,24 +5420,14 @@ async function chatCommand(config, message, verbose) {
         console.log(last.content);
       } else if (session.getTurnState() === "interrupted") {
         console.log("(interrupted)");
-      } else if (newPendingTxs.length === 0) {
+      } else if (newActions.length === 0) {
         console.log("(no response)");
         fatal("Backend returned an empty agent message.");
       }
-      if (newPendingTxs.length === 0) {
-        const mentionedTxIds = extractMentionedTxIds(last == null ? void 0 : last.content);
-        if (mentionedTxIds.length > 0) {
-          console.log(
-            `
-${YELLOW}\u26A0\uFE0F Assistant referenced ${mentionedTxIds.join(", ")}, but backend returned no pending wallet requests.${RESET}`
-          );
-          console.log("   These IDs are not signable from this session.");
-        }
-      }
     }
-    if (newPendingTxs.length > 0) {
+    if (newActions.length > 0) {
       console.log(
-        "\nRun `aomi tx list` to see pending transactions, `aomi tx sign <id>` to sign."
+        "\nRun `aomi tx list` to inspect Actions, `aomi tx sign <action-id>` to execute."
       );
     }
   } finally {
@@ -5375,375 +5444,208 @@ var init_chat = __esm({
     init_errors();
     init_user_state2();
     init_solana_signer();
-    init_transactions();
   }
 });
 
-// src/aa/execute.ts
-import { createPublicClient, createWalletClient, http } from "viem";
-import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
-function walletExecutionFailureReason(error) {
-  if (error && typeof error === "object") {
-    for (const field of ["details", "shortMessage"]) {
-      const value = error[field];
-      if (typeof value === "string" && value.trim()) return value.trim();
+// src/cli/commands/wallet.ts
+var wallet_exports = {};
+__export(wallet_exports, {
+  signCommand: () => signCommand,
+  txCommand: () => txCommand
+});
+async function txCommand(config) {
+  const cli = CliSession.load();
+  if (!cli) {
+    if (config.json) printJson({ active: false, actions: [] });
+    else {
+      console.log("No active session");
+      printDataFileLocation({ verbose: config.verbose });
     }
+    return;
   }
-  const message = error instanceof Error ? error.message : String(error);
-  return message.split(/\n(?:\n|URL:|Request body:|Request Arguments:)/, 1)[0].trim();
-}
-function partialWalletExecution(error) {
-  if (!error || typeof error !== "object" || !("partial" in error)) {
-    return void 0;
-  }
-  const partial = error.partial;
-  if (!partial || !Array.isArray(partial.completedTxHashes) || partial.completedTxHashes.length === 0 || !partial.completedTxHashes.every((hash) => typeof hash === "string") || !Number.isInteger(partial.failedCallIndex) || typeof partial.failureReason !== "string") {
-    return void 0;
-  }
-  return partial;
-}
-function normalizeRpcCallData(data) {
-  return data === "0x" ? void 0 : data;
-}
-function isAADebugEnabled() {
-  const debugGlobal = globalThis;
-  if (debugGlobal.__AOMI_DEBUG_AA === true) {
-    return true;
-  }
+  const session = cli.createClientSession(config);
   try {
-    return AA_DEBUG_STORAGE_KEYS.some((key) => {
-      var _a3;
-      const value = (_a3 = debugGlobal.localStorage) == null ? void 0 : _a3.getItem(key);
-      return value === "1" || value === "true";
-    });
-  } catch (e) {
-    return false;
+    await session.fetchCurrentState();
+    const actions = session.actions.all();
+    if (config.json) {
+      printJson({ active: true, actions });
+      return;
+    }
+    if (actions.length === 0) {
+      console.log("No Actions.");
+      printDataFileLocation({ verbose: config.verbose });
+      return;
+    }
+    for (const action of actions) console.log(formatAction(action));
+    printDataFileLocation({ verbose: config.verbose });
+  } finally {
+    session.close();
   }
 }
-function debugAA(label, data) {
-  if (!isAADebugEnabled()) return;
-  console.info(`[aomi][aa][debug] ${label}`, data);
-}
-async function executeWalletCalls(params) {
-  var _a3, _b, _c;
-  const {
-    callList,
-    currentChainId,
-    capabilities,
-    localPrivateKey,
-    nativeWalletExecution,
-    sendCallsSyncAsync,
-    sendTransactionAsync,
-    switchChainAsync,
-    chainsById,
-    getPreferredRpcUrl: getPreferredRpcUrl2
-  } = params;
-  const hashes = [];
-  const normalizedCalls = callList.map((call) => __spreadProps(__spreadValues({}, call), {
-    data: normalizeRpcCallData(call.data)
-  }));
-  const requiresAtomicForBatch = Boolean(nativeWalletExecution == null ? void 0 : nativeWalletExecution.requiresAtomicForBatch) && normalizedCalls.length > 1;
-  const nativeExecutionKind = (_a3 = nativeWalletExecution == null ? void 0 : nativeWalletExecution.executionKind) != null ? _a3 : "eoa";
-  const sponsorship = nativeWalletExecution == null ? void 0 : nativeWalletExecution.sponsorship;
-  const requiresSponsoredSendCalls = (sponsorship == null ? void 0 : sponsorship.mode) === "required";
-  if (localPrivateKey) {
-    if (requiresSponsoredSendCalls) {
-      throw new Error("wallet_sponsorship_requires_send_calls");
-    }
-    if (requiresAtomicForBatch) {
-      throw new Error("wallet_atomic_batch_required");
-    }
-    for (const [callIndex, call] of normalizedCalls.entries()) {
-      try {
-        const chain = chainsById[call.chainId];
-        if (!chain) {
-          throw new Error(`Unsupported chain ${call.chainId}`);
-        }
-        const rpcUrl = getPreferredRpcUrl2(chain);
-        if (!rpcUrl) {
-          throw new Error(`No RPC for chain ${call.chainId}`);
-        }
-        const account = privateKeyToAccount4(localPrivateKey);
-        const walletClient = createWalletClient({
-          account,
-          chain,
-          transport: http(rpcUrl)
-        });
-        const hash = await walletClient.sendTransaction({
-          account,
-          to: call.to,
-          value: call.value,
-          data: call.data
-        });
-        const publicClient = createPublicClient({
-          chain,
-          transport: http(rpcUrl)
-        });
-        const receipt = await publicClient.waitForTransactionReceipt({ hash });
-        if (receipt.status !== "success") {
-          throw new Error(`Transaction ${hash} reverted`);
-        }
-        hashes.push(hash);
-      } catch (error) {
-        if (hashes.length > 0) {
-          throw new PartialWalletExecutionError(error, hashes, callIndex);
-        }
-        throw error;
+async function signCommand(config, selectors) {
+  if (selectors.length === 0) {
+    fatal(
+      "Usage: aomi tx sign <action-id> [<action-id> ...]\nRun `aomi tx list` to see pending Actions."
+    );
+  }
+  if (new Set(selectors).size !== selectors.length) {
+    fatal("Duplicate Action IDs are not allowed.");
+  }
+  if (config.execution === "aa") {
+    fatal(
+      "AA execution is owned by the backend; local Action execution is EOA."
+    );
+  }
+  const cli = CliSession.load();
+  if (!cli) fatal("No active session. Run `aomi chat` first.");
+  cli.mergeConfig(config);
+  const session = cli.createClientSession(config);
+  try {
+    await session.fetchCurrentState();
+    const actions = selectors.map(
+      (selector) => resolveAction(session.actions.pending(), selector)
+    );
+    for (const action of actions) {
+      if (!session.actions.canExecute(action.id)) {
+        fatal(missingCapability(action));
       }
+      console.log(formatAction(action));
+      const resolved = await session.actions.execute(action.id);
+      console.log(`\u2705 ${resolved.id} ${resolved.state}`);
     }
-    return {
-      txHash: hashes[hashes.length - 1],
-      txHashes: hashes,
-      executionKind: "eoa",
-      batched: normalizedCalls.length > 1,
-      sponsored: false
-    };
+  } catch (error) {
+    if (error instanceof CliExit) throw error;
+    fatal(
+      `\u274C Action failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+  } finally {
+    session.close();
   }
-  const chainIds = Array.from(
-    new Set(normalizedCalls.map((call) => call.chainId))
+}
+function resolveAction(actions, selector) {
+  const matches = actions.filter(
+    (action) => action.id === selector || action.id.startsWith(selector)
   );
-  if (chainIds.length > 1) {
-    throw new Error("mixed_chain_bundle_not_supported");
-  }
-  const chainId3 = chainIds[0];
-  if (currentChainId !== chainId3) {
-    await switchChainAsync({ chainId: chainId3 });
-  }
-  const chainCaps = resolveChainCapabilities(capabilities, chainId3);
-  const atomicStatus = (_b = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _b.status;
-  const canUseAtomicSendCalls = normalizedCalls.length > 1 && (atomicStatus === "supported" || atomicStatus === "ready");
-  const canUseSendCalls = canUseAtomicSendCalls || requiresSponsoredSendCalls;
-  const sendCallsCapabilities = buildSendCallsCapabilities({
-    chainCaps,
-    nativeWalletExecution,
-    requiresAtomicForBatch,
-    canUseAtomicSendCalls
-  });
-  debugAA("native-wallet-sendCalls-plan", {
-    callCount: normalizedCalls.length,
-    chainId: chainId3,
-    chainCaps,
-    canUseAtomicSendCalls,
-    canUseSendCalls,
-    nativeExecutionKind,
-    requiresAtomicForBatch,
-    sponsorshipMode: (_c = sponsorship == null ? void 0 : sponsorship.mode) != null ? _c : "disabled",
-    sendCallsCapabilities
-  });
-  const sendSequentially = async () => {
-    if (requiresAtomicForBatch) {
-      throw new Error("wallet_atomic_batch_required");
-    }
-    for (const call of normalizedCalls) {
-      const hash = await sendTransactionAsync({
-        chainId: call.chainId,
-        to: call.to,
-        value: call.value,
-        data: call.data
-      });
-      hashes.push(hash);
-    }
-  };
-  let usedPaymasterService = false;
-  let usedSendCalls = false;
-  if (canUseSendCalls) {
-    try {
-      const sendCallsArgs = {
-        chainId: chainId3,
-        calls: normalizedCalls.map(({ to, value, data }) => ({
-          to,
-          value,
-          data
-        })),
-        capabilities: sendCallsCapabilities,
-        forceAtomic: requiresAtomicForBatch,
-        status: (result) => (result == null ? void 0 : result.status) === "success",
-        throwOnFailure: true,
-        timeout: nativeWalletExecution == null ? void 0 : nativeWalletExecution.sendCallsTimeoutMs,
-        version: nativeWalletExecution == null ? void 0 : nativeWalletExecution.sendCallsVersion
-      };
-      debugAA("native-wallet-sendCalls-args", sendCallsArgs);
-      const batchResult = await sendCallsSyncAsync(__spreadValues({}, sendCallsArgs));
-      debugAA("native-wallet-sendCalls-result", batchResult);
-      hashes.push(...extractBatchTransactionHashes(batchResult));
-      usedPaymasterService = Boolean(sendCallsCapabilities == null ? void 0 : sendCallsCapabilities.paymasterService);
-      usedSendCalls = true;
-    } catch (error) {
-      if (!canFallbackToSequentialWalletSends(error, requiresSponsoredSendCalls)) {
-        throw error;
-      }
-      await sendSequentially();
-    }
-  } else {
-    await sendSequentially();
-  }
-  const sponsoredResult = !usedSendCalls ? false : (sponsorship == null ? void 0 : sponsorship.mode) === "optional" ? void 0 : usedPaymasterService;
-  return {
-    txHash: hashes[hashes.length - 1],
-    txHashes: hashes,
-    executionKind: usedSendCalls ? nativeExecutionKind : "eoa",
-    batched: normalizedCalls.length > 1,
-    sponsored: sponsoredResult
-  };
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) fatal(`Action selector "${selector}" is ambiguous.`);
+  fatal(`Pending Action "${selector}" was not found.`);
 }
-function extractBatchTransactionHashes(batchResult) {
+function formatAction(action) {
+  const request = action.request;
+  const detail = request.type === "execute_evm" ? `${request.transactions.length} EVM transaction${request.transactions.length === 1 ? "" : "s"}` : request.type === "execute_svm" ? `${request.transactions.length} SVM transaction${request.transactions.length === 1 ? "" : "s"}` : `${request.chainFamily.toUpperCase()} signature`;
+  return `${action.state === "pending" ? "\u23F3" : "\u2705"} ${action.id}  ${detail}  (${action.state}, revision ${action.revision})`;
+}
+function missingCapability(action) {
+  if (action.request.type === "execute_svm" || action.request.type === "sign" && action.request.chainFamily === "svm") {
+    return "A Solana key is required. Run `aomi wallet set --solana <key>` or pass --solana-private-key.";
+  }
+  return "An EVM private key is required. Run `aomi wallet set <hex-key>` or pass --private-key.";
+}
+var init_wallet = __esm({
+  "src/cli/commands/wallet.ts"() {
+    "use strict";
+    init_cli_session();
+    init_errors();
+    init_output();
+  }
+});
+
+// src/cli/commands/simulate.ts
+var simulate_exports = {};
+__export(simulate_exports, {
+  simulateCommand: () => simulateCommand
+});
+import { formatEther } from "viem";
+async function simulateCommand(config, selectors) {
   var _a3;
-  const receipts = (_a3 = batchResult.receipts) != null ? _a3 : [];
-  const hashes = receipts.flatMap((receipt) => {
-    var _a4;
-    const hash = (_a4 = receipt.transactionHash) != null ? _a4 : receipt.hash;
-    return hash ? [hash] : [];
+  const cli = CliSession.load();
+  if (!cli) fatal("No active session. Run `aomi chat` first.");
+  if (selectors.length === 0) {
+    fatal(
+      "Usage: aomi tx simulate <action-id> [<action-id> ...]\nRun `aomi tx list` to see pending Actions."
+    );
+  }
+  const session = cli.createClientSession(config);
+  let actions;
+  try {
+    await session.fetchCurrentState();
+    const pending = session.actions.pending();
+    actions = selectors.map((selector) => resolveAction2(pending, selector));
+  } finally {
+    session.close();
+  }
+  const transactions = actions.flatMap((action) => {
+    if (action.request.type !== "execute_evm") {
+      fatal(`Action "${action.id}" is not an EVM execution Action.`);
+    }
+    return action.request.transactions.map((transaction) => ({
+      to: transaction.to,
+      value: transaction.value,
+      data: transaction.data,
+      label: transaction.label,
+      chain_id: transaction.chain_id
+    }));
   });
-  if (hashes.length === 0) {
-    throw new Error("wallet_send_calls_missing_transaction_hash");
-  }
-  return hashes;
-}
-function buildSendCallsCapabilities({
-  chainCaps,
-  nativeWalletExecution,
-  requiresAtomicForBatch,
-  canUseAtomicSendCalls
-}) {
-  var _a3, _b;
-  const capabilities = {};
-  if (canUseAtomicSendCalls) {
-    capabilities.atomic = requiresAtomicForBatch ? { required: true } : { optional: true };
-  }
-  const sponsorship = nativeWalletExecution == null ? void 0 : nativeWalletExecution.sponsorship;
-  if ((sponsorship == null ? void 0 : sponsorship.mode) === "required") {
-    if (!sponsorship.paymasterServiceUrl) {
-      throw new Error("wallet_paymaster_service_url_required");
-    }
-    if (((_a3 = chainCaps == null ? void 0 : chainCaps.paymasterService) == null ? void 0 : _a3.supported) !== true) {
-      throw new Error("wallet_paymaster_service_unsupported");
-    }
-    const context = sanitizeSponsorshipPaymasterServiceContext(
-      sponsorship.paymasterServiceContext
+  console.log(
+    `${DIM}Simulating ${transactions.length} transaction(s) as an atomic batch...${RESET}`
+  );
+  const client = createCliClient(
+    __spreadProps(__spreadValues({}, config), { secrets: (_a3 = config.secrets) != null ? _a3 : {} }),
+    { baseUrl: cli.baseUrl, apiKey: cli.apiKey }
+  );
+  const { result } = await client.simulateBatch(cli.sessionId, transactions, {
+    from: cli.publicKey,
+    chainId: cli.chainId
+  });
+  const mode = result.stateful ? "stateful (Anvil snapshot)" : "stateless (independent eth_call)";
+  console.log(`
+Batch simulation (${mode}):`);
+  console.log(`From: ${result.from} | Network: ${result.network}
+`);
+  for (const step of result.steps) {
+    const icon = step.success ? `${GREEN}\u2713${RESET}` : `\x1B[31m\u2717${RESET}`;
+    const gas = step.gas_used ? ` | gas: ${step.gas_used.toLocaleString()}` : "";
+    console.log(`  ${icon} ${step.step}. ${step.label || `Step ${step.step}`}`);
+    console.log(
+      `    ${DIM}to: ${step.tx.to} | value: ${step.tx.value_eth} ETH${gas}${RESET}`
     );
-    capabilities.paymasterService = {
-      url: sponsorship.paymasterServiceUrl,
-      context: context != null ? context : {}
-    };
-  } else if ((sponsorship == null ? void 0 : sponsorship.mode) === "optional" && sponsorship.paymasterServiceUrl && ((_b = chainCaps == null ? void 0 : chainCaps.paymasterService) == null ? void 0 : _b.supported) === true) {
-    const context = sanitizeSponsorshipPaymasterServiceContext(
-      sponsorship.paymasterServiceContext
+    if (!step.success && step.revert_reason) {
+      console.log(`    \x1B[31mRevert: ${step.revert_reason}${RESET}`);
+    }
+  }
+  if (result.total_gas) {
+    console.log(
+      `
+${DIM}Total gas: ${result.total_gas.toLocaleString()}${RESET}`
     );
-    capabilities.paymasterService = __spreadValues({
-      url: sponsorship.paymasterServiceUrl,
-      optional: true
-    }, context ? { context } : {});
   }
-  return Object.keys(capabilities).length > 0 ? capabilities : void 0;
-}
-function sanitizeSponsorshipPaymasterServiceContext(context) {
-  if (!context) return void 0;
-  const filteredEntries = Object.entries(context).filter(
-    ([key]) => !ERC20_PAYMENT_CONTEXT_KEYS.has(key)
+  if (result.fee) {
+    const amount = BigInt(result.fee.amount_wei);
+    console.log(
+      `Service fee: ${formatEther(amount)} ETH (${amount} wei) \u2192 ${result.fee.recipient}`
+    );
+  }
+  console.log(
+    result.batch_success ? `
+${GREEN}All steps passed.${RESET}` : `
+\x1B[31mBatch failed.${RESET}`
   );
-  if (filteredEntries.length === Object.keys(context).length) {
-    return context;
-  }
-  console.warn(
-    "[aomi][aa] Ignoring ERC20 paymaster payment context on a sponsorship request"
+}
+function resolveAction2(actions, selector) {
+  const matches = actions.filter(
+    (action) => action.id === selector || action.id.startsWith(selector)
   );
-  const filteredContext = Object.fromEntries(
-    filteredEntries
-  );
-  return Object.keys(filteredContext).length > 0 ? filteredContext : void 0;
+  if (matches.length === 1) return matches[0];
+  if (matches.length > 1) fatal(`Action selector "${selector}" is ambiguous.`);
+  fatal(`Pending Action "${selector}" was not found.`);
 }
-function isUnsupportedAtomicCapabilityError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-  return lowered.includes("unsupported non-optional capabilities: atomic") || lowered.includes("unsupported") && lowered.includes("atomic") || lowered.includes("wallet does not support") && lowered.includes("capabilit");
-}
-function isRecoverableOptionalPaymasterError(error) {
-  const message = error instanceof Error ? error.message : String(error);
-  const lowered = message.toLowerCase();
-  return lowered.includes("paymaster") || lowered.includes("sponsor") || lowered.includes("erc-7677");
-}
-function canFallbackToSequentialWalletSends(error, requiresSponsoredSendCalls) {
-  if (requiresSponsoredSendCalls) {
-    return false;
-  }
-  return isUnsupportedAtomicCapabilityError(error) || isRecoverableOptionalPaymasterError(error);
-}
-function resolveChainCapabilities(capabilities, chainId3) {
-  var _a3, _b;
-  if (!capabilities) {
-    return void 0;
-  }
-  const asRecord3 = capabilities;
-  const eip155Key = `eip155:${chainId3}`;
-  const decimalKey = String(chainId3);
-  const hexKey = `0x${chainId3.toString(16)}`;
-  return (_b = (_a3 = asRecord3[eip155Key]) != null ? _a3 : asRecord3[decimalKey]) != null ? _b : asRecord3[hexKey];
-}
-var ERC20_PAYMENT_CONTEXT_KEYS, AA_DEBUG_STORAGE_KEYS, PartialWalletExecutionError;
-var init_execute = __esm({
-  "src/aa/execute.ts"() {
+var init_simulate = __esm({
+  "src/cli/commands/simulate.ts"() {
     "use strict";
-    ERC20_PAYMENT_CONTEXT_KEYS = /* @__PURE__ */ new Set(["erc20", "paymasterAddress"]);
-    AA_DEBUG_STORAGE_KEYS = ["aomi:debug-aa", "AOMI_DEBUG_AA"];
-    PartialWalletExecutionError = class extends Error {
-      constructor(error, completedTxHashes, failedCallIndex) {
-        const failureReason = walletExecutionFailureReason(error);
-        super(failureReason);
-        this.name = "PartialWalletExecutionError";
-        this.partial = {
-          completedTxHashes: [...completedTxHashes],
-          failedCallIndex,
-          failureReason
-        };
-      }
-    };
-  }
-});
-
-// src/aa/fee.ts
-import { getAddress as getAddress2 } from "viem";
-function normalizeSimulatedFee(fee) {
-  const amountWei = BigInt(fee.amount_wei);
-  if (amountWei === ZERO_WEI) {
-    return null;
-  }
-  if (amountWei < ZERO_WEI) {
-    throw new Error(`Invalid fee amount: ${fee.amount_wei}`);
-  }
-  if (amountWei > MAX_AUTO_FEE_WEI) {
-    throw new Error("fee_exceeds_safety_limit");
-  }
-  return {
-    recipient: getAddress2(fee.recipient),
-    amountWei
-  };
-}
-function buildFeeAAWalletCall(fee, chainId3) {
-  const normalizedFee = normalizeSimulatedFee(fee);
-  if (!normalizedFee) {
-    return null;
-  }
-  return {
-    to: normalizedFee.recipient,
-    value: normalizedFee.amountWei,
-    chainId: chainId3
-  };
-}
-var MAX_AUTO_FEE_WEI, ZERO_WEI;
-var init_fee = __esm({
-  "src/aa/fee.ts"() {
-    "use strict";
-    MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
-    ZERO_WEI = BigInt("0");
-  }
-});
-
-// src/aa/index.ts
-var init_aa = __esm({
-  "src/aa/index.ts"() {
-    "use strict";
-    init_execute();
-    init_fee();
+    init_cli_session();
+    init_client_factory();
+    init_errors();
+    init_output();
   }
 });
 
@@ -5768,60 +5670,6 @@ function estimateTokenCount(messages) {
     }
   }
   return Math.round(totalChars / 4);
-}
-function toIsoTimestamp(timestamp2) {
-  if (typeof timestamp2 !== "number" || !Number.isFinite(timestamp2)) {
-    return null;
-  }
-  try {
-    return new Date(timestamp2).toISOString();
-  } catch (e) {
-    return null;
-  }
-}
-function toPendingTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    txId: (_a3 = tx.txId) != null ? _a3 : null,
-    eip712Id: (_b = tx.eip712Id) != null ? _b : null,
-    to: (_c = tx.to) != null ? _c : null,
-    value: (_d = tx.value) != null ? _d : null,
-    chainId: (_e = tx.chainId) != null ? _e : null,
-    description: (_f = tx.description) != null ? _f : null,
-    timestamp: toIsoTimestamp(tx.timestamp)
-  };
-}
-function toSignedTxMetadata(tx) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
-  return {
-    id: tx.id,
-    kind: tx.kind,
-    pendingTxId: (_a3 = tx.pendingTxId) != null ? _a3 : null,
-    txHash: (_b = tx.txHash) != null ? _b : null,
-    txHashes: (_c = tx.txHashes) != null ? _c : null,
-    executionKind: (_d = tx.executionKind) != null ? _d : null,
-    aaProvider: (_e = tx.aaProvider) != null ? _e : null,
-    aaMode: (_f = tx.aaMode) != null ? _f : null,
-    batched: (_g = tx.batched) != null ? _g : null,
-    sponsored: (_h = tx.sponsored) != null ? _h : null,
-    smartAccount4337: (_i = tx.smartAccount4337) != null ? _i : null,
-    Delegation7702: (_j = tx.Delegation7702) != null ? _j : null,
-    signature: (_k = tx.signature) != null ? _k : null,
-    from: (_l = tx.from) != null ? _l : null,
-    to: (_m = tx.to) != null ? _m : null,
-    value: (_n = tx.value) != null ? _n : null,
-    chainId: (_o = tx.chainId) != null ? _o : null,
-    description: (_p = tx.description) != null ? _p : null,
-    backendNotified: (_q = tx.backendNotified) != null ? _q : null,
-    serviceFeeStatus: (_r = tx.serviceFeeStatus) != null ? _r : null,
-    serviceFeeAmountWei: (_s = tx.serviceFeeAmountWei) != null ? _s : null,
-    serviceFeeRecipient: (_t = tx.serviceFeeRecipient) != null ? _t : null,
-    serviceFeeTxHash: (_u = tx.serviceFeeTxHash) != null ? _u : null,
-    serviceFeeError: (_v = tx.serviceFeeError) != null ? _v : null,
-    timestamp: toIsoTimestamp(tx.timestamp)
-  };
 }
 function printKeyValueTable(rows, color = CYAN) {
   const labels = rows.map(([label]) => label);
@@ -5849,986 +5697,12 @@ function printKeyValueTable(rows, color = CYAN) {
     console.log(`${color}${border}${RESET}`);
   }
 }
-function printTransactionTable(pendingTxs, signedTxs, color = GREEN) {
-  const safePendingTxs = pendingTxs.filter(
-    (tx) => typeof tx === "object" && tx !== null
-  );
-  const safeSignedTxs = signedTxs.filter(
-    (tx) => typeof tx === "object" && tx !== null
-  );
-  const rows = [
-    ...safePendingTxs.map((tx) => ({
-      status: "pending",
-      metadata: toPendingTxMetadata(tx)
-    })),
-    ...safeSignedTxs.map((tx) => ({
-      status: "signed",
-      metadata: toSignedTxMetadata(tx)
-    }))
-  ];
-  if (rows.length === 0) {
-    console.log(`${YELLOW}No transactions in local CLI state.${RESET}`);
-    return;
-  }
-  const visibleRows = rows.slice(0, MAX_TX_ROWS);
-  const statusWidth = Math.max(
-    "status".length,
-    ...visibleRows.map((row) => row.status.length)
-  );
-  const jsonCells = visibleRows.map(
-    (row) => truncateCell(JSON.stringify(row.metadata), MAX_TX_JSON_WIDTH)
-  );
-  const jsonWidth = Math.max(
-    "metadata_json".length,
-    ...jsonCells.map((v) => v.length)
-  );
-  const border = `+${"-".repeat(statusWidth + 2)}+${"-".repeat(jsonWidth + 2)}+`;
-  console.log(`${color}${border}${RESET}`);
-  console.log(
-    `${color}| ${padRight("status", statusWidth)} | ${padRight("metadata_json", jsonWidth)} |${RESET}`
-  );
-  console.log(`${color}${border}${RESET}`);
-  for (let i = 0; i < visibleRows.length; i++) {
-    console.log(
-      `${color}| ${padRight(visibleRows[i].status, statusWidth)} | ${padRight(jsonCells[i], jsonWidth)} |${RESET}`
-    );
-    console.log(`${color}${border}${RESET}`);
-  }
-  if (rows.length > MAX_TX_ROWS) {
-    const omitted = rows.length - MAX_TX_ROWS;
-    console.log(`${DIM}${omitted} transaction rows omitted${RESET}`);
-  }
-}
-var MAX_TABLE_VALUE_WIDTH, MAX_TX_JSON_WIDTH, MAX_TX_ROWS;
+var MAX_TABLE_VALUE_WIDTH;
 var init_tables = __esm({
   "src/cli/tables.ts"() {
     "use strict";
     init_output();
     MAX_TABLE_VALUE_WIDTH = 72;
-    MAX_TX_JSON_WIDTH = 96;
-    MAX_TX_ROWS = 8;
-  }
-});
-
-// src/cli/commands/wallet.ts
-var wallet_exports = {};
-__export(wallet_exports, {
-  signCommand: () => signCommand,
-  txCommand: () => txCommand
-});
-import { createWalletClient as createWalletClient2, formatEther, http as http2 } from "viem";
-import { Connection } from "@solana/web3.js";
-import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
-import * as viemChains from "viem/chains";
-async function txCommand(config) {
-  const cli = CliSession.load();
-  if (!cli) {
-    if (config.json) {
-      printJson({ active: false, pending: [], signed: [] });
-      return;
-    }
-    console.log("No active session");
-    printDataFileLocation({ verbose: config.verbose });
-    return;
-  }
-  const session = cli.createClientSession(config);
-  try {
-    await session.fetchCurrentState();
-    for (const action of session.getPendingActions()) {
-      const evm = actionToPendingTx(action);
-      if (evm) cli.addPendingTx(evm);
-      const svm = actionToPendingSolTx(action);
-      if (svm) cli.addPendingSolTx(svm);
-    }
-  } catch (e) {
-  } finally {
-    session.close();
-  }
-  const pending = [...cli.pendingTxs];
-  const pendingSol = [...cli.pendingSolTxs];
-  const pendingSelectors = cli.pendingSelectors();
-  const evmSelectors = pendingSelectors.slice(0, pending.length);
-  const svmSelectors = pendingSelectors.slice(pending.length);
-  const signed = [...cli.signedTxs];
-  const signedSol = [...cli.signedSolTxs];
-  const totalPending = pending.length + pendingSol.length;
-  const totalSigned = signed.length + signedSol.length;
-  if (config.json) {
-    printJson({
-      active: true,
-      pending: [
-        ...pending.map((tx, index) => __spreadProps(__spreadValues({}, toPendingTxMetadata(tx)), {
-          id: evmSelectors[index]
-        })),
-        ...pendingSol.map((tx, index) => {
-          var _a3, _b, _c, _d;
-          return {
-            id: svmSelectors[index],
-            kind: (_a3 = tx.requestKind) != null ? _a3 : "solana_sign",
-            solanaId: tx.solanaId,
-            signer: (_b = tx.signer) != null ? _b : null,
-            cluster: (_c = tx.cluster) != null ? _c : null,
-            description: (_d = tx.description) != null ? _d : null,
-            timestamp: new Date(tx.timestamp).toISOString()
-          };
-        })
-      ],
-      signed: [
-        ...signed.map((tx) => toSignedTxMetadata(tx)),
-        ...signedSol.map((tx) => {
-          var _a3, _b, _c, _d, _e;
-          return {
-            id: tx.id,
-            kind: (_a3 = tx.requestKind) != null ? _a3 : "solana_sign",
-            signedTx: (_b = tx.signedTx) != null ? _b : null,
-            signer: (_c = tx.signer) != null ? _c : null,
-            cluster: (_d = tx.cluster) != null ? _d : null,
-            description: (_e = tx.description) != null ? _e : null,
-            timestamp: new Date(tx.timestamp).toISOString()
-          };
-        })
-      ]
-    });
-    return;
-  }
-  if (totalPending === 0 && totalSigned === 0) {
-    console.log("No transactions.");
-    printDataFileLocation({ verbose: config.verbose });
-    return;
-  }
-  if (totalPending > 0) {
-    console.log(`Pending (${totalPending}):`);
-    for (const [index, tx] of pending.entries()) {
-      console.log(formatTxLine(__spreadProps(__spreadValues({}, tx), { id: evmSelectors[index] }), "  \u23F3"));
-    }
-    for (const [index, tx] of pendingSol.entries()) {
-      console.log(
-        formatPendingSolTxLine(__spreadProps(__spreadValues({}, tx), { id: svmSelectors[index] }), "  \u23F3")
-      );
-    }
-  }
-  if (totalSigned > 0) {
-    if (totalPending > 0) console.log();
-    console.log(`Signed (${totalSigned}):`);
-    for (const tx of signed) {
-      console.log(formatSignedTxLine(tx, "  \u2705"));
-    }
-    for (const tx of signedSol) {
-      console.log(formatSignedSolTxLine(tx, "  \u2705"));
-    }
-  }
-  printDataFileLocation({ verbose: config.verbose });
-}
-function resolveChain(targetChainId, rpcUrl) {
-  const knownChain = Object.values(viemChains).find((candidate) => {
-    return typeof candidate === "object" && candidate !== null && "id" in candidate && candidate.id === targetChainId;
-  });
-  return knownChain != null ? knownChain : {
-    id: targetChainId,
-    name: `Chain ${targetChainId}`,
-    nativeCurrency: {
-      name: "ETH",
-      symbol: "ETH",
-      decimals: 18
-    },
-    rpcUrls: {
-      default: {
-        http: rpcUrl ? [rpcUrl] : []
-      }
-    }
-  };
-}
-function getPreferredRpcUrl(chain, override) {
-  var _a3, _b, _c;
-  if (override) {
-    return override;
-  }
-  return (_c = (_b = chain.rpcUrls.default.http[0]) != null ? _b : (_a3 = chain.rpcUrls.public) == null ? void 0 : _a3.http[0]) != null ? _c : "";
-}
-async function simulatePendingTransactions(params) {
-  const { session, cli, pendingTxs, resolvedChainIds, chainId: chainId3 } = params;
-  const simResponse = await session.client.simulateBatch(
-    cli.sessionId,
-    pendingTxs.map((tx, index) => {
-      var _a3, _b;
-      return {
-        to: (_a3 = tx.to) != null ? _a3 : "",
-        value: tx.value,
-        data: tx.data,
-        label: (_b = tx.description) != null ? _b : tx.id,
-        chain_id: resolvedChainIds[index]
-      };
-    }),
-    {
-      chainId: chainId3
-    }
-  );
-  return simResponse.result;
-}
-async function signSolanaPending(params) {
-  var _a3, _b, _c, _d, _e, _f, _g;
-  const { cli, session, config, pendingTx } = params;
-  if (!pendingTx.agentRequestId) {
-    fatal(
-      "This wallet request predates Agent v1 and cannot be submitted. Start a new Agent turn to recreate it."
-    );
-  }
-  const secret = (_a3 = cli.resolvedSvmPrivateKey(config.solanaPrivateKey)) != null ? _a3 : process.env.SOLANA_PRIVATE_KEY;
-  if (!secret) {
-    fatal(
-      [
-        "Solana keypair required for `aomi tx sign` on an SVM request.",
-        "Pass one of:",
-        "  aomi wallet set --solana <base58-key>             # persist once",
-        "  aomi tx sign --solana-private-key <base58|json> <tx-id>",
-        "  SOLANA_PRIVATE_KEY=<base58|json> aomi tx sign <tx-id>",
-        "",
-        "Accepted formats:",
-        "  base58 of the 64-byte secret key (Phantom / Solflare export)",
-        "  JSON byte array `[1,2,...,64]` (solana-keygen output)"
-      ].join("\n")
-    );
-  }
-  let keypair;
-  try {
-    keypair = parseSolanaKeypairSecret(secret);
-  } catch (err) {
-    fatal(err instanceof Error ? err.message : String(err));
-  }
-  if (pendingTx.signer && pendingTx.signer !== keypair.publicKey.toBase58()) {
-    console.log(
-      `\u26A0\uFE0F  Local signer ${keypair.publicKey.toBase58()} differs from expected ${pendingTx.signer}`
-    );
-  }
-  const requestKind = (_b = pendingTx.requestKind) != null ? _b : "solana_sign";
-  console.log(`Kind:    ${requestKind}`);
-  console.log(`Tx:      ${pendingTx.id}`);
-  if (pendingTx.cluster) console.log(`Cluster: ${pendingTx.cluster}`);
-  if (pendingTx.description) console.log(`Desc:    ${pendingTx.description}`);
-  console.log(`Signer:  ${keypair.publicKey.toBase58()}`);
-  console.log();
-  if (requestKind === "solana_sign_message") {
-    if (!pendingTx.message) {
-      throw new Error("Solana message-sign request is missing message bytes.");
-    }
-    const outcome2 = signSolanaMessage(pendingTx.message, keypair);
-    console.log(
-      `\u2705 Signed message! signature: ${outcome2.signatureBase64.slice(0, 24)}...`
-    );
-    await session.respondToAction(pendingTx.agentRequestId, {
-      status: "signed",
-      outputs: [{ id: "payload_1", signature: outcome2.signatureBase64 }]
-    });
-    cli.addSignedSolTx({
-      id: pendingTx.id,
-      agentRequestId: pendingTx.agentRequestId,
-      requestKind,
-      signer: outcome2.signer,
-      signature: outcome2.signatureBase64,
-      cluster: pendingTx.cluster,
-      description: pendingTx.description,
-      timestamp: Date.now()
-    });
-    cli.removePendingSolTx(pendingTx.id);
-    console.log("Backend notified.");
-    return;
-  }
-  const batchTransactions = pendingTx.payload.transactions;
-  if (pendingTx.agentRequestId && (requestKind === "solana_send" || requestKind === "solana_sign_and_send") && batchTransactions && batchTransactions.length > 1) {
-    const rpcUrl = (_c = config.chainRpcUrl) != null ? _c : defaultSolanaRpcUrl(pendingTx.cluster);
-    const connection = new Connection(rpcUrl, "confirmed");
-    const legs = [];
-    let lastSubmitted;
-    for (const [index, transaction] of batchTransactions.entries()) {
-      try {
-        const outcome2 = signSolanaTransaction(transaction.unsignedTx, keypair);
-        const signature2 = await connection.sendRawTransaction(
-          Buffer.from(outcome2.signedTxBase64, "base64"),
-          { skipPreflight: false, maxRetries: 3 }
-        );
-        const confirmation = await connection.confirmTransaction(
-          signature2,
-          "confirmed"
-        );
-        if (confirmation.value.err) {
-          throw new Error(
-            `Solana transaction ${signature2} failed: ${JSON.stringify(confirmation.value.err)}`
-          );
-        }
-        legs.push({
-          id: `leg_${index + 1}`,
-          status: "submitted",
-          transactionId: signature2,
-          signedTransactionBase64: outcome2.signedTxBase64
-        });
-        lastSubmitted = {
-          signature: signature2,
-          signedTx: outcome2.signedTxBase64,
-          signer: outcome2.signer
-        };
-        cli.addSignedSolTx({
-          id: `${pendingTx.id}:${transaction.id}`,
-          agentRequestId: pendingTx.agentRequestId,
-          requestKind,
-          signedTx: outcome2.signedTxBase64,
-          signer: outcome2.signer,
-          signature: signature2,
-          cluster: pendingTx.cluster,
-          description: (_d = transaction.description) != null ? _d : pendingTx.description,
-          timestamp: Date.now()
-        });
-      } catch (error) {
-        legs.push({
-          id: `leg_${index + 1}`,
-          status: "failed",
-          reason: error instanceof Error ? error.message : "Request failed"
-        });
-        legs.push(
-          ...batchTransactions.slice(index + 1).map((_, skippedIndex) => ({
-            id: `leg_${index + skippedIndex + 2}`,
-            status: "skipped",
-            reason: "Skipped after an earlier transaction failed"
-          }))
-        );
-        break;
-      }
-    }
-    if (!lastSubmitted) {
-      throw new Error(
-        (_f = (_e = legs.find((leg) => leg.reason)) == null ? void 0 : _e.reason) != null ? _f : "No Solana batch transaction confirmed"
-      );
-    }
-    await session.respondToAction(pendingTx.agentRequestId, { status: "submitted", legs });
-    cli.removePendingSolTx(pendingTx.id);
-    console.log(
-      `\u2705 Confirmed ${legs.filter((leg) => leg.status === "submitted").length}/${batchTransactions.length} Solana batch transactions.`
-    );
-    console.log("Backend notified.");
-    return;
-  }
-  if (!pendingTx.unsignedTx) {
-    throw new Error(
-      "Solana transaction request is missing unsigned transaction bytes."
-    );
-  }
-  const outcome = signSolanaTransaction(pendingTx.unsignedTx, keypair);
-  console.log(
-    `\u2705 Signed! signed_tx: ${outcome.signedTxBase64.slice(0, 24)}... (${outcome.signedTxBase64.length} chars)`
-  );
-  let signature;
-  if (requestKind === "solana_send" || requestKind === "solana_sign_and_send") {
-    const rpcUrl = (_g = config.chainRpcUrl) != null ? _g : defaultSolanaRpcUrl(pendingTx.cluster);
-    const connection = new Connection(rpcUrl, "confirmed");
-    signature = await connection.sendRawTransaction(
-      Buffer.from(outcome.signedTxBase64, "base64"),
-      { skipPreflight: false, maxRetries: 3 }
-    );
-    const confirmation = await connection.confirmTransaction(
-      signature,
-      "confirmed"
-    );
-    if (confirmation.value.err) {
-      throw new Error(
-        `Solana transaction ${signature} failed: ${JSON.stringify(confirmation.value.err)}`
-      );
-    }
-    console.log(`\u2705 Confirmed! signature: ${signature}`);
-    await session.respondToAction(pendingTx.agentRequestId, {
-      status: "submitted",
-      legs: [{
-        id: "leg_1",
-        status: "submitted",
-        transactionId: signature,
-        signedTransactionBase64: outcome.signedTxBase64
-      }]
-    });
-  } else {
-    await session.respondToAction(pendingTx.agentRequestId, {
-      status: "signed",
-      outputs: [{ id: "payload_1", signedTransactionBase64: outcome.signedTxBase64 }]
-    });
-  }
-  cli.addSignedSolTx({
-    id: pendingTx.id,
-    agentRequestId: pendingTx.agentRequestId,
-    requestKind,
-    signedTx: outcome.signedTxBase64,
-    signer: outcome.signer,
-    signature,
-    cluster: pendingTx.cluster,
-    description: pendingTx.description,
-    timestamp: Date.now()
-  });
-  cli.removePendingSolTx(pendingTx.id);
-  console.log("Backend notified.");
-}
-function defaultSolanaRpcUrl(cluster) {
-  if (cluster == null ? void 0 : cluster.includes("devnet")) return "https://api.devnet.solana.com";
-  if (cluster == null ? void 0 : cluster.includes("testnet")) return "https://api.testnet.solana.com";
-  return "https://api.mainnet-beta.solana.com";
-}
-async function executeCliTransaction(params) {
-  const { privateKey, currentChainId, chainsById, rpcUrl, callList } = params;
-  const unsupportedWalletMethod = async () => {
-    throw new Error("wallet_client_path_unavailable_in_cli_private_key_mode");
-  };
-  return executeWalletCalls({
-    callList,
-    currentChainId,
-    capabilities: void 0,
-    localPrivateKey: privateKey,
-    sendCallsSyncAsync: unsupportedWalletMethod,
-    sendTransactionAsync: unsupportedWalletMethod,
-    switchChainAsync: async () => void 0,
-    chainsById,
-    getPreferredRpcUrl: (resolvedChain) => getPreferredRpcUrl(resolvedChain, rpcUrl)
-  });
-}
-async function recoverConfirmedTransactions(params) {
-  var _a3;
-  const { cli, session, records } = params;
-  if (records.some((record) => !record.agentRequestId)) {
-    fatal(
-      "A confirmed wallet record predates Agent v1 and cannot be replayed. Start a new Agent turn instead."
-    );
-  }
-  let replayed = 0;
-  for (const record of records) {
-    if (!record.agentRequestId || !record.txHash) continue;
-    await session.fetchCurrentState();
-    const pending = session.getPendingActions().find((action) => action.id === record.agentRequestId);
-    if (pending) {
-      const hashes = ((_a3 = record.txHashes) == null ? void 0 : _a3.length) ? record.txHashes : [record.txHash];
-      await session.respondToAction(record.agentRequestId, {
-        status: "submitted",
-        legs: pending.request.type === "execute_evm" ? pending.request.transactions.map((_, index) => {
-          var _a4;
-          return {
-            id: `leg_${index + 1}`,
-            status: "submitted",
-            transactionId: (_a4 = hashes[index]) != null ? _a4 : record.txHash
-          };
-        }) : []
-      });
-      replayed += 1;
-    }
-    cli.markSignedAgentActionNotified(record.agentRequestId);
-  }
-  if (replayed > 0) {
-    console.log(
-      `Backend notification recovered for ${replayed} confirmed transaction${replayed === 1 ? "" : "s"}; no transaction was rebroadcast.`
-    );
-  } else {
-    console.log(
-      "Transaction already confirmed; no transaction was rebroadcast."
-    );
-  }
-}
-async function signCommand(config, txIds) {
-  var _a3, _b, _c, _d, _e, _f;
-  if (txIds.length === 0) {
-    fatal(
-      "Usage: aomi tx sign <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see pending transaction IDs."
-    );
-  }
-  const uniqueIds = Array.from(new Set(txIds));
-  if (uniqueIds.length !== txIds.length) {
-    fatal(
-      "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call."
-    );
-  }
-  if (config.execution === "aa") {
-    fatal(
-      "AA execution now runs in the backend lane (rolling out); use --eoa for local execution."
-    );
-  }
-  const cli = CliSession.load();
-  if (!cli) {
-    fatal("No active session. Run `aomi chat` first.");
-  }
-  const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
-  cli.mergeConfig(config);
-  const session = cli.createClientSession(config);
-  try {
-    await session.fetchCurrentState();
-    const preAgentIds = uniqueIds.filter((id) => {
-      var _a4, _b2;
-      const record = (_b2 = (_a4 = cli.findPendingTx(id)) != null ? _a4 : cli.findPendingSolTx(id)) != null ? _b2 : cli.findSignedTransaction(id);
-      return record && !record.agentRequestId;
-    });
-    if (preAgentIds.length > 0) {
-      fatal(
-        `Wallet request${preAgentIds.length === 1 ? "" : "s"} ${preAgentIds.join(", ")} predate Agent v1 and cannot be submitted. Start a new Agent turn to recreate them.`
-      );
-    }
-    const solanaIds = uniqueIds.filter(
-      (id) => cli.findPendingSolTx(id) !== void 0
-    );
-    const evmIds = uniqueIds.filter(
-      (id) => cli.findPendingTx(id) !== void 0 || cli.findSignedTransaction(id) !== void 0
-    );
-    const unknownIds = uniqueIds.filter(
-      (id) => cli.findPendingSolTx(id) === void 0 && cli.findPendingTx(id) === void 0 && cli.findSignedTransaction(id) === void 0
-    );
-    const ambiguousIds = uniqueIds.filter(
-      (id) => !id.includes(":") && cli.findPendingSolTx(id) !== void 0 && (cli.findPendingTx(id) !== void 0 || cli.findSignedTransaction(id) !== void 0)
-    );
-    if (ambiguousIds.length > 0) {
-      fatal(
-        `Ambiguous transaction ${ambiguousIds.join(", ")}. Use the chain-qualified selector shown by \`aomi tx list\` (for example \`evm:tx-1\` or \`svm:tx-1\`).`
-      );
-    }
-    if (unknownIds.length > 0) {
-      const available = cli.pendingSelectors().join(", ") || "(none)";
-      const label = unknownIds.length === 1 ? "Transaction" : "Transactions";
-      fatal(
-        `${label} "${unknownIds.join('", "')}" not found.
-Available: ${available}`
-      );
-    }
-    if (solanaIds.length > 0 && evmIds.length > 0) {
-      fatal(
-        "Cannot mix Solana and EVM/EIP-712 requests in the same `aomi tx sign` invocation."
-      );
-    }
-    if (solanaIds.length > 0) {
-      if (solanaIds.length > 1) {
-        console.log(
-          `${DIM}Solana requests execute sequentially; confirmed transactions are not rolled back if a later request fails.${RESET}`
-        );
-      }
-      const pendingSolana = solanaIds.map((id) => cli.requirePendingSolTx(id));
-      for (const pendingTx of pendingSolana) {
-        await signSolanaPending({ cli, session, config, pendingTx });
-      }
-      return;
-    }
-    const confirmedRecords = uniqueIds.flatMap((id) => {
-      const record = cli.findSignedTransaction(id);
-      return record ? [record] : [];
-    });
-    if (confirmedRecords.length > 0) {
-      if (confirmedRecords.length !== uniqueIds.length) {
-        fatal(
-          "Confirmed and unconfirmed transactions cannot be mixed in one retry. Sign the remaining pending IDs separately."
-        );
-      }
-      await recoverConfirmedTransactions({
-        cli,
-        session,
-        records: confirmedRecords
-      });
-      return;
-    }
-    const pendingTxs = cli.requirePendingTxs(uniqueIds);
-    const agentRequestIds = Array.from(
-      new Set(
-        pendingTxs.flatMap(
-          (tx) => tx.agentRequestId ? [tx.agentRequestId] : []
-        )
-      )
-    );
-    if (agentRequestIds.length !== 1 || pendingTxs.some((tx) => !tx.agentRequestId)) {
-      fatal(
-        "Every wallet request in a sign call must belong to one Agent v1 action."
-      );
-    }
-    const agentRequestId = agentRequestIds[0];
-    if (!privateKey) {
-      fatal(
-        [
-          "Private key required for `aomi tx sign`.",
-          "Pass one of:",
-          "  aomi wallet set <hex-key>",
-          "  aomi tx sign --private-key <hex-key> <tx-id>",
-          "  PRIVATE_KEY=<hex-key> aomi tx sign <tx-id>"
-        ].join("\n")
-      );
-    }
-    const account = privateKeyToAccount5(privateKey);
-    if (cli.publicKey && account.address.toLowerCase() !== cli.publicKey.toLowerCase()) {
-      console.log(
-        `\u26A0\uFE0F  Signer ${account.address} differs from session public key ${cli.publicKey}`
-      );
-      console.log("   Updating session to match the signing key...");
-    }
-    const rpcUrl = config.chainRpcUrl;
-    const resolvedChainIds = pendingTxs.map(
-      (tx) => {
-        var _a4, _b2;
-        return (_b2 = (_a4 = tx.chainId) != null ? _a4 : cli.chainId) != null ? _b2 : 1;
-      }
-    );
-    const primaryChainId = resolvedChainIds[0];
-    const chain = resolveChain(primaryChainId, rpcUrl);
-    const resolvedRpcUrl = getPreferredRpcUrl(chain, rpcUrl);
-    const chainsById = Object.fromEntries(
-      Array.from(new Set(resolvedChainIds)).map((chainId3) => [
-        chainId3,
-        resolveChain(chainId3, rpcUrl)
-      ])
-    );
-    console.log(`Signer:  ${account.address}`);
-    console.log(`IDs:     ${pendingTxs.map((tx) => tx.id).join(", ")}`);
-    let signedRecords = [];
-    let agentResult;
-    let partialFailureReason;
-    if (pendingTxs.every((tx) => tx.kind === "transaction")) {
-      console.log(
-        `Kind:    transaction${pendingTxs.length > 1 ? " (batch)" : ""}`
-      );
-      for (const tx of pendingTxs) {
-        console.log(`Tx:      ${tx.id} -> ${tx.to}`);
-        if (tx.value) console.log(`Value:   ${tx.value}`);
-        if ((_b = tx.chainId) != null ? _b : cli.chainId)
-          console.log(`Chain:   ${(_c = tx.chainId) != null ? _c : cli.chainId}`);
-        if (tx.data) {
-          console.log(`Data:    ${tx.data.slice(0, 40)}...`);
-        }
-      }
-      console.log();
-      const baseCallList = pendingTxs.flatMap(
-        (tx, index) => pendingTxToCallList(__spreadProps(__spreadValues({}, tx), {
-          chainId: resolvedChainIds[index]
-        }))
-      );
-      if (baseCallList.length > 1 && rpcUrl && new Set(baseCallList.map((call) => call.chainId)).size > 1) {
-        fatal(
-          "A single `--rpc-url` override cannot be used for a mixed-chain multi-sign request."
-        );
-      }
-      session.resolveWallet(account.address, primaryChainId);
-      await session.sync();
-      let simFee;
-      try {
-        const sim = await simulatePendingTransactions({
-          session,
-          cli,
-          pendingTxs,
-          resolvedChainIds,
-          chainId: primaryChainId
-        });
-        if (!sim.batch_success) {
-          const failed = sim.steps.find((s) => !s.success);
-          console.log(
-            `\x1B[31m\u274C Simulation failed at step ${(_d = failed == null ? void 0 : failed.step) != null ? _d : "?"}: ${(_e = failed == null ? void 0 : failed.revert_reason) != null ? _e : "unknown"}${RESET}`
-          );
-        }
-        simFee = sim.fee;
-      } catch (e) {
-        if (e instanceof CliExit) throw e;
-        console.log(
-          `${DIM}Simulation unavailable, skipping fee injection.${RESET}`
-        );
-      }
-      let normalizedFee = null;
-      let autoFeeCall = null;
-      if (simFee) {
-        normalizedFee = normalizeSimulatedFee(simFee);
-        if (normalizedFee) {
-          console.log(
-            `Fee:     ${formatEther(normalizedFee.amountWei)} ETH (${normalizedFee.amountWei} wei) \u2192 ${normalizedFee.recipient}`
-          );
-        }
-        autoFeeCall = buildFeeAAWalletCall(simFee, primaryChainId);
-      }
-      const executionCallList = autoFeeCall ? [...baseCallList, autoFeeCall] : baseCallList;
-      console.log("Exec:    eoa");
-      let execution;
-      let failedCallIndex;
-      try {
-        execution = await executeCliTransaction({
-          privateKey,
-          currentChainId: primaryChainId,
-          chainsById,
-          rpcUrl,
-          callList: executionCallList
-        });
-      } catch (error) {
-        const partial = partialWalletExecution(error);
-        if (!partial) throw error;
-        execution = {
-          txHash: partial.completedTxHashes[partial.completedTxHashes.length - 1],
-          txHashes: partial.completedTxHashes,
-          executionKind: "eoa",
-          batched: partial.completedTxHashes.length > 1,
-          sponsored: false
-        };
-        partialFailureReason = partial.failureReason;
-        failedCallIndex = partial.failedCallIndex;
-      }
-      if (!partialFailureReason && execution.txHashes.length !== executionCallList.length) {
-        throw new Error("wallet_execution_hash_count_mismatch");
-      }
-      const actionTxHashes = execution.txHashes.slice(0, baseCallList.length);
-      const feeTxHash = autoFeeCall ? execution.txHashes[baseCallList.length] : void 0;
-      const confirmedPendingTxs = pendingTxs.slice(0, actionTxHashes.length);
-      if (confirmedPendingTxs.length === 0) {
-        throw new Error(
-          partialFailureReason != null ? partialFailureReason : "No requested transaction confirmed"
-        );
-      }
-      console.log(
-        `\u2705 Sent! Hash: ${actionTxHashes[actionTxHashes.length - 1]}`
-      );
-      if (actionTxHashes.length > 1) {
-        console.log(`Count:   ${actionTxHashes.length}`);
-      }
-      if (feeTxHash) console.log(`Fee tx:  ${feeTxHash}`);
-      const feeStatus = !autoFeeCall ? void 0 : feeTxHash ? "confirmed" : failedCallIndex === baseCallList.length ? "failed" : "not_attempted";
-      signedRecords = confirmedPendingTxs.map((tx, index) => {
-        const actionExecution = __spreadProps(__spreadValues({}, execution), {
-          txHash: actionTxHashes[index],
-          txHashes: [actionTxHashes[index]],
-          batched: false
-        });
-        return __spreadValues(__spreadProps(__spreadValues({}, toSignedTransactionRecord(
-          tx,
-          actionExecution,
-          account.address,
-          resolvedChainIds[index],
-          Date.now()
-        )), {
-          backendNotified: false,
-          agentRequestId: tx.agentRequestId
-        }), normalizedFee && feeStatus ? {
-          serviceFeeStatus: feeStatus,
-          serviceFeeAmountWei: normalizedFee.amountWei.toString(),
-          serviceFeeRecipient: normalizedFee.recipient,
-          serviceFeeTxHash: feeTxHash,
-          serviceFeeError: feeStatus === "confirmed" ? void 0 : partialFailureReason
-        } : {});
-      });
-      if (agentRequestId) {
-        const completedTxIds = actionTxHashes.map((_, index) => index + 1);
-        const failedTxIds = baseCallList.slice(actionTxHashes.length).map((_, index) => actionTxHashes.length + index + 1);
-        agentResult = {
-          status: "submitted",
-          legs: baseCallList.map(
-            (_, index) => completedTxIds.includes(index + 1) ? {
-              id: `leg_${index + 1}`,
-              status: "submitted",
-              transactionId: actionTxHashes[index]
-            } : {
-              id: `leg_${index + 1}`,
-              status: "failed",
-              reason: partialFailureReason != null ? partialFailureReason : "Transaction failed"
-            }
-          )
-        };
-      }
-      const remainingTxIds = pendingTxs.slice(confirmedPendingTxs.length).flatMap((tx) => tx.txId === void 0 ? [] : [tx.txId]);
-      void remainingTxIds;
-    } else {
-      if (pendingTxs.length > 1) {
-        fatal(
-          "Batch signing is only supported for transaction requests, not EIP-712 requests."
-        );
-      }
-      const pendingTx = pendingTxs[0];
-      const walletClient = createWalletClient2({
-        account,
-        chain,
-        transport: http2(resolvedRpcUrl)
-      });
-      const signaturePayload = pendingTx.payload;
-      let signArgs = toViemSignTypedDataArgs(signaturePayload);
-      const messageArgs = toViemSignMessageArgs(signaturePayload);
-      if (signArgs && messageArgs) {
-        fatal(
-          "Signature request cannot include both typed_data and non_typed_data."
-        );
-      }
-      if (!signArgs && !messageArgs) {
-        fatal(
-          "Signature request is missing typed_data or non_typed_data payload."
-        );
-      }
-      if (pendingTx.description) {
-        console.log(`Desc:    ${pendingTx.description}`);
-      }
-      console.log(
-        signArgs ? `Type:    ${signArgs.primaryType}` : "Type:    erc191"
-      );
-      console.log();
-      const signature = signArgs ? await walletClient.signTypedData(signArgs) : await walletClient.signMessage(messageArgs);
-      console.log(`\u2705 Signed! Signature: ${signature.slice(0, 20)}...`);
-      signedRecords = [
-        {
-          id: pendingTx.id,
-          agentRequestId: pendingTx.agentRequestId,
-          kind: "eip712_sign",
-          signature,
-          from: account.address,
-          description: pendingTx.description,
-          timestamp: Date.now()
-        }
-      ];
-      if (agentRequestId) {
-        agentResult = {
-          status: "signed",
-          outputs: [{ id: "payload_1", signature }]
-        };
-      }
-    }
-    cli.setPublicKey(account.address);
-    session.resolveWallet(account.address, primaryChainId);
-    for (const signedRecord of signedRecords) {
-      cli.addSignedTx(signedRecord);
-    }
-    if (agentResult) {
-      await session.respondToAction(agentRequestId, agentResult);
-      cli.markSignedAgentActionNotified(agentRequestId);
-    }
-    console.log("Backend notified.");
-    const failedFee = signedRecords.find(
-      (record) => record.serviceFeeStatus === "failed"
-    );
-    if (failedFee) {
-      fatal(
-        [
-          `\u26A0\uFE0F  Partial execution: action confirmed as ${failedFee.txHash}; service fee failed: ${(_f = failedFee.serviceFeeError) != null ? _f : "unknown error"}.`,
-          "The action is finalized and was removed from pending. Do not run `aomi tx sign` for this staged ID again.",
-          "No automatic fee-only retry is available; reconcile the fee separately with an operator using the recorded amount and recipient."
-        ].join("\n")
-      );
-    }
-    if (partialFailureReason) {
-      const confirmedIds = signedRecords.map((record) => record.id).join(", ");
-      fatal(
-        [
-          `\u26A0\uFE0F  Partial execution: confirmed ${confirmedIds}; a later action failed: ${partialFailureReason}.`,
-          "Confirmed IDs were removed from pending and will not be rebroadcast.",
-          "Run `aomi tx list`, then retry only the IDs that remain pending."
-        ].join("\n")
-      );
-    }
-  } catch (err) {
-    if (err instanceof CliExit) throw err;
-    const errMsg = err instanceof Error ? err.message : String(err);
-    fatal(`\u274C Signing failed: ${errMsg}`);
-  } finally {
-    session.close();
-  }
-}
-var init_wallet = __esm({
-  "src/cli/commands/wallet.ts"() {
-    "use strict";
-    init_aa();
-    init_wallet_utils();
-    init_cli_session();
-    init_errors();
-    init_solana_signer();
-    init_output();
-    init_transactions();
-    init_tables();
-  }
-});
-
-// src/cli/commands/simulate.ts
-var simulate_exports = {};
-__export(simulate_exports, {
-  simulateCommand: () => simulateCommand
-});
-import { formatEther as formatEther2 } from "viem";
-async function simulateCommand(config, txIds) {
-  var _a3, _b, _c, _d;
-  const cli = CliSession.load();
-  if (!cli) {
-    fatal("No active session. Run `aomi chat` first.");
-  }
-  if (txIds.length === 0) {
-    fatal(
-      "Usage: aomi tx simulate <tx-id> [<tx-id> ...]\nRun `aomi tx list` to see available IDs."
-    );
-  }
-  const session = cli.createClientSession(config);
-  try {
-    await session.fetchCurrentState();
-    for (const action of session.getPendingActions()) {
-      const pending = actionToPendingTx(action);
-      if (pending) cli.addPendingTx(pending);
-    }
-  } finally {
-    session.close();
-  }
-  const pendingTxs = txIds.map((txId) => cli.requirePendingTx(txId));
-  console.log(
-    `${DIM}Simulating ${txIds.length} transaction(s) as atomic batch...${RESET}`
-  );
-  const client = createCliClient(
-    __spreadProps(__spreadValues({}, config), {
-      secrets: (_a3 = config.secrets) != null ? _a3 : {}
-    }),
-    {
-      baseUrl: cli.baseUrl,
-      apiKey: cli.apiKey
-    }
-  );
-  const transactions = pendingTxs.map((tx) => {
-    var _a4, _b2, _c2;
-    return {
-      to: (_a4 = tx.to) != null ? _a4 : "",
-      value: tx.value,
-      data: tx.data,
-      label: (_b2 = tx.description) != null ? _b2 : tx.id,
-      chain_id: (_c2 = tx.chainId) != null ? _c2 : cli.chainId
-    };
-  });
-  const response = await client.simulateBatch(cli.sessionId, transactions, {
-    from: (_b = cli.publicKey) != null ? _b : void 0,
-    chainId: (_c = cli.chainId) != null ? _c : void 0
-  });
-  const { result } = response;
-  const modeLabel = result.stateful ? "stateful (Anvil snapshot)" : "stateless (independent eth_call)";
-  console.log(`
-Batch simulation (${modeLabel}):`);
-  console.log(`From: ${result.from} | Network: ${result.network}
-`);
-  for (const step of result.steps) {
-    const icon = step.success ? `${GREEN}\u2713${RESET}` : `\x1B[31m\u2717${RESET}`;
-    const label = step.label || `Step ${step.step}`;
-    const gasInfo = step.gas_used ? ` | gas: ${step.gas_used.toLocaleString()}` : "";
-    console.log(`  ${icon} ${step.step}. ${label}`);
-    console.log(
-      `    ${DIM}to: ${step.tx.to} | value: ${step.tx.value_eth} ETH${gasInfo}${RESET}`
-    );
-    if (!step.success && step.revert_reason) {
-      console.log(`    \x1B[31mRevert: ${step.revert_reason}${RESET}`);
-    }
-  }
-  if (result.total_gas) {
-    console.log(
-      `
-${DIM}Total gas: ${result.total_gas.toLocaleString()}${RESET}`
-    );
-  }
-  if (result.fee) {
-    const feeWei = BigInt(result.fee.amount_wei);
-    console.log(
-      `Service fee: ${formatEther2(feeWei)} ETH (${feeWei} wei) \u2192 ${result.fee.recipient}`
-    );
-  }
-  console.log();
-  if (result.batch_success) {
-    console.log(
-      `${GREEN}All steps passed.${RESET} Run \`aomi tx sign ${txIds.join(" ")}\` to execute.`
-    );
-  } else {
-    const failed = result.steps.find((s) => !s.success);
-    console.log(
-      `\x1B[31mBatch failed at step ${(_d = failed == null ? void 0 : failed.step) != null ? _d : "?"}.${RESET} Fix the issue and re-queue, or run \`aomi tx sign\` on the successful prefix.`
-    );
-  }
-}
-var init_simulate = __esm({
-  "src/cli/commands/simulate.ts"() {
-    "use strict";
-    init_cli_session();
-    init_client_factory();
-    init_errors();
-    init_output();
-    init_transactions();
   }
 });
 
@@ -6859,7 +5733,9 @@ async function fetchRemoteSessionStats(record) {
         is_streaming: message.is_streaming
       };
     });
-    const title = page.events.findLast((event) => event.type === "title_changed");
+    const title = page.events.findLast(
+      (event) => event.type === "title_changed"
+    );
     return {
       topic: (title == null ? void 0 : title.type) === "title_changed" ? (_a3 = title.title) != null ? _a3 : "Untitled Session" : "Untitled Session",
       messageCount: messages.length,
@@ -6874,27 +5750,19 @@ async function fetchRemoteSessionStats(record) {
   }
 }
 function printSessionSummary(record, stats, isActive) {
-  var _a3, _b, _c, _d;
-  const pendingTxs = (_a3 = record.state.pendingTxs) != null ? _a3 : [];
-  const signedTxs = (_b = record.state.signedTxs) != null ? _b : [];
+  var _a3;
   const header = isActive ? `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId}, active)` : `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId})`;
   console.log(`${YELLOW}------ ${header} ------${RESET}`);
   printKeyValueTable([
-    ["\u{1F9E0} topic", (_c = stats == null ? void 0 : stats.topic) != null ? _c : "Unavailable (fetch failed)"],
+    ["\u{1F9E0} topic", (_a3 = stats == null ? void 0 : stats.topic) != null ? _a3 : "Unavailable (fetch failed)"],
     ["\u{1F4AC} msg count", stats ? String(stats.messageCount) : "n/a"],
     [
       "\u{1F9EE} token count",
       stats ? `${stats.tokenCountEstimate} (estimated)` : "n/a"
     ],
     ["\u{1F6E0} tool calls", stats ? String(stats.toolCalls) : "n/a"],
-    [
-      "\u{1F4B8} transactions",
-      `${pendingTxs.length + signedTxs.length} (${(_d = stats == null ? void 0 : stats.pendingActions) != null ? _d : 0} Actions awaiting response, ${signedTxs.length} signed)`
-    ]
+    ["\u26A1 pending actions", stats ? String(stats.pendingActions) : "n/a"]
   ]);
-  console.log();
-  console.log(`${YELLOW}\u{1F4BE} Transactions metadata (JSON):${RESET}`);
-  printTransactionTable(pendingTxs, signedTxs);
 }
 async function sessionsCommand(_config) {
   var _a3;
@@ -7036,8 +5904,8 @@ async function statusCommand(config) {
           isProcessing: session.getIsProcessing(),
           messageCount: session.getMessages().length,
           title: (_c = session.getTitle()) != null ? _c : null,
-          pendingTxs: cli.pendingTxs.length,
-          signedTxs: cli.signedTxs.length
+          actions: session.actions.all().length,
+          pendingActions: session.actions.pending().length
         },
         null,
         2
@@ -7318,8 +6186,7 @@ async function logCommand(config) {
   try {
     await session.fetchCurrentState();
     const messages = session.getMessages();
-    const pendingTxs = [...cli.pendingTxs];
-    const signedTxs = [...cli.signedTxs];
+    const actions = session.actions.all();
     const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
     const tokenCountEstimate = estimateTokenCount(messages);
     const topic = (_a3 = session.getTitle()) != null ? _a3 : "Untitled Session";
@@ -7334,13 +6201,9 @@ async function logCommand(config) {
       ["msg count", String(messages.length)],
       ["token count", `${tokenCountEstimate} (estimated)`],
       ["tool calls", String(toolCalls)],
-      [
-        "transactions",
-        `${pendingTxs.length + signedTxs.length} (${pendingTxs.length} pending, ${signedTxs.length} signed)`
-      ]
+      ["actions", String(actions.length)],
+      ["pending actions", String(session.actions.pending().length)]
     ]);
-    console.log("Transactions metadata (JSON):");
-    printTransactionTable(pendingTxs, signedTxs);
     console.log("-------------------- Messages --------------------");
     for (const msg of messages) {
       const content = formatLogContent(msg.content);
@@ -7411,7 +6274,7 @@ __export(preferences_exports, {
   setSvmWalletCommand: () => setSvmWalletCommand,
   setWalletCommand: () => setWalletCommand
 });
-import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount5 } from "viem/accounts";
 function loadOrCreateForSettings() {
   const existing = CliSession.load();
   if (existing) return existing;
@@ -7426,13 +6289,13 @@ function setWalletCommand(privateKeyInput) {
   if (!privateKey) {
     fatal("Usage: aomi wallet set <private-key>  (EVM hex key)");
   }
-  const account = privateKeyToAccount6(privateKey);
+  const account = privateKeyToAccount5(privateKey);
   const cli = loadOrCreateForSettings();
   cli.setWallet(privateKey, account.address);
   console.log(`EVM wallet set to ${account.address}`);
   printDataFileLocation();
 }
-function setSvmWalletCommand(keyInput, cluster) {
+function setSvmWalletCommand(keyInput, cluster2) {
   var _a3;
   let keypair;
   try {
@@ -7445,19 +6308,19 @@ Usage: aomi wallet set --solana <base58-secret-key> [--cluster <cluster>]`
   }
   const publicKey = keypair.publicKey.toBase58();
   const cli = loadOrCreateForSettings();
-  const effectiveCluster = (_a3 = cluster != null ? cluster : cli.svmCluster) != null ? _a3 : "solana:mainnet";
+  const effectiveCluster = (_a3 = cluster2 != null ? cluster2 : cli.svmCluster) != null ? _a3 : "solana:mainnet";
   cli.setSvmWallet(keyInput.trim(), publicKey, effectiveCluster);
   console.log(`Solana wallet set to ${publicKey} (cluster ${effectiveCluster})`);
   printDataFileLocation();
 }
 function setChainCommand(chainIdInput) {
-  const chainId3 = parseChainId(chainIdInput);
-  if (chainId3 === void 0) {
+  const chainId4 = parseChainId(chainIdInput);
+  if (chainId4 === void 0) {
     fatal("Usage: aomi chain set <chain-id>");
   }
   const cli = loadOrCreateForSettings();
-  cli.setChainId(chainId3);
-  console.log(`Chain set to ${chainId3}`);
+  cli.setChainId(chainId4);
+  console.log(`Chain set to ${chainId4}`);
   printDataFileLocation();
 }
 function setBackendCommand(url) {
@@ -7741,7 +6604,7 @@ var init_device_auth = __esm({
 });
 
 // src/cli/account-graph.ts
-import { privateKeyToAccount as privateKeyToAccount7 } from "viem/accounts";
+import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
 function requireAccountGraphClient(cli) {
   var _a3;
   const sessionToken = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken;
@@ -7783,28 +6646,28 @@ async function buildSignedWalletLink(input2) {
   var _a3, _b, _c;
   const client = requireAccountGraphClient(input2.cli);
   const privateKey = resolveAccountPrivateKey(input2.cli, input2.config);
-  const account = privateKeyToAccount7(privateKey);
-  const chainId3 = (_b = (_a3 = input2.config.chain) != null ? _a3 : input2.cli.chainId) != null ? _b : 1;
+  const account = privateKeyToAccount6(privateKey);
+  const chainId4 = (_b = (_a3 = input2.config.chain) != null ? _a3 : input2.cli.chainId) != null ? _b : 1;
   const nonce = await client.getWalletLinkNonce({
     address: account.address,
-    chainId: chainId3
+    chainId: chainId4
   });
   const message = buildWalletLinkMessage({
     address: account.address,
-    chainId: chainId3,
+    chainId: chainId4,
     nonce: nonce.nonce,
     domain: nonce.domain,
     uri: nonce.uri,
     baseUrl: input2.cli.baseUrl
   });
-  const signature = await account.signMessage({ message });
+  const signature2 = await account.signMessage({ message });
   return {
     family: "evm",
     address: account.address,
-    chainId: chainId3,
+    chainId: chainId4,
     nonce: nonce.nonce,
     message,
-    signature,
+    signature: signature2,
     label: (_c = input2.label) != null ? _c : null
   };
 }
@@ -8075,20 +6938,20 @@ async function accountLoginWithSiws(cli, config) {
       "No Solana private key configured.\nRun `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`."
     );
   }
-  const chainId3 = cli.resolvedSvmCluster(config.svmCluster);
+  const chainId4 = cli.resolvedSvmCluster(config.svmCluster);
   const result = await signInWithCliSiws({
     baseUrl: cli.baseUrl,
     privateKey,
-    chainId: chainId3
+    chainId: chainId4
   });
-  cli.setSvmWallet(privateKey, result.address, chainId3);
+  cli.setSvmWallet(privateKey, result.address, chainId4);
   cli.setAuthSession(result.auth);
   if (config.json) {
     printJson({
       status: "signed_in",
       provider: "siws",
       address: result.address,
-      chainId: chainId3,
+      chainId: chainId4,
       baseUrl: cli.baseUrl,
       expiresAt: new Date(result.auth.expiresAt).toISOString()
     });
@@ -8108,15 +6971,15 @@ async function accountLoginWithSiwe(cli, config) {
       "No EVM private key configured.\nRun `aomi wallet set <evm-private-key>` or pass `--private-key`."
     );
   }
-  const chainId3 = (_c = (_b = config.chain) != null ? _b : cli.chainId) != null ? _c : DEFAULT_CHAIN_ID2;
+  const chainId4 = (_c = (_b = config.chain) != null ? _b : cli.chainId) != null ? _c : DEFAULT_CHAIN_ID2;
   const result = await signInWithCliSiwe({
     baseUrl: cli.baseUrl,
     privateKey,
-    chainId: chainId3
+    chainId: chainId4
   });
   cli.setWallet(privateKey, result.address);
-  if (cli.chainId !== chainId3) {
-    cli.setChainId(chainId3);
+  if (cli.chainId !== chainId4) {
+    cli.setChainId(chainId4);
   }
   cli.setAuthSession(result.auth);
   if (config.json) {
@@ -8124,7 +6987,7 @@ async function accountLoginWithSiwe(cli, config) {
       status: "signed_in",
       provider: "siwe",
       address: result.address,
-      chainId: chainId3,
+      chainId: chainId4,
       baseUrl: cli.baseUrl,
       expiresAt: new Date(result.auth.expiresAt).toISOString()
     });
@@ -8244,14 +7107,14 @@ async function accountLinkCommand(config, options = {}) {
         "No Solana private key configured.\nRun `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`."
       );
     }
-    const chainId3 = cli.resolvedSvmCluster(config.svmCluster);
+    const chainId4 = cli.resolvedSvmCluster(config.svmCluster);
     const result = await linkCliSiwsWallet({
       baseUrl: cli.baseUrl,
       sessionToken: cli.auth.sessionToken,
       privateKey,
-      chainId: chainId3
+      chainId: chainId4
     });
-    cli.setSvmWallet(privateKey, result.address, chainId3);
+    cli.setSvmWallet(privateKey, result.address, chainId4);
     const account = await client.getAccount();
     if (config.json) {
       printJson(__spreadProps(__spreadValues({}, result), { account }));
@@ -9579,7 +8442,7 @@ var chatDef = defineCommand({
 init_shared();
 import { defineCommand as defineCommand2 } from "citty";
 var txListDef = defineCommand2({
-  meta: { name: "list", description: "List pending and signed transactions" },
+  meta: { name: "list", description: "List session Actions" },
   args: __spreadValues({}, globalArgs),
   async run({ args }) {
     const { txCommand: txCommand2 } = await Promise.resolve().then(() => (init_wallet(), wallet_exports));
@@ -9589,12 +8452,12 @@ var txListDef = defineCommand2({
 var txSimulateDef = defineCommand2({
   meta: {
     name: "simulate",
-    description: "Simulate a batch of pending transactions"
+    description: "Simulate EVM execution Actions"
   },
   args: __spreadProps(__spreadValues({}, globalArgs), {
     txIds: {
       type: "positional",
-      description: "Transaction IDs to simulate",
+      description: "Action IDs to simulate",
       required: false
     }
   }),
@@ -9605,7 +8468,7 @@ var txSimulateDef = defineCommand2({
   }
 });
 var txSignDef = defineCommand2({
-  meta: { name: "sign", description: "Sign and submit pending transactions" },
+  meta: { name: "sign", description: "Execute pending Actions" },
   args: __spreadProps(__spreadValues({}, globalArgs), {
     eoa: {
       type: "boolean",
@@ -9625,7 +8488,7 @@ var txSignDef = defineCommand2({
     },
     txIds: {
       type: "positional",
-      description: "Transaction IDs to sign",
+      description: "Action IDs to execute",
       required: false
     }
   }),

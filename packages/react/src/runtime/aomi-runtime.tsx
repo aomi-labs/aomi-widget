@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import {
   AomiClient,
+  type ActionCapabilities,
   type AomiClientOptions,
   type AomiPlatformFilter,
 } from "@aomi-labs/client";
@@ -32,6 +33,7 @@ export type AomiRuntimeProviderProps = {
   applicationId?: number | string | null;
   appPlatforms?: AomiPlatformFilter;
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+  actions?: ActionCapabilities;
   /** Whether a canonical account session can load threads without a wallet. */
   accountSessionAvailable?: boolean;
   /** Optional explicit initial thread. Takes precedence over stored state. */
@@ -54,6 +56,7 @@ export function AomiRuntimeProvider({
   applicationId,
   appPlatforms,
   clientOptions,
+  actions,
   accountSessionAvailable = false,
   initialThreadId,
   persistThread = true,
@@ -112,6 +115,7 @@ export function AomiRuntimeProvider({
             applicationId={applicationId}
             appPlatforms={appPlatforms}
             accountSessionAvailable={accountSessionAvailable}
+            actions={actions}
             restoredThreadId={restoredThreadId}
             threadPersistenceKey={resolvedThreadPersistenceKey}
           >
@@ -133,6 +137,7 @@ type AomiRuntimeInnerProps = {
   applicationId?: number | string | null;
   appPlatforms?: AomiPlatformFilter;
   accountSessionAvailable: boolean;
+  actions?: ActionCapabilities;
   restoredThreadId?: string;
   threadPersistenceKey?: string | null;
 };
@@ -143,6 +148,7 @@ function AomiRuntimeInner({
   applicationId,
   appPlatforms,
   accountSessionAvailable,
+  actions,
   restoredThreadId,
   threadPersistenceKey,
 }: Readonly<AomiRuntimeInnerProps>) {
@@ -162,6 +168,7 @@ function AomiRuntimeInner({
           aomiClient={aomiClient}
           applicationId={applicationId}
           accountSessionAvailable={accountSessionAvailable}
+          actions={actions}
           restoredThreadId={restoredThreadId}
           threadPersistenceKey={threadPersistenceKey}
         >

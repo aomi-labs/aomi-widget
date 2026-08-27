@@ -1,4 +1,3 @@
-import type { WalletEip712Payload, WalletTxPayload } from "../../wallet-utils";
 import { parseAomiTaskEvent } from "../../types";
 import { CliSession } from "../cli-session";
 import {
@@ -27,10 +26,6 @@ import type { CliConfig } from "../types";
 import { buildCliUserState } from "../user-state";
 import type { UserStateAAMode } from "../../user-state";
 import { parseSolanaKeypairSecret } from "../solana-signer";
-import {
-  actionToPendingSolTx,
-  actionToPendingTx,
-} from "../transactions";
 
 type WalletSnapshot = {
   publicKey?: string;
@@ -43,12 +38,6 @@ type WalletSnapshot = {
 
 function normalizeAddress(address: string | undefined): string | undefined {
   return address?.toLowerCase();
-}
-
-function extractMentionedTxIds(content: string | undefined): string[] {
-  if (!content) return [];
-  const matches = content.match(/\btx-\d+\b/gi) ?? [];
-  return Array.from(new Set(matches.map((id) => id.toLowerCase()))).sort();
 }
 
 /**
@@ -186,10 +175,9 @@ export async function chatCommand(
       session,
     );
 
-    const previousPendingIds = new Set([
-      ...cli.pendingTxs.map((tx) => `evm:${tx.id}`),
-      ...cli.pendingSolTxs.map((tx) => `svm:${tx.id}`),
-    ]);
+    const previousActionIds = new Set(
+      session.actions.all().map((action) => action.id),
+    );
     let printedAgentCount = 0;
     const seenToolResults = new Set<string>();
 
@@ -261,17 +249,10 @@ export async function chatCommand(
       });
     }
 
-    if (
-      session.getIsProcessing() &&
-      session.getPendingActions().length === 0
-    ) {
+    if (session.getIsProcessing() && session.actions.pending().length === 0) {
       await new Promise<void>((resolve) => {
-        // Wait for the backend to finish its turn so ALL system events
-        // (including every wallet request) have been delivered.
-        // `backend_idle` fires when is_processing goes false, even if
-        // there are unresolved local wallet requests.
-        // `processing_end` fires when both backend is idle AND there
-        // are no local wallet requests (e.g. pure-text response).
+        // Wait until the ordered Event stream reaches an Action or terminal
+        // turn state. ActionHandler owns any response-required work.
         session.on("backend_idle", () => resolve());
         session.on("processing_end", () => resolve());
       });
@@ -310,34 +291,24 @@ export async function chatCommand(
     }
 
     cli.syncWalletFromUserState(session.getUserState());
-    for (const action of session.getPendingActions()) {
-      const evm = actionToPendingTx(action);
-      if (evm) cli.addPendingTx(evm);
-      const pending = actionToPendingSolTx(action);
-      if (pending) cli.addPendingSolTx(pending);
-    }
-    cli.reload();
-    const newPendingTxs = [
-      ...cli.pendingTxs.filter((tx) => !previousPendingIds.has(`evm:${tx.id}`)),
-      ...cli.pendingSolTxs.filter(
-        (tx) => !previousPendingIds.has(`svm:${tx.id}`),
-      ),
-    ];
+    const newActions = session.actions
+      .pending()
+      .filter((action) => !previousActionIds.has(action.id));
 
-    for (const pending of newPendingTxs) {
-      console.log(`⚡ Wallet request queued: ${pending.id}`);
-      if ("kind" in pending && pending.kind === "transaction") {
-        const payload = pending.payload as WalletTxPayload;
-        console.log(`   to:    ${payload.to}`);
-        if (payload.value) console.log(`   value: ${payload.value}`);
-        if (payload.chainId) console.log(`   chain: ${payload.chainId}`);
-      } else if ("kind" in pending && pending.kind === "eip712_sign") {
-        const payload = pending.payload as WalletEip712Payload;
-        if (payload.description) {
-          console.log(`   desc:  ${payload.description}`);
-        }
-        if (payload.non_typed_data) {
-          console.log("   type:  erc191");
+    for (const action of newActions) {
+      console.log(`⚡ Action awaiting response: ${action.id}`);
+      if (action.request.type === "execute_evm") {
+        console.log(
+          `   EVM transactions: ${action.request.transactions.length}`,
+        );
+      } else if (action.request.type === "execute_svm") {
+        console.log(
+          `   SVM transactions: ${action.request.transactions.length}`,
+        );
+      } else {
+        console.log(`   ${action.request.chainFamily.toUpperCase()} signature`);
+        if (action.request.description) {
+          console.log(`   ${action.request.description}`);
         }
       }
     }
@@ -352,25 +323,15 @@ export async function chatCommand(
         console.log(last.content);
       } else if (session.getTurnState() === "interrupted") {
         console.log("(interrupted)");
-      } else if (newPendingTxs.length === 0) {
+      } else if (newActions.length === 0) {
         console.log("(no response)");
         fatal("Backend returned an empty agent message.");
       }
-
-      if (newPendingTxs.length === 0) {
-        const mentionedTxIds = extractMentionedTxIds(last?.content);
-        if (mentionedTxIds.length > 0) {
-          console.log(
-            `\n${YELLOW}⚠️ Assistant referenced ${mentionedTxIds.join(", ")}, but backend returned no pending wallet requests.${RESET}`,
-          );
-          console.log("   These IDs are not signable from this session.");
-        }
-      }
     }
 
-    if (newPendingTxs.length > 0) {
+    if (newActions.length > 0) {
       console.log(
-        "\nRun `aomi tx list` to see pending transactions, `aomi tx sign <id>` to sign.",
+        "\nRun `aomi tx list` to inspect Actions, `aomi tx sign <action-id>` to execute.",
       );
     }
   } finally {

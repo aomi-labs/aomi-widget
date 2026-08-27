@@ -1,5 +1,5 @@
 import type { components } from "../generated/agent-v1/types";
-import type { Action, ActionResult } from "../agent/types";
+import type { Action } from "../agent/types";
 
 type Schemas = components["schemas"];
 
@@ -197,8 +197,6 @@ export interface EvmCommitResult {
   digest: string;
   receipts?: PipelineTransactionReceipt[];
   action?: Action;
-  /** Present on high-level results when the configured wallet handled the Action. */
-  actionResult?: ActionResult;
 }
 
 export interface SvmAccountMeta {
@@ -280,7 +278,5 @@ export interface SvmCommitResult {
   digest: string;
   receipts?: PipelineTransactionReceipt[];
   action?: Action;
-  /** Present on high-level results when the configured wallet handled the Action. */
-  actionResult?: ActionResult;
 }
 export type PipelineErrorBody = Schemas["ErrorEnvelope"];

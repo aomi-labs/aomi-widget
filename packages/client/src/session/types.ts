@@ -1,10 +1,5 @@
-import type {
-  Action,
-  ActionResult,
-  Event,
-  EventPage,
-  TurnState,
-} from "../agent/types";
+import type { Action, Event, EventPage, TurnState } from "../agent/types";
+import type { ActionCapabilities } from "../actions";
 import type { AomiClientType, UserState } from "../user-state";
 import type { AomiMessage } from "../types";
 
@@ -23,6 +18,7 @@ export type SessionOptions = {
   clientId?: string;
   pollIntervalMs?: number;
   logger?: { debug: (...args: unknown[]) => void };
+  actions?: ActionCapabilities;
 };
 
 export type SessionRuntimeOptions = {
@@ -31,6 +27,7 @@ export type SessionRuntimeOptions = {
   applicationId?: number | string | null;
   clientId?: string;
   userState?: UserState;
+  actions?: ActionCapabilities;
 };
 
 type MessageEvent = Extract<Event, { type: "message" }>;
@@ -46,7 +43,6 @@ type ErrorEvent = Extract<Event, { type: "error" }>;
 export type SessionEventMap = {
   event: Event;
   action: Action;
-  actions_changed: Action[];
   message: MessageEvent;
   messages: AomiMessage[];
   turn_state_changed: TurnEvent;
@@ -65,4 +61,4 @@ export type SessionEventMap = {
   "*": { type: string; payload: unknown };
 };
 
-export type { Action, ActionResult, Event, EventPage, TurnState };
+export type { Action, Event, EventPage, TurnState };

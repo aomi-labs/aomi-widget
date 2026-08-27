@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import type {
-  Action,
+  ActionCapabilities,
   AomiClient,
   AomiMessage,
   UserState,
@@ -17,7 +17,7 @@ import {
 } from "../contexts/thread-context";
 import { initThreadControl, type ThreadTurnPhase } from "../state/thread-store";
 import { SessionManager } from "./session-manager";
-import { collectTxOutcomes, toInboundMessage } from "./utils";
+import { toInboundMessage } from "./utils";
 import { mergeAssistantTurns } from "./merge-turns";
 
 type OrchestratorOptions = {
@@ -26,10 +26,10 @@ type OrchestratorOptions = {
   getModel?: () => string | null | undefined;
   getApplicationId?: () => number | string | null | undefined;
   getClientId?: () => string | undefined;
+  getActions?: () => ActionCapabilities | undefined;
   prepareThreadForSend?: (threadId: string) => Promise<void> | void;
   onSendSuccess?: (threadId: string) => void;
   onSendError?: (threadId: string, error: unknown) => Promise<void> | void;
-  onActionsChange?: (actions: Action[]) => void;
   onEvent?: (event: {
     type: string;
     payload: unknown;
@@ -117,16 +117,12 @@ const projectInboundMessages = (
   messages: readonly AomiMessage[],
   projection: MessageProjection | null,
 ) => {
-  // Collected over the FULL raw list, not the projected ranges: a truncated
-  // projection may hide the system echo while still showing the staged step
-  // it reports on.
-  const txOutcomes = collectTxOutcomes(messages);
   const projectedMessages: ThreadMessageLike[] = [];
   for (const { message, rawIndex } of selectProjectedMessageEntries(
     messages,
     projection,
   )) {
-    const converted = toInboundMessage(message, txOutcomes, rawIndex);
+    const converted = toInboundMessage(message, rawIndex);
     if (converted) projectedMessages.push(converted);
   }
   return mergeAssistantTurns(projectedMessages);
@@ -459,13 +455,15 @@ export function useRuntimeOrchestrator(
   /** Get or create a ClientSession for a thread, wiring up event listeners. */
   const getSession = useCallback(
     (threadId: string): ClientSession => {
-      const manager = sessionManagerRef.current!;
+      const manager = sessionManagerRef.current;
+      if (!manager) throw new Error("SessionManager is not initialized");
       const nextOptions = optionsRef.current;
       const nextApp = nextOptions.getApp();
       const nextModel = nextOptions.getModel?.() ?? undefined;
       const nextApplicationId = nextOptions.getApplicationId?.();
       const nextClientId = nextOptions.getClientId?.();
       const nextUserState = nextOptions.getUserState?.();
+      const nextActions = nextOptions.getActions?.();
       const existing = manager.get(threadId);
       if (existing) {
         existing.syncRuntimeOptions({
@@ -474,6 +472,7 @@ export function useRuntimeOrchestrator(
           applicationId: nextApplicationId,
           clientId: nextClientId,
           userState: nextUserState,
+          actions: nextActions,
         });
         return existing;
       }
@@ -485,6 +484,7 @@ export function useRuntimeOrchestrator(
         clientId: nextClientId,
         clientType: CLIENT_TYPE_WEB_UI,
         userState: nextUserState,
+        actions: nextActions,
       });
 
       // Wire ClientSession events → React state
@@ -523,12 +523,6 @@ export function useRuntimeOrchestrator(
             setIsRunning(false);
           }
         }),
-      );
-
-      cleanups.push(
-        session.on("actions_changed", (actions) =>
-          optionsRef.current.onActionsChange?.(actions),
-        ),
       );
 
       // Title changes → thread metadata
@@ -603,9 +597,6 @@ export function useRuntimeOrchestrator(
         existingSession &&
         (hydratedThreadIds.current.has(threadId) || cachedMessages.length > 0)
       ) {
-        optionsRef.current.onActionsChange?.(
-          existingSession.getActions(),
-        );
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(existingSession.getIsProcessing());
         }
@@ -619,10 +610,6 @@ export function useRuntimeOrchestrator(
           const session = getSession(threadId);
           await session.fetchCurrentState();
           hydratedThreadIds.current.add(threadId);
-          optionsRef.current.onActionsChange?.(
-            session.getActions(),
-          );
-
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(session.getIsProcessing());
           }
@@ -709,7 +696,7 @@ export function useRuntimeOrchestrator(
           threadId,
           sessionId: session.sessionId,
           isProcessing: session.getIsProcessing(),
-          pendingActionCount: session.getPendingActions().length,
+          pendingActionCount: session.actions.pending().length,
         });
         optionsRef.current.onSendSuccess?.(threadId);
         if (!session.getIsProcessing()) {
@@ -723,9 +710,6 @@ export function useRuntimeOrchestrator(
           threadId,
           optimisticMessageId,
           "sent",
-        );
-        optionsRef.current.onActionsChange?.(
-          session.getActions(),
         );
       } catch (error) {
         clearTimeout(submittingFallbackTimer);

@@ -75,13 +75,8 @@ export type {
 // =============================================================================
 // Handler Hooks
 // =============================================================================
-export { useActionHandler } from "./handlers/action-handler";
+export { useActions } from "./actions/use-actions";
 export { useNotificationHandler } from "./handlers/notification-handler";
-export type {
-  ActionHandlerApi,
-  ActionHandlerConfig,
-  ActionStatus,
-} from "./handlers/action-handler";
 export type {
   NotificationHandlerConfig,
   NotificationApi,

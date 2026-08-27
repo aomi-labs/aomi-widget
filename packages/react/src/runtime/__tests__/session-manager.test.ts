@@ -6,7 +6,7 @@ type FakeSession = {
   close: ReturnType<typeof vi.fn>;
   getIsProcessing: () => boolean;
   getIsPolling: () => boolean;
-  getPendingActions: () => unknown[];
+  actions: { pending: () => unknown[] };
 };
 
 const createFakeSession = (
@@ -19,7 +19,7 @@ const createFakeSession = (
   close: vi.fn(),
   getIsProcessing: () => options.isProcessing ?? false,
   getIsPolling: () => options.isPolling ?? false,
-  getPendingActions: () => options.pendingActions ?? [],
+  actions: { pending: () => options.pendingActions ?? [] },
 });
 
 const getSessions = (manager: SessionManager) =>

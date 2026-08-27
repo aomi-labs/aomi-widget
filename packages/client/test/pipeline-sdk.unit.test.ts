@@ -3,10 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   Aomi,
   AomiClient,
+  ActionHandler,
   EvmBuild,
   PipelineSchemaError,
   SvmBuild,
-  WalletController,
+  walletCapabilities,
 } from "../src";
 import type {
   Action,
@@ -325,7 +326,7 @@ describe("Pipeline SDK lifecycle", () => {
     });
   });
 
-  it("uses the shared wallet controller when a Build reaches wallet review", async () => {
+  it("returns the canonical Action without implicitly executing it", async () => {
     const action = pendingAction({
       type: "execute_evm",
       transactions: [
@@ -358,13 +359,6 @@ describe("Pipeline SDK lifecycle", () => {
       baseUrl: "https://api.example",
       fetch: fetch as typeof globalThis.fetch,
       guest: false,
-      wallet: {
-        evm: {
-          address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          chainId: 1,
-          sendCalls,
-        },
-      },
     });
 
     const build = await aomi.pipeline.evm.build({
@@ -378,41 +372,39 @@ describe("Pipeline SDK lifecycle", () => {
     });
     const result = await build.commit();
 
-    expect(sendCalls).toHaveBeenCalledWith({
-      chainId: 1,
-      calls: [
-        {
-          to: "0x1111111111111111111111111111111111111111",
-          value: "0",
-          data: "0x",
-        },
-      ],
-    });
-    expect(result.actionResult).toEqual({
-      status: "submitted",
-      legs: [
-        {
-          id: "leg_1",
-          status: "submitted",
-          transactionId: "0xsubmitted",
-        },
-      ],
-    });
+    expect(sendCalls).not.toHaveBeenCalled();
+    expect(result.action).toEqual(action);
   });
 });
 
-describe("WalletController", () => {
+describe("wallet capabilities", () => {
   it("keeps SVM transaction signing distinct from message signing", async () => {
     const signTransaction = vi.fn().mockResolvedValue("signed-transaction");
     const signMessage = vi.fn().mockResolvedValue({ signature: "signature" });
-    const controller = new WalletController({
-      svm: {
-        address: "Owner111",
-        cluster: "solana:devnet",
-        signTransaction,
-        signMessage,
-      },
-    });
+    const result = {
+      status: "signed" as const,
+      outputs: [
+        { id: "payload_1", signedTransactionBase64: "signed-transaction" },
+        { id: "payload_2", signature: "signature" },
+      ],
+    };
+    const respond = vi.fn(async (current: Action) => ({
+      ...current,
+      revision: current.revision + 1,
+      state: "completed" as const,
+      result,
+    }));
+    const handler = new ActionHandler(
+      walletCapabilities({
+        svm: {
+          address: "Owner111",
+          cluster: "solana:devnet",
+          signTransaction,
+          signMessage,
+        },
+      }),
+      respond,
+    );
     const action = pendingAction({
       type: "sign",
       requestId: "sign-1",
@@ -427,13 +419,9 @@ describe("WalletController", () => {
       ],
     });
 
-    await expect(controller.execute(action)).resolves.toEqual({
-      status: "signed",
-      outputs: [
-        { id: "payload_1", signedTransactionBase64: "signed-transaction" },
-        { id: "payload_2", signature: "signature" },
-      ],
-    });
+    handler.ingest(action);
+    await handler.execute(action.id);
+    expect(respond).toHaveBeenCalledWith(action, result);
     expect(signTransaction).toHaveBeenCalledWith({
       transactionBase64: "AQ==",
       cluster: "solana:devnet",
@@ -446,13 +434,16 @@ describe("WalletController", () => {
 
   it("refuses to sign for a different configured wallet", async () => {
     const signMessage = vi.fn().mockResolvedValue("signature");
-    const controller = new WalletController({
-      evm: {
-        address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-        chainId: 1,
-        signMessage,
-      },
-    });
+    const handler = new ActionHandler(
+      walletCapabilities({
+        evm: {
+          address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          chainId: 1,
+          signMessage,
+        },
+      }),
+      vi.fn(),
+    );
     const action = pendingAction({
       type: "sign",
       requestId: "sign-foreign",
@@ -464,7 +455,8 @@ describe("WalletController", () => {
       payloads: [{ kind: "evm_personal", message: "0x01" }],
     });
 
-    await expect(controller.execute(action)).rejects.toThrow(
+    handler.ingest(action);
+    await expect(handler.execute(action.id)).rejects.toThrow(
       "active EVM wallet is not the requested signer",
     );
     expect(signMessage).not.toHaveBeenCalled();

@@ -52,6 +52,7 @@ __export(index_exports, {
   ALCHEMY_CHAIN_SLUGS: () => ALCHEMY_CHAIN_SLUGS,
   AOMI_TASK_EVENT_TYPES: () => AOMI_TASK_EVENT_TYPES,
   AccountCredentialUnavailableError: () => AccountCredentialUnavailableError,
+  ActionHandler: () => ActionHandler,
   AgentApiError: () => AgentApiError,
   AgentRun: () => AgentRun,
   AgentTransport: () => AgentTransport,
@@ -87,7 +88,6 @@ __export(index_exports, {
   SvmStaged: () => SvmStaged,
   TypedEventEmitter: () => TypedEventEmitter,
   UserState: () => UserState,
-  WalletController: () => WalletController,
   WidgetChallengeBindingError: () => WidgetChallengeBindingError,
   aaModeFromExecutionKind: () => aaModeFromExecutionKind,
   appIdentityKey: () => appIdentityKey,
@@ -114,13 +114,8 @@ __export(index_exports, {
   monad: () => monad,
   monadTestnet: () => monadTestnet,
   normalizeAppDescriptor: () => normalizeAppDescriptor,
-  normalizeEip712Payload: () => normalizeEip712Payload,
   normalizeSimulatedFee: () => normalizeSimulatedFee,
   normalizeSolanaCluster: () => normalizeSolanaCluster,
-  normalizeSolanaSignMessagePayload: () => normalizeSolanaSignMessagePayload,
-  normalizeSolanaSignPayload: () => normalizeSolanaSignPayload,
-  normalizeSolanaWalletRequest: () => normalizeSolanaWalletRequest,
-  normalizeTxPayload: () => normalizeTxPayload,
   parseAomiTaskEvent: () => parseAomiTaskEvent,
   parseChainId: () => parseChainId3,
   partialWalletExecution: () => partialWalletExecution,
@@ -133,6 +128,8 @@ __export(index_exports, {
   toViemSignMessageArgs: () => toViemSignMessageArgs,
   toViemSignTypedDataArgs: () => toViemSignTypedDataArgs,
   validatePipelineArguments: () => validatePipelineArguments,
+  walletCapabilities: () => walletCapabilities,
+  walletUserState: () => walletUserState,
   wrapFetchWithPaymentChallenges: () => wrapFetchWithPaymentChallenges
 });
 module.exports = __toCommonJS(index_exports);
@@ -1320,6 +1317,264 @@ ${body}` : ""}`
   }
 };
 
+// src/event.ts
+var TypedEventEmitter = class {
+  constructor() {
+    this.listeners = /* @__PURE__ */ new Map();
+  }
+  on(type, handler) {
+    let set = this.listeners.get(type);
+    if (!set) {
+      set = /* @__PURE__ */ new Set();
+      this.listeners.set(type, set);
+    }
+    set.add(handler);
+    return () => {
+      set.delete(handler);
+      if (set.size === 0) {
+        this.listeners.delete(type);
+      }
+    };
+  }
+  once(type, handler) {
+    const wrapper = ((payload) => {
+      unsub();
+      handler(payload);
+    });
+    const unsub = this.on(type, wrapper);
+    return unsub;
+  }
+  emit(type, payload) {
+    const typeSet = this.listeners.get(type);
+    if (typeSet) {
+      for (const handler of typeSet) {
+        handler(payload);
+      }
+    }
+    if (type !== "*") {
+      const wildcardSet = this.listeners.get("*");
+      if (wildcardSet) {
+        for (const handler of wildcardSet) {
+          handler({ type, payload });
+        }
+      }
+    }
+  }
+  off(type, handler) {
+    const set = this.listeners.get(type);
+    if (set) {
+      set.delete(handler);
+      if (set.size === 0) {
+        this.listeners.delete(type);
+      }
+    }
+  }
+  removeAllListeners() {
+    this.listeners.clear();
+  }
+};
+
+// src/actions/capabilities.ts
+function canExecute(action, capabilities) {
+  return Boolean(capabilities[action.request.type]);
+}
+function execute(action, capabilities, signal) {
+  switch (action.request.type) {
+    case "execute_evm": {
+      const capability = capabilities.execute_evm;
+      if (!capability) throw unsupported(action);
+      return capability(action.request, signal);
+    }
+    case "execute_svm": {
+      const capability = capabilities.execute_svm;
+      if (!capability) throw unsupported(action);
+      return capability(action.request, signal);
+    }
+    case "sign": {
+      const capability = capabilities.sign;
+      if (!capability) throw unsupported(action);
+      return capability(action.request, signal);
+    }
+  }
+}
+function unsupported(action) {
+  return new Error(
+    `No capability is configured for Action "${action.request.type}"`
+  );
+}
+
+// src/actions/action-handler.ts
+var ActionHandler = class extends TypedEventEmitter {
+  constructor(capabilities, respond) {
+    super();
+    this.capabilities = capabilities;
+    this.respond = respond;
+    this.actions = /* @__PURE__ */ new Map();
+    this.attempts = /* @__PURE__ */ new Map();
+    this.snapshot = [];
+  }
+  ingest(action) {
+    const previous = this.actions.get(action.id);
+    if (previous && previous.revision >= action.revision) return false;
+    this.actions.set(action.id, action);
+    const attempt = this.attempts.get(action.id);
+    if (attempt && (action.revision > attempt.revision || action.state !== "pending")) {
+      attempt.controller.abort();
+      this.attempts.delete(action.id);
+      this.emit("attempt_changed", void 0);
+    }
+    this.snapshot = [...this.actions.values()].sort(
+      (left, right) => left.sequence - right.sequence
+    );
+    this.emit("changed", this.snapshot);
+    return true;
+  }
+  get(id) {
+    return this.actions.get(id);
+  }
+  all() {
+    return this.snapshot;
+  }
+  pending() {
+    return this.all().filter((action) => action.state === "pending");
+  }
+  attempt(id) {
+    const attempt = this.attempts.get(id);
+    if (!attempt) return void 0;
+    return publicAttempt(attempt);
+  }
+  isBlocking() {
+    return this.pending().length > 0 || this.attempts.size > 0;
+  }
+  subscribe(listener) {
+    return this.on("changed", listener);
+  }
+  setCapabilities(capabilities) {
+    this.capabilities = capabilities;
+  }
+  canExecute(id) {
+    const action = this.actions.get(id);
+    return Boolean(
+      action && action.state === "pending" && canExecute(action, this.capabilities)
+    );
+  }
+  execute(id) {
+    const current = this.attempts.get(id);
+    if (current == null ? void 0 : current.promise) return current.promise;
+    if (current == null ? void 0 : current.result)
+      return this.sendResult(this.pendingAction(id), current);
+    const action = this.pendingAction(id);
+    const attempt = {
+      actionId: action.id,
+      revision: action.revision,
+      state: "executing",
+      controller: new AbortController()
+    };
+    this.attempts.set(id, attempt);
+    this.emit("attempt_changed", publicAttempt(attempt));
+    return this.track(action.id, attempt, async () => {
+      try {
+        const result = await execute(
+          action,
+          this.capabilities,
+          attempt.controller.signal
+        );
+        attempt.result = result;
+        return await this.respondWithResult(action, attempt);
+      } catch (error) {
+        this.fail(attempt, error);
+        throw error;
+      }
+    });
+  }
+  submitResult(id, result) {
+    const current = this.attempts.get(id);
+    if (current == null ? void 0 : current.promise) return current.promise;
+    const action = this.pendingAction(id);
+    const attempt = current != null ? current : {
+      actionId: action.id,
+      revision: action.revision,
+      state: "responding",
+      controller: new AbortController()
+    };
+    attempt.result = result;
+    this.attempts.set(id, attempt);
+    return this.sendResult(action, attempt);
+  }
+  reject(id, reason = "Request rejected") {
+    return this.submitResult(id, { status: "rejected", reason });
+  }
+  retry(id) {
+    const attempt = this.attempts.get(id);
+    return (attempt == null ? void 0 : attempt.result) ? this.sendResult(this.pendingAction(id), attempt) : this.execute(id);
+  }
+  abort(id) {
+    const attempt = this.attempts.get(id);
+    if (!attempt) return;
+    attempt.controller.abort();
+    this.attempts.delete(id);
+    this.emit("attempt_changed", void 0);
+  }
+  close() {
+    for (const attempt of this.attempts.values()) attempt.controller.abort();
+    this.attempts.clear();
+    this.actions.clear();
+    this.snapshot = [];
+    this.removeAllListeners();
+  }
+  sendResult(action, attempt) {
+    if (attempt.promise) return attempt.promise;
+    return this.track(action.id, attempt, async () => {
+      try {
+        return await this.respondWithResult(action, attempt);
+      } catch (error) {
+        this.fail(attempt, error);
+        throw error;
+      }
+    });
+  }
+  respondWithResult(action, attempt) {
+    if (!attempt.result) throw new Error(`Action "${action.id}" has no result`);
+    attempt.state = "responding";
+    attempt.error = void 0;
+    this.emit("attempt_changed", publicAttempt(attempt));
+    return this.respond(action, attempt.result).then((next) => {
+      this.ingest(next);
+      this.emit("resolved", next);
+      return next;
+    });
+  }
+  track(id, attempt, operation) {
+    const promise = operation();
+    attempt.promise = promise;
+    const clear = () => {
+      if (this.attempts.get(id) === attempt) attempt.promise = void 0;
+    };
+    void promise.then(clear, clear);
+    return promise;
+  }
+  fail(attempt, error) {
+    if (this.attempts.get(attempt.actionId) !== attempt) return;
+    attempt.state = "failed";
+    attempt.error = error;
+    this.emit("attempt_changed", publicAttempt(attempt));
+  }
+  pendingAction(id) {
+    const action = this.actions.get(id);
+    if (!action || action.state !== "pending") {
+      throw new Error(`No pending Action with id "${id}"`);
+    }
+    return action;
+  }
+};
+function publicAttempt(attempt) {
+  return __spreadValues({
+    actionId: attempt.actionId,
+    revision: attempt.revision,
+    state: attempt.state
+  }, attempt.error === void 0 ? {} : { error: attempt.error });
+}
+
 // src/authorization.ts
 function createOAuthTokenProvider(input) {
   var _a, _b;
@@ -1621,317 +1876,6 @@ function decodeJwtPayload(token) {
   const [, payload] = token.split(".");
   if (!payload) throw new Error("Better Auth token is not a JWT");
   return JSON.parse(decodeBase64Url(payload));
-}
-
-// src/event.ts
-var TypedEventEmitter = class {
-  constructor() {
-    this.listeners = /* @__PURE__ */ new Map();
-  }
-  on(type, handler) {
-    let set = this.listeners.get(type);
-    if (!set) {
-      set = /* @__PURE__ */ new Set();
-      this.listeners.set(type, set);
-    }
-    set.add(handler);
-    return () => {
-      set.delete(handler);
-      if (set.size === 0) {
-        this.listeners.delete(type);
-      }
-    };
-  }
-  once(type, handler) {
-    const wrapper = ((payload) => {
-      unsub();
-      handler(payload);
-    });
-    const unsub = this.on(type, wrapper);
-    return unsub;
-  }
-  emit(type, payload) {
-    const typeSet = this.listeners.get(type);
-    if (typeSet) {
-      for (const handler of typeSet) {
-        handler(payload);
-      }
-    }
-    if (type !== "*") {
-      const wildcardSet = this.listeners.get("*");
-      if (wildcardSet) {
-        for (const handler of wildcardSet) {
-          handler({ type, payload });
-        }
-      }
-    }
-  }
-  off(type, handler) {
-    const set = this.listeners.get(type);
-    if (set) {
-      set.delete(handler);
-      if (set.size === 0) {
-        this.listeners.delete(type);
-      }
-    }
-  }
-  removeAllListeners() {
-    this.listeners.clear();
-  }
-};
-
-// src/wallet/controller.ts
-var WalletController = class extends TypedEventEmitter {
-  constructor(wallet) {
-    super();
-    this.wallet = wallet;
-  }
-  canHandle(action) {
-    var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
-    const request = action.request;
-    if (request.type === "execute_evm") {
-      return Boolean(((_b = (_a = this.wallet) == null ? void 0 : _a.evm) == null ? void 0 : _b.sendCalls) || ((_d = (_c = this.wallet) == null ? void 0 : _c.evm) == null ? void 0 : _d.sendTransaction));
-    }
-    if (request.type === "execute_svm") {
-      return Boolean(
-        ((_f = (_e = this.wallet) == null ? void 0 : _e.svm) == null ? void 0 : _f.signAndSendTransaction) || ((_h = (_g = this.wallet) == null ? void 0 : _g.svm) == null ? void 0 : _h.sendTransaction)
-      );
-    }
-    if (request.chainFamily === "evm") {
-      const wallet2 = (_i = this.wallet) == null ? void 0 : _i.evm;
-      return Boolean(
-        wallet2 && request.payloads.every(
-          (payload) => payload.kind === "evm_personal" ? wallet2.signMessage : payload.kind === "evm_typed_data" ? wallet2.signTypedData : false
-        )
-      );
-    }
-    const wallet = (_j = this.wallet) == null ? void 0 : _j.svm;
-    return Boolean(
-      wallet && request.payloads.every(
-        (payload) => payload.kind === "svm_message" ? wallet.signMessage : payload.kind === "svm_transaction" ? wallet.signTransaction : false
-      )
-    );
-  }
-  async execute(action) {
-    if (action.state !== "pending") throw new Error(`Action "${action.id}" is not pending`);
-    this.emit("action", action);
-    try {
-      const result = await this.executeRequest(action);
-      this.emit("resolved", { action, result });
-      return result;
-    } catch (error) {
-      this.emit("rejected", { action, error });
-      throw error;
-    }
-  }
-  userState() {
-    var _a, _b;
-    if (!((_a = this.wallet) == null ? void 0 : _a.evm) && !((_b = this.wallet) == null ? void 0 : _b.svm)) return void 0;
-    return __spreadValues(__spreadValues({
-      connection: { is_connected: true }
-    }, this.wallet.evm ? {
-      evm: __spreadValues({
-        address: this.wallet.evm.address
-      }, this.evmChainId() ? { chain_id: this.evmChainId() } : {})
-    } : {}), this.wallet.svm ? {
-      svm: __spreadValues({
-        address: this.wallet.svm.address
-      }, this.svmCluster() ? { cluster: this.svmCluster() } : {})
-    } : {});
-  }
-  executeRequest(action) {
-    switch (action.request.type) {
-      case "execute_evm":
-        return this.executeEvm(action.request);
-      case "execute_svm":
-        return this.executeSvm(action.request);
-      case "sign":
-        return this.executeSigning(action.request);
-    }
-  }
-  async executeEvm(request) {
-    var _a;
-    const wallet = (_a = this.wallet) == null ? void 0 : _a.evm;
-    if (!wallet) throw new Error("No EVM wallet adapter is configured");
-    const first = request.transactions[0];
-    if (!first) throw new Error("EVM Action contains no transactions");
-    if (request.transactions.some(
-      (transaction) => transaction.chain_id !== first.chain_id || transaction.from.toLowerCase() !== wallet.address.toLowerCase()
-    )) {
-      throw new Error("The active EVM wallet does not match the Action");
-    }
-    if (this.evmChainId() !== first.chain_id) {
-      if (!wallet.switchChain) throw new Error(`EVM wallet cannot switch to chain ${first.chain_id}`);
-      await wallet.switchChain(first.chain_id);
-    }
-    const calls = request.transactions.map(({ to, data, value }) => ({ to, data, value }));
-    const hashes = [];
-    if (wallet.sendCalls) {
-      hashes.push(...transactionHashes(await wallet.sendCalls({ chainId: first.chain_id, calls })));
-    } else if (wallet.sendTransaction) {
-      for (const call of calls) {
-        hashes.push(
-          ...transactionHashes(
-            await wallet.sendTransaction(__spreadValues({ chainId: first.chain_id }, call))
-          )
-        );
-      }
-    }
-    if (hashes.length === 0) throw new Error("EVM wallet returned no transaction hash");
-    return {
-      status: "submitted",
-      legs: request.transactions.map((transaction, index) => {
-        var _a2;
-        return {
-          id: `leg_${index + 1}`,
-          status: "submitted",
-          transactionId: (_a2 = hashes[index]) != null ? _a2 : hashes.at(-1)
-        };
-      })
-    };
-  }
-  async executeSvm(request) {
-    var _a, _b;
-    const wallet = (_a = this.wallet) == null ? void 0 : _a.svm;
-    if (!wallet) throw new Error("No SVM wallet adapter is configured");
-    const first = request.transactions[0];
-    if (!first) throw new Error("SVM Action contains no transactions");
-    if (request.transactions.some(
-      (transaction) => transaction.cluster !== first.cluster || transaction.payer !== wallet.address
-    )) {
-      throw new Error("The active SVM wallet does not match the Action");
-    }
-    await this.switchSvmCluster(first.cluster);
-    const legs = [];
-    for (const [index, transaction] of request.transactions.entries()) {
-      const transactionBase64 = transaction.unsigned_transaction_base64;
-      if (!transactionBase64) throw new Error("SVM Action has no unsigned transaction bytes");
-      const result = wallet.signAndSendTransaction ? await wallet.signAndSendTransaction({
-        transactionBase64,
-        cluster: transaction.cluster
-      }) : wallet.sendTransaction ? await wallet.sendTransaction({ transactionBase64, cluster: transaction.cluster }) : void 0;
-      if (result === void 0) throw new Error("SVM wallet cannot send transactions");
-      legs.push(__spreadValues({
-        id: `leg_${index + 1}`,
-        status: "submitted",
-        transactionId: (_b = transactionHashes(result)[0]) != null ? _b : signature(result)
-      }, typeof result === "object" && "signedTransaction" in result ? { signedTransactionBase64: result.signedTransaction } : {}));
-    }
-    return { status: "submitted", legs };
-  }
-  async executeSigning(request) {
-    var _a, _b;
-    const outputs = [];
-    if (request.chainFamily === "evm") {
-      const wallet = (_a = this.wallet) == null ? void 0 : _a.evm;
-      if (!wallet) throw new Error("No EVM wallet adapter is configured");
-      if (wallet.address.toLowerCase() !== request.signer.toLowerCase()) {
-        throw new Error("The active EVM wallet is not the requested signer");
-      }
-      if (request.chainId && this.evmChainId() !== request.chainId) {
-        if (!wallet.switchChain) throw new Error(`EVM wallet cannot switch to chain ${request.chainId}`);
-        await wallet.switchChain(request.chainId);
-      }
-      for (const [index, payload] of request.payloads.entries()) {
-        if (payload.kind === "evm_personal") {
-          if (!wallet.signMessage) throw new Error("EVM wallet cannot sign messages");
-          outputs.push({
-            id: `payload_${index + 1}`,
-            signature: signature(
-              await wallet.signMessage({ message: payload.message, chainId: request.chainId })
-            )
-          });
-        } else if (payload.kind === "evm_typed_data") {
-          if (!wallet.signTypedData) throw new Error("EVM wallet cannot sign typed data");
-          outputs.push({
-            id: `payload_${index + 1}`,
-            signature: signature(
-              await wallet.signTypedData({ typedData: payload.typed_data, chainId: request.chainId })
-            )
-          });
-        } else {
-          throw new Error("EVM signing Action contains an SVM payload");
-        }
-      }
-    } else {
-      const wallet = (_b = this.wallet) == null ? void 0 : _b.svm;
-      if (!wallet) throw new Error("No SVM wallet adapter is configured");
-      if (wallet.address !== request.signer) throw new Error("The active SVM wallet is not the requested signer");
-      await this.switchSvmCluster(request.cluster);
-      for (const [index, payload] of request.payloads.entries()) {
-        if (payload.kind === "svm_message") {
-          if (!wallet.signMessage) throw new Error("SVM wallet cannot sign messages");
-          outputs.push({
-            id: `payload_${index + 1}`,
-            signature: signature(
-              await wallet.signMessage({
-                messageBase64: payload.message_base64,
-                cluster: request.cluster
-              })
-            )
-          });
-        } else if (payload.kind === "svm_transaction") {
-          if (!wallet.signTransaction) throw new Error("SVM wallet cannot sign transactions");
-          outputs.push({
-            id: `payload_${index + 1}`,
-            signedTransactionBase64: signedTransaction(
-              await wallet.signTransaction({
-                transactionBase64: payload.transaction_base64,
-                cluster: request.cluster
-              })
-            )
-          });
-        } else {
-          throw new Error("SVM signing Action contains an EVM payload");
-        }
-      }
-    }
-    return { status: "signed", outputs };
-  }
-  evmChainId() {
-    var _a, _b;
-    const value = (_b = (_a = this.wallet) == null ? void 0 : _a.evm) == null ? void 0 : _b.chainId;
-    return typeof value === "function" ? value() : value;
-  }
-  svmCluster() {
-    var _a, _b;
-    const value = (_b = (_a = this.wallet) == null ? void 0 : _a.svm) == null ? void 0 : _b.cluster;
-    return typeof value === "function" ? value() : value;
-  }
-  async switchSvmCluster(cluster) {
-    var _a, _b;
-    if (!cluster || cluster === this.svmCluster()) return;
-    const switchCluster = (_b = (_a = this.wallet) == null ? void 0 : _a.svm) == null ? void 0 : _b.switchCluster;
-    if (!switchCluster) throw new Error(`SVM wallet cannot switch to ${cluster}`);
-    await switchCluster(cluster);
-  }
-};
-function transactionHashes(result) {
-  if (typeof result === "string") return [result];
-  const value = asRecord2(result);
-  if (!value) return [];
-  if (Array.isArray(value.hashes)) return value.hashes.filter(isString);
-  if (Array.isArray(value.transactionHashes)) return value.transactionHashes.filter(isString);
-  const hash = typeof value.hash === "string" ? value.hash : typeof value.transactionHash === "string" ? value.transactionHash : void 0;
-  return hash ? [hash] : [];
-}
-function signature(result) {
-  if (typeof result === "string") return result;
-  const value = asRecord2(result);
-  if (typeof (value == null ? void 0 : value.signature) === "string") return value.signature;
-  throw new Error("Wallet returned no signature");
-}
-function signedTransaction(result) {
-  if (typeof result === "string") return result;
-  const value = asRecord2(result);
-  if (typeof (value == null ? void 0 : value.signedTransaction) === "string") return value.signedTransaction;
-  throw new Error("Wallet returned no signed transaction");
-}
-function asRecord2(value) {
-  return typeof value === "object" && value !== null ? value : void 0;
-}
-function isString(value) {
-  return typeof value === "string";
 }
 
 // src/user-state/normalize.ts
@@ -2319,13 +2263,13 @@ function removeExtValue(userState, key) {
   delete nextExt[key];
   return __spreadProps(__spreadValues({}, userState), { ext: nextExt });
 }
-function resolveWalletState(userState, address3, chainId3) {
+function resolveWalletState(userState, address3, chainId4) {
   const prevEvm = isRecord2(userState == null ? void 0 : userState.evm) ? userState == null ? void 0 : userState.evm : {};
   const prevConn = isRecord2(userState == null ? void 0 : userState.connection) ? userState == null ? void 0 : userState.connection : {};
   return __spreadProps(__spreadValues({}, userState != null ? userState : {}), {
     evm: __spreadProps(__spreadValues({}, prevEvm), {
       address: address3,
-      chain_id: chainId3 != null ? chainId3 : 1
+      chain_id: chainId4 != null ? chainId4 : 1
     }),
     connection: __spreadProps(__spreadValues({}, prevConn), {
       is_connected: true
@@ -2350,9 +2294,8 @@ var TERMINAL_TURN_STATES = /* @__PURE__ */ new Set([
 ]);
 var ClientSession = class extends TypedEventEmitter {
   constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c, _d;
+    var _a, _b, _c, _d, _e;
     super();
-    this.actions = /* @__PURE__ */ new Map();
     this.pollTimer = null;
     this.pollingActive = false;
     this.pollInFlight = false;
@@ -2372,16 +2315,34 @@ var ClientSession = class extends TypedEventEmitter {
     this.model = sessionOptions == null ? void 0 : sessionOptions.model;
     this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
     const initial = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
-    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(initial != null ? initial : {}, "client_type", sessionOptions.clientType) : initial;
+    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(
+      initial != null ? initial : {},
+      "client_type",
+      sessionOptions.clientType
+    ) : initial;
     this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
     this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
+    this.actions = new ActionHandler(
+      (_e = sessionOptions == null ? void 0 : sessionOptions.actions) != null ? _e : {},
+      (action, result) => this.client.agent.respondToAction(
+        this.sessionId,
+        action.id,
+        action.revision,
+        result
+      )
+    );
+    this.actions.on("resolved", () => {
+      this.beginProcessing();
+      this.startPolling();
+    });
   }
   async send(message) {
     const page = await this.submit(message);
     if (this.isTerminal()) return this.result();
     this.beginProcessing();
-    if (this.turnState !== "awaiting_action" || page.has_more) this.startPolling();
+    if (this.turnState !== "awaiting_action" || page.has_more)
+      this.startPolling();
     return new Promise((resolve) => {
       this.pendingResolve = resolve;
     });
@@ -2390,30 +2351,17 @@ var ClientSession = class extends TypedEventEmitter {
     const page = await this.submit(message);
     if (!this.isTerminal()) {
       this.beginProcessing();
-      if (this.turnState !== "awaiting_action" || page.has_more) this.startPolling();
+      if (this.turnState !== "awaiting_action" || page.has_more)
+        this.startPolling();
     }
     return page;
-  }
-  async respondToAction(actionId, result) {
-    const action = this.pendingAction(actionId);
-    const next = await this.client.agent.respondToAction(
-      this.sessionId,
-      action.id,
-      action.revision,
-      result
-    );
-    this.applyAction(next);
-    this.beginProcessing();
-    this.startPolling();
-    return next;
-  }
-  rejectAction(actionId, reason = "Request rejected") {
-    return this.respondToAction(actionId, { status: "rejected", reason });
   }
   async interrupt() {
     if (!this.turnId) throw new Error("No active turn to interrupt");
     this.stopPolling();
-    this.applyEventPage(await this.client.agent.interrupt(this.sessionId, this.turnId));
+    this.applyEventPage(
+      await this.client.agent.interrupt(this.sessionId, this.turnId)
+    );
     this.finishProcessing();
   }
   close() {
@@ -2421,6 +2369,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.closed = true;
     this.stopPolling();
     this.resolvePending();
+    this.actions.close();
     this.removeAllListeners();
   }
   getMessages() {
@@ -2431,14 +2380,6 @@ var ClientSession = class extends TypedEventEmitter {
   }
   getUserState() {
     return this.userState ? __spreadValues({}, this.userState) : void 0;
-  }
-  getPendingActions() {
-    return this.getActions().filter((action) => action.state === "pending");
-  }
-  getActions() {
-    return [...this.actions.values()].sort(
-      (left, right) => left.sequence - right.sequence
-    );
   }
   getTurnState() {
     return this.turnState;
@@ -2459,6 +2400,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.applicationId = options.applicationId;
     this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
     if (options.userState) this.resolveUserState(options.userState);
+    if (options.actions) this.actions.setCapabilities(options.actions);
   }
   resolveUserState(userState, opts) {
     const previous = stableUserStateString(this.userState);
@@ -2480,8 +2422,8 @@ var ClientSession = class extends TypedEventEmitter {
     const next = removeExtValue(this.userState, key);
     if (next) this.resolveUserState(next);
   }
-  resolveWallet(address3, chainId3) {
-    this.resolveUserState(resolveWalletState(this.userState, address3, chainId3));
+  resolveWallet(address3, chainId4) {
+    this.resolveUserState(resolveWalletState(this.userState, address3, chainId4));
   }
   async sync() {
     this.assertOpen();
@@ -2503,7 +2445,10 @@ var ClientSession = class extends TypedEventEmitter {
     this.pollingActive = true;
     (_a = this.logger) == null ? void 0 : _a.debug("[session] polling started", this.sessionId);
     if (typeof document !== "undefined") {
-      document.addEventListener("visibilitychange", this.handleVisibilityChange);
+      document.addEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange
+      );
     }
     this.schedulePoll(0);
   }
@@ -2513,7 +2458,10 @@ var ClientSession = class extends TypedEventEmitter {
     if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = null;
     if (typeof document !== "undefined") {
-      document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+      document.removeEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange
+      );
     }
     (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
   }
@@ -2535,7 +2483,9 @@ var ClientSession = class extends TypedEventEmitter {
           clientId: this.clientId,
           message: text
         }, Number.isSafeInteger(applicationId) && applicationId > 0 ? { applicationId } : { app: this.app }), this.model ? { model: this.model } : {}), this.userState ? {
-          userState: UserState.toOwned(this.userState)
+          userState: UserState.toOwned(
+            this.userState
+          )
         } : {}),
         { idempotencyKey: operation.idempotencyKey }
       );
@@ -2574,8 +2524,7 @@ var ClientSession = class extends TypedEventEmitter {
     }
     let messagesChanged = false;
     for (const event of page.events) {
-      this.emit("event", event);
-      this.emit(event.type, event);
+      let emitEvent = true;
       switch (event.type) {
         case "message":
           this.applyMessage(event);
@@ -2590,8 +2539,12 @@ var ClientSession = class extends TypedEventEmitter {
           break;
         case "action":
           this.turnId = (_b = event.turn_id) != null ? _b : this.turnId;
-          this.applyAction(event);
+          emitEvent = this.actions.ingest(event);
           break;
+      }
+      if (emitEvent) {
+        this.emit("event", event);
+        this.emit(event.type, event);
       }
     }
     this.cursor = page.cursor;
@@ -2611,20 +2564,6 @@ var ClientSession = class extends TypedEventEmitter {
     const index = this._messages.findIndex((current) => current.id === id);
     if (index >= 0) this._messages[index] = message;
     else this._messages.push(message);
-  }
-  applyAction(action) {
-    const previous = this.actions.get(action.id);
-    if (previous && previous.revision > action.revision) return;
-    this.actions.set(action.id, action);
-    this.emit("action", action);
-    this.emit("actions_changed", this.getActions());
-  }
-  pendingAction(id) {
-    const action = this.actions.get(id);
-    if (!action || action.state !== "pending") {
-      throw new Error(`No pending Action with id "${id}"`);
-    }
-    return action;
   }
   async pollTick() {
     var _a;
@@ -2648,7 +2587,10 @@ var ClientSession = class extends TypedEventEmitter {
       this.pollInFlight = false;
       if (this.pollingActive) {
         this.schedulePoll(
-          Math.min(this.currentPollInterval() * 2 ** this.pollFailureCount, 5e3)
+          Math.min(
+            this.currentPollInterval() * 2 ** this.pollFailureCount,
+            5e3
+          )
         );
       }
     }
@@ -2688,25 +2630,30 @@ var ClientSession = class extends TypedEventEmitter {
   }
 };
 function eventTimestamp(value) {
-  return new Date(value < 1e12 ? value * 1e3 : value).toISOString();
+  return new Date(
+    value < 1e12 ? value * 1e3 : value
+  ).toISOString();
 }
 
 // src/sdk/agent.ts
 var AgentRun = class extends TypedEventEmitter {
-  constructor(client, prompt, wallet, options = {}) {
+  constructor(client, prompt, actions, options = {}) {
     super();
-    this.wallet = wallet;
-    this.actions = /* @__PURE__ */ new Map();
-    this.processingActions = /* @__PURE__ */ new Set();
-    const walletState = wallet.userState();
-    const userState = options.userState ? UserState.reconcile(walletState, options.userState) : walletState;
-    this.session = new ClientSession(client, __spreadProps(__spreadValues({}, options), { userState }));
-    this.session.on("action", (action) => this.receiveAction(action, options));
+    const userState = UserState.reconcile(void 0, options.userState);
+    this.session = new ClientSession(client, __spreadProps(__spreadValues({}, options), {
+      actions,
+      userState
+    }));
+    this.session.on("action", (action) => this.emit("action", action));
+    this.session.actions.on(
+      "resolved",
+      (action) => this.emit("action", action)
+    );
     this.session.on("error", ({ error }) => this.emit("error", { error }));
     this.completion = Promise.resolve().then(() => this.session.send(prompt)).then((result) => {
       const completed = __spreadProps(__spreadValues({}, result), {
         sessionId: this.session.sessionId,
-        actions: [...this.actions.values()]
+        actions: this.session.actions.all()
       });
       this.emit("completed", completed);
       this.session.close();
@@ -2728,42 +2675,36 @@ var AgentRun = class extends TypedEventEmitter {
     return this.session.interrupt();
   }
   respond(actionId, result) {
-    return this.session.respondToAction(actionId, result);
+    return this.session.actions.submitResult(actionId, result);
   }
   reject(actionId, reason) {
-    return this.session.rejectAction(actionId, reason);
-  }
-  receiveAction(action, options) {
-    const previous = this.actions.get(action.id);
-    if (previous && previous.revision > action.revision) return;
-    this.actions.set(action.id, action);
-    this.emit("action", action);
-    if (action.state !== "pending" || options.autoWallet === false || this.processingActions.has(action.id) || !this.wallet.canHandle(action)) {
-      return;
-    }
-    this.processingActions.add(action.id);
-    void this.wallet.execute(action).then((result) => this.session.respondToAction(action.id, result)).catch((error) => this.emit("error", { error })).finally(() => this.processingActions.delete(action.id));
+    return this.session.actions.reject(actionId, reason);
   }
 };
 var AomiAgent = class {
-  constructor(raw, client, wallet) {
+  constructor(raw, client, actions = {}) {
     this.raw = raw;
     this.client = client;
-    this.wallet = wallet;
+    this.actions = actions;
   }
   run(prompt, options) {
+    var _a;
     const normalized = prompt.trim();
     if (!normalized) throw new TypeError("prompt is required");
-    return new AgentRun(this.client, normalized, this.wallet, options);
+    return new AgentRun(
+      this.client,
+      normalized,
+      (_a = options == null ? void 0 : options.actions) != null ? _a : this.actions,
+      options
+    );
   }
 };
 
 // src/sdk/build.ts
 var EvmStaged = class {
-  constructor(raw, transport, wallet) {
+  constructor(raw, transport) {
     this.raw = raw;
     this.transport = transport;
-    this.wallet = wallet;
   }
   get version() {
     return this.raw.version;
@@ -2783,8 +2724,7 @@ var EvmStaged = class {
   async simulate() {
     return new EvmBuild(
       await this.transport.simulate(this.raw),
-      this.transport,
-      this.wallet
+      this.transport
     );
   }
   toJSON() {
@@ -2792,10 +2732,9 @@ var EvmStaged = class {
   }
 };
 var EvmBuild = class {
-  constructor(raw, transport, wallet) {
+  constructor(raw, transport) {
     this.raw = raw;
     this.transport = transport;
-    this.wallet = wallet;
   }
   get version() {
     return this.raw.version;
@@ -2819,23 +2758,16 @@ var EvmBuild = class {
     return this.raw.digest;
   }
   async commit(options) {
-    const result = await this.transport.commit(this.raw, options);
-    if (!result.action || !this.wallet.canHandle(result.action)) {
-      return result;
-    }
-    return __spreadProps(__spreadValues({}, result), {
-      actionResult: await this.wallet.execute(result.action)
-    });
+    return this.transport.commit(this.raw, options);
   }
   toJSON() {
     return this.raw;
   }
 };
 var SvmStaged = class {
-  constructor(raw, transport, wallet) {
+  constructor(raw, transport) {
     this.raw = raw;
     this.transport = transport;
-    this.wallet = wallet;
   }
   get version() {
     return this.raw.version;
@@ -2854,8 +2786,7 @@ var SvmStaged = class {
   async simulate() {
     return new SvmBuild(
       await this.transport.simulate(this.raw),
-      this.transport,
-      this.wallet
+      this.transport
     );
   }
   toJSON() {
@@ -2863,10 +2794,9 @@ var SvmStaged = class {
   }
 };
 var SvmBuild = class {
-  constructor(raw, transport, wallet) {
+  constructor(raw, transport) {
     this.raw = raw;
     this.transport = transport;
-    this.wallet = wallet;
   }
   get version() {
     return this.raw.version;
@@ -2889,13 +2819,7 @@ var SvmBuild = class {
     return this.raw.digest;
   }
   async commit(options) {
-    const result = await this.transport.commit(this.raw, options);
-    if (!result.action || !this.wallet.canHandle(result.action)) {
-      return result;
-    }
-    return __spreadProps(__spreadValues({}, result), {
-      actionResult: await this.wallet.execute(result.action)
-    });
+    return this.transport.commit(this.raw, options);
   }
   toJSON() {
     return this.raw;
@@ -2904,15 +2828,14 @@ var SvmBuild = class {
 
 // src/sdk/pipeline.ts
 var AomiEvmPipeline = class {
-  constructor(raw, wallet) {
+  constructor(raw) {
     this.raw = raw;
-    this.wallet = wallet;
   }
   async build(input) {
     if ("calls" in input) {
       return (await this.stage(input)).simulate();
     }
-    return new EvmBuild(await this.raw.build(input), this.raw, this.wallet);
+    return new EvmBuild(await this.raw.build(input), this.raw);
   }
   async stage(input) {
     const request = "actions" in input ? input : {
@@ -2924,37 +2847,36 @@ var AomiEvmPipeline = class {
         }
       ]
     };
-    return new EvmStaged(await this.raw.stage(request), this.raw, this.wallet);
+    return new EvmStaged(await this.raw.stage(request), this.raw);
   }
   async simulate(build) {
     const value = build instanceof EvmStaged ? build.raw : build;
-    return new EvmBuild(await this.raw.simulate(value), this.raw, this.wallet);
+    return new EvmBuild(await this.raw.simulate(value), this.raw);
   }
   commit(build, options) {
-    const value = build instanceof EvmBuild ? build : new EvmBuild(build, this.raw, this.wallet);
+    const value = build instanceof EvmBuild ? build : new EvmBuild(build, this.raw);
     return value.commit(options);
   }
 };
 var AomiSvmPipeline = class {
-  constructor(raw, wallet) {
+  constructor(raw) {
     this.raw = raw;
-    this.wallet = wallet;
   }
   async build(input) {
     if ("kind" in input) {
       return (await this.stage(input)).simulate();
     }
-    return new SvmBuild(await this.raw.build(input), this.raw, this.wallet);
+    return new SvmBuild(await this.raw.build(input), this.raw);
   }
   async stage(input) {
-    return new SvmStaged(await this.raw.stage(input), this.raw, this.wallet);
+    return new SvmStaged(await this.raw.stage(input), this.raw);
   }
   async simulate(build) {
     const value = build instanceof SvmStaged ? build.raw : build;
-    return new SvmBuild(await this.raw.simulate(value), this.raw, this.wallet);
+    return new SvmBuild(await this.raw.simulate(value), this.raw);
   }
   commit(build, options) {
-    const value = build instanceof SvmBuild ? build : new SvmBuild(build, this.raw, this.wallet);
+    const value = build instanceof SvmBuild ? build : new SvmBuild(build, this.raw);
     return value.commit(options);
   }
 };
@@ -2995,10 +2917,10 @@ var AomiPipelineSkillScope = class extends AomiPipelineOperationScope {
   }
 };
 var AomiPipeline = class {
-  constructor(raw, wallet) {
+  constructor(raw) {
     this.raw = raw;
-    this.evm = new AomiEvmPipeline(raw.evm, wallet);
-    this.svm = new AomiSvmPipeline(raw.svm, wallet);
+    this.evm = new AomiEvmPipeline(raw.evm);
+    this.svm = new AomiSvmPipeline(raw.svm);
   }
   app(name) {
     return new AomiPipelineOperationScope(
@@ -3018,11 +2940,10 @@ function inferChainFamily(args) {
 // src/sdk/aomi.ts
 var Aomi = class {
   constructor(options) {
-    const _a = options, { wallet } = _a, clientOptions = __objRest(_a, ["wallet"]);
+    const _a = options, { actions } = _a, clientOptions = __objRest(_a, ["actions"]);
     this.raw = new AomiClient(clientOptions);
-    this.wallet = new WalletController(wallet);
-    this.pipeline = new AomiPipeline(this.raw.pipeline, this.wallet);
-    this.agent = new AomiAgent(this.raw.agent, this.raw, this.wallet);
+    this.pipeline = new AomiPipeline(this.raw.pipeline);
+    this.agent = new AomiAgent(this.raw.agent, this.raw, actions);
   }
 };
 
@@ -3483,20 +3404,10 @@ function parseAomiTaskEvent(event) {
 }
 
 // src/wallet-utils.ts
-var import_viem2 = require("viem");
-function asRecord3(value) {
+function asRecord2(value) {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return void 0;
   return value;
-}
-function getToolArgs(payload) {
-  var _a;
-  const root = asRecord3(payload);
-  const nestedArgs = asRecord3(root == null ? void 0 : root.args);
-  return (_a = nestedArgs != null ? nestedArgs : root) != null ? _a : {};
-}
-function parseChainKind(value) {
-  return value === "evm" || value === "svm" ? value : void 0;
 }
 function normalizeSolanaCluster(value) {
   if (typeof value !== "string") return void 0;
@@ -3518,22 +3429,6 @@ function normalizeSolanaCluster(value) {
       return trimmed;
   }
 }
-function inferSolanaRequestKind(payload) {
-  const rawKind = typeof payload.kind === "string" ? payload.kind : typeof payload.request_kind === "string" ? payload.request_kind : typeof payload.requestKind === "string" ? payload.requestKind : void 0;
-  switch (rawKind) {
-    case "solana_sign_message":
-    case "message_sign":
-      return "solana_sign_message";
-    case "solana_send":
-    case "send_transaction":
-      return "solana_send";
-    case "solana_sign_and_send":
-    case "sign_and_send_transaction":
-      return "solana_sign_and_send";
-    default:
-      return "solana_sign";
-  }
-}
 function parseChainId3(value) {
   if (typeof value === "number") {
     return Number.isSafeInteger(value) && value > 0 ? value : void 0;
@@ -3551,163 +3446,8 @@ function parseCanonicalInteger(value, radix) {
   const parsed = Number.parseInt(value, radix);
   return Number.isSafeInteger(parsed) ? parsed : void 0;
 }
-function parseTxIds(value) {
-  if (!Array.isArray(value)) return [];
-  const parsed = value.map((entry) => parsePendingId(entry)).filter((entry) => typeof entry === "number");
-  const unique = Array.from(new Set(parsed));
-  unique.sort((left, right) => left - right);
-  return unique;
-}
-function parsePendingId(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-  if (typeof value !== "string") return void 0;
-  const trimmed = value.trim();
-  if (!trimmed) return void 0;
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
-}
-function parseValue(value) {
-  if (typeof value === "string") return value;
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return String(Math.trunc(value));
-  }
-  return void 0;
-}
-function parseBoolean(value) {
-  if (typeof value === "boolean") return value;
-  if (typeof value !== "string") return void 0;
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "true" || normalized === "1") return true;
-  if (normalized === "false" || normalized === "0") return false;
-  return void 0;
-}
-function parseString(value) {
-  return typeof value === "string" ? value : void 0;
-}
 function isHexBytes(value) {
   return /^0x(?:[0-9a-fA-F]{2})*$/.test(value);
-}
-function normalizeAaPreference(value) {
-  if (typeof value !== "string") return void 0;
-  const normalized = value.trim().toLowerCase();
-  if (normalized === "auto" || normalized === "eip4337" || normalized === "eip7702" || normalized === "none") {
-    return normalized;
-  }
-  return void 0;
-}
-function normalizeAddress(value) {
-  if (typeof value !== "string") return void 0;
-  const trimmed = value.trim();
-  if (!trimmed) return void 0;
-  try {
-    return (0, import_viem2.getAddress)(trimmed);
-  } catch (e) {
-    if (/^0x[0-9a-fA-F]{40}$/.test(trimmed)) {
-      return (0, import_viem2.getAddress)(trimmed.toLowerCase());
-    }
-    return void 0;
-  }
-}
-function normalizeTxPayload(payload) {
-  var _a, _b, _c, _d, _e, _f, _g;
-  const root = asRecord3(payload);
-  const args = getToolArgs(payload);
-  const ctx = asRecord3(root == null ? void 0 : root.ctx);
-  const txIds = parseTxIds((_a = args.tx_ids) != null ? _a : args.txIds);
-  if (txIds.length === 0) return null;
-  const to = normalizeAddress(args.to);
-  const value = parseValue(args.value);
-  const data = typeof args.data === "string" ? args.data : void 0;
-  const chainId3 = (_d = (_c = (_b = parseChainId3(args.chainId)) != null ? _b : parseChainId3(args.chain_id)) != null ? _c : parseChainId3(ctx == null ? void 0 : ctx.user_chain_id)) != null ? _d : parseChainId3(ctx == null ? void 0 : ctx.userChainId);
-  const requestId = typeof args.tx_id === "string" ? args.tx_id : typeof args.txId === "string" ? args.txId : void 0;
-  const aaPreference = (_f = normalizeAaPreference((_e = args.aa_preference) != null ? _e : args.aaPreference)) != null ? _f : "auto";
-  const aaStrict = parseBoolean((_g = args.aa_strict) != null ? _g : args.aaStrict);
-  const txId = txIds.length === 1 ? txIds[0] : void 0;
-  return {
-    to,
-    value,
-    data,
-    chainId: chainId3,
-    txId,
-    txIds,
-    aaPreference,
-    aaStrict,
-    requestId
-  };
-}
-function normalizeSolanaSignPayload(payload) {
-  var _a, _b, _c, _d, _e, _f;
-  const args = getToolArgs(payload);
-  const unsignedTxRaw = (_a = args.unsigned_tx) != null ? _a : args.unsignedTx;
-  const unsignedTx = typeof unsignedTxRaw === "string" ? unsignedTxRaw : void 0;
-  const description = typeof args.description === "string" ? args.description : void 0;
-  const cluster = normalizeSolanaCluster(args.cluster);
-  const rawPendingIds = (_b = args.svm_tx_ids) != null ? _b : args.svm_ix_ids;
-  const pendingSolanaIds = Array.isArray(rawPendingIds) ? rawPendingIds.map(parsePendingId).filter((id) => id !== void 0) : void 0;
-  const pendingSolanaId = (_f = (_e = (_d = (_c = parsePendingId(args.pendingSolanaId)) != null ? _c : parsePendingId(args.pending_solana_id)) != null ? _d : parsePendingId(args.pendingSvmSigId)) != null ? _e : parsePendingId(args.pending_svm_sig_id)) != null ? _f : pendingSolanaIds == null ? void 0 : pendingSolanaIds[0];
-  return {
-    unsignedTx,
-    description,
-    cluster,
-    pendingSolanaId,
-    pendingSolanaIds
-  };
-}
-function normalizeSolanaSignMessagePayload(payload) {
-  var _a, _b, _c, _d, _e;
-  const args = getToolArgs(payload);
-  const messageRaw = (_b = (_a = args.message_base64) != null ? _a : args.messageBase64) != null ? _b : args.message;
-  const message = typeof messageRaw === "string" ? messageRaw : void 0;
-  const description = typeof args.description === "string" ? args.description : void 0;
-  const cluster = normalizeSolanaCluster(args.cluster);
-  const pendingSolanaId = (_e = (_d = (_c = parsePendingId(args.pendingSolanaId)) != null ? _c : parsePendingId(args.pending_solana_id)) != null ? _d : parsePendingId(args.pendingSvmSigId)) != null ? _e : parsePendingId(args.pending_svm_sig_id);
-  return { message, description, cluster, pendingSolanaId };
-}
-function normalizeSolanaWalletRequest(payload) {
-  var _a, _b, _c;
-  const root = asRecord3(payload);
-  const args = getToolArgs(payload);
-  const solanaRequest = __spreadValues(__spreadValues({}, root != null ? root : {}), args);
-  const chainKind = (_c = (_b = (_a = parseChainKind(args.chain_kind)) != null ? _a : parseChainKind(args.chain_family)) != null ? _b : parseChainKind(root == null ? void 0 : root.chain_kind)) != null ? _c : parseChainKind(root == null ? void 0 : root.chain_family);
-  if (chainKind !== "svm") {
-    return null;
-  }
-  const kind = inferSolanaRequestKind(solanaRequest);
-  if (kind === "solana_sign_message") {
-    const normalized2 = normalizeSolanaSignMessagePayload(payload);
-    return normalized2.message ? { kind, payload: normalized2 } : null;
-  }
-  const normalized = normalizeSolanaSignPayload(payload);
-  return normalized.unsignedTx ? { kind, payload: normalized } : null;
-}
-function normalizeEip712Payload(payload) {
-  var _a, _b, _c, _d, _e;
-  const args = getToolArgs(payload);
-  const typedDataRaw = (_b = (_a = args.typed_data) != null ? _a : args["712_typed_data"]) != null ? _b : args.typedData;
-  const nonTypedData = parseString((_c = args.non_typed_data) != null ? _c : args.nonTypedData);
-  let typedData;
-  if (typeof typedDataRaw === "string") {
-    try {
-      const parsed = JSON.parse(typedDataRaw);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        typedData = parsed;
-      }
-    } catch (e) {
-      typedData = void 0;
-    }
-  } else if (typedDataRaw && typeof typedDataRaw === "object" && !Array.isArray(typedDataRaw)) {
-    typedData = typedDataRaw;
-  }
-  const description = typeof args.description === "string" ? args.description : void 0;
-  const eip712Id = (_e = (_d = parsePendingId(args.eip712Id)) != null ? _d : parsePendingId(args.pending_eip712_id)) != null ? _e : parsePendingId(args.pendingEip712Id);
-  return {
-    typed_data: typedData,
-    non_typed_data: nonTypedData,
-    description,
-    eip712Id
-  };
 }
 function toAAWalletCalls(payload, defaultChainId = 1) {
   var _a, _b;
@@ -3744,14 +3484,14 @@ function toViemSignTypedDataArgs(payload) {
     return null;
   }
   return {
-    domain: asRecord3(typedData.domain),
+    domain: asRecord2(typedData.domain),
     types: Object.fromEntries(
       Object.entries((_a = typedData.types) != null ? _a : {}).filter(
         ([typeName]) => typeName !== "EIP712Domain"
       )
     ),
     primaryType,
-    message: asRecord3(typedData.message)
+    message: asRecord2(typedData.message)
   };
 }
 function toViemSignMessageArgs(payload) {
@@ -3764,10 +3504,261 @@ function toViemSignMessageArgs(payload) {
   };
 }
 
+// src/wallet/capabilities.ts
+function walletCapabilities(wallets) {
+  var _a, _b, _c, _d;
+  return __spreadValues(__spreadValues(__spreadValues({}, ((_a = wallets.evm) == null ? void 0 : _a.sendCalls) || ((_b = wallets.evm) == null ? void 0 : _b.sendTransaction) ? { execute_evm: executeEvm(wallets.evm) } : {}), ((_c = wallets.svm) == null ? void 0 : _c.signAndSendTransaction) || ((_d = wallets.svm) == null ? void 0 : _d.sendTransaction) ? { execute_svm: executeSvm(wallets.svm) } : {}), canSign(wallets) ? { sign: sign(wallets) } : {});
+}
+function executeEvm(wallet) {
+  return async (request, signal) => {
+    const { transactions } = request;
+    const first = transactions[0];
+    if (!first) throw new Error("EVM Action contains no transactions");
+    if (transactions.some(
+      (transaction) => transaction.chain_id !== first.chain_id || transaction.from.toLowerCase() !== wallet.address.toLowerCase()
+    )) {
+      throw new Error("The active EVM wallet does not match the Action");
+    }
+    if (chainId3(wallet) !== first.chain_id) {
+      if (!wallet.switchChain) {
+        throw new Error(`EVM wallet cannot switch to chain ${first.chain_id}`);
+      }
+      await wallet.switchChain(first.chain_id);
+    }
+    assertActive(signal);
+    const calls = transactions.map(({ to, data, value }) => ({
+      to,
+      data,
+      value
+    }));
+    const hashes = [];
+    if (wallet.sendCalls) {
+      hashes.push(
+        ...transactionHashes(
+          await wallet.sendCalls({ chainId: first.chain_id, calls })
+        )
+      );
+    } else if (wallet.sendTransaction) {
+      for (const call of calls) {
+        assertActive(signal);
+        hashes.push(
+          ...transactionHashes(
+            await wallet.sendTransaction(__spreadValues({ chainId: first.chain_id }, call))
+          )
+        );
+      }
+    }
+    if (hashes.length === 0) {
+      throw new Error("EVM wallet returned no transaction hash");
+    }
+    return {
+      status: "submitted",
+      legs: transactions.map((_, index) => {
+        var _a;
+        return {
+          id: `leg_${index + 1}`,
+          status: "submitted",
+          transactionId: (_a = hashes[index]) != null ? _a : hashes[hashes.length - 1]
+        };
+      })
+    };
+  };
+}
+function executeSvm(wallet) {
+  return async (request, signal) => {
+    var _a;
+    const { transactions } = request;
+    const first = transactions[0];
+    if (!first) throw new Error("SVM Action contains no transactions");
+    if (transactions.some(
+      (transaction) => transaction.cluster !== first.cluster || transaction.payer !== wallet.address
+    )) {
+      throw new Error("The active SVM wallet does not match the Action");
+    }
+    await switchCluster(wallet, first.cluster);
+    const legs = [];
+    for (const [index, transaction] of transactions.entries()) {
+      assertActive(signal);
+      const transactionBase64 = transaction.unsigned_transaction_base64;
+      if (!transactionBase64) {
+        throw new Error("SVM Action has no unsigned transaction bytes");
+      }
+      const result = wallet.signAndSendTransaction ? await wallet.signAndSendTransaction({
+        transactionBase64,
+        cluster: transaction.cluster
+      }) : wallet.sendTransaction ? await wallet.sendTransaction({
+        transactionBase64,
+        cluster: transaction.cluster
+      }) : void 0;
+      if (result === void 0)
+        throw new Error("SVM wallet cannot send transactions");
+      legs.push(__spreadValues({
+        id: `leg_${index + 1}`,
+        status: "submitted",
+        transactionId: (_a = transactionHashes(result)[0]) != null ? _a : signature(result)
+      }, typeof result === "object" && "signedTransaction" in result ? { signedTransactionBase64: result.signedTransaction } : {}));
+    }
+    return { status: "submitted", legs };
+  };
+}
+function sign(wallets) {
+  return async (request, signal) => {
+    const outputs = [];
+    if (request.chainFamily === "evm") {
+      const wallet = wallets.evm;
+      if (!wallet) throw new Error("No EVM wallet is configured");
+      if (wallet.address.toLowerCase() !== request.signer.toLowerCase()) {
+        throw new Error("The active EVM wallet is not the requested signer");
+      }
+      if (request.chainId && chainId3(wallet) !== request.chainId) {
+        if (!wallet.switchChain) {
+          throw new Error(
+            `EVM wallet cannot switch to chain ${request.chainId}`
+          );
+        }
+        await wallet.switchChain(request.chainId);
+      }
+      for (const [index, payload] of request.payloads.entries()) {
+        assertActive(signal);
+        if (payload.kind === "evm_personal") {
+          if (!wallet.signMessage)
+            throw new Error("EVM wallet cannot sign messages");
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signature: signature(
+              await wallet.signMessage({
+                message: payload.message,
+                chainId: request.chainId
+              })
+            )
+          });
+        } else if (payload.kind === "evm_typed_data") {
+          if (!wallet.signTypedData) {
+            throw new Error("EVM wallet cannot sign typed data");
+          }
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signature: signature(
+              await wallet.signTypedData({
+                typedData: payload.typed_data,
+                chainId: request.chainId
+              })
+            )
+          });
+        } else {
+          throw new Error("EVM signing Action contains an SVM payload");
+        }
+      }
+    } else {
+      const wallet = wallets.svm;
+      if (!wallet) throw new Error("No SVM wallet is configured");
+      if (wallet.address !== request.signer) {
+        throw new Error("The active SVM wallet is not the requested signer");
+      }
+      await switchCluster(wallet, request.cluster);
+      for (const [index, payload] of request.payloads.entries()) {
+        assertActive(signal);
+        if (payload.kind === "svm_message") {
+          if (!wallet.signMessage)
+            throw new Error("SVM wallet cannot sign messages");
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signature: signature(
+              await wallet.signMessage({
+                messageBase64: payload.message_base64,
+                cluster: request.cluster
+              })
+            )
+          });
+        } else if (payload.kind === "svm_transaction") {
+          if (!wallet.signTransaction) {
+            throw new Error("SVM wallet cannot sign transactions");
+          }
+          const result = await wallet.signTransaction({
+            transactionBase64: payload.transaction_base64,
+            cluster: request.cluster
+          });
+          outputs.push(
+            request.operationId ? { id: `payload_${index + 1}`, signature: signature(result) } : {
+              id: `payload_${index + 1}`,
+              signedTransactionBase64: signedTransaction(result)
+            }
+          );
+        } else {
+          throw new Error("SVM signing Action contains an EVM payload");
+        }
+      }
+    }
+    return { status: "signed", outputs };
+  };
+}
+function canSign({ evm, svm }) {
+  return Boolean(
+    (evm == null ? void 0 : evm.signMessage) || (evm == null ? void 0 : evm.signTypedData) || (svm == null ? void 0 : svm.signMessage) || (svm == null ? void 0 : svm.signTransaction)
+  );
+}
+function chainId3(wallet) {
+  return typeof wallet.chainId === "function" ? wallet.chainId() : wallet.chainId;
+}
+function cluster(wallet) {
+  return typeof wallet.cluster === "function" ? wallet.cluster() : wallet.cluster;
+}
+async function switchCluster(wallet, next) {
+  if (!next || next === cluster(wallet)) return;
+  if (!wallet.switchCluster)
+    throw new Error(`SVM wallet cannot switch to ${next}`);
+  await wallet.switchCluster(next);
+}
+function transactionHashes(result) {
+  var _a;
+  if (typeof result === "string") return [result];
+  if (Array.isArray(result.hashes)) return result.hashes.filter(isString);
+  if (Array.isArray(result.transactionHashes)) {
+    return result.transactionHashes.filter(isString);
+  }
+  const hash = (_a = result.hash) != null ? _a : result.transactionHash;
+  return hash ? [hash] : [];
+}
+function signature(result) {
+  if (typeof result === "string") return result;
+  if (result.signature) return result.signature;
+  throw new Error("Wallet returned no signature");
+}
+function signedTransaction(result) {
+  if (typeof result === "string") return result;
+  if (result.signedTransaction) return result.signedTransaction;
+  throw new Error("Wallet returned no signed transaction");
+}
+function assertActive(signal) {
+  if (signal.aborted) throw new Error("Action execution was aborted");
+}
+function isString(value) {
+  return typeof value === "string";
+}
+
+// src/wallet/user-state.ts
+function walletUserState(wallets) {
+  var _a, _b, _c, _d;
+  if (!wallets.evm && !wallets.svm) return void 0;
+  const chainId4 = typeof ((_a = wallets.evm) == null ? void 0 : _a.chainId) === "function" ? wallets.evm.chainId() : (_b = wallets.evm) == null ? void 0 : _b.chainId;
+  const cluster2 = typeof ((_c = wallets.svm) == null ? void 0 : _c.cluster) === "function" ? wallets.svm.cluster() : (_d = wallets.svm) == null ? void 0 : _d.cluster;
+  return __spreadValues(__spreadValues({
+    connection: { is_connected: true }
+  }, wallets.evm ? {
+    evm: __spreadValues({
+      address: wallets.evm.address
+    }, chainId4 === void 0 ? {} : { chain_id: chainId4 })
+  } : {}), wallets.svm ? {
+    svm: __spreadValues({
+      address: wallets.svm.address
+    }, cluster2 === void 0 ? {} : { cluster: cluster2 })
+  } : {});
+}
+
 // src/chains.ts
-var import_viem3 = require("viem");
+var import_viem2 = require("viem");
 var import_chains = require("viem/chains");
-var monad = (0, import_viem3.defineChain)({
+var monad = (0, import_viem2.defineChain)({
   id: 143,
   name: "Monad",
   nativeCurrency: {
@@ -3787,7 +3778,7 @@ var monad = (0, import_viem3.defineChain)({
     }
   }
 });
-var monadTestnet = (0, import_viem3.defineChain)({
+var monadTestnet = (0, import_viem2.defineChain)({
   id: 10143,
   name: "Monad Testnet",
   nativeCurrency: {
@@ -3808,7 +3799,7 @@ var monadTestnet = (0, import_viem3.defineChain)({
   },
   testnet: true
 });
-var robinhood = (0, import_viem3.defineChain)({
+var robinhood = (0, import_viem2.defineChain)({
   id: 4663,
   name: "Robinhood Chain",
   nativeCurrency: {
@@ -3828,7 +3819,7 @@ var robinhood = (0, import_viem3.defineChain)({
     }
   }
 });
-var megaeth = (0, import_viem3.defineChain)({
+var megaeth = (0, import_viem2.defineChain)({
   id: 4326,
   name: "MegaETH",
   nativeCurrency: {
@@ -3848,7 +3839,7 @@ var megaeth = (0, import_viem3.defineChain)({
     }
   }
 });
-var arcTestnet = (0, import_viem3.defineChain)({
+var arcTestnet = (0, import_viem2.defineChain)({
   id: 5042002,
   name: "Arc Testnet",
   nativeCurrency: {
@@ -3929,7 +3920,7 @@ var CHAINS_BY_ID = {
 };
 
 // src/aa/execute.ts
-var import_viem4 = require("viem");
+var import_viem3 = require("viem");
 var import_accounts = require("viem/accounts");
 var ERC20_PAYMENT_CONTEXT_KEYS = /* @__PURE__ */ new Set(["erc20", "paymasterAddress"]);
 var AA_DEBUG_STORAGE_KEYS = ["aomi:debug-aa", "AOMI_DEBUG_AA"];
@@ -4027,10 +4018,10 @@ async function executeWalletCalls(params) {
           throw new Error(`No RPC for chain ${call.chainId}`);
         }
         const account = (0, import_accounts.privateKeyToAccount)(localPrivateKey);
-        const walletClient = (0, import_viem4.createWalletClient)({
+        const walletClient = (0, import_viem3.createWalletClient)({
           account,
           chain,
-          transport: (0, import_viem4.http)(rpcUrl)
+          transport: (0, import_viem3.http)(rpcUrl)
         });
         const hash = await walletClient.sendTransaction({
           account,
@@ -4038,9 +4029,9 @@ async function executeWalletCalls(params) {
           value: call.value,
           data: call.data
         });
-        const publicClient = (0, import_viem4.createPublicClient)({
+        const publicClient = (0, import_viem3.createPublicClient)({
           chain,
-          transport: (0, import_viem4.http)(rpcUrl)
+          transport: (0, import_viem3.http)(rpcUrl)
         });
         const receipt = await publicClient.waitForTransactionReceipt({ hash });
         if (receipt.status !== "success") {
@@ -4068,11 +4059,11 @@ async function executeWalletCalls(params) {
   if (chainIds.length > 1) {
     throw new Error("mixed_chain_bundle_not_supported");
   }
-  const chainId3 = chainIds[0];
-  if (currentChainId !== chainId3) {
-    await switchChainAsync({ chainId: chainId3 });
+  const chainId4 = chainIds[0];
+  if (currentChainId !== chainId4) {
+    await switchChainAsync({ chainId: chainId4 });
   }
-  const chainCaps = resolveChainCapabilities(capabilities, chainId3);
+  const chainCaps = resolveChainCapabilities(capabilities, chainId4);
   const atomicStatus = (_b = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _b.status;
   const canUseAtomicSendCalls = normalizedCalls.length > 1 && (atomicStatus === "supported" || atomicStatus === "ready");
   const canUseSendCalls = canUseAtomicSendCalls || requiresSponsoredSendCalls;
@@ -4084,7 +4075,7 @@ async function executeWalletCalls(params) {
   });
   debugAA("native-wallet-sendCalls-plan", {
     callCount: normalizedCalls.length,
-    chainId: chainId3,
+    chainId: chainId4,
     chainCaps,
     canUseAtomicSendCalls,
     canUseSendCalls,
@@ -4112,7 +4103,7 @@ async function executeWalletCalls(params) {
   if (canUseSendCalls) {
     try {
       const sendCallsArgs = {
-        chainId: chainId3,
+        chainId: chainId4,
         calls: normalizedCalls.map(({ to, value, data }) => ({
           to,
           value,
@@ -4231,20 +4222,20 @@ function canFallbackToSequentialWalletSends(error, requiresSponsoredSendCalls) {
   }
   return isUnsupportedAtomicCapabilityError(error) || isRecoverableOptionalPaymasterError(error);
 }
-function resolveChainCapabilities(capabilities, chainId3) {
+function resolveChainCapabilities(capabilities, chainId4) {
   var _a, _b;
   if (!capabilities) {
     return void 0;
   }
-  const asRecord4 = capabilities;
-  const eip155Key = `eip155:${chainId3}`;
-  const decimalKey = String(chainId3);
-  const hexKey = `0x${chainId3.toString(16)}`;
-  return (_b = (_a = asRecord4[eip155Key]) != null ? _a : asRecord4[decimalKey]) != null ? _b : asRecord4[hexKey];
+  const asRecord3 = capabilities;
+  const eip155Key = `eip155:${chainId4}`;
+  const decimalKey = String(chainId4);
+  const hexKey = `0x${chainId4.toString(16)}`;
+  return (_b = (_a = asRecord3[eip155Key]) != null ? _a : asRecord3[decimalKey]) != null ? _b : asRecord3[hexKey];
 }
 
 // src/aa/fee.ts
-var import_viem5 = require("viem");
+var import_viem4 = require("viem");
 var MAX_AUTO_FEE_WEI = BigInt("50000000000000000");
 var ZERO_WEI = BigInt("0");
 function toPayloadCalls(payload, defaultChainId) {
@@ -4277,11 +4268,11 @@ function normalizeSimulatedFee(fee) {
     throw new Error("fee_exceeds_safety_limit");
   }
   return {
-    recipient: (0, import_viem5.getAddress)(fee.recipient),
+    recipient: (0, import_viem4.getAddress)(fee.recipient),
     amountWei
   };
 }
-function buildFeeAAWalletCall(fee, chainId3) {
+function buildFeeAAWalletCall(fee, chainId4) {
   const normalizedFee = normalizeSimulatedFee(fee);
   if (!normalizedFee) {
     return null;
@@ -4289,7 +4280,7 @@ function buildFeeAAWalletCall(fee, chainId3) {
   return {
     to: normalizedFee.recipient,
     value: normalizedFee.amountWei,
-    chainId: chainId3
+    chainId: chainId4
   };
 }
 function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
@@ -4323,6 +4314,7 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   ALCHEMY_CHAIN_SLUGS,
   AOMI_TASK_EVENT_TYPES,
   AccountCredentialUnavailableError,
+  ActionHandler,
   AgentApiError,
   AgentRun,
   AgentTransport,
@@ -4358,7 +4350,6 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   SvmStaged,
   TypedEventEmitter,
   UserState,
-  WalletController,
   WidgetChallengeBindingError,
   aaModeFromExecutionKind,
   appIdentityKey,
@@ -4385,13 +4376,8 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   monad,
   monadTestnet,
   normalizeAppDescriptor,
-  normalizeEip712Payload,
   normalizeSimulatedFee,
   normalizeSolanaCluster,
-  normalizeSolanaSignMessagePayload,
-  normalizeSolanaSignPayload,
-  normalizeSolanaWalletRequest,
-  normalizeTxPayload,
   parseAomiTaskEvent,
   parseChainId,
   partialWalletExecution,
@@ -4404,6 +4390,8 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
   validatePipelineArguments,
+  walletCapabilities,
+  walletUserState,
   wrapFetchWithPaymentChallenges
 });
 //# sourceMappingURL=index.cjs.map

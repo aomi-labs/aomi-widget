@@ -92,8 +92,7 @@ export type AomiRuntimeApi = {
   pendingActions: Action[];
   /** True while an Action is visible or awaiting backend acknowledgement. */
   hasBlockingActions: boolean;
-  startAction: (id: string) => void;
-  dismissAction: (id: string) => void;
+  executeAction: (id: string) => Promise<void>;
   respondToAction: (id: string, result: ActionResult) => Promise<void>;
   rejectAction: (id: string, reason?: string) => Promise<void>;
   /** Simulate a batch against the current thread session context. */

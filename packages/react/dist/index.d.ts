@@ -1,4 +1,4 @@
-import { AomiPlatformFilter, AomiClientOptions, AomiClient, SessionOptions, Session, UserState, AomiTaskEvent, Action, ActionResult, AomiSimulateResponse, ChainInfo, AomiAppDescriptor, ApplicationId } from '@aomi-labs/client';
+import { AomiPlatformFilter, AomiClientOptions, ActionCapabilities, AomiClient, SessionOptions, Session, UserState, AomiTaskEvent, Action, ActionResult, AomiSimulateResponse, ActionHandler, ChainInfo, AomiAppDescriptor, ApplicationId } from '@aomi-labs/client';
 export { AOMI_TASK_EVENT_TYPES, Action, ActionRequest, ActionResult, AomiAppDescriptor, AomiClient, AomiClientOptions, AomiMessage, AomiPlatformFilter, AomiSecretSlot, AomiTaskActivityEvent, AomiTaskActivityKind, AomiTaskCompletedEvent, AomiTaskEvent, AomiTaskEventType, AomiTaskStartedEvent, AomiTaskStatus, ChainInfo, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletCapabilities, WalletEip712Payload, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, isAomiTaskEventType, normalizeAppDescriptor, normalizeSimulatedFee, parseAomiTaskEvent, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import * as react from 'react';
@@ -12,6 +12,7 @@ type AomiRuntimeProviderProps = {
     applicationId?: number | string | null;
     appPlatforms?: AomiPlatformFilter;
     clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+    actions?: ActionCapabilities;
     /** Whether a canonical account session can load threads without a wallet. */
     accountSessionAvailable?: boolean;
     /** Optional explicit initial thread. Takes precedence over stored state. */
@@ -23,7 +24,7 @@ type AomiRuntimeProviderProps = {
     /** Extra key segment for tenant/user/app scoping without owning the full key. */
     threadPersistenceScope?: string | null;
 };
-declare function AomiRuntimeProvider({ children, backendUrl, applicationId, appPlatforms, clientOptions, accountSessionAvailable, initialThreadId, persistThread, threadPersistenceKey, threadPersistenceScope, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
+declare function AomiRuntimeProvider({ children, backendUrl, applicationId, appPlatforms, clientOptions, actions, accountSessionAvailable, initialThreadId, persistThread, threadPersistenceKey, threadPersistenceScope, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 declare class SessionManager {
     private readonly clientFactory;
@@ -291,8 +292,7 @@ type AomiRuntimeApi = {
     pendingActions: Action[];
     /** True while an Action is visible or awaiting backend acknowledgement. */
     hasBlockingActions: boolean;
-    startAction: (id: string) => void;
-    dismissAction: (id: string) => void;
+    executeAction: (id: string) => Promise<void>;
     respondToAction: (id: string, result: ActionResult) => Promise<void>;
     rejectAction: (id: string, reason?: string) => Promise<void>;
     /** Simulate a batch against the current thread session context. */
@@ -345,21 +345,108 @@ declare function useAomiRuntime(): AomiRuntimeApi;
 /** Returns the runtime when mounted, allowing standalone registry previews. */
 declare function useOptionalAomiRuntime(): AomiRuntimeApi | null;
 
-type ActionStatus = "pending" | "processing";
-type ActionHandlerConfig = {
-    getSession: () => Session | undefined;
-};
-type ActionHandlerApi = {
-    pendingActions: Action[];
+declare function useActions(handler: ActionHandler | undefined): {
+    pendingActions: ({
+        event_id: string;
+        sequence: number;
+        turn_id: string | null;
+        occurred_at: number;
+        type: string;
+    } & {
+        type: "action";
+        id: string;
+        revision: number;
+        state: "pending" | "submitted" | "completed" | "rejected" | "expired" | "failed";
+        request: {
+            type: "execute_evm";
+            transactions: {
+                chain_id: number;
+                from: string;
+                to: string;
+                value?: string;
+                gas?: string;
+                data: string;
+                label: string;
+                kind: string;
+                protocol?: string;
+            }[];
+        } | {
+            type: "execute_svm";
+            transactions: {
+                payer: string;
+                cluster: string;
+                version: string;
+                instructions: Record<string, never>[];
+                address_lookup_tables?: string[];
+                recent_blockhash?: string;
+                last_valid_block_height?: number;
+                preserve_blockhash?: boolean;
+                unsigned_transaction_base64?: string;
+                description: string;
+                kind: string;
+            }[];
+        } | ({
+            requestId: string;
+            chainFamily: "evm" | "svm";
+            executionKind: string;
+            signer: string;
+            chainId?: number;
+            cluster?: string;
+            description: string;
+            payloads: ({
+                kind: "evm_personal";
+                message: string;
+            } | {
+                kind: "evm_typed_data";
+                typed_data: Record<string, never>;
+            } | {
+                kind: "svm_message";
+                message_base64: string;
+            } | {
+                kind: "svm_transaction";
+                transaction_base64: string;
+            })[];
+            broadcaster?: string;
+            operationId?: string;
+            executor?: string;
+            expiresAt?: string;
+            callsDigest?: string;
+            calls?: Record<string, never>[];
+            fees?: Record<string, never>[];
+            sponsorship?: string;
+        } & {
+            type: "sign";
+        });
+        result?: ({
+            status: "submitted";
+            legs: {
+                id: string;
+                status: "submitted" | "rejected" | "failed" | "skipped";
+                transactionId?: string;
+                signedTransactionBase64?: string;
+                reason?: string;
+            }[];
+        } | {
+            status: "signed";
+            outputs: {
+                id: string;
+                signature?: string;
+                signedTransactionBase64?: string;
+            }[];
+        } | {
+            status: "rejected";
+            reason: string;
+        }) | null;
+        created_at: number;
+        expires_at: number | null;
+    } & {
+        type: "action";
+    })[];
     hasBlockingActions: boolean;
-    setActions: (actions: Action[]) => void;
-    startAction: (id: string) => void;
-    dismissAction: (id: string) => void;
-    respondToAction: (id: string, result: ActionResult) => Promise<void>;
-    rejectAction: (id: string, reason?: string) => Promise<void>;
+    executeAction: (id: string) => Promise<undefined>;
+    respondToAction: (id: string, result: ActionResult) => Promise<undefined>;
+    rejectAction: (id: string, reason?: string) => Promise<undefined>;
 };
-/** Keeps UI presentation state around the canonical durable Actions. */
-declare function useActionHandler({ getSession, }: ActionHandlerConfig): ActionHandlerApi;
 
 type Notification = {
     id: string;
@@ -555,4 +642,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, aomiClient, sessionId, getThreadMetadata, updateThreadMetadata, appPlatforms, applicationId, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type ActionHandlerApi, type ActionHandlerConfig, type ActionStatus, type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type AomiTaskPartMetadata, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, EMPTY_TASK_RUNS, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type TaskRunState, type TaskRunStatus, type TaskRunStep, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type ThreadTaskRuns, type ThreadTurnPhase, type UserConfig, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, readTaskPartAgentId, reduceTaskRuns, resolveAutoModel, useActionHandler, useAomiRuntime, useApiKey, useAuthEndpoints, useByok, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, usePerThreadControl, useTaskRun, useThreadContext, useThreadTaskRuns, useUser };
+export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type AomiTaskPartMetadata, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, EMPTY_TASK_RUNS, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type TaskRunState, type TaskRunStatus, type TaskRunStep, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type ThreadTaskRuns, type ThreadTurnPhase, type UserConfig, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, readTaskPartAgentId, reduceTaskRuns, resolveAutoModel, useActions, useAomiRuntime, useApiKey, useAuthEndpoints, useByok, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, usePerThreadControl, useTaskRun, useThreadContext, useThreadTaskRuns, useUser };

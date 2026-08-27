@@ -271,13 +271,13 @@ describeLive("Session accessors (live backend)", () => {
   );
 
   it(
-    "getPendingActions() returns empty for turns without Actions",
+    "the ActionHandler stays empty for turns without Actions",
     async () => {
       const session = createSession();
 
       await session.send("What is 2+2?");
 
-      expect(session.getPendingActions()).toEqual([]);
+      expect(session.actions.pending()).toEqual([]);
     },
     TEST_TIMEOUT,
   );

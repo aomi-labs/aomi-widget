@@ -77,6 +77,17 @@ export type {
   TurnStateChangedEvent,
   UserState as AgentUserState,
 } from "./agent/types";
+export { ActionHandler } from "./actions";
+export type {
+  ActionAttempt,
+  ActionAttemptState,
+  ActionCapabilities,
+  ActionCapability,
+  ActionHandlerEvents,
+  ActionResponder,
+  ActionResultFor,
+  ActionType,
+} from "./actions";
 export {
   authorizationChallenge,
   authorizationCommit,
@@ -238,11 +249,6 @@ export { TypedEventEmitter } from "./event";
 // =============================================================================
 
 export {
-  normalizeTxPayload,
-  normalizeEip712Payload,
-  normalizeSolanaSignPayload,
-  normalizeSolanaSignMessagePayload,
-  normalizeSolanaWalletRequest,
   normalizeSolanaCluster,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
@@ -250,22 +256,21 @@ export {
   toAAWalletCall,
   parseChainId,
 } from "./wallet-utils";
-export { WalletController } from "./wallet/controller";
+export { walletCapabilities } from "./wallet/capabilities";
+export { walletUserState } from "./wallet/user-state";
 export type {
-  AomiWalletAdapter,
-  EvmWalletAdapter,
+  EvmWallet,
   EvmWalletCall,
-  SvmWalletAdapter,
-  WalletControllerEvents,
+  SvmWallet,
+  Wallets,
   WalletTransactionResult,
-} from "./wallet/controller";
+} from "./wallet/types";
 
 export type {
   WalletTxPayload,
   WalletTxCallPayload,
   WalletTxAaPreference,
   WalletEip712Payload,
-  NormalizedSolanaWalletRequest,
   WalletSolanaSignPayload,
   WalletSolanaSignMessagePayload,
   ViemSignMessageArgs,

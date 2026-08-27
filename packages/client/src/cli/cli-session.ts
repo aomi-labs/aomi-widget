@@ -12,20 +12,13 @@ import { ClientSession } from "../session";
 import type { CliConfig } from "./types";
 import {
   readState,
-  hasSameBackendPendingId,
-  hasSameSolanaPendingId,
   syncWalletFromUserState,
   writeState,
   type CliAuthSession,
   type CliOAuthGrant,
   type CliSessionState,
-  type PendingSolTx,
-  type PendingTx,
-  type SignedSolTx,
-  type SignedTx,
 } from "./state";
 import { buildCliUserState } from "./user-state";
-import { fatal } from "./errors";
 import { parseSolanaKeypairSecret } from "./solana-signer";
 import { createCliAuthTokenProvider } from "./auth";
 import { DEFAULT_CLI_BASE_URL } from "./client-factory";
@@ -33,6 +26,7 @@ import { createCliPaymentFetch, type CliPaymentListener } from "./payment";
 import type { AomiOAuthTokenProvider } from "../authorization";
 import { signInWithOAuthDevice } from "./oauth-device-auth";
 import { wrapFetchWithPublicApiAuthorization } from "../client";
+import { cliActionCapabilities } from "./action-capabilities";
 
 export class CliSession {
   private state: CliSessionState;
@@ -170,18 +164,6 @@ export class CliSession {
   }
   get clientId(): string | undefined {
     return this.state.clientId;
-  }
-  get pendingTxs(): readonly PendingTx[] {
-    return this.state.pendingTxs ?? [];
-  }
-  get pendingSolTxs(): readonly PendingSolTx[] {
-    return this.state.pendingSolTxs ?? [];
-  }
-  get signedSolTxs(): readonly SignedSolTx[] {
-    return this.state.signedSolTxs ?? [];
-  }
-  get signedTxs(): readonly SignedTx[] {
-    return this.state.signedTxs ?? [];
   }
   get secretHandles(): Readonly<Record<string, string>> {
     return this.state.secretHandles ?? {};
@@ -422,214 +404,11 @@ export class CliSession {
     return this.state.clientId;
   }
 
-  // ---------------------------------------------------------------------------
-  // Transaction methods (auto-persist)
-  // ---------------------------------------------------------------------------
-
-  /** Add a pending tx with dedup. Returns null if duplicate. */
-  addPendingTx(tx: Omit<PendingTx, "id">): PendingTx | null {
-    if (!this.state.pendingTxs) this.state.pendingTxs = [];
-
-    const isDuplicate = this.state.pendingTxs.some((existing) =>
-      hasSameBackendPendingId(existing, tx),
-    );
-    if (isDuplicate) return null;
-
-    const pending: PendingTx = {
-      ...tx,
-      id: this.getDisplayTxId(tx),
-    };
-    this.state.pendingTxs.push(pending);
-    this.save();
-    return pending;
-  }
-
-  removePendingTx(id: string): PendingTx | null {
-    if (!this.state.pendingTxs) return null;
-    const idx = this.state.pendingTxs.findIndex((tx) => tx.id === id);
-    if (idx === -1) return null;
-    const [removed] = this.state.pendingTxs.splice(idx, 1);
-    this.save();
-    return removed;
-  }
-
-  addSignedTx(tx: SignedTx): void {
-    if (!this.state.signedTxs) this.state.signedTxs = [];
-    const index = this.state.signedTxs.findIndex(
-      (existing) =>
-        (tx.pendingTxId !== undefined &&
-          existing.pendingTxId === tx.pendingTxId &&
-          existing.kind === tx.kind) ||
-        (existing.id === tx.id && existing.kind === tx.kind),
-    );
-    if (index === -1) {
-      this.state.signedTxs.push(tx);
-    } else {
-      this.state.signedTxs[index] = {
-        ...this.state.signedTxs[index],
-        ...tx,
-      };
-    }
-    this.state.pendingTxs = (this.state.pendingTxs ?? []).filter(
-      (pending) =>
-        !(
-          pending.kind === tx.kind &&
-          ((tx.pendingTxId !== undefined && pending.txId === tx.pendingTxId) ||
-            pending.id === tx.id)
-        ),
-    );
-    this.save();
-  }
-
-  findSignedTransaction(txId: string): SignedTx | undefined {
-    const id = this.chainSelector(txId, "evm");
-    if (!id) return undefined;
-    return [...(this.state.signedTxs ?? [])]
-      .reverse()
-      .find((tx) => tx.kind === "transaction" && tx.id === id);
-  }
-
-  markSignedTxBackendNotified(pendingTxId: number): void {
-    const record = [...(this.state.signedTxs ?? [])]
-      .reverse()
-      .find(
-        (tx) => tx.kind === "transaction" && tx.pendingTxId === pendingTxId,
-      );
-    if (!record || record.backendNotified === true) return;
-    record.backendNotified = true;
-    this.save();
-  }
-
-  markSignedAgentActionNotified(agentRequestId: string): void {
-    const record = [...(this.state.signedTxs ?? [])]
-      .reverse()
-      .find((tx) => tx.agentRequestId === agentRequestId);
-    if (!record || record.backendNotified === true) return;
-    record.backendNotified = true;
-    this.save();
-  }
-
-  /** Add a pending Solana tx with dedup on `solanaId`. */
-  addPendingSolTx(tx: Omit<PendingSolTx, "id">): PendingSolTx | null {
-    if (!this.state.pendingSolTxs) this.state.pendingSolTxs = [];
-
-    const isDuplicate = this.state.pendingSolTxs.some((existing) =>
-      hasSameSolanaPendingId(existing, tx),
-    );
-    if (isDuplicate) return null;
-
-    const pending: PendingSolTx = {
-      ...tx,
-      id:
-        tx.solanaId === undefined ? this.getNextSolTxId() : `tx-${tx.solanaId}`,
-    };
-    this.state.pendingSolTxs.push(pending);
-    this.save();
-    return pending;
-  }
-
-  removePendingSolTx(id: string): PendingSolTx | null {
-    if (!this.state.pendingSolTxs) return null;
-    const idx = this.state.pendingSolTxs.findIndex((tx) => tx.id === id);
-    if (idx === -1) return null;
-    const [removed] = this.state.pendingSolTxs.splice(idx, 1);
-    this.save();
-    return removed;
-  }
-
-  addSignedSolTx(tx: SignedSolTx): void {
-    if (!this.state.signedSolTxs) this.state.signedSolTxs = [];
-    this.state.signedSolTxs.push(tx);
-    this.save();
-  }
-
   syncWalletFromUserState(
     userState: Parameters<typeof syncWalletFromUserState>[1],
-  ): {
-    pendingTxs: readonly PendingTx[];
-    pendingSolTxs: readonly PendingSolTx[];
-  } {
-    const result = syncWalletFromUserState(this.state, userState);
+  ): void {
+    syncWalletFromUserState(this.state, userState);
     this.reload();
-    return result;
-  }
-
-  /** Find a pending Solana request by legacy or chain-qualified display id. */
-  findPendingSolTx(txId: string): PendingSolTx | undefined {
-    const id = this.chainSelector(txId, "svm");
-    return id
-      ? (this.state.pendingSolTxs ?? []).find((tx) => tx.id === id)
-      : undefined;
-  }
-
-  /** Find a pending EVM/EIP-712 request by legacy or qualified display id. */
-  findPendingTx(txId: string): PendingTx | undefined {
-    const id = this.chainSelector(txId, "evm");
-    return id
-      ? (this.state.pendingTxs ?? []).find((tx) => tx.id === id)
-      : undefined;
-  }
-
-  /** Selectors users can pass to `tx sign`; qualify only colliding ids. */
-  pendingSelectors(): string[] {
-    const evmIds = new Set((this.state.pendingTxs ?? []).map((tx) => tx.id));
-    const svmIds = new Set((this.state.pendingSolTxs ?? []).map((tx) => tx.id));
-    return [
-      ...(this.state.pendingTxs ?? []).map((tx) =>
-        svmIds.has(tx.id) ? `evm:${tx.id}` : tx.id,
-      ),
-      ...(this.state.pendingSolTxs ?? []).map((tx) =>
-        evmIds.has(tx.id) ? `svm:${tx.id}` : tx.id,
-      ),
-    ];
-  }
-
-  /** Get a pending tx by ID, or fatal() if not found. */
-  requirePendingTx(txId: string): PendingTx {
-    const tx = this.findPendingTx(txId);
-    if (!tx) {
-      const available = this.allDisplayIds().join(", ") || "(none)";
-      fatal(`Transaction "${txId}" not found.\nAvailable: ${available}`);
-    }
-    return tx;
-  }
-
-  /** Get multiple pending txs by ID, or fatal() if any missing or duplicates. */
-  requirePendingTxs(txIds: string[]): PendingTx[] {
-    const uniqueIds = Array.from(new Set(txIds));
-    if (uniqueIds.length !== txIds.length) {
-      fatal(
-        "Duplicate transaction IDs are not allowed in a single `aomi tx sign` call.",
-      );
-    }
-    return uniqueIds.map((txId) => this.requirePendingTx(txId));
-  }
-
-  /** Get a pending Solana tx by ID, or fatal() if not found. */
-  requirePendingSolTx(txId: string): PendingSolTx {
-    const tx = this.findPendingSolTx(txId);
-    if (!tx) {
-      const available = this.allDisplayIds().join(", ") || "(none)";
-      fatal(`Solana transaction "${txId}" not found.\nAvailable: ${available}`);
-    }
-    return tx;
-  }
-
-  private allDisplayIds(): string[] {
-    return this.pendingSelectors();
-  }
-
-  private chainSelector(
-    selector: string,
-    expected: "evm" | "svm",
-  ): string | undefined {
-    const match = selector
-      .trim()
-      .toLowerCase()
-      .match(/^(?:(evm|svm|solana):)?(tx-\d+)$/);
-    if (!match) return selector;
-    const family = match[1] === "solana" ? "svm" : match[1];
-    return family && family !== expected ? undefined : match[2];
   }
 
   // ---------------------------------------------------------------------------
@@ -669,6 +448,7 @@ export class CliSession {
         app: this.state.app,
         model: config?.model ?? this.state.model,
         applicationId: config?.applicationId,
+        actions: cliActionCapabilities(this, config),
       },
     );
     session.resolveUserState(
@@ -721,7 +501,7 @@ export class CliSession {
     };
   }
 
-  /** Snapshot of the raw state (for backward compat or serialization). */
+  /** Snapshot of the persisted session configuration. */
   toState(): CliSessionState {
     return { ...this.state };
   }
@@ -740,35 +520,6 @@ export class CliSession {
 
   private save(): void {
     writeState(this.state);
-  }
-
-  private getDisplayTxId(tx: Omit<PendingTx, "id">): string {
-    if (typeof tx.txId === "number") return `tx-${tx.txId}`;
-    if (typeof tx.eip712Id === "number") return `tx-${tx.eip712Id}`;
-    return this.getNextTxId();
-  }
-
-  private getNextTxId(): string {
-    const allIds = [
-      ...(this.state.pendingTxs ?? []),
-      ...(this.state.signedTxs ?? []),
-    ].map((tx) => {
-      const match = tx.id.match(/^tx-(\d+)$/);
-      return match ? parseInt(match[1], 10) : 0;
-    });
-    const max = allIds.length > 0 ? Math.max(...allIds) : 0;
-    return `tx-${max + 1}`;
-  }
-
-  private getNextSolTxId(): string {
-    const allIds = [
-      ...(this.state.pendingSolTxs ?? []),
-      ...(this.state.signedSolTxs ?? []),
-    ].map((tx) => {
-      const match = tx.id.match(/^tx-(\d+)$/);
-      return match ? parseInt(match[1], 10) : 0;
-    });
-    return `tx-${allIds.length > 0 ? Math.max(...allIds) + 1 : 1}`;
   }
 }
 

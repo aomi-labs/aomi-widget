@@ -1091,8 +1091,6 @@ interface EvmCommitResult {
     digest: string;
     receipts?: PipelineTransactionReceipt[];
     action?: Action;
-    /** Present on high-level results when the configured wallet handled the Action. */
-    actionResult?: ActionResult;
 }
 interface SvmAccountMeta {
     pubkey: string;
@@ -1162,8 +1160,6 @@ interface SvmCommitResult {
     digest: string;
     receipts?: PipelineTransactionReceipt[];
     action?: Action;
-    /** Present on high-level results when the configured wallet handled the Action. */
-    actionResult?: ActionResult;
 }
 
 type RequestResponse = (method: AomiHttpMethod, path: string, options?: AomiRequestOptions) => Promise<Response>;
@@ -1384,6 +1380,82 @@ declare class PipelineSchemaError extends TypeError {
  */
 declare function validatePipelineArguments(value: unknown, schema: PipelineJsonSchema): void;
 
+type Listener<T = unknown> = (payload: T) => void;
+/**
+ * Minimal typed event emitter with wildcard support.
+ *
+ * ```ts
+ * type Events = { message: string; error: { code: number } };
+ * const ee = new TypedEventEmitter<Events>();
+ * ee.on("message", (msg) => console.log(msg));
+ * ee.emit("message", "hello");
+ * ```
+ */
+declare class TypedEventEmitter<EventMap extends Record<string, unknown> = Record<string, unknown>> {
+    private listeners;
+    on<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): () => void;
+    once<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): () => void;
+    emit<K extends keyof EventMap & string>(type: K, payload: EventMap[K]): void;
+    off<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): void;
+    removeAllListeners(): void;
+}
+
+type ActionType = ActionRequest["type"];
+type ActionResultFor<Type extends ActionType> = Type extends "sign" ? Extract<ActionResult, {
+    status: "signed";
+}> : Extract<ActionResult, {
+    status: "submitted";
+}>;
+type ActionCapability<Type extends ActionType> = (request: Extract<ActionRequest, {
+    type: Type;
+}>, signal: AbortSignal) => Promise<ActionResultFor<Type>>;
+type ActionCapabilities = {
+    [Type in ActionType]?: ActionCapability<Type>;
+};
+
+type ActionAttemptState = "executing" | "responding" | "failed";
+type ActionAttempt = {
+    actionId: string;
+    revision: number;
+    state: ActionAttemptState;
+    error?: unknown;
+};
+type ActionHandlerEvents = {
+    changed: readonly Action[];
+    attempt_changed: ActionAttempt | undefined;
+    resolved: Action;
+};
+type ActionResponder = (action: Action, result: ActionResult) => Promise<Action>;
+/** Owns the client lifecycle of every durable Action in one Agent session. */
+declare class ActionHandler extends TypedEventEmitter<ActionHandlerEvents> {
+    private capabilities;
+    private readonly respond;
+    private readonly actions;
+    private readonly attempts;
+    private snapshot;
+    constructor(capabilities: ActionCapabilities, respond: ActionResponder);
+    ingest(action: Action): boolean;
+    get(id: string): Action | undefined;
+    all(): readonly Action[];
+    pending(): Action[];
+    attempt(id: string): ActionAttempt | undefined;
+    isBlocking(): boolean;
+    subscribe(listener: () => void): () => void;
+    setCapabilities(capabilities: ActionCapabilities): void;
+    canExecute(id: string): boolean;
+    execute(id: string): Promise<Action>;
+    submitResult(id: string, result: ActionResult): Promise<Action>;
+    reject(id: string, reason?: string): Promise<Action>;
+    retry(id: string): Promise<Action>;
+    abort(id: string): void;
+    close(): void;
+    private sendResult;
+    private respondWithResult;
+    private track;
+    private fail;
+    private pendingAction;
+}
+
 type SiwsChainId = "solana:mainnet" | "solana:devnet" | "solana:testnet";
 type SiwsIntent = "sign-in" | "link";
 declare function buildSiwsMessage(input: {
@@ -1533,122 +1605,6 @@ type AccountBearerProvider = GetAccountBearer & {
 /** Cache and refresh the short-lived Aomi bearer used for backend requests. */
 declare function createAccountBearerProvider({ baseUrl, getProviderCredential, betterAuthToken, fetch: fetchImpl, now, refreshBeforeExpiryMs, }: AccountBearerProviderOptions): AccountBearerProvider;
 
-type Listener<T = unknown> = (payload: T) => void;
-/**
- * Minimal typed event emitter with wildcard support.
- *
- * ```ts
- * type Events = { message: string; error: { code: number } };
- * const ee = new TypedEventEmitter<Events>();
- * ee.on("message", (msg) => console.log(msg));
- * ee.emit("message", "hello");
- * ```
- */
-declare class TypedEventEmitter<EventMap extends Record<string, unknown> = Record<string, unknown>> {
-    private listeners;
-    on<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): () => void;
-    once<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): () => void;
-    emit<K extends keyof EventMap & string>(type: K, payload: EventMap[K]): void;
-    off<K extends keyof EventMap & string>(type: K, handler: Listener<EventMap[K]>): void;
-    removeAllListeners(): void;
-}
-
-interface EvmWalletCall {
-    to: string;
-    data?: string;
-    value?: string;
-}
-type WalletTransactionResult = string | {
-    hash?: string;
-    transactionHash?: string;
-} | {
-    hashes?: string[];
-    transactionHashes?: string[];
-};
-interface EvmWalletAdapter {
-    address: string;
-    chainId?: number | (() => number | undefined);
-    sendCalls?: (input: {
-        chainId: number;
-        calls: EvmWalletCall[];
-    }) => Promise<WalletTransactionResult>;
-    sendTransaction?: (input: EvmWalletCall & {
-        chainId: number;
-    }) => Promise<WalletTransactionResult>;
-    signMessage?: (input: {
-        message: string;
-        chainId?: number;
-    }) => Promise<string | {
-        signature: string;
-    }>;
-    signTypedData?: (input: {
-        typedData: Record<string, unknown>;
-        chainId?: number;
-    }) => Promise<string | {
-        signature: string;
-    }>;
-    switchChain?: (chainId: number) => Promise<unknown>;
-}
-interface SvmWalletAdapter {
-    address: string;
-    cluster?: string | (() => string | undefined);
-    signTransaction?: (input: {
-        transactionBase64: string;
-        cluster?: string;
-    }) => Promise<string | {
-        signedTransaction?: string;
-        signature?: string;
-    }>;
-    sendTransaction?: (input: {
-        transactionBase64: string;
-        cluster?: string;
-    }) => Promise<WalletTransactionResult>;
-    signAndSendTransaction?: (input: {
-        transactionBase64: string;
-        cluster?: string;
-    }) => Promise<string | {
-        signature?: string;
-        signedTransaction?: string;
-    }>;
-    signMessage?: (input: {
-        messageBase64: string;
-        cluster?: string;
-    }) => Promise<string | {
-        signature: string;
-    }>;
-    switchCluster?: (cluster: string) => Promise<unknown>;
-}
-interface AomiWalletAdapter {
-    evm?: EvmWalletAdapter;
-    svm?: SvmWalletAdapter;
-}
-interface WalletControllerEvents extends Record<string, unknown> {
-    action: Action;
-    resolved: {
-        action: Action;
-        result: ActionResult;
-    };
-    rejected: {
-        action: Action;
-        error: unknown;
-    };
-}
-/** Executes the request nested in a canonical Action. */
-declare class WalletController extends TypedEventEmitter<WalletControllerEvents> {
-    readonly wallet?: AomiWalletAdapter | undefined;
-    constructor(wallet?: AomiWalletAdapter | undefined);
-    canHandle(action: Action): boolean;
-    execute(action: Action): Promise<ActionResult>;
-    userState(): Record<string, unknown> | undefined;
-    private executeRequest;
-    private executeEvm;
-    private executeSvm;
-    private executeSigning;
-    private evmChainId;
-    private svmCluster;
-    private switchSvmCluster;
-}
-
 type SendResult = {
     messages: AomiMessage[];
     title?: string;
@@ -1665,6 +1621,7 @@ type SessionOptions = {
     logger?: {
         debug: (...args: unknown[]) => void;
     };
+    actions?: ActionCapabilities;
 };
 type SessionRuntimeOptions = {
     app: string;
@@ -1672,6 +1629,7 @@ type SessionRuntimeOptions = {
     applicationId?: number | string | null;
     clientId?: string;
     userState?: UserState$1;
+    actions?: ActionCapabilities;
 };
 type MessageEvent = Extract<Event, {
     type: "message";
@@ -1694,7 +1652,6 @@ type ErrorEvent = Extract<Event, {
 type SessionEventMap = {
     event: Event;
     action: Action;
-    actions_changed: Action[];
     message: MessageEvent;
     messages: AomiMessage[];
     turn_state_changed: TurnEvent;
@@ -1875,9 +1832,7 @@ type WalletEip712Payload = {
     chainId?: number;
 };
 /**
- * Legacy internal SVM payload projected into the public `wallet_signing_request`.
- * in shape — singular sign-only — but carries a base64-encoded serialized
- * Solana transaction instead of EIP-712 typed data.
+ * Wallet-kit payload carrying a serialized Solana transaction.
  *
  * `unsignedTx` is base64 of `VersionedTransaction.serialize()` (legacy
  * `Transaction.serialize()` also accepted by adapters). The host doesn't
@@ -1894,7 +1849,7 @@ type WalletSolanaSignPayload = {
     cluster?: string;
     /** Server-side correlation id for the staged sign request. */
     pendingSolanaId?: number;
-    /** All staged instruction/transaction ids resolved by this wallet request. */
+    /** Staged instruction identifiers covered by this wallet-kit operation. */
     pendingSolanaIds?: number[];
     /** Canonical multi-leg Agent action, in execution order. */
     transactions?: Array<{
@@ -1914,10 +1869,6 @@ type WalletSolanaSignMessagePayload = {
     cluster?: string;
     /** Server-side correlation id for the staged sign request. */
     pendingSolanaId?: number;
-};
-type NormalizedSolanaWalletRequest = {
-    kind: "solana_sign" | "solana_sign_message" | "solana_send" | "solana_sign_and_send";
-    payload: WalletSolanaSignPayload | WalletSolanaSignMessagePayload;
 };
 type ViemSignTypedDataArgs = {
     domain?: Record<string, unknown>;
@@ -1941,27 +1892,6 @@ type ViemSignMessageArgs = {
 declare function normalizeSolanaCluster(value: unknown): string | undefined;
 declare function parseChainId(value: unknown): number | undefined;
 /**
- * Normalize a wallet_tx_request payload into a consistent shape.
- * Hard cutover contract: requires `tx_ids`.
- */
-declare function normalizeTxPayload(payload: unknown): WalletTxPayload | null;
-/**
- * Normalize a legacy internal SVM request into a consistent shape.
- *
- * Accepts the various nesting levels the backend can ship: top-level args,
- * `{ args: { ... } }`, snake_case (`unsigned_tx`, `pending_solana_id`) or
- * camelCase (`unsignedTx`, `pendingSolanaId`). Single source of truth for
- * the SDK's view of the request — both the dispatch path and the
- * `syncWalletRequests` reconstruction loop go through here.
- */
-declare function normalizeSolanaSignPayload(payload: unknown): WalletSolanaSignPayload;
-declare function normalizeSolanaSignMessagePayload(payload: unknown): WalletSolanaSignMessagePayload;
-declare function normalizeSolanaWalletRequest(payload: unknown): NormalizedSolanaWalletRequest | null;
-/**
- * Normalize an EIP-712 signing request payload.
- */
-declare function normalizeEip712Payload(payload: unknown): WalletEip712Payload;
-/**
  * Convert a normalized WalletTxPayload into AAWalletCalls.
  * This is the single boundary conversion point from backend payloads to AA-ready calls.
  */
@@ -1984,6 +1914,7 @@ declare function aaModeFromExecutionKind(executionKind: string | undefined): "43
 declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     readonly client: AomiClient;
     readonly sessionId: string;
+    readonly actions: ActionHandler;
     private app;
     private model?;
     private applicationId?;
@@ -1994,7 +1925,6 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private cursor?;
     private turnId?;
     private turnState?;
-    private readonly actions;
     private startOperation?;
     private pollTimer;
     private pollingActive;
@@ -2008,15 +1938,11 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     constructor(clientOrOptions: AomiClient | AomiClientOptions, sessionOptions?: SessionOptions);
     send(message: string): Promise<SendResult>;
     sendAsync(message: string): Promise<EventPage>;
-    respondToAction(actionId: string, result: ActionResult): Promise<Action>;
-    rejectAction(actionId: string, reason?: string): Promise<Action>;
     interrupt(): Promise<void>;
     close(): void;
     getMessages(): AomiMessage[];
     getTitle(): string | undefined;
     getUserState(): UserState$1 | undefined;
-    getPendingActions(): Action[];
-    getActions(): Action[];
     getTurnState(): TurnState | undefined;
     getTurnId(): string | undefined;
     getIsProcessing(): boolean;
@@ -2037,8 +1963,6 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
     private fetchPage;
     private applyEventPage;
     private applyMessage;
-    private applyAction;
-    private pendingAction;
     private pollTick;
     private beginProcessing;
     private finishProcessing;
@@ -2054,12 +1978,10 @@ declare class ClientSession extends TypedEventEmitter<SessionEventMap> {
 interface AgentRunOptions extends Omit<SessionOptions, "userState" | "sessionId"> {
     sessionId?: string;
     userState?: UserState$1;
-    /** Set false to expose Actions without executing the configured wallet. */
-    autoWallet?: boolean;
 }
 interface AgentRunResult extends SendResult {
     sessionId: string;
-    actions: Action[];
+    actions: readonly Action[];
 }
 interface AgentRunEventMap extends Record<string, unknown> {
     action: Action;
@@ -2070,32 +1992,27 @@ interface AgentRunEventMap extends Record<string, unknown> {
 }
 /** One stateful Agent turn. It is both event-driven and Promise-like. */
 declare class AgentRun extends TypedEventEmitter<AgentRunEventMap> implements PromiseLike<AgentRunResult> {
-    private readonly wallet;
     readonly session: ClientSession;
     private readonly completion;
-    private readonly actions;
-    private readonly processingActions;
-    constructor(client: AomiClient, prompt: string, wallet: WalletController, options?: AgentRunOptions);
+    constructor(client: AomiClient, prompt: string, actions: ActionCapabilities, options?: AgentRunOptions);
     result(): Promise<AgentRunResult>;
     then<TResult1 = AgentRunResult, TResult2 = never>(onfulfilled?: ((value: AgentRunResult) => TResult1 | PromiseLike<TResult1>) | null, onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null): PromiseLike<TResult1 | TResult2>;
     interrupt(): Promise<void>;
     respond(actionId: string, result: ActionResult): Promise<Action>;
     reject(actionId: string, reason?: string): Promise<Action>;
-    private receiveAction;
 }
 declare class AomiAgent {
     readonly raw: AomiClient["agent"];
     private readonly client;
-    private readonly wallet;
-    constructor(raw: AomiClient["agent"], client: AomiClient, wallet: WalletController);
+    private readonly actions;
+    constructor(raw: AomiClient["agent"], client: AomiClient, actions?: ActionCapabilities);
     run(prompt: string, options?: AgentRunOptions): AgentRun;
 }
 
 declare class EvmStaged {
     readonly raw: EvmStagedBuild;
     private readonly transport;
-    private readonly wallet;
-    constructor(raw: EvmStagedBuild, transport: EvmPipelineTransport, wallet: WalletController);
+    constructor(raw: EvmStagedBuild, transport: EvmPipelineTransport);
     get version(): 1;
     get status(): "staged";
     get actions(): EvmPresentedAction[];
@@ -2106,8 +2023,7 @@ declare class EvmStaged {
 declare class EvmBuild {
     readonly raw: EvmSimulatedBuild;
     private readonly transport;
-    private readonly wallet;
-    constructor(raw: EvmSimulatedBuild, transport: EvmPipelineTransport, wallet: WalletController);
+    constructor(raw: EvmSimulatedBuild, transport: EvmPipelineTransport);
     get version(): 1;
     get status(): "simulated";
     get actions(): EvmPresentedAction[];
@@ -2120,8 +2036,7 @@ declare class EvmBuild {
 declare class SvmStaged {
     readonly raw: SvmStagedBuild;
     private readonly transport;
-    private readonly wallet;
-    constructor(raw: SvmStagedBuild, transport: SvmPipelineTransport, wallet: WalletController);
+    constructor(raw: SvmStagedBuild, transport: SvmPipelineTransport);
     get version(): 1;
     get status(): "staged";
     get actions(): SvmPresentedAction[];
@@ -2132,8 +2047,7 @@ declare class SvmStaged {
 declare class SvmBuild {
     readonly raw: SvmSimulatedBuild;
     private readonly transport;
-    private readonly wallet;
-    constructor(raw: SvmSimulatedBuild, transport: SvmPipelineTransport, wallet: WalletController);
+    constructor(raw: SvmSimulatedBuild, transport: SvmPipelineTransport);
     get version(): 1;
     get status(): "simulated";
     get actions(): SvmPresentedAction[];
@@ -2146,8 +2060,7 @@ declare class SvmBuild {
 
 declare class AomiEvmPipeline {
     readonly raw: EvmPipelineTransport;
-    private readonly wallet;
-    constructor(raw: EvmPipelineTransport, wallet: WalletController);
+    constructor(raw: EvmPipelineTransport);
     build(input: PipelineOperationBuildInput | EvmDirectInput): Promise<EvmBuild>;
     stage(input: EvmStageInput | EvmDirectInput): Promise<EvmStaged>;
     simulate(build: EvmStaged | EvmStagedBuild): Promise<EvmBuild>;
@@ -2155,8 +2068,7 @@ declare class AomiEvmPipeline {
 }
 declare class AomiSvmPipeline {
     readonly raw: SvmPipelineTransport;
-    private readonly wallet;
-    constructor(raw: SvmPipelineTransport, wallet: WalletController);
+    constructor(raw: SvmPipelineTransport);
     build(input: PipelineOperationBuildInput | SvmDirectInput): Promise<SvmBuild>;
     stage(input: SvmStageInput): Promise<SvmStaged>;
     simulate(build: SvmStaged | SvmStagedBuild): Promise<SvmBuild>;
@@ -2186,20 +2098,19 @@ declare class AomiPipeline {
     readonly raw: PipelineTransport;
     readonly evm: AomiEvmPipeline;
     readonly svm: AomiSvmPipeline;
-    constructor(raw: PipelineTransport, wallet: WalletController);
+    constructor(raw: PipelineTransport);
     app(name: string): AomiPipelineOperationScope;
     skill(name: string): AomiPipelineSkillScope;
 }
 
 interface AomiOptions extends AomiClientOptions {
-    wallet?: AomiWalletAdapter;
+    actions?: ActionCapabilities;
 }
 /** Product-oriented SDK facade. Use `raw` for wire-close protocol control. */
 declare class Aomi {
     readonly raw: AomiClient;
     readonly pipeline: AomiPipeline;
     readonly agent: AomiAgent;
-    readonly wallet: WalletController;
     constructor(options: AomiOptions);
 }
 
@@ -2240,6 +2151,81 @@ declare function appIdentityKey(descriptor: AomiAppDescriptor): string;
  * undefined in pure-browser builds instead of throwing a ReferenceError.
  */
 declare function safeEnv(read: () => string | undefined): string | undefined;
+
+interface EvmWalletCall {
+    to: string;
+    data?: string;
+    value?: string;
+}
+type WalletTransactionResult = string | {
+    hash?: string;
+    transactionHash?: string;
+    hashes?: string[];
+    transactionHashes?: string[];
+    signature?: string;
+    signedTransaction?: string;
+};
+interface EvmWallet {
+    address: string;
+    chainId?: number | (() => number | undefined);
+    sendCalls?: (input: {
+        chainId: number;
+        calls: EvmWalletCall[];
+    }) => Promise<WalletTransactionResult>;
+    sendTransaction?: (input: EvmWalletCall & {
+        chainId: number;
+    }) => Promise<WalletTransactionResult>;
+    signMessage?: (input: {
+        message: string;
+        chainId?: number;
+    }) => Promise<string | {
+        signature: string;
+    }>;
+    signTypedData?: (input: {
+        typedData: Record<string, unknown>;
+        chainId?: number;
+    }) => Promise<string | {
+        signature: string;
+    }>;
+    switchChain?: (chainId: number) => Promise<unknown>;
+}
+interface SvmWallet {
+    address: string;
+    cluster?: string | (() => string | undefined);
+    signTransaction?: (input: {
+        transactionBase64: string;
+        cluster?: string;
+    }) => Promise<string | {
+        signedTransaction?: string;
+        signature?: string;
+    }>;
+    sendTransaction?: (input: {
+        transactionBase64: string;
+        cluster?: string;
+    }) => Promise<WalletTransactionResult>;
+    signAndSendTransaction?: (input: {
+        transactionBase64: string;
+        cluster?: string;
+    }) => Promise<string | {
+        signature?: string;
+        signedTransaction?: string;
+    }>;
+    signMessage?: (input: {
+        messageBase64: string;
+        cluster?: string;
+    }) => Promise<string | {
+        signature: string;
+    }>;
+    switchCluster?: (cluster: string) => Promise<unknown>;
+}
+interface Wallets {
+    evm?: EvmWallet;
+    svm?: SvmWallet;
+}
+
+declare function walletCapabilities(wallets: Wallets): ActionCapabilities;
+
+declare function walletUserState(wallets: Wallets): UserState$1 | undefined;
 
 type ChainInfo = {
     id: number;
@@ -2577,4 +2563,4 @@ declare function appendFeeCallToPayload(payload: WalletTxPayload, fee: AomiSimul
     strictAa?: boolean;
 }): WalletTxPayload;
 
-export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type Action, type ActionRequest, type ActionResult, AgentApiError, AgentRun, type AgentRunEventMap, type AgentRunOptions, type AgentRunResult, type Session as AgentSession, AgentTransport, type UserState as AgentUserState, Aomi, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, AomiAgent, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, AomiEvmPipeline, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiListSecretsResponse, type AomiMessage, type AomiOAuthResource, type AomiOAuthTokenProvider, type AomiOAuthTokenRequest, type AomiOAuthTokenSet, type AomiOperationBuildOptions, type AomiOptions, AomiPipeline, AomiPipelineOperationScope, AomiPipelineSkillScope, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, AomiSvmPipeline, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiUsageStats, type AomiUser, type AomiWalletAdapter, type AomiWalletFamily, type ApplicationId, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type ErrorEvent$1 as ErrorEvent, type Event, type EventPage, EvmBuild, type EvmCall, type EvmCallInput, type EvmCommitResult, type EvmDirectInput, EvmPipelineTransport, type EvmPresentedAction, type EvmSimulatedBuild, type EvmStageActionInput, type EvmStageInput, EvmStaged, type EvmStagedAction, type EvmStagedBuild, type EvmWalletAdapter, type EvmWalletCall, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type GuestSessionProvider, type InterruptIntent, type Logger, MAX_AUTO_FEE_WEI, type MessageEvent$1 as MessageEvent, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type NormalizedSolanaWalletRequest, type OwnedUserState, type PartialWalletExecution, PartialWalletExecutionError, type PipelineActionSummary, PipelineApiError, PipelineAppsTransport, type PipelineBalanceChange, type PipelineCommitOptions, type PipelineDirectory, type PipelineDirectoryEntry, type PipelineDirectoryEntryKind, type PipelineFeeEstimate, type PipelineFilesystemResource, type PipelineGuardResult, type PipelineInvokeOptions, type PipelineJsonSchema, type PipelineOperationBuildInput, type PipelineOperationDescriptor, type PipelineOperationInvocation, PipelineOperationTransport, PipelineSchemaError, type PipelineSimulation, type PipelineSimulationStatus, PipelineSkillTransport, PipelineSkillsTransport, type PipelineTransactionReceipt, PipelineTransport, type ProviderCredential, type RespondToActionIntent, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SessionPage, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, type StartTurnIntent, type SvmAccountMeta, SvmBuild, type SvmCommitResult, type SvmDirectInput, type SvmInstruction, SvmPipelineTransport, type SvmPresentedAction, type SvmSimulatedBuild, type SvmStageInput, SvmStaged, type SvmStagedAction, type SvmStagedBuild, type SvmTransaction, type SvmWalletAdapter, type TaskEvent$1 as TaskEvent, type TitleEvent$1 as TitleEvent, type ToolEvent$1 as ToolEvent, type TurnState, type TurnStateChangedEvent, TypedEventEmitter, UserState$1 as UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, WalletController, type WalletControllerEvents, type WalletEip712Payload, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTransactionResult, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type WidgetAuthAdapter, type WidgetAuthSession, WidgetChallengeBindingError, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createGuestSessionProvider, createOAuthTokenProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, isAomiTaskEventType, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeEip712Payload, normalizeSimulatedFee, normalizeSolanaCluster, normalizeSolanaSignMessagePayload, normalizeSolanaSignPayload, normalizeSolanaWalletRequest, normalizeTxPayload, parseAomiTaskEvent, parseChainId, partialWalletExecution, posterFromClient, robinhood, safeEnv, secretNamesFrom, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, validatePipelineArguments, wrapFetchWithPaymentChallenges };
+export { type AACallPayload, type AAMode, type AASponsorship, type AAWalletCall, ALCHEMY_CHAIN_SLUGS, AOMI_TASK_EVENT_TYPES, type AccountBearerProvider, type AccountBearerProviderOptions, type AccountCredentialProvider, AccountCredentialUnavailableError, type AccountSessionExchangeResponse, type Action, type ActionAttempt, type ActionAttemptState, type ActionCapabilities, type ActionCapability, ActionHandler, type ActionHandlerEvents, type ActionRequest, type ActionResponder, type ActionResult, type ActionResultFor, type ActionType, AgentApiError, AgentRun, type AgentRunEventMap, type AgentRunOptions, type AgentRunResult, type Session as AgentSession, AgentTransport, type UserState as AgentUserState, Aomi, type AomiAccessApproval, type AomiAccountProfile, type AomiAccountResponse, AomiAgent, type AomiAppDescriptor, type AomiAuthIdentity, type AomiAuthPurpose, type AomiAuthorizationChallenge, type AomiAuthorizationPermit, type AomiAuthorizationState, type AomiClearSecretsResponse, AomiClient, type AomiClientOptions, type AomiClientType, type AomiCreateApprovalRequest, type AomiDeleteSecretResponse, type AomiEnsureBoundResult, AomiEvmPipeline, type AomiHttpMethod, type AomiIdentityWallet, type AomiIngestSecretsResponse, type AomiListSecretsResponse, type AomiMessage, type AomiOAuthResource, type AomiOAuthTokenProvider, type AomiOAuthTokenRequest, type AomiOAuthTokenSet, type AomiOperationBuildOptions, type AomiOptions, AomiPipeline, AomiPipelineOperationScope, AomiPipelineSkillScope, type AomiPlatformFilter, type AomiRequestOptions, type AomiRequestQueryValue, type AomiSecretSlot, type AomiSimulateFee, type AomiSimulateResponse, AomiSvmPipeline, type AomiTaskActivityEvent, type AomiTaskActivityKind, type AomiTaskCompletedEvent, type AomiTaskEvent, type AomiTaskEventType, type AomiTaskStartedEvent, type AomiTaskStatus, type AomiUsageStats, type AomiUser, type AomiWalletFamily, type ApplicationId, type AtomicBatchArgs, type AuthorizationPoster, type BetterAuthAccountTokenSourceOptions, type BetterAuthTokenResponse, CHAINS_BY_ID, CHAIN_NAMES, CLIENT_TYPE_TS_CLI, CLIENT_TYPE_WEB_UI, type ChainInfo, type ErrorEvent$1 as ErrorEvent, type Event, type EventPage, EvmBuild, type EvmCall, type EvmCallInput, type EvmCommitResult, type EvmDirectInput, EvmPipelineTransport, type EvmPresentedAction, type EvmSimulatedBuild, type EvmStageActionInput, type EvmStageInput, EvmStaged, type EvmStagedAction, type EvmStagedBuild, type EvmWallet, type EvmWalletCall, type ExecuteWalletCallsParams, type ExecutionResult, type GetAccountBearer, type GuestSessionProvider, type InterruptIntent, type Logger, MAX_AUTO_FEE_WEI, type MessageEvent$1 as MessageEvent, type NativeWalletExecutionPolicy, type NativeWalletSponsorship, type NormalizedSimulatedFee, type OwnedUserState, type PartialWalletExecution, PartialWalletExecutionError, type PipelineActionSummary, PipelineApiError, PipelineAppsTransport, type PipelineBalanceChange, type PipelineCommitOptions, type PipelineDirectory, type PipelineDirectoryEntry, type PipelineDirectoryEntryKind, type PipelineFeeEstimate, type PipelineFilesystemResource, type PipelineGuardResult, type PipelineInvokeOptions, type PipelineJsonSchema, type PipelineOperationBuildInput, type PipelineOperationDescriptor, type PipelineOperationInvocation, PipelineOperationTransport, PipelineSchemaError, type PipelineSimulation, type PipelineSimulationStatus, PipelineSkillTransport, PipelineSkillsTransport, type PipelineTransactionReceipt, PipelineTransport, type ProviderCredential, type RespondToActionIntent, SUPPORTED_CHAINS, SUPPORTED_CHAIN_IDS, type SendResult, ClientSession as Session, type SessionEventMap, type SessionOptions, type SessionPage, type SiwsChainId, type SiwsIntent, type SiwsWidgetSessionSigner, type SponsorshipPaymasterServiceContext, type StartTurnIntent, type SvmAccountMeta, SvmBuild, type SvmCommitResult, type SvmDirectInput, type SvmInstruction, SvmPipelineTransport, type SvmPresentedAction, type SvmSimulatedBuild, type SvmStageInput, SvmStaged, type SvmStagedAction, type SvmStagedBuild, type SvmTransaction, type SvmWallet, type TaskEvent$1 as TaskEvent, type TitleEvent$1 as TitleEvent, type ToolEvent$1 as ToolEvent, type TurnState, type TurnStateChangedEvent, TypedEventEmitter, UserState$1 as UserState, type UserStateAAMode, type UserStateAuthMethod, type UserStateWalletProvider, type ViemSignMessageArgs, type ViemSignTypedDataArgs, type WalletAtomicCapability, type WalletCapabilities, type WalletEip712Payload, type WalletSolanaSignMessagePayload, type WalletSolanaSignPayload, type WalletTransactionResult, type WalletTxAaPreference, type WalletTxCallPayload, type WalletTxPayload, type Wallets, type WidgetAuthAdapter, type WidgetAuthSession, WidgetChallengeBindingError, type WidgetSession, type WidgetSessionProvider, type WidgetSessionSigner, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, arcTestnet, authorizationChallenge, authorizationCommit, buildFeeAAWalletCall, buildSiwsMessage, createAccountBearerProvider, createGuestSessionProvider, createOAuthTokenProvider, createProviderCredentialAdapter, createSiweWidgetAuthAdapter, createSiwsWidgetAuthAdapter, createWidgetSessionProvider, ensureSvmWalletBound, ensureSvmWalletBoundVia, executeWalletCalls, handlePaymentChallenges, isAomiTaskEventType, isUnboundWalletError, megaeth, monad, monadTestnet, normalizeAppDescriptor, normalizeSimulatedFee, normalizeSolanaCluster, parseAomiTaskEvent, parseChainId, partialWalletExecution, posterFromClient, robinhood, safeEnv, secretNamesFrom, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs, validatePipelineArguments, walletCapabilities, walletUserState, wrapFetchWithPaymentChallenges };

@@ -86,7 +86,7 @@ __export(index_exports, {
   toAAWalletCalls: () => import_client11.toAAWalletCalls,
   toViemSignMessageArgs: () => import_client11.toViemSignMessageArgs,
   toViemSignTypedDataArgs: () => import_client11.toViemSignTypedDataArgs,
-  useActionHandler: () => useActionHandler,
+  useActions: () => useActions,
   useAomiRuntime: () => useAomiRuntime,
   useApiKey: () => useApiKey,
   useAuthEndpoints: () => useAuthEndpoints,
@@ -1589,7 +1589,7 @@ var SessionManager = class {
       if (threadId === activeThreadId) continue;
       if (session.getIsProcessing()) continue;
       if (session.getIsPolling()) continue;
-      if (session.getPendingActions().length > 0) continue;
+      if (session.actions.pending().length > 0) continue;
       closedThreadIds.push(threadId);
     }
     for (const threadId of closedThreadIds) {
@@ -1630,71 +1630,7 @@ var isPlaceholderTitle = (title) => {
   const normalized = (_a = title == null ? void 0 : title.trim()) != null ? _a : "";
   return !normalized || normalized.startsWith("#[");
 };
-var SYSTEM_ENDPOINT_ECHO_PREFIX = "Response of system endpoint:";
-var SVM_COMPLETE_TYPES = /* @__PURE__ */ new Set([
-  "wallet::solana_sign_complete",
-  "wallet::solana_send_complete",
-  "wallet::solana_sign_and_send_complete"
-]);
-function collectTxOutcomes(messages) {
-  var _a;
-  let evm = null;
-  let svm = null;
-  let svmByTx = null;
-  for (const msg of messages) {
-    if (msg.sender !== "system" || !((_a = msg.content) == null ? void 0 : _a.startsWith(SYSTEM_ENDPOINT_ECHO_PREFIX))) {
-      continue;
-    }
-    let parsed;
-    try {
-      parsed = JSON.parse(
-        msg.content.slice(SYSTEM_ENDPOINT_ECHO_PREFIX.length)
-      );
-    } catch (e) {
-      continue;
-    }
-    if (typeof parsed !== "object" || parsed === null) continue;
-    const type = parsed.type;
-    const payload = parsed.payload;
-    if (typeof payload !== "object" || payload === null) continue;
-    if (type === "wallet:tx_complete") {
-      const { status, txHash, error, pending_tx_ids } = payload;
-      if (status !== "success" && status !== "failed") continue;
-      if (!Array.isArray(pending_tx_ids)) continue;
-      for (const id of pending_tx_ids) {
-        if (typeof id !== "number" || !Number.isInteger(id)) continue;
-        evm != null ? evm : evm = /* @__PURE__ */ new Map();
-        evm.set(id, __spreadValues(__spreadValues({
-          status
-        }, typeof txHash === "string" && txHash && { txHash }), typeof error === "string" && error && { error }));
-      }
-      continue;
-    }
-    if (typeof type === "string" && SVM_COMPLETE_TYPES.has(type)) {
-      const { status, signature, error, pending_solana_id, unsigned_tx } = payload;
-      const mapped = status === "signed" || status === "submitted" ? "success" : status === "rejected" || status === "failed" ? "failed" : null;
-      if (mapped === null) continue;
-      const outcome = __spreadValues(__spreadValues({
-        status: mapped
-      }, typeof signature === "string" && signature && { txHash: signature }), typeof error === "string" && error && { error });
-      if (typeof pending_solana_id === "number" && Number.isInteger(pending_solana_id)) {
-        svm != null ? svm : svm = /* @__PURE__ */ new Map();
-        svm.set(pending_solana_id, outcome);
-      }
-      if (typeof unsigned_tx === "string" && unsigned_tx) {
-        svmByTx != null ? svmByTx : svmByTx = /* @__PURE__ */ new Map();
-        svmByTx.set(unsigned_tx, outcome);
-      }
-    }
-  }
-  if (!evm && !svm && !svmByTx) return null;
-  return {
-    evm: evm != null ? evm : /* @__PURE__ */ new Map(),
-    svm: svm != null ? svm : /* @__PURE__ */ new Map(),
-    svmByTx: svmByTx != null ? svmByTx : /* @__PURE__ */ new Map()
-  };
-}
-function toInboundMessage(msg, txOutcomes, rawIndex = 0) {
+function toInboundMessage(msg, rawIndex = 0) {
   var _a;
   if (msg.sender === "system") {
     return null;
@@ -1713,7 +1649,7 @@ function toInboundMessage(msg, txOutcomes, rawIndex = 0) {
       }
     };
   }
-  return buildInboundMessage(msg, txOutcomes);
+  return buildInboundMessage(msg);
 }
 function noticeMessageId(msg, index) {
   var _a;
@@ -1731,7 +1667,7 @@ var readTaskAgentId = (result) => {
   const agentId = (_a = asPlainObject(result)) == null ? void 0 : _a.agent_id;
   return typeof agentId === "string" && agentId.length > 0 ? agentId : void 0;
 };
-function buildInboundMessage(msg, txOutcomes) {
+function buildInboundMessage(msg) {
   var _a, _b;
   const content = [];
   const role = msg.sender === "user" ? "user" : "assistant";
@@ -1754,17 +1690,7 @@ function buildInboundMessage(msg, txOutcomes) {
       toolCallId: `tool_${Date.now()}`,
       toolName,
       args: asPlainObject(msg.tool_arguments),
-      result: (() => {
-        const parsed = result;
-        if (txOutcomes && typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-          const record = parsed;
-          const outcome = typeof record.pending_tx_id === "number" ? txOutcomes.evm.get(record.pending_tx_id) : typeof record.pending_solana_id === "number" ? txOutcomes.svm.get(record.pending_solana_id) : typeof record.unsigned_tx === "string" ? txOutcomes.svmByTx.get(record.unsigned_tx) : void 0;
-          if (outcome) {
-            return __spreadProps(__spreadValues({}, record), { tx_outcome: outcome });
-          }
-        }
-        return parsed;
-      })()
+      result
     }, agentId ? {
       metadata: {
         custom: { aomiTask: { agentId } }
@@ -1966,13 +1892,12 @@ var selectProjectedMessageEntries = (messages, projection) => {
   });
 };
 var projectInboundMessages = (messages, projection) => {
-  const txOutcomes = collectTxOutcomes(messages);
   const projectedMessages = [];
   for (const { message, rawIndex } of selectProjectedMessageEntries(
     messages,
     projection
   )) {
-    const converted = toInboundMessage(message, txOutcomes, rawIndex);
+    const converted = toInboundMessage(message, rawIndex);
     if (converted) projectedMessages.push(converted);
   }
   return mergeAssistantTurns(projectedMessages);
@@ -2197,14 +2122,16 @@ function useRuntimeOrchestrator(aomiClient, options) {
   }, [cleanupSessionListeners]);
   const getSession = (0, import_react10.useCallback)(
     (threadId) => {
-      var _a, _b, _c, _d, _e;
+      var _a, _b, _c, _d, _e, _f;
       const manager = sessionManagerRef.current;
+      if (!manager) throw new Error("SessionManager is not initialized");
       const nextOptions = optionsRef.current;
       const nextApp = nextOptions.getApp();
       const nextModel = (_b = (_a = nextOptions.getModel) == null ? void 0 : _a.call(nextOptions)) != null ? _b : void 0;
       const nextApplicationId = (_c = nextOptions.getApplicationId) == null ? void 0 : _c.call(nextOptions);
       const nextClientId = (_d = nextOptions.getClientId) == null ? void 0 : _d.call(nextOptions);
       const nextUserState = (_e = nextOptions.getUserState) == null ? void 0 : _e.call(nextOptions);
+      const nextActions = (_f = nextOptions.getActions) == null ? void 0 : _f.call(nextOptions);
       const existing = manager.get(threadId);
       if (existing) {
         existing.syncRuntimeOptions({
@@ -2212,7 +2139,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
           model: nextModel,
           applicationId: nextApplicationId,
           clientId: nextClientId,
-          userState: nextUserState
+          userState: nextUserState,
+          actions: nextActions
         });
         return existing;
       }
@@ -2222,7 +2150,8 @@ function useRuntimeOrchestrator(aomiClient, options) {
         applicationId: nextApplicationId,
         clientId: nextClientId,
         clientType: import_client7.CLIENT_TYPE_WEB_UI,
-        userState: nextUserState
+        userState: nextUserState,
+        actions: nextActions
       });
       const cleanups = [];
       cleanups.push(
@@ -2251,15 +2180,6 @@ function useRuntimeOrchestrator(aomiClient, options) {
             setIsRunning(false);
           }
         })
-      );
-      cleanups.push(
-        session.on(
-          "actions_changed",
-          (actions) => {
-            var _a2, _b2;
-            return (_b2 = (_a2 = optionsRef.current).onActionsChange) == null ? void 0 : _b2.call(_a2, actions);
-          }
-        )
       );
       cleanups.push(
         session.on("title_changed", ({ title }) => {
@@ -2303,7 +2223,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   );
   const ensureInitialState = (0, import_react10.useCallback)(
     async (threadId) => {
-      var _a, _b, _c;
+      var _a;
       const existingPromise = initialStatePromises.current.get(threadId);
       if (existingPromise) {
         return existingPromise;
@@ -2311,26 +2231,17 @@ function useRuntimeOrchestrator(aomiClient, options) {
       const cachedMessages = threadContextRef.current.getThreadMessages(threadId);
       const existingSession = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId);
       if (existingSession && (hydratedThreadIds.current.has(threadId) || cachedMessages.length > 0)) {
-        (_c = (_b = optionsRef.current).onActionsChange) == null ? void 0 : _c.call(
-          _b,
-          existingSession.getActions()
-        );
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(existingSession.getIsProcessing());
         }
         return;
       }
       const fetchPromise = (async () => {
-        var _a2, _b2;
         pendingFetches.current.add(threadId);
         try {
           const session = getSession(threadId);
           await session.fetchCurrentState();
           hydratedThreadIds.current.add(threadId);
-          (_b2 = (_a2 = optionsRef.current).onActionsChange) == null ? void 0 : _b2.call(
-            _a2,
-            session.getActions()
-          );
           if (threadContextRef.current.currentThreadId === threadId) {
             setIsRunning(session.getIsProcessing());
           }
@@ -2351,7 +2262,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
   );
   const sendMessage = (0, import_react10.useCallback)(
     async (text, threadId) => {
-      var _a, _b, _c, _d, _e, _f, _g, _h;
+      var _a, _b, _c, _d, _e, _f;
       console.debug("[aomi][runtime] sendMessage start", {
         threadId,
         messagePreview: previewText(text)
@@ -2406,7 +2317,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
           threadId,
           sessionId: session.sessionId,
           isProcessing: session.getIsProcessing(),
-          pendingActionCount: session.getPendingActions().length
+          pendingActionCount: session.actions.pending().length
         });
         (_d = (_c = optionsRef.current).onSendSuccess) == null ? void 0 : _d.call(_c, threadId);
         if (!session.getIsProcessing()) {
@@ -2420,10 +2331,6 @@ function useRuntimeOrchestrator(aomiClient, options) {
           threadId,
           optimisticMessageId,
           "sent"
-        );
-        (_f = (_e = optionsRef.current).onActionsChange) == null ? void 0 : _f.call(
-          _e,
-          session.getActions()
         );
       } catch (error) {
         clearTimeout(submittingFallbackTimer);
@@ -2446,7 +2353,7 @@ function useRuntimeOrchestrator(aomiClient, options) {
         if (isPaymentRequiredError(error)) {
           appendPaymentRequiredMessage(threadContextRef.current, threadId);
         }
-        await ((_h = (_g = optionsRef.current).onSendError) == null ? void 0 : _h.call(_g, threadId, error));
+        await ((_f = (_e = optionsRef.current).onSendError) == null ? void 0 : _f.call(_e, threadId, error));
         throw error;
       }
     },
@@ -2720,98 +2627,38 @@ function useOptionalAomiRuntime() {
   return (0, import_react11.useContext)(AomiRuntimeContext);
 }
 
-// src/handlers/action-handler.ts
+// src/actions/use-actions.ts
 var import_react12 = require("react");
-function useActionHandler({
-  getSession
-}) {
-  const [pendingActions, setPendingActions] = (0, import_react12.useState)([]);
-  const [hasBlockingActions, setHasBlockingActions] = (0, import_react12.useState)(false);
-  const actionsRef = (0, import_react12.useRef)(pendingActions);
-  const inFlight = (0, import_react12.useRef)(/* @__PURE__ */ new Set());
-  const suppressed = (0, import_react12.useRef)(/* @__PURE__ */ new Set());
-  const sync = (0, import_react12.useCallback)(() => {
-    setPendingActions(
-      actionsRef.current.filter((action) => !suppressed.current.has(action.id))
-    );
-    setHasBlockingActions(actionsRef.current.length > 0 || inFlight.current.size > 0);
-  }, []);
-  const setActions = (0, import_react12.useCallback)(
-    (actions) => {
-      const pending = actions.filter((action) => action.state === "pending");
-      const ids = new Set(pending.map((action) => action.id));
-      for (const id of suppressed.current) {
-        if (!ids.has(id) && !inFlight.current.has(id)) suppressed.current.delete(id);
-      }
-      const preserved = actionsRef.current.filter(
-        (action) => inFlight.current.has(action.id) && !ids.has(action.id)
-      );
-      actionsRef.current = [...pending, ...preserved];
-      sync();
+var NO_ACTIONS = [];
+function useActions(handler) {
+  const subscribe = (0, import_react12.useCallback)(
+    (listener) => {
+      var _a;
+      return (_a = handler == null ? void 0 : handler.subscribe(listener)) != null ? _a : (() => void 0);
     },
-    [sync]
+    [handler]
   );
-  const startAction = (0, import_react12.useCallback)(
-    (id) => {
-      if (!actionsRef.current.some((action) => action.id === id)) return;
-      inFlight.current.add(id);
-      suppressed.current.add(id);
-      sync();
-    },
-    [sync]
-  );
-  const finish = (0, import_react12.useCallback)(
-    (id) => {
-      actionsRef.current = actionsRef.current.filter((action) => action.id !== id);
-      inFlight.current.delete(id);
-      sync();
-    },
-    [sync]
-  );
-  const respondToAction = (0, import_react12.useCallback)(
-    async (id, result) => {
-      const session = getSession();
-      if (!session) throw new Error("No session available to respond to Action");
-      startAction(id);
-      try {
-        await session.respondToAction(id, result);
-      } finally {
-        finish(id);
-      }
-    },
-    [finish, getSession, startAction]
-  );
-  const rejectAction = (0, import_react12.useCallback)(
-    async (id, reason) => {
-      const session = getSession();
-      if (!session) throw new Error("No session available to reject Action");
-      startAction(id);
-      try {
-        await session.rejectAction(id, reason);
-      } finally {
-        finish(id);
-      }
-    },
-    [finish, getSession, startAction]
-  );
-  const dismissAction = (0, import_react12.useCallback)(
-    (id) => {
-      actionsRef.current = actionsRef.current.filter((action) => action.id !== id);
-      inFlight.current.delete(id);
-      suppressed.current.add(id);
-      sync();
-    },
-    [sync]
+  const snapshot = (0, import_react12.useCallback)(() => {
+    var _a;
+    return (_a = handler == null ? void 0 : handler.all()) != null ? _a : NO_ACTIONS;
+  }, [handler]);
+  const actions = (0, import_react12.useSyncExternalStore)(subscribe, snapshot, snapshot);
+  const pendingActions = (0, import_react12.useMemo)(
+    () => actions.filter((action) => action.state === "pending"),
+    [actions]
   );
   return {
     pendingActions,
-    hasBlockingActions,
-    setActions,
-    startAction,
-    dismissAction,
-    respondToAction,
-    rejectAction
+    hasBlockingActions: pendingActions.length > 0 || Boolean(handler == null ? void 0 : handler.isBlocking()),
+    executeAction: (id) => requireHandler(handler).execute(id).then(() => void 0),
+    respondToAction: (id, result) => requireHandler(handler).submitResult(id, result).then(() => void 0),
+    rejectAction: (id, reason) => requireHandler(handler).reject(id, reason).then(() => void 0)
   };
+}
+function requireHandler(handler) {
+  if (!handler)
+    throw new Error("No ActionHandler is available for this session");
+  return handler;
 }
 
 // src/runtime/user-state-provider.tsx
@@ -3290,10 +3137,12 @@ function AomiRuntimeCore({
   children,
   aomiClient,
   applicationId,
+  actions: actionCapabilities,
   accountSessionAvailable = false,
   restoredThreadId,
   threadPersistenceKey
 }) {
+  var _a;
   const threadContext = useThreadContext();
   const eventContext = useEventContext();
   const notificationContext = useNotification();
@@ -3306,13 +3155,6 @@ function AomiRuntimeCore({
     getPreferredThreadControl,
     markControlSynced
   } = useControl();
-  const sessionManagerRef = (0, import_react14.useRef)(null);
-  const actionHandler = useActionHandler({
-    getSession: () => {
-      var _a;
-      return (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadContext.currentThreadId);
-    }
-  });
   const {
     sessionManager,
     getSession,
@@ -3331,13 +3173,14 @@ function AomiRuntimeCore({
     getApp: getCurrentThreadApp,
     getModel: () => getCurrentThreadControl().model,
     getApplicationId: () => {
-      var _a;
-      return (_a = getCurrentThreadApplicationId()) != null ? _a : applicationId;
+      var _a2;
+      return (_a2 = getCurrentThreadApplicationId()) != null ? _a2 : applicationId;
     },
     getClientId: () => {
-      var _a;
-      return (_a = getControlState().clientId) != null ? _a : void 0;
+      var _a2;
+      return (_a2 = getControlState().clientId) != null ? _a2 : void 0;
     },
+    getActions: () => actionCapabilities,
     onSendSuccess: (threadId) => {
       const wasRemote = remoteThreadIdsRef.current.has(threadId);
       remoteThreadIdsRef.current.add(threadId);
@@ -3359,10 +3202,12 @@ function AomiRuntimeCore({
         });
       }
     },
-    onActionsChange: actionHandler.setActions,
     onEvent: (event) => eventContext.dispatch(event)
   });
-  sessionManagerRef.current = sessionManager;
+  const actionHandler = (_a = sessionManager.get(
+    threadContext.currentThreadId
+  )) == null ? void 0 : _a.actions;
+  const actions = useActions(actionHandler);
   const threadContextRef = (0, import_react14.useRef)(threadContext);
   threadContextRef.current = threadContext;
   const remoteThreadIdsRef = (0, import_react14.useRef)(/* @__PURE__ */ new Set());
@@ -3377,10 +3222,10 @@ function AomiRuntimeCore({
   }, []);
   const getRuntimeSession = (0, import_react14.useCallback)(
     (threadId) => {
-      var _a, _b;
-      return (_b = (_a = sessionManagerRef.current) == null ? void 0 : _a.get(threadId)) != null ? _b : getSession(threadId);
+      var _a2;
+      return (_a2 = sessionManager.get(threadId)) != null ? _a2 : getSession(threadId);
     },
-    [getSession]
+    [getSession, sessionManager]
   );
   const threadPersistence = (0, import_react14.useMemo)(
     () => ({
@@ -3442,10 +3287,10 @@ function AomiRuntimeCore({
     warmThread
   ]);
   (0, import_react14.useEffect)(() => {
-    var _a;
+    var _a2;
     const threadId = threadContext.currentThreadId;
     const currentMeta = threadContext.getThreadMetadata(threadId);
-    const nextTurnPhase = isRunning ? (_a = currentMeta == null ? void 0 : currentMeta.control.turnPhase) != null ? _a : "working" : "idle";
+    const nextTurnPhase = isRunning ? (_a2 = currentMeta == null ? void 0 : currentMeta.control.turnPhase) != null ? _a2 : "working" : "idle";
     if (currentMeta && (currentMeta.control.isProcessing !== isRunning || currentMeta.control.turnPhase !== nextTurnPhase)) {
       threadContext.updateThreadMetadata(threadId, {
         control: __spreadProps(__spreadValues({}, currentMeta.control), {
@@ -3543,11 +3388,11 @@ function AomiRuntimeCore({
       }
     },
     onEdit: async (message) => {
-      var _a;
+      var _a2;
       try {
         await orchestratorRegenerateMessage(
           threadContext.currentThreadId,
-          (_a = message.sourceId) != null ? _a : message.parentId,
+          (_a2 = message.sourceId) != null ? _a2 : message.parentId,
           appendMessageText(message)
         );
       } catch (error) {
@@ -3667,12 +3512,11 @@ function AomiRuntimeCore({
       dismissNotification: notificationContext.dismissNotification,
       clearAllNotifications: notificationContext.clearAll,
       // Action API
-      pendingActions: actionHandler.pendingActions,
-      hasBlockingActions: actionHandler.hasBlockingActions,
-      startAction: actionHandler.startAction,
-      dismissAction: actionHandler.dismissAction,
-      respondToAction: actionHandler.respondToAction,
-      rejectAction: actionHandler.rejectAction,
+      pendingActions: actions.pendingActions,
+      hasBlockingActions: actions.hasBlockingActions,
+      executeAction: actions.executeAction,
+      respondToAction: actions.respondToAction,
+      rejectAction: actions.rejectAction,
       simulateBatchTransactions,
       // Event API
       subscribe: eventContext.subscribe,
@@ -3694,7 +3538,7 @@ function AomiRuntimeCore({
       sendMessage,
       cancelGeneration,
       notificationContext,
-      actionHandler,
+      actions,
       simulateBatchTransactions,
       eventContext
     ]
@@ -3719,6 +3563,7 @@ function AomiRuntimeProvider({
   applicationId,
   appPlatforms,
   clientOptions,
+  actions,
   accountSessionAvailable = false,
   initialThreadId,
   persistThread = true,
@@ -3766,6 +3611,7 @@ function AomiRuntimeProvider({
       applicationId,
       appPlatforms,
       accountSessionAvailable,
+      actions,
       restoredThreadId,
       threadPersistenceKey: resolvedThreadPersistenceKey,
       children
@@ -3778,6 +3624,7 @@ function AomiRuntimeInner({
   applicationId,
   appPlatforms,
   accountSessionAvailable,
+  actions,
   restoredThreadId,
   threadPersistenceKey
 }) {
@@ -3797,6 +3644,7 @@ function AomiRuntimeInner({
           aomiClient,
           applicationId,
           accountSessionAvailable,
+          actions,
           restoredThreadId,
           threadPersistenceKey,
           children
@@ -3888,7 +3736,7 @@ var import_client12 = require("@aomi-labs/client");
   toAAWalletCalls,
   toViemSignMessageArgs,
   toViemSignTypedDataArgs,
-  useActionHandler,
+  useActions,
   useAomiRuntime,
   useApiKey,
   useAuthEndpoints,

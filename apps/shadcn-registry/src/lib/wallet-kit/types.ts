@@ -241,6 +241,7 @@ export type AomiAccount = {
 
 export type AomiTxResult = {
   txHash: string;
+  txHashes?: string[];
   amount?: string;
   aaRequestedMode?: "4337" | "7702" | "none";
   aaResolvedMode?: "4337" | "7702" | "none";

@@ -1,11 +1,10 @@
 import type {
-  Action,
-  ActionResult,
   Event,
   EventPage,
   StartTurnIntent,
   TurnState,
 } from "../agent/types";
+import { ActionHandler } from "../actions";
 import { AgentApiError } from "../agent/transport";
 import { AomiClient } from "../client";
 import { TypedEventEmitter } from "../event";
@@ -30,8 +29,6 @@ import type {
 
 export { aaModeFromExecutionKind } from "../aa/policy";
 export type {
-  Action,
-  ActionResult,
   Event,
   EventPage,
   SendResult,
@@ -51,6 +48,7 @@ const TERMINAL_TURN_STATES = new Set<TurnState>([
 export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   readonly client: AomiClient;
   readonly sessionId: string;
+  readonly actions: ActionHandler;
 
   private app: string;
   private model?: string | null;
@@ -62,7 +60,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private cursor?: string;
   private turnId?: string;
   private turnState?: TurnState;
-  private readonly actions = new Map<string, Action>();
   private startOperation?: { message: string; idempotencyKey: string };
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private pollingActive = false;
@@ -89,18 +86,37 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.applicationId = sessionOptions?.applicationId;
     const initial = UserState.reconcile(undefined, sessionOptions?.userState);
     this.userState = sessionOptions?.clientType
-      ? UserState.withExt(initial ?? {}, "client_type", sessionOptions.clientType)
+      ? UserState.withExt(
+          initial ?? {},
+          "client_type",
+          sessionOptions.clientType,
+        )
       : initial;
     this.clientId = sessionOptions?.clientId ?? crypto.randomUUID();
     this.pollIntervalMs = sessionOptions?.pollIntervalMs ?? 500;
     this.logger = sessionOptions?.logger;
+    this.actions = new ActionHandler(
+      sessionOptions?.actions ?? {},
+      (action, result) =>
+        this.client.agent.respondToAction(
+          this.sessionId,
+          action.id,
+          action.revision,
+          result,
+        ),
+    );
+    this.actions.on("resolved", () => {
+      this.beginProcessing();
+      this.startPolling();
+    });
   }
 
   async send(message: string): Promise<SendResult> {
     const page = await this.submit(message);
     if (this.isTerminal()) return this.result();
     this.beginProcessing();
-    if (this.turnState !== "awaiting_action" || page.has_more) this.startPolling();
+    if (this.turnState !== "awaiting_action" || page.has_more)
+      this.startPolling();
     return new Promise((resolve) => {
       this.pendingResolve = resolve;
     });
@@ -110,33 +126,18 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     const page = await this.submit(message);
     if (!this.isTerminal()) {
       this.beginProcessing();
-      if (this.turnState !== "awaiting_action" || page.has_more) this.startPolling();
+      if (this.turnState !== "awaiting_action" || page.has_more)
+        this.startPolling();
     }
     return page;
-  }
-
-  async respondToAction(actionId: string, result: ActionResult): Promise<Action> {
-    const action = this.pendingAction(actionId);
-    const next = await this.client.agent.respondToAction(
-      this.sessionId,
-      action.id,
-      action.revision,
-      result,
-    );
-    this.applyAction(next);
-    this.beginProcessing();
-    this.startPolling();
-    return next;
-  }
-
-  rejectAction(actionId: string, reason = "Request rejected"): Promise<Action> {
-    return this.respondToAction(actionId, { status: "rejected", reason });
   }
 
   async interrupt(): Promise<void> {
     if (!this.turnId) throw new Error("No active turn to interrupt");
     this.stopPolling();
-    this.applyEventPage(await this.client.agent.interrupt(this.sessionId, this.turnId));
+    this.applyEventPage(
+      await this.client.agent.interrupt(this.sessionId, this.turnId),
+    );
     this.finishProcessing();
   }
 
@@ -145,6 +146,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.closed = true;
     this.stopPolling();
     this.resolvePending();
+    this.actions.close();
     this.removeAllListeners();
   }
 
@@ -158,16 +160,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   getUserState(): UserStateShape | undefined {
     return this.userState ? { ...this.userState } : undefined;
-  }
-
-  getPendingActions(): Action[] {
-    return this.getActions().filter((action) => action.state === "pending");
-  }
-
-  getActions(): Action[] {
-    return [...this.actions.values()].sort(
-      (left, right) => left.sequence - right.sequence,
-    );
   }
 
   getTurnState(): TurnState | undefined {
@@ -192,9 +184,13 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.applicationId = options.applicationId;
     this.clientId = options.clientId ?? this.clientId;
     if (options.userState) this.resolveUserState(options.userState);
+    if (options.actions) this.actions.setCapabilities(options.actions);
   }
 
-  resolveUserState(userState: UserStateShape, opts?: { skipEmit?: boolean }): void {
+  resolveUserState(
+    userState: UserStateShape,
+    opts?: { skipEmit?: boolean },
+  ): void {
     const previous = stableUserStateString(this.userState);
     this.userState = UserState.reconcile(this.userState, userState);
     if (
@@ -246,7 +242,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.pollingActive = true;
     this.logger?.debug("[session] polling started", this.sessionId);
     if (typeof document !== "undefined") {
-      document.addEventListener("visibilitychange", this.handleVisibilityChange);
+      document.addEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange,
+      );
     }
     this.schedulePoll(0);
   }
@@ -256,7 +255,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = null;
     if (typeof document !== "undefined") {
-      document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+      document.removeEventListener(
+        "visibilitychange",
+        this.handleVisibilityChange,
+      );
     }
     this.logger?.debug("[session] polling stopped", this.sessionId);
   }
@@ -286,7 +288,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
           ...(this.model ? { model: this.model } : {}),
           ...(this.userState
             ? {
-                userState: UserState.toOwned(this.userState) as StartTurnIntent["userState"],
+                userState: UserState.toOwned(
+                  this.userState,
+                ) as StartTurnIntent["userState"],
               }
             : {}),
         },
@@ -312,7 +316,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       this.applyEventPage(page);
       return page;
     } catch (error) {
-      if (!(error instanceof AgentApiError) || error.code !== "cursor_mismatch") {
+      if (
+        !(error instanceof AgentApiError) ||
+        error.code !== "cursor_mismatch"
+      ) {
         throw error;
       }
       this.cursor = undefined;
@@ -328,8 +335,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
     let messagesChanged = false;
     for (const event of page.events) {
-      this.emit("event", event);
-      this.emit(event.type as keyof SessionEventMap, event as never);
+      let emitEvent = true;
       switch (event.type) {
         case "message":
           this.applyMessage(event);
@@ -344,8 +350,12 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
           break;
         case "action":
           this.turnId = event.turn_id ?? this.turnId;
-          this.applyAction(event);
+          emitEvent = this.actions.ingest(event);
           break;
+      }
+      if (emitEvent) {
+        this.emit("event", event);
+        this.emit(event.type as keyof SessionEventMap, event as never);
       }
     }
     this.cursor = page.cursor;
@@ -365,22 +375,6 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     const index = this._messages.findIndex((current) => current.id === id);
     if (index >= 0) this._messages[index] = message;
     else this._messages.push(message);
-  }
-
-  private applyAction(action: Action): void {
-    const previous = this.actions.get(action.id);
-    if (previous && previous.revision > action.revision) return;
-    this.actions.set(action.id, action);
-    this.emit("action", action);
-    this.emit("actions_changed", this.getActions());
-  }
-
-  private pendingAction(id: string): Action {
-    const action = this.actions.get(id);
-    if (!action || action.state !== "pending") {
-      throw new Error(`No pending Action with id "${id}"`);
-    }
-    return action;
   }
 
   private async pollTick(): Promise<void> {
@@ -404,7 +398,10 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       this.pollInFlight = false;
       if (this.pollingActive) {
         this.schedulePoll(
-          Math.min(this.currentPollInterval() * 2 ** this.pollFailureCount, 5_000),
+          Math.min(
+            this.currentPollInterval() * 2 ** this.pollFailureCount,
+            5_000,
+          ),
         );
       }
     }
@@ -424,7 +421,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   }
 
   private isTerminal(): boolean {
-    return this.turnState !== undefined && TERMINAL_TURN_STATES.has(this.turnState);
+    return (
+      this.turnState !== undefined && TERMINAL_TURN_STATES.has(this.turnState)
+    );
   }
 
   private result(): SendResult {
@@ -450,7 +449,11 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   }
 
   private handleVisibilityChange = (): void => {
-    if (typeof document !== "undefined" && !document.hidden && !this.pollInFlight) {
+    if (
+      typeof document !== "undefined" &&
+      !document.hidden &&
+      !this.pollInFlight
+    ) {
       this.schedulePoll(0);
     }
   };
@@ -461,5 +464,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 }
 
 function eventTimestamp(value: number): string {
-  return new Date(value < 1_000_000_000_000 ? value * 1_000 : value).toISOString();
+  return new Date(
+    value < 1_000_000_000_000 ? value * 1_000 : value,
+  ).toISOString();
 }

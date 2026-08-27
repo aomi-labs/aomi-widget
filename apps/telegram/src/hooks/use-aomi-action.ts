@@ -53,7 +53,7 @@ export function useAomiAction(input: {
       },
     );
 
-    const sync = (actions = session.getPendingActions()) => {
+    const sync = (actions = session.actions.pending()) => {
       if (!active) return;
       const action = chooseAction(actions, input.requestId);
       const ambiguous = !input.requestId && actions.length > 1;
@@ -70,7 +70,7 @@ export function useAomiAction(input: {
         setState({ error: null, action: null, session, status: "loading" });
       }
     });
-    const stopActions = session.on("actions_changed", sync);
+    const stopActions = session.actions.subscribe(() => sync());
     const stopErrors = session.on("error", ({ error }) => {
       if (!active) return;
       setState({

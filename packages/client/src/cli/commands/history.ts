@@ -10,11 +10,7 @@ import {
   printDataFileLocation,
 } from "../output";
 import { clearState } from "../state";
-import {
-  estimateTokenCount,
-  printKeyValueTable,
-  printTransactionTable,
-} from "../tables";
+import { estimateTokenCount, printKeyValueTable } from "../tables";
 import type { CliConfig } from "../types";
 
 export async function logCommand(config: CliConfig): Promise<void> {
@@ -30,8 +26,7 @@ export async function logCommand(config: CliConfig): Promise<void> {
   try {
     await session.fetchCurrentState();
     const messages = session.getMessages();
-    const pendingTxs = [...cli.pendingTxs];
-    const signedTxs = [...cli.signedTxs];
+    const actions = session.actions.all();
     const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
     const tokenCountEstimate = estimateTokenCount(messages);
     const topic = session.getTitle() ?? "Untitled Session";
@@ -48,14 +43,9 @@ export async function logCommand(config: CliConfig): Promise<void> {
       ["msg count", String(messages.length)],
       ["token count", `${tokenCountEstimate} (estimated)`],
       ["tool calls", String(toolCalls)],
-      [
-        "transactions",
-        `${pendingTxs.length + signedTxs.length} (${pendingTxs.length} pending, ${signedTxs.length} signed)`,
-      ],
+      ["actions", String(actions.length)],
+      ["pending actions", String(session.actions.pending().length)],
     ]);
-
-    console.log("Transactions metadata (JSON):");
-    printTransactionTable(pendingTxs, signedTxs);
 
     console.log("-------------------- Messages --------------------");
     for (const msg of messages) {
@@ -88,10 +78,7 @@ export async function logCommand(config: CliConfig): Promise<void> {
           console.log(`${time}${CYAN}🤖 Agent:${RESET} ${content}`);
         }
       } else if (sender === "system") {
-        if (
-          content &&
-          !content.startsWith("Response of system endpoint:")
-        ) {
+        if (content && !content.startsWith("Response of system endpoint:")) {
           console.log(`${time}${YELLOW}⚙️  System:${RESET} ${content}`);
         }
       } else {

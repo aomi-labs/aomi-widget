@@ -15,13 +15,11 @@ import type {
   SvmSimulatedBuild,
   SvmStagedBuild,
 } from "../pipeline/types";
-import { WalletController } from "../wallet/controller";
 
 export class EvmStaged {
   constructor(
     readonly raw: EvmStagedBuild,
     private readonly transport: EvmPipelineTransport,
-    private readonly wallet: WalletController,
   ) {}
 
   get version(): 1 {
@@ -48,7 +46,6 @@ export class EvmStaged {
     return new EvmBuild(
       await this.transport.simulate(this.raw),
       this.transport,
-      this.wallet,
     );
   }
 
@@ -61,7 +58,6 @@ export class EvmBuild {
   constructor(
     readonly raw: EvmSimulatedBuild,
     private readonly transport: EvmPipelineTransport,
-    private readonly wallet: WalletController,
   ) {}
 
   get version(): 1 {
@@ -93,14 +89,7 @@ export class EvmBuild {
   }
 
   async commit(options?: PipelineCommitOptions): Promise<EvmCommitResult> {
-    const result = await this.transport.commit(this.raw, options);
-    if (!result.action || !this.wallet.canHandle(result.action)) {
-      return result;
-    }
-    return {
-      ...result,
-      actionResult: await this.wallet.execute(result.action),
-    };
+    return this.transport.commit(this.raw, options);
   }
 
   toJSON(): EvmSimulatedBuild {
@@ -112,7 +101,6 @@ export class SvmStaged {
   constructor(
     readonly raw: SvmStagedBuild,
     private readonly transport: SvmPipelineTransport,
-    private readonly wallet: WalletController,
   ) {}
 
   get version(): 1 {
@@ -138,7 +126,6 @@ export class SvmStaged {
     return new SvmBuild(
       await this.transport.simulate(this.raw),
       this.transport,
-      this.wallet,
     );
   }
 
@@ -151,7 +138,6 @@ export class SvmBuild {
   constructor(
     readonly raw: SvmSimulatedBuild,
     private readonly transport: SvmPipelineTransport,
-    private readonly wallet: WalletController,
   ) {}
 
   get version(): 1 {
@@ -182,14 +168,7 @@ export class SvmBuild {
   }
 
   async commit(options?: PipelineCommitOptions): Promise<SvmCommitResult> {
-    const result = await this.transport.commit(this.raw, options);
-    if (!result.action || !this.wallet.canHandle(result.action)) {
-      return result;
-    }
-    return {
-      ...result,
-      actionResult: await this.wallet.execute(result.action),
-    };
+    return this.transport.commit(this.raw, options);
   }
 
   toJSON(): SvmSimulatedBuild {

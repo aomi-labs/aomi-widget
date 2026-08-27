@@ -25,6 +25,7 @@ import {
   createSolanaDriverAction,
   type SolanaDriverActionKind,
 } from "./solana-runtime-driver-request";
+import { useDriverActionHandler } from "./use-driver-action-handler";
 
 type DriverMode =
   | "sign"
@@ -149,9 +150,7 @@ function PrivySolanaRuntimeDriverInner() {
   const [driverMode, setDriverMode] = useState<DriverMode>("sign");
   const [pendingActions, setPendingActions] = useState<Action[]>([]);
   const [reportStatus, setReportStatus] = useState<DriverReportStatus>("idle");
-  const [lastResult, setLastResult] = useState<ActionResult | null>(
-    null,
-  );
+  const [lastResult, setLastResult] = useState<ActionResult | null>(null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [logs, setLogs] = useState<DriverLog[]>([]);
   const requestCounterRef = useRef(1);
@@ -189,9 +188,7 @@ function PrivySolanaRuntimeDriverInner() {
     [appendLog],
   );
 
-  const dismissAction = useCallback((id: string) => {
-    setPendingActions((prev) => prev.filter((action) => action.id !== id));
-  }, []);
+  const executeAction = useDriverActionHandler(pendingActions, respondToAction);
 
   const runtimeApi = useMemo<AomiRuntimeApi>(
     () => ({
@@ -221,8 +218,7 @@ function PrivySolanaRuntimeDriverInner() {
       clearAllNotifications: () => undefined,
       pendingActions,
       hasBlockingActions: pendingActions.length > 0,
-      startAction: () => undefined,
-      dismissAction,
+      executeAction,
       respondToAction,
       rejectAction,
       simulateBatchTransactions: async () => {
@@ -235,7 +231,7 @@ function PrivySolanaRuntimeDriverInner() {
     }),
     [
       currentUserState,
-      dismissAction,
+      executeAction,
       pendingActions,
       rejectAction,
       reportStatus,

@@ -4,8 +4,6 @@ export type {
   SessionEventMap,
   SessionOptions,
   SessionRuntimeOptions,
-  Action,
-  ActionResult,
   Event,
   EventPage,
   TurnState,

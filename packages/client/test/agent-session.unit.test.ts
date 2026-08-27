@@ -228,14 +228,14 @@ describe("ClientSession Agent transport", () => {
     const session = new Session(api, { sessionId: "session-agent" });
 
     await session.sendAsync("execute");
-    expect(session.getPendingActions()).toEqual([pending]);
-    await session.rejectAction("action-1", "Not now");
+    expect(session.actions.pending()).toEqual([pending]);
+    await session.actions.reject("action-1", "Not now");
 
     expect(respond).toHaveBeenCalledWith("session-agent", "action-1", 1, {
       status: "rejected",
       reason: "Not now",
     });
-    expect(session.getPendingActions()).toEqual([]);
+    expect(session.actions.pending()).toEqual([]);
     session.close();
   });
 
@@ -258,7 +258,7 @@ describe("ClientSession Agent transport", () => {
 
     await session.fetchCurrentState();
 
-    expect(session.getPendingActions()).toEqual([pending]);
+    expect(session.actions.pending()).toEqual([pending]);
     expect(session.getTurnState()).toBe("awaiting_action");
     expect(session.getIsPolling()).toBe(false);
     session.close();

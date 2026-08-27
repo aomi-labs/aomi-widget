@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { Aomi, AgentRun } from "../src";
+import { Aomi, AgentRun, walletCapabilities, walletUserState } from "../src";
 import type { Action, EventPage } from "../src";
 
 const occurredAt = Date.parse("2026-08-25T00:00:00Z");
@@ -89,17 +89,17 @@ describe("high-level Aomi Agent", () => {
       baseUrl: "https://api.example",
       fetch,
       guest: false,
-      wallet: {
-        evm: {
-          address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          chainId: 8453,
-          sendCalls: vi.fn(),
-        },
-      },
     });
 
     const run = aomi.agent.run("Supply 100 USDC to Aave", {
       sessionId: "agent-1",
+      userState: {
+        connection: { is_connected: true },
+        evm: {
+          address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          chain_id: 8453,
+        },
+      },
     });
     const actions = vi.fn();
     const completed = vi.fn();
@@ -129,7 +129,7 @@ describe("high-level Aomi Agent", () => {
     });
   });
 
-  it("uses the wallet controller to answer a pending Action automatically", async () => {
+  it("executes a pending Action explicitly through the session handler", async () => {
     const pending = evmAction({
       id: "wallet-action",
       event_id: "event-action-pending",
@@ -204,24 +204,31 @@ describe("high-level Aomi Agent", () => {
       }
       throw new Error(`Unexpected request ${url}`);
     });
+    const wallets = {
+      evm: {
+        address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        chainId: 8453,
+        sendCalls,
+      },
+    };
     const aomi = new Aomi({
       baseUrl: "https://api.example",
       fetch: fetch as typeof globalThis.fetch,
       guest: false,
-      wallet: {
-        evm: {
-          address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          chainId: 8453,
-          sendCalls,
-        },
-      },
+      actions: walletCapabilities(wallets),
     });
     const run = aomi.agent.run("Execute", {
       sessionId: "agent-wallet",
       pollIntervalMs: 1,
+      userState: walletUserState(wallets),
     });
     const actions = vi.fn();
-    run.on("action", actions);
+    run.on("action", (action) => {
+      actions(action);
+      if (action.state === "pending") {
+        void run.session.actions.execute(action.id);
+      }
+    });
 
     const result = await run.result();
 

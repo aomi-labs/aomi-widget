@@ -22,14 +22,10 @@ import type {
   SvmStageInput,
   SvmStagedBuild,
 } from "../pipeline/types";
-import { WalletController } from "../wallet/controller";
 import { EvmBuild, EvmStaged, SvmBuild, SvmStaged } from "./build";
 
 export class AomiEvmPipeline {
-  constructor(
-    readonly raw: EvmPipelineTransport,
-    private readonly wallet: WalletController,
-  ) {}
+  constructor(readonly raw: EvmPipelineTransport) {}
 
   async build(
     input: PipelineOperationBuildInput | EvmDirectInput,
@@ -37,7 +33,7 @@ export class AomiEvmPipeline {
     if ("calls" in input) {
       return (await this.stage(input)).simulate();
     }
-    return new EvmBuild(await this.raw.build(input), this.raw, this.wallet);
+    return new EvmBuild(await this.raw.build(input), this.raw);
   }
 
   async stage(input: EvmStageInput | EvmDirectInput): Promise<EvmStaged> {
@@ -53,12 +49,12 @@ export class AomiEvmPipeline {
               },
             ],
           };
-    return new EvmStaged(await this.raw.stage(request), this.raw, this.wallet);
+    return new EvmStaged(await this.raw.stage(request), this.raw);
   }
 
   async simulate(build: EvmStaged | EvmStagedBuild): Promise<EvmBuild> {
     const value = build instanceof EvmStaged ? build.raw : build;
-    return new EvmBuild(await this.raw.simulate(value), this.raw, this.wallet);
+    return new EvmBuild(await this.raw.simulate(value), this.raw);
   }
 
   commit(
@@ -66,18 +62,13 @@ export class AomiEvmPipeline {
     options?: PipelineCommitOptions,
   ): Promise<EvmCommitResult> {
     const value =
-      build instanceof EvmBuild
-        ? build
-        : new EvmBuild(build, this.raw, this.wallet);
+      build instanceof EvmBuild ? build : new EvmBuild(build, this.raw);
     return value.commit(options);
   }
 }
 
 export class AomiSvmPipeline {
-  constructor(
-    readonly raw: SvmPipelineTransport,
-    private readonly wallet: WalletController,
-  ) {}
+  constructor(readonly raw: SvmPipelineTransport) {}
 
   async build(
     input: PipelineOperationBuildInput | SvmDirectInput,
@@ -85,16 +76,16 @@ export class AomiSvmPipeline {
     if ("kind" in input) {
       return (await this.stage(input)).simulate();
     }
-    return new SvmBuild(await this.raw.build(input), this.raw, this.wallet);
+    return new SvmBuild(await this.raw.build(input), this.raw);
   }
 
   async stage(input: SvmStageInput): Promise<SvmStaged> {
-    return new SvmStaged(await this.raw.stage(input), this.raw, this.wallet);
+    return new SvmStaged(await this.raw.stage(input), this.raw);
   }
 
   async simulate(build: SvmStaged | SvmStagedBuild): Promise<SvmBuild> {
     const value = build instanceof SvmStaged ? build.raw : build;
-    return new SvmBuild(await this.raw.simulate(value), this.raw, this.wallet);
+    return new SvmBuild(await this.raw.simulate(value), this.raw);
   }
 
   commit(
@@ -102,9 +93,7 @@ export class AomiSvmPipeline {
     options?: PipelineCommitOptions,
   ): Promise<SvmCommitResult> {
     const value =
-      build instanceof SvmBuild
-        ? build
-        : new SvmBuild(build, this.raw, this.wallet);
+      build instanceof SvmBuild ? build : new SvmBuild(build, this.raw);
     return value.commit(options);
   }
 }
@@ -175,12 +164,9 @@ export class AomiPipeline {
   readonly evm: AomiEvmPipeline;
   readonly svm: AomiSvmPipeline;
 
-  constructor(
-    readonly raw: PipelineTransport,
-    wallet: WalletController,
-  ) {
-    this.evm = new AomiEvmPipeline(raw.evm, wallet);
-    this.svm = new AomiSvmPipeline(raw.svm, wallet);
+  constructor(readonly raw: PipelineTransport) {
+    this.evm = new AomiEvmPipeline(raw.evm);
+    this.svm = new AomiSvmPipeline(raw.svm);
   }
 
   app(name: string): AomiPipelineOperationScope {

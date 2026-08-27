@@ -6,12 +6,12 @@ import { useAccount, useModal } from "@getpara/react-sdk-lite";
 import { useAomiAction } from "@/hooks/use-aomi-action";
 import { useCanonicalAccount } from "@/hooks/use-canonical-account";
 import { useTelegramLaunch } from "@/hooks/use-telegram-launch";
-import { useActionExecutor } from "@/hooks/use-action-executor";
+import { useActionControl } from "@/hooks/use-action-control";
 import { actionChain, describeAction } from "@/lib/action";
 
 function statusText(input: {
   account: ReturnType<typeof useCanonicalAccount>;
-  execution: ReturnType<typeof useActionExecutor>;
+  execution: ReturnType<typeof useActionControl>;
   launch: ReturnType<typeof useTelegramLaunch>;
   actionState: ReturnType<typeof useAomiAction>;
 }): string {
@@ -32,8 +32,7 @@ function statusText(input: {
   }
   if (input.execution.status === "awaiting_wallet") return "Signing…";
   if (input.execution.status === "done") return "Approved";
-  if (input.execution.status === "error")
-    return "The Action was not approved.";
+  if (input.execution.status === "error") return "The Action was not approved.";
   return "Wallet connected";
 }
 
@@ -49,7 +48,7 @@ export default function Home() {
     requestId: launch.context?.requestId ?? null,
     sessionId: launch.context?.sessionId ?? null,
   });
-  const execution = useActionExecutor({
+  const execution = useActionControl({
     action: actionState.action,
     session: actionState.session,
   });

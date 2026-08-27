@@ -8,7 +8,7 @@ import {
   type AppendMessage,
 } from "@assistant-ui/react";
 
-import type { AomiClient } from "@aomi-labs/client";
+import type { ActionCapabilities, AomiClient } from "@aomi-labs/client";
 import { useControl } from "../contexts/control-context";
 import { useEventContext } from "../contexts/event-context";
 import { useUser } from "../contexts/ext-user-context";
@@ -21,7 +21,7 @@ import {
 } from "./orchestrator";
 import { buildThreadListAdapter } from "./threadlist-adapter";
 import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
-import { useActionHandler } from "../handlers/action-handler";
+import { useActions } from "../actions/use-actions";
 import {
   RuntimeUserStateProvider,
   useRuntimeUserStateEffects,
@@ -70,6 +70,7 @@ export type AomiRuntimeCoreProps = {
   children: ReactNode;
   aomiClient: AomiClient;
   applicationId?: number | string | null;
+  actions?: ActionCapabilities;
   accountSessionAvailable?: boolean;
   restoredThreadId?: string;
   threadPersistenceKey?: string | null;
@@ -83,6 +84,7 @@ export function AomiRuntimeCore({
   children,
   aomiClient,
   applicationId,
+  actions: actionCapabilities,
   accountSessionAvailable = false,
   restoredThreadId,
   threadPersistenceKey,
@@ -99,18 +101,6 @@ export function AomiRuntimeCore({
     getPreferredThreadControl,
     markControlSynced,
   } = useControl();
-
-  // ---------------------------------------------------------------------------
-  // Action handler
-  // ---------------------------------------------------------------------------
-  const sessionManagerRef = useRef<
-    ReturnType<typeof useRuntimeOrchestrator>["sessionManager"] | null
-  >(null);
-
-  const actionHandler = useActionHandler({
-    getSession: () =>
-      sessionManagerRef.current?.get(threadContext.currentThreadId),
-  });
 
   // ---------------------------------------------------------------------------
   // Orchestrator (manages ClientSession per thread)
@@ -134,6 +124,7 @@ export function AomiRuntimeCore({
     getModel: () => getCurrentThreadControl().model,
     getApplicationId: () => getCurrentThreadApplicationId() ?? applicationId,
     getClientId: () => getControlState().clientId ?? undefined,
+    getActions: () => actionCapabilities,
     onSendSuccess: (threadId) => {
       const wasRemote = remoteThreadIdsRef.current.has(threadId);
       remoteThreadIdsRef.current.add(threadId);
@@ -163,11 +154,13 @@ export function AomiRuntimeCore({
       // keeps the same thread so payment setup can retry without another
       // create/model round trip.
     },
-    onActionsChange: actionHandler.setActions,
     onEvent: (event) => eventContext.dispatch(event),
   });
 
-  sessionManagerRef.current = sessionManager;
+  const actionHandler = sessionManager.get(
+    threadContext.currentThreadId,
+  )?.actions;
+  const actions = useActions(actionHandler);
 
   // ---------------------------------------------------------------------------
   // Refs for stable access
@@ -191,9 +184,8 @@ export function AomiRuntimeCore({
   }, []);
 
   const getRuntimeSession = useCallback(
-    (threadId: string) =>
-      sessionManagerRef.current?.get(threadId) ?? getSession(threadId),
-    [getSession],
+    (threadId: string) => sessionManager.get(threadId) ?? getSession(threadId),
+    [getSession, sessionManager],
   );
 
   const threadPersistence = useMemo(
@@ -560,12 +552,11 @@ export function AomiRuntimeCore({
       clearAllNotifications: notificationContext.clearAll,
 
       // Action API
-      pendingActions: actionHandler.pendingActions,
-      hasBlockingActions: actionHandler.hasBlockingActions,
-      startAction: actionHandler.startAction,
-      dismissAction: actionHandler.dismissAction,
-      respondToAction: actionHandler.respondToAction,
-      rejectAction: actionHandler.rejectAction,
+      pendingActions: actions.pendingActions,
+      hasBlockingActions: actions.hasBlockingActions,
+      executeAction: actions.executeAction,
+      respondToAction: actions.respondToAction,
+      rejectAction: actions.rejectAction,
       simulateBatchTransactions,
 
       // Event API
@@ -588,7 +579,7 @@ export function AomiRuntimeCore({
       sendMessage,
       cancelGeneration,
       notificationContext,
-      actionHandler,
+      actions,
       simulateBatchTransactions,
       eventContext,
     ],
