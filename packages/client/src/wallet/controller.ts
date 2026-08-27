@@ -1,9 +1,5 @@
+import type { Action, ActionResult } from "../agent/types";
 import { TypedEventEmitter } from "../event";
-import type {
-  WalletRequest,
-  WalletRequestResult,
-  WalletSolanaLegResult,
-} from "../session/types";
 
 export interface EvmWalletCall {
   to: string;
@@ -65,63 +61,62 @@ export interface AomiWalletAdapter {
 }
 
 export interface WalletControllerEvents extends Record<string, unknown> {
-  request: WalletRequest;
-  resolved: { request: WalletRequest; result: WalletRequestResult };
-  rejected: { request: WalletRequest; error: unknown };
+  action: Action;
+  resolved: { action: Action; result: ActionResult };
+  rejected: { action: Action; error: unknown };
 }
 
-/** Shared Pipeline and Agent wallet execution boundary. */
+/** Executes the request nested in a canonical Action. */
 export class WalletController extends TypedEventEmitter<WalletControllerEvents> {
   constructor(readonly wallet?: AomiWalletAdapter) {
     super();
   }
 
-  canHandle(request: WalletRequest): boolean {
-    if (request.kind === "transaction") {
+  canHandle(action: Action): boolean {
+    const request = action.request;
+    if (request.type === "execute_evm") {
+      return Boolean(this.wallet?.evm?.sendCalls || this.wallet?.evm?.sendTransaction);
+    }
+    if (request.type === "execute_svm") {
       return Boolean(
-        this.wallet?.evm?.sendCalls || this.wallet?.evm?.sendTransaction,
+        this.wallet?.svm?.signAndSendTransaction || this.wallet?.svm?.sendTransaction,
       );
     }
-    if (request.kind === "signing") {
-      if (request.payload.chainFamily === "evm") {
-        const wallet = this.wallet?.evm;
-        return Boolean(
-          wallet &&
-          request.payload.payloads.every((payload) =>
+    if (request.chainFamily === "evm") {
+      const wallet = this.wallet?.evm;
+      return Boolean(
+        wallet &&
+          request.payloads.every((payload) =>
             payload.kind === "evm_personal"
               ? wallet.signMessage
               : payload.kind === "evm_typed_data"
                 ? wallet.signTypedData
                 : false,
           ),
-        );
-      }
-      const wallet = this.wallet?.svm;
-      return Boolean(
-        wallet &&
-        request.payload.payloads.every((payload) =>
+      );
+    }
+    const wallet = this.wallet?.svm;
+    return Boolean(
+      wallet &&
+        request.payloads.every((payload) =>
           payload.kind === "svm_message"
             ? wallet.signMessage
             : payload.kind === "svm_transaction"
               ? wallet.signTransaction
               : false,
         ),
-      );
-    }
-    return Boolean(
-      this.wallet?.svm?.signAndSendTransaction ||
-      this.wallet?.svm?.sendTransaction,
     );
   }
 
-  async execute(request: WalletRequest): Promise<WalletRequestResult> {
-    this.emit("request", request);
+  async execute(action: Action): Promise<ActionResult> {
+    if (action.state !== "pending") throw new Error(`Action "${action.id}" is not pending`);
+    this.emit("action", action);
     try {
-      const result = await this.executeRequest(request);
-      this.emit("resolved", { request, result });
+      const result = await this.executeRequest(action);
+      this.emit("resolved", { action, result });
       return result;
     } catch (error) {
-      this.emit("rejected", { request, error });
+      this.emit("rejected", { action, error });
       throw error;
     }
   }
@@ -149,235 +144,171 @@ export class WalletController extends TypedEventEmitter<WalletControllerEvents> 
     };
   }
 
-  private executeRequest(request: WalletRequest): Promise<WalletRequestResult> {
-    switch (request.kind) {
-      case "transaction":
-        return this.executeEvmTransactions(request);
-      case "signing":
-        return this.executeSigning(request);
-      case "solana_send":
-      case "solana_sign_and_send":
-        return this.executeSvmTransactions(request);
+  private executeRequest(action: Action): Promise<ActionResult> {
+    switch (action.request.type) {
+      case "execute_evm":
+        return this.executeEvm(action.request);
+      case "execute_svm":
+        return this.executeSvm(action.request);
+      case "sign":
+        return this.executeSigning(action.request);
     }
   }
 
-  private async executeEvmTransactions(
-    request: Extract<WalletRequest, { kind: "transaction" }>,
-  ): Promise<WalletRequestResult> {
+  private async executeEvm(
+    request: Extract<Action["request"], { type: "execute_evm" }>,
+  ): Promise<ActionResult> {
     const wallet = this.wallet?.evm;
     if (!wallet) throw new Error("No EVM wallet adapter is configured");
-    const senders = new Set(
-      (request.payload.calls ?? [])
-        .map((call) => call.from?.toLowerCase())
-        .filter((address): address is string => Boolean(address)),
-    );
+    const first = request.transactions[0];
+    if (!first) throw new Error("EVM Action contains no transactions");
     if (
-      senders.size > 0 &&
-      (senders.size !== 1 || !senders.has(wallet.address.toLowerCase()))
+      request.transactions.some(
+        (transaction) =>
+          transaction.chain_id !== first.chain_id ||
+          transaction.from.toLowerCase() !== wallet.address.toLowerCase(),
+      )
     ) {
-      throw new Error("The active EVM wallet is not the requested sender");
+      throw new Error("The active EVM wallet does not match the Action");
     }
-    const calls = request.payload.calls?.length
-      ? request.payload.calls.map(({ to, data, value }) => ({
-          to,
-          data,
-          value,
-        }))
-      : request.payload.to
-        ? [
-            {
-              to: request.payload.to,
-              data: request.payload.data,
-              value: request.payload.value,
-            },
-          ]
-        : [];
-    if (calls.length === 0) throw new Error("Wallet request contains no calls");
-    const chainId = request.payload.chainId ?? this.evmChainId();
-    if (!chainId) throw new Error("EVM wallet request has no chainId");
-    if (this.evmChainId() !== chainId) {
-      if (!wallet.switchChain) {
-        throw new Error(`EVM wallet cannot switch to chain ${chainId}`);
-      }
-      await wallet.switchChain(chainId);
+    if (this.evmChainId() !== first.chain_id) {
+      if (!wallet.switchChain) throw new Error(`EVM wallet cannot switch to chain ${first.chain_id}`);
+      await wallet.switchChain(first.chain_id);
     }
-
+    const calls = request.transactions.map(({ to, data, value }) => ({ to, data, value }));
     const hashes: string[] = [];
     if (wallet.sendCalls) {
-      hashes.push(
-        ...transactionHashes(await wallet.sendCalls({ chainId, calls })),
-      );
+      hashes.push(...transactionHashes(await wallet.sendCalls({ chainId: first.chain_id, calls })));
     } else if (wallet.sendTransaction) {
       for (const call of calls) {
         hashes.push(
           ...transactionHashes(
-            await wallet.sendTransaction({ chainId, ...call }),
+            await wallet.sendTransaction({ chainId: first.chain_id, ...call }),
           ),
         );
       }
-    } else {
-      throw new Error("EVM wallet cannot send calls");
     }
-    if (hashes.length === 0) {
-      throw new Error("EVM wallet returned no transaction hash");
-    }
+    if (hashes.length === 0) throw new Error("EVM wallet returned no transaction hash");
     return {
-      kind: "transaction",
-      txHash: hashes.at(-1)!,
-      txHashes: hashes,
-      completedTxIds: request.payload.txIds,
-      executionKind: "eoa",
-      batched: calls.length > 1,
-      callCount: calls.length,
+      status: "submitted",
+      legs: request.transactions.map((transaction, index) => ({
+        id: `leg_${index + 1}`,
+        status: "submitted",
+        transactionId: hashes[index] ?? hashes.at(-1)!,
+      })),
     };
   }
 
+  private async executeSvm(
+    request: Extract<Action["request"], { type: "execute_svm" }>,
+  ): Promise<ActionResult> {
+    const wallet = this.wallet?.svm;
+    if (!wallet) throw new Error("No SVM wallet adapter is configured");
+    const first = request.transactions[0];
+    if (!first) throw new Error("SVM Action contains no transactions");
+    if (
+      request.transactions.some(
+        (transaction) =>
+          transaction.cluster !== first.cluster || transaction.payer !== wallet.address,
+      )
+    ) {
+      throw new Error("The active SVM wallet does not match the Action");
+    }
+    await this.switchSvmCluster(first.cluster);
+    const legs: Extract<ActionResult, { status: "submitted" }>["legs"] = [];
+    for (const [index, transaction] of request.transactions.entries()) {
+      const transactionBase64 = transaction.unsigned_transaction_base64;
+      if (!transactionBase64) throw new Error("SVM Action has no unsigned transaction bytes");
+      const result = wallet.signAndSendTransaction
+        ? await wallet.signAndSendTransaction({
+            transactionBase64,
+            cluster: transaction.cluster,
+          })
+        : wallet.sendTransaction
+          ? await wallet.sendTransaction({ transactionBase64, cluster: transaction.cluster })
+          : undefined;
+      if (result === undefined) throw new Error("SVM wallet cannot send transactions");
+      legs.push({
+        id: `leg_${index + 1}`,
+        status: "submitted",
+        transactionId: transactionHashes(result)[0] ?? signature(result),
+        ...(typeof result === "object" && "signedTransaction" in result
+          ? { signedTransactionBase64: result.signedTransaction }
+          : {}),
+      });
+    }
+    return { status: "submitted", legs };
+  }
+
   private async executeSigning(
-    request: Extract<WalletRequest, { kind: "signing" }>,
-  ): Promise<WalletRequestResult> {
-    const signatures: string[] = [];
-    if (request.payload.chainFamily === "evm") {
+    request: Extract<Action["request"], { type: "sign" }>,
+  ): Promise<ActionResult> {
+    const outputs: Extract<ActionResult, { status: "signed" }>["outputs"] = [];
+    if (request.chainFamily === "evm") {
       const wallet = this.wallet?.evm;
       if (!wallet) throw new Error("No EVM wallet adapter is configured");
-      if (
-        wallet.address.toLowerCase() !== request.payload.signer.toLowerCase()
-      ) {
+      if (wallet.address.toLowerCase() !== request.signer.toLowerCase()) {
         throw new Error("The active EVM wallet is not the requested signer");
       }
-      if (
-        request.payload.chainId &&
-        this.evmChainId() !== request.payload.chainId
-      ) {
-        if (!wallet.switchChain) {
-          throw new Error(
-            `EVM wallet cannot switch to chain ${request.payload.chainId}`,
-          );
-        }
-        await wallet.switchChain(request.payload.chainId);
+      if (request.chainId && this.evmChainId() !== request.chainId) {
+        if (!wallet.switchChain) throw new Error(`EVM wallet cannot switch to chain ${request.chainId}`);
+        await wallet.switchChain(request.chainId);
       }
-      for (const payload of request.payload.payloads) {
+      for (const [index, payload] of request.payloads.entries()) {
         if (payload.kind === "evm_personal") {
-          if (!wallet.signMessage)
-            throw new Error("EVM wallet cannot sign messages");
-          signatures.push(
-            signature(
-              await wallet.signMessage({
-                message: payload.message,
-                chainId: request.payload.chainId,
-              }),
+          if (!wallet.signMessage) throw new Error("EVM wallet cannot sign messages");
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signature: signature(
+              await wallet.signMessage({ message: payload.message, chainId: request.chainId }),
             ),
-          );
+          });
         } else if (payload.kind === "evm_typed_data") {
-          if (!wallet.signTypedData) {
-            throw new Error("EVM wallet cannot sign typed data");
-          }
-          signatures.push(
-            signature(
-              await wallet.signTypedData({
-                typedData: payload.typedData,
-                chainId: request.payload.chainId,
-              }),
+          if (!wallet.signTypedData) throw new Error("EVM wallet cannot sign typed data");
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signature: signature(
+              await wallet.signTypedData({ typedData: payload.typed_data, chainId: request.chainId }),
             ),
-          );
+          });
         } else {
-          throw new Error("EVM signing request contains an SVM payload");
+          throw new Error("EVM signing Action contains an SVM payload");
         }
       }
     } else {
       const wallet = this.wallet?.svm;
       if (!wallet) throw new Error("No SVM wallet adapter is configured");
-      if (wallet.address !== request.payload.signer) {
-        throw new Error("The active SVM wallet is not the requested signer");
-      }
-      await this.switchSvmCluster(request.payload.cluster);
-      for (const payload of request.payload.payloads) {
+      if (wallet.address !== request.signer) throw new Error("The active SVM wallet is not the requested signer");
+      await this.switchSvmCluster(request.cluster);
+      for (const [index, payload] of request.payloads.entries()) {
         if (payload.kind === "svm_message") {
-          if (!wallet.signMessage)
-            throw new Error("SVM wallet cannot sign messages");
-          signatures.push(
-            signature(
+          if (!wallet.signMessage) throw new Error("SVM wallet cannot sign messages");
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signature: signature(
               await wallet.signMessage({
-                messageBase64: payload.messageBase64,
-                cluster: request.payload.cluster,
+                messageBase64: payload.message_base64,
+                cluster: request.cluster,
               }),
             ),
-          );
+          });
         } else if (payload.kind === "svm_transaction") {
-          if (!wallet.signTransaction) {
-            throw new Error("SVM wallet cannot sign transactions");
-          }
-          signatures.push(
-            signedTransaction(
+          if (!wallet.signTransaction) throw new Error("SVM wallet cannot sign transactions");
+          outputs.push({
+            id: `payload_${index + 1}`,
+            signedTransactionBase64: signedTransaction(
               await wallet.signTransaction({
-                transactionBase64: payload.transactionBase64,
-                cluster: request.payload.cluster,
+                transactionBase64: payload.transaction_base64,
+                cluster: request.cluster,
               }),
             ),
-          );
+          });
         } else {
-          throw new Error("SVM signing request contains an EVM payload");
+          throw new Error("SVM signing Action contains an EVM payload");
         }
       }
     }
-    return { kind: "signing", signatures };
-  }
-
-  private async executeSvmTransactions(
-    request: Extract<
-      WalletRequest,
-      { kind: "solana_send" | "solana_sign_and_send" }
-    >,
-  ): Promise<WalletRequestResult> {
-    const wallet = this.wallet?.svm;
-    if (!wallet) throw new Error("No SVM wallet adapter is configured");
-    await this.switchSvmCluster(request.payload.cluster);
-    const transactions = request.payload.transactions?.length
-      ? request.payload.transactions
-      : request.payload.unsignedTx
-        ? [
-            {
-              id: request.payload.requestId ?? request.id,
-              unsignedTx: request.payload.unsignedTx,
-              description: request.payload.description,
-            },
-          ]
-        : [];
-    if (transactions.length === 0) {
-      throw new Error("SVM wallet request contains no transaction");
-    }
-
-    const legs: WalletSolanaLegResult[] = [];
-    for (const transaction of transactions) {
-      const result = wallet.signAndSendTransaction
-        ? await wallet.signAndSendTransaction({
-            transactionBase64: transaction.unsignedTx,
-            cluster: request.payload.cluster,
-          })
-        : wallet.sendTransaction
-          ? await wallet.sendTransaction({
-              transactionBase64: transaction.unsignedTx,
-              cluster: request.payload.cluster,
-            })
-          : undefined;
-      if (result === undefined) {
-        throw new Error("SVM wallet cannot send transactions");
-      }
-      legs.push({
-        id: transaction.id,
-        status: "submitted",
-        signature: transactionHashes(result)[0] ?? signature(result),
-        ...(typeof result === "object" && "signedTransaction" in result
-          ? { signedTx: result.signedTransaction }
-          : {}),
-      });
-    }
-    const last = legs.at(-1)!;
-    return {
-      kind: request.kind,
-      signature: last.signature!,
-      signedTx: last.signedTx,
-      legs,
-    };
+    return { status: "signed", outputs };
   }
 
   private evmChainId(): number | undefined {
@@ -393,9 +324,7 @@ export class WalletController extends TypedEventEmitter<WalletControllerEvents> 
   private async switchSvmCluster(cluster?: string): Promise<void> {
     if (!cluster || cluster === this.svmCluster()) return;
     const switchCluster = this.wallet?.svm?.switchCluster;
-    if (!switchCluster) {
-      throw new Error(`SVM wallet cannot switch to ${cluster}`);
-    }
+    if (!switchCluster) throw new Error(`SVM wallet cannot switch to ${cluster}`);
     await switchCluster(cluster);
   }
 }
@@ -404,16 +333,8 @@ function transactionHashes(result: unknown): string[] {
   if (typeof result === "string") return [result];
   const value = asRecord(result);
   if (!value) return [];
-  if (Array.isArray(value.hashes)) {
-    return value.hashes.filter(
-      (hash): hash is string => typeof hash === "string",
-    );
-  }
-  if (Array.isArray(value.transactionHashes)) {
-    return value.transactionHashes.filter(
-      (hash): hash is string => typeof hash === "string",
-    );
-  }
+  if (Array.isArray(value.hashes)) return value.hashes.filter(isString);
+  if (Array.isArray(value.transactionHashes)) return value.transactionHashes.filter(isString);
   const hash =
     typeof value.hash === "string"
       ? value.hash
@@ -433,14 +354,16 @@ function signature(result: unknown): string {
 function signedTransaction(result: unknown): string {
   if (typeof result === "string") return result;
   const value = asRecord(result);
-  if (typeof value?.signedTransaction === "string") {
-    return value.signedTransaction;
-  }
+  if (typeof value?.signedTransaction === "string") return value.signedTransaction;
   throw new Error("Wallet returned no signed transaction");
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return value && typeof value === "object" && !Array.isArray(value)
+  return typeof value === "object" && value !== null
     ? (value as Record<string, unknown>)
     : undefined;
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
 }

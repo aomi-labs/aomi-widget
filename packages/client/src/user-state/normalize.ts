@@ -37,12 +37,6 @@ function pick(record: UnknownRecord | undefined, ...keys: string[]): unknown {
   return undefined;
 }
 
-function assignDefined(target: UnknownRecord, key: string, value: unknown): void {
-  if (value !== undefined) {
-    target[key] = value;
-  }
-}
-
 function renameKey(obj: UnknownRecord, from: string, to: string): void {
   if (from === to) return;
   if (Object.prototype.hasOwnProperty.call(obj, from)) {
@@ -64,39 +58,6 @@ function liftFlat(
   if (value !== undefined) {
     obj[to] = value;
   }
-}
-
-const OPAQUE_PENDING_KEYS = new Set(["typed_data", "typedData", "domain"]);
-
-function camelToSnake(key: string): string {
-  return key.replace(/([A-Z])/g, "_$1").toLowerCase();
-}
-
-function snakeizePendingValue(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(snakeizePendingValue);
-  }
-  const obj = asObject(value);
-  if (!obj) return value;
-  const out: UnknownRecord = {};
-  for (const [key, val] of Object.entries(obj)) {
-    const snake = camelToSnake(key);
-    out[snake] =
-      OPAQUE_PENDING_KEYS.has(key) || OPAQUE_PENDING_KEYS.has(snake)
-        ? val
-        : snakeizePendingValue(val);
-  }
-  return out;
-}
-
-function snakeizeBucket(bucket: unknown): UnknownRecord | undefined {
-  const obj = asObject(bucket);
-  if (!obj) return undefined;
-  const out: UnknownRecord = {};
-  for (const [id, value] of Object.entries(obj)) {
-    out[id] = snakeizePendingValue(value);
-  }
-  return out;
 }
 
 function buildConnection(
@@ -162,42 +123,6 @@ function buildSvm(
   // when null/undefined — absence defaults to an empty capability set.
   dropNullKeys(s, "capabilities");
   return Object.keys(s).length ? s : undefined;
-}
-
-function buildPending(
-  src: UnknownRecord | undefined,
-  flat: UnknownRecord,
-): UnknownRecord | undefined {
-  const p: UnknownRecord = {};
-  assignDefined(
-    p,
-    "evm_txs",
-    snakeizeBucket(
-      pick(src, "evm_txs", "evmTxs") ?? pick(flat, "pending_txs", "pendingTxs"),
-    ),
-  );
-  assignDefined(
-    p,
-    "evm_sigs",
-    snakeizeBucket(
-      pick(src, "evm_sigs", "evmSigs") ??
-        pick(flat, "pending_eip712s", "pendingEip712s"),
-    ),
-  );
-  assignDefined(
-    p,
-    "svm_ixs",
-    snakeizeBucket(
-      pick(src, "svm_ixs", "svmIxs", "solana_txs", "solanaTxs") ??
-        pick(flat, "pending_solana_txs", "pendingSolanaTxs"),
-    ),
-  );
-  assignDefined(
-    p,
-    "svm_sigs",
-    snakeizeBucket(pick(src, "svm_sigs", "svmSigs", "solana_sigs", "solanaSigs")),
-  );
-  return Object.keys(p).length ? p : undefined;
 }
 
 /**
@@ -289,8 +214,6 @@ export function normalizeUserState(
   if (evm) out.evm = evm;
   const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
   if (svm) out.svm = svm;
-  const pending = buildPending(asObject(pick(src, "pending")), src);
-  if (pending) out.pending = pending;
 
   const ext = pick(src, "ext");
   if (ext !== undefined) out.ext = ext as UserState["ext"];
@@ -356,9 +279,6 @@ export function reconcileUserState(
     out.svm = incSvm ? deepMergePreserve(prevSvm, incSvm) : prevSvm;
   }
 
-  if (!asObject(inc.pending) && asObject(prev.pending)) {
-    out.pending = prev.pending;
-  }
   if (inc.ext === undefined && prev.ext !== undefined) {
     out.ext = prev.ext;
   }
@@ -374,15 +294,12 @@ export function reconcileUserState(
 }
 
 /**
- * Project a stored `UserState` down to the subset the client owns and may send
- * to the backend. `pending` is backend-authority in-flight state and is dropped
- * so the client never echoes it back. Apply at the transport send boundary.
+ * Return the canonical client-owned UserState shape.
  */
 export function toOwnedUserState(
   userState?: UserState | null,
 ): OwnedUserState | undefined {
   const normalized = normalizeUserState(userState);
   if (!normalized) return undefined;
-  const { pending: _pending, ...owned } = normalized;
-  return owned;
+  return normalized;
 }

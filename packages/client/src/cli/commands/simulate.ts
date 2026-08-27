@@ -4,7 +4,7 @@ import { createCliClient } from "../client-factory";
 import { fatal } from "../errors";
 import { DIM, GREEN, RESET } from "../output";
 import type { CliConfig } from "../types";
-import { walletRequestToPendingTx } from "../transactions";
+import { actionToPendingTx } from "../transactions";
 
 export async function simulateCommand(
   config: CliConfig,
@@ -24,8 +24,8 @@ export async function simulateCommand(
   const session = cli.createClientSession(config);
   try {
     await session.fetchCurrentState();
-    for (const request of session.getPendingRequests()) {
-      const pending = walletRequestToPendingTx(request);
+    for (const action of session.getPendingActions()) {
+      const pending = actionToPendingTx(action);
       if (pending) cli.addPendingTx(pending);
     }
   } finally {

@@ -147,35 +147,6 @@ const pipelineCallDef = defineCommand({
   },
 });
 
-const pipelineRunDef = defineCommand({
-  meta: {
-    name: "run",
-    description:
-      "Run a builtin public Pipeline program through backend policy gates",
-  },
-  args: {
-    ...executionArgs,
-    program: {
-      type: "string",
-      description: "Pipeline program in the MCP aomi_run grammar",
-      required: true,
-    },
-  },
-  async run({ args }) {
-    const { pipelineRunCommand } = await import("../pipeline");
-    const config = buildCliConfig(args);
-    await pipelineRunCommand(config, {
-      sessionId: text(args.session),
-      program: text(args.program)!,
-      app: config.app,
-      applicationId: config.applicationId,
-      platform: config.appPlatform,
-      skills: list(args.skills),
-      idempotencyKey: text(args["idempotency-key"])!,
-    });
-  },
-});
-
 export const pipelineDef = defineCommand({
   meta: {
     name: "pipeline",
@@ -189,7 +160,6 @@ export const pipelineDef = defineCommand({
     skills: pipelineSkillsDef,
     skill: pipelineSkillDef,
     call: pipelineCallDef,
-    run: pipelineRunDef,
   },
 });
 

@@ -1,4 +1,3 @@
-import type { AgentActivity } from "./agent/types";
 import type { AomiOAuthTokenProvider } from "./authorization";
 import type { GuestSessionProvider } from "./guest-auth";
 
@@ -8,7 +7,6 @@ export type {
   UserStateAuthMethod,
   UserStateConnection,
   UserStateEvm,
-  UserStatePending,
   UserStateSvm,
   UserStateWalletProvider,
   OwnedUserState,
@@ -371,7 +369,7 @@ const asString = (value: unknown): string | undefined =>
  * backend event degrades to "no row" instead of a half-built one.
  */
 export function parseAomiTaskEvent(
-  event: AgentActivity | AomiTaskEvent,
+  event: Record<string, unknown> | AomiTaskEvent,
 ): AomiTaskEvent | null {
   const raw = event as Record<string, unknown>;
   const type = asString(raw.type);

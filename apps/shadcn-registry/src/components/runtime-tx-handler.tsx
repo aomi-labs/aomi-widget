@@ -7,17 +7,19 @@ import {
   Transaction as SolanaLegacyTransaction,
   VersionedTransaction,
 } from "@solana/web3.js";
-import { normalizeSolanaCluster } from "@aomi-labs/client";
+import {
+  normalizeSolanaCluster,
+  type Action,
+  type ActionResult,
+  type ActionRequest,
+  type WalletSolanaSignPayload,
+  type WalletTxPayload,
+} from "@aomi-labs/client";
 import {
   UserState,
   appendFeeCallToPayload,
-  hydrateTxPayloadFromUserState,
   parseChainId,
   useAomiRuntime,
-  type WalletRequest,
-  type WalletSolanaLegResult,
-  type WalletSolanaSignPayload,
-  type WalletTxPayload,
 } from "@aomi-labs/react";
 import { useAomiWalletKit } from "../lib/wallet-kit";
 import { Button } from "./ui/button";
@@ -30,64 +32,33 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 
-function hasHydratedCalls(payload: WalletTxPayload): boolean {
-  return Array.isArray(payload.calls) && payload.calls.length > 0;
-}
+type SigningAction = Action & {
+  request: Extract<ActionRequest, { type: "sign" }>;
+};
 
-/**
- * Backend-owned operations are deliberately not signed automatically: the
- * dialog below is the user's authorization boundary. That covers EVM
- * sponsored ERC-4337 batches and SVM sealed transactions the backend
- * broadcasts itself; plain sign-only requests keep the silent flow.
- */
-function isAttendedSigning(
-  payload: Extract<WalletRequest, { kind: "signing" }>["payload"],
-): boolean {
-  if (payload.executionKind === "erc4337") return true;
+function isAttended(action: Action): action is SigningAction {
+  if (action.request.type !== "sign") return false;
+  if (action.request.executionKind === "erc4337") return true;
   return (
-    payload.chainFamily === "svm" &&
-    payload.executionKind === "transaction" &&
-    payload.broadcaster === "hosted" &&
-    Boolean(payload.operationId)
+    action.request.chainFamily === "svm" &&
+    action.request.executionKind === "transaction" &&
+    action.request.broadcaster === "hosted" &&
+    Boolean(action.request.operationId)
   );
 }
 
-function aaFeeAssetLabel(asset: unknown): string {
-  if (typeof asset !== "object" || asset === null) return "Unknown asset";
-  const value = asset as { kind?: unknown; address?: unknown };
-  if (value.kind === "native") return "Native";
-  if (value.kind === "token" && typeof value.address === "string") {
-    return value.address;
-  }
-  return "Unknown asset";
-}
-
 function decodeBase64(value: string): Uint8Array {
-  if (typeof Buffer !== "undefined") {
-    return new Uint8Array(Buffer.from(value, "base64"));
-  }
-  return Uint8Array.from(atob(value), (char) => char.charCodeAt(0));
+  if (typeof Buffer !== "undefined") return new Uint8Array(Buffer.from(value, "base64"));
+  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
 }
 
 function encodeBase64(bytes: Uint8Array): string {
-  if (typeof Buffer !== "undefined") {
-    return Buffer.from(bytes).toString("base64");
-  }
-  let binary = "";
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return btoa(binary);
+  if (typeof Buffer !== "undefined") return Buffer.from(bytes).toString("base64");
+  return btoa(String.fromCharCode(...bytes));
 }
 
-/**
- * The payer's ed25519 signature out of a wallet-signed Solana transaction,
- * base64-encoded. The sealed signing handoff returns only the signature —
- * the backend verifies it against the exact stored envelope and attaches it
- * itself, so the client can never substitute different bytes.
- */
-function extractPayerSignature(signedTxBase64: string): string {
-  const bytes = decodeBase64(signedTxBase64);
+function extractPayerSignature(signedTransaction: string): string {
+  const bytes = decodeBase64(signedTransaction);
   let signature: Uint8Array | null = null;
   try {
     signature = VersionedTransaction.deserialize(bytes).signatures[0] ?? null;
@@ -101,653 +72,366 @@ function extractPayerSignature(signedTxBase64: string): string {
   return encodeBase64(signature);
 }
 
-function toSimulationTransactions(payload: WalletTxPayload): Array<{
-  to: string;
-  value?: string;
-  data?: string;
-  label?: string;
-  chain_id?: number;
-}> {
-  if (Array.isArray(payload.calls) && payload.calls.length > 0) {
-    return payload.calls.map((call) => ({
-      to: call.to,
-      value: call.value,
-      data: call.data,
-      label: call.description,
-      chain_id: call.chainId,
-    }));
-  }
-
-  if (!payload.to) {
-    throw new Error("pending_transaction_missing_call_data");
-  }
-
-  return [
-    {
-      to: payload.to,
-      value: payload.value,
-      data: payload.data,
-      chain_id: payload.chainId,
-    },
-  ];
+function feeAssetLabel(asset: unknown): string {
+  if (typeof asset !== "object" || asset === null) return "Unknown asset";
+  const value = asset as { kind?: unknown; address?: unknown };
+  if (value.kind === "native") return "Native";
+  return value.kind === "token" && typeof value.address === "string"
+    ? value.address
+    : "Unknown asset";
 }
 
-/**
- * Invisible bridge component that processes broadcast transactions and the
- * chain-neutral signing handoff through the active Aomi wallet kit.
- *
- * Auto-mounted inside AomiFrame.Root.
- */
+/** Executes the request nested in the first pending canonical Action. */
 export function RuntimeTxHandler() {
   const {
     user,
-    pendingWalletRequests,
-    resolveWalletRequest,
-    rejectWalletRequest,
+    pendingActions,
+    respondToAction,
+    rejectAction,
     simulateBatchTransactions,
     showNotification,
   } = useAomiRuntime();
   const adapter = useAomiWalletKit();
-  const { chainId: currentChainId } = adapter.identity;
-  const processingRef = useRef(false);
-  const [isSigningAa, setIsSigningAa] = useState(false);
-  const aaRequest =
-    pendingWalletRequests[0]?.kind === "signing" &&
-    isAttendedSigning(pendingWalletRequests[0].payload)
-      ? pendingWalletRequests[0]
-      : null;
+  const currentChainId = adapter.identity.chainId;
+  const processing = useRef(false);
+  const [approving, setApproving] = useState(false);
+  const attendedAction = pendingActions[0] && isAttended(pendingActions[0])
+    ? pendingActions[0]
+    : null;
 
-  /** Canonicalize cluster aliases and match before asking the wallet. */
-  const maybeSwitchSolanaCluster = useCallback(
-    async (requestedCluster: string | undefined): Promise<void> => {
-      const normalizedCluster = normalizeSolanaCluster(requestedCluster);
-      if (!normalizedCluster) return;
+  const switchSvm = useCallback(
+    async (cluster?: string) => {
+      const normalized = normalizeSolanaCluster(cluster);
+      if (!normalized) return;
       const target = adapter.supportedNetworks?.solana?.find(
-        (network) => network.cluster === normalizedCluster,
+        (network) => network.cluster === normalized,
       );
-      if (!target) {
-        throw new Error(`Unsupported Solana cluster: ${normalizedCluster}`);
-      }
+      if (!target) throw new Error(`Unsupported Solana cluster: ${normalized}`);
       if (adapter.selectedSolanaNetwork?.id === target.id) return;
-      if (!adapter.selectNetwork) {
-        throw new Error(`Cannot switch the wallet to ${normalizedCluster}`);
+      if (!adapter.selectNetwork || adapter.solanaNetworkSwitchRequiresReconnect) {
+        throw new Error(`Reconnect the Solana wallet on ${normalized} before signing`);
       }
-      if (adapter.solanaNetworkSwitchRequiresReconnect) {
-        throw new Error(
-          `Reconnect the Solana wallet on ${normalizedCluster} before signing`,
-        );
-      }
-      try {
-        await adapter.selectNetwork({
-          family: "solana",
-          networkId: target.id,
-        });
-      } catch (error) {
-        throw new Error(
-          `Failed to switch the Solana wallet to ${normalizedCluster}`,
-          { cause: error },
-        );
-      }
+      await adapter.selectNetwork({ family: "solana", networkId: target.id });
     },
     [adapter],
   );
 
-  const maybeSwitchEvmChain = useCallback(
-    async (targetChainId: number): Promise<void> => {
-      if (!targetChainId || targetChainId === currentChainId) return;
-
+  const switchEvm = useCallback(
+    async (chainId: number) => {
+      if (chainId === currentChainId) return;
       const supported = adapter.supportedNetworks?.evm?.some(
-        (network) => parseChainId(network.id) === targetChainId,
+        (network) => parseChainId(network.id) === chainId,
       );
-      if (supported === false) {
-        throw new Error(
-          `This wallet does not support chain ${targetChainId}. Reconnect with a wallet that does.`,
-        );
+      if (supported === false || !adapter.switchChain) {
+        throw new Error(`The active wallet cannot switch to chain ${chainId}`);
       }
-      if (!adapter.switchChain) {
-        throw new Error(
-          `Cannot switch the wallet to chain ${targetChainId}. Switch networks manually and retry.`,
-        );
-      }
-      await adapter.switchChain(targetChainId);
+      await adapter.switchChain(chainId);
     },
     [adapter, currentChainId],
   );
 
-  const signRequestPayloads = useCallback(
-    async (
-      req: Extract<WalletRequest, { kind: "signing" }>,
-    ): Promise<string[]> => {
-      const payload = req.payload;
-      if (payload.chainFamily === "evm") {
-        const activeOwner = adapter.identity.address;
-        if (
-          !activeOwner ||
-          activeOwner.toLowerCase() !== payload.signer.toLowerCase()
-        ) {
+  const sign = useCallback(
+    async (action: SigningAction): Promise<ActionResult> => {
+      const request = action.request;
+      if (request.chainFamily === "evm") {
+        const owner = adapter.identity.address;
+        if (!owner || owner.toLowerCase() !== request.signer.toLowerCase()) {
           throw new Error("The active EVM wallet is not the requested signer");
         }
-        if (
-          payload.chainId &&
-          currentChainId &&
-          payload.chainId !== currentChainId
-        ) {
-          if (!adapter.switchChain) {
-            throw new Error("The active EVM chain does not match the request");
-          }
-          await adapter.switchChain(payload.chainId);
-        }
+        if (request.chainId) await switchEvm(request.chainId);
       } else {
-        const activeOwner = adapter.identity.svmAddress;
-        if (!activeOwner || activeOwner !== payload.signer) {
+        if (adapter.identity.svmAddress !== request.signer) {
           throw new Error("The active SVM wallet is not the requested signer");
         }
-        await maybeSwitchSolanaCluster(payload.cluster);
+        await switchSvm(request.cluster);
       }
 
-      const signatures: string[] = [];
-      for (const signable of payload.payloads) {
-        switch (signable.kind) {
-          case "evm_personal": {
-            if (payload.chainFamily !== "evm" || !adapter.signMessage) {
-              throw new Error("The active wallet cannot sign an EVM message");
-            }
-            const result = await adapter.signMessage({
-              non_typed_data: signable.message,
-              description: payload.description,
-              signer: payload.signer,
-              chainId: payload.chainId,
-            });
-            signatures.push(result.signature);
-            break;
+      const outputs: Extract<ActionResult, { status: "signed" }>["outputs"] = [];
+      for (const [index, payload] of request.payloads.entries()) {
+        const id = `payload_${index + 1}`;
+        if (payload.kind === "evm_personal") {
+          if (!adapter.signMessage) throw new Error("The wallet cannot sign EVM messages");
+          const result = await adapter.signMessage({
+            non_typed_data: payload.message,
+            description: request.description,
+            signer: request.signer,
+            chainId: request.chainId,
+          });
+          outputs.push({ id, signature: result.signature });
+        } else if (payload.kind === "evm_typed_data") {
+          if (!adapter.signTypedData) throw new Error("The wallet cannot sign typed data");
+          const result = await adapter.signTypedData({
+            typed_data: payload.typed_data,
+            description: request.description,
+            signer: request.signer,
+            chainId: request.chainId,
+          });
+          outputs.push({ id, signature: result.signature });
+        } else if (payload.kind === "svm_message") {
+          if (!adapter.signSolanaMessage) throw new Error("The wallet cannot sign SVM messages");
+          const result = await adapter.signSolanaMessage({
+            message: payload.message_base64,
+            description: request.description,
+            cluster: request.cluster,
+          });
+          outputs.push({ id, signature: result.signature });
+        } else {
+          if (!adapter.signSolanaTransaction) {
+            throw new Error("The wallet cannot sign SVM transactions");
           }
-          case "evm_typed_data": {
-            if (payload.chainFamily !== "evm" || !adapter.signTypedData) {
-              throw new Error("The active wallet cannot sign EVM typed data");
-            }
-            const result = await adapter.signTypedData({
-              typed_data: signable.typedData,
-              description: payload.description,
-              signer: payload.signer,
-              chainId: payload.chainId,
-            });
-            signatures.push(result.signature);
-            break;
-          }
-          case "svm_message": {
-            if (payload.chainFamily !== "svm" || !adapter.signSolanaMessage) {
-              throw new Error("The active wallet cannot sign an SVM message");
-            }
-            const result = await adapter.signSolanaMessage({
-              message: signable.messageBase64,
-              description: payload.description,
-              cluster: payload.cluster,
-            });
-            signatures.push(result.signature);
-            break;
-          }
-          case "svm_transaction": {
-            if (
-              payload.chainFamily !== "svm" ||
-              !adapter.signSolanaTransaction
-            ) {
-              throw new Error(
-                "The active wallet cannot sign an SVM transaction",
-              );
-            }
-            const result = await adapter.signSolanaTransaction({
-              unsignedTx: signable.transactionBase64,
-              description: payload.description,
-              cluster: payload.cluster,
-            });
-            // Backend-owned operations take ONLY the payer signature — the
-            // backend attaches it to its stored envelope, so the client can
-            // never substitute bytes. Sign-only pending requests (the venue
-            // lane) return the full signed transaction: their consumer hands
-            // the bytes to the venue's submit tool.
-            signatures.push(
-              payload.operationId
-                ? extractPayerSignature(result.signedTx)
-                : result.signedTx,
-            );
-            break;
-          }
+          const result = await adapter.signSolanaTransaction({
+            unsignedTx: payload.transaction_base64,
+            description: request.description,
+            cluster: request.cluster,
+          });
+          outputs.push(
+            request.operationId
+              ? { id, signature: extractPayerSignature(result.signedTx) }
+              : { id, signedTransactionBase64: result.signedTx },
+          );
         }
       }
-      return signatures;
+      return { status: "signed", outputs };
     },
-    [adapter, currentChainId, maybeSwitchSolanaCluster],
+    [adapter, switchEvm, switchSvm],
+  );
+
+  const executeEvm = useCallback(
+    async (
+      request: Extract<ActionRequest, { type: "execute_evm" }>,
+    ): Promise<ActionResult> => {
+      if (!adapter.sendTransaction) throw new Error("Wallet provider is not ready");
+      const first = request.transactions[0];
+      if (!first) throw new Error("EVM Action contains no transactions");
+      await switchEvm(first.chain_id);
+      const payload: WalletTxPayload = {
+        requestId: "action",
+        chainId: first.chain_id,
+        calls: request.transactions.map((transaction, index) => ({
+          txId: index + 1,
+          to: transaction.to,
+          value: transaction.value,
+          data: transaction.data,
+          chainId: transaction.chain_id,
+          from: transaction.from,
+          gas: transaction.gas,
+          description: transaction.label,
+        })),
+        txIds: request.transactions.map((_, index) => index + 1),
+      };
+      const simulation = await simulateBatchTransactions(
+        request.transactions.map((transaction) => ({
+          to: transaction.to,
+          value: transaction.value,
+          data: transaction.data,
+          label: transaction.label,
+          chain_id: transaction.chain_id,
+        })),
+        { from: UserState.address(user), chainId: first.chain_id },
+      );
+      const executable = simulation.fee
+        ? appendFeeCallToPayload(payload, simulation.fee, first.chain_id, {
+            strictAa: false,
+          })
+        : payload;
+      if (!simulation.fee) {
+        showNotification({
+          type: "notice",
+          title: "Proceeding without fee on failed simulation",
+          duration: 6000,
+        });
+      }
+      const result = await adapter.sendTransaction(executable, {
+        chainIdAlreadySelected: first.chain_id,
+      });
+      const batchHashes = (result as typeof result & { txHashes?: string[] }).txHashes;
+      const hashes = batchHashes?.length ? batchHashes : [result.txHash];
+      return {
+        status: "submitted",
+        legs: request.transactions.map((_, index) => ({
+          id: `leg_${index + 1}`,
+          status: "submitted",
+          transactionId: hashes[index] ?? hashes.at(-1)!,
+        })),
+      };
+    },
+    [adapter, showNotification, simulateBatchTransactions, switchEvm, user],
+  );
+
+  const executeSvm = useCallback(
+    async (
+      request: Extract<ActionRequest, { type: "execute_svm" }>,
+    ): Promise<ActionResult> => {
+      const first = request.transactions[0];
+      if (!first) throw new Error("SVM Action contains no transactions");
+      await switchSvm(first.cluster);
+      const legs: Extract<ActionResult, { status: "submitted" }>["legs"] = [];
+      for (const [index, transaction] of request.transactions.entries()) {
+        const unsignedTx = transaction.unsigned_transaction_base64;
+        if (!unsignedTx) throw new Error("SVM Action has no unsigned transaction bytes");
+        const payload: WalletSolanaSignPayload = {
+          requestId: `leg_${index + 1}`,
+          unsignedTx,
+          cluster: transaction.cluster,
+          description: transaction.description,
+        };
+        try {
+          let result: { signature: string; signedTx?: string };
+          if (adapter.signAndSendSolanaTransaction) {
+            result = await adapter.signAndSendSolanaTransaction(payload);
+          } else if (adapter.sendSolanaTransaction) {
+            result = await adapter.sendSolanaTransaction(payload);
+          } else if (adapter.signSolanaTransaction && adapter.solanaRpcHttpUrl) {
+            const signed = await adapter.signSolanaTransaction(payload);
+            const connection = new SolanaConnection(adapter.solanaRpcHttpUrl, "confirmed");
+            const signature = await connection.sendRawTransaction(decodeBase64(signed.signedTx));
+            await connection.confirmTransaction(signature, "confirmed");
+            result = { signature, signedTx: signed.signedTx };
+          } else {
+            throw new Error("Solana wallet provider is not ready");
+          }
+          legs.push({
+            id: `leg_${index + 1}`,
+            status: "submitted",
+            transactionId: result.signature,
+            signedTransactionBase64: result.signedTx,
+          });
+        } catch (error) {
+          legs.push({
+            id: `leg_${index + 1}`,
+            status: "failed",
+            reason: error instanceof Error ? error.message : "Request failed",
+          });
+          for (let skipped = index + 1; skipped < request.transactions.length; skipped += 1) {
+            legs.push({
+              id: `leg_${skipped + 1}`,
+              status: "skipped",
+              reason: "Skipped after an earlier transaction failed",
+            });
+          }
+          break;
+        }
+      }
+      if (!legs.some((leg) => leg.status === "submitted")) {
+        throw new Error(legs[0]?.reason ?? "SVM Action failed");
+      }
+      return { status: "submitted", legs };
+    },
+    [adapter, switchSvm],
   );
 
   useEffect(() => {
-    if (!pendingWalletRequests.length) return;
-    const next = pendingWalletRequests[0];
-    if (!next || processingRef.current) return;
-    // Attended backend-owned operations are deliberately not automatic. The
-    // dialog below is the user's authorization boundary; only its confirm
-    // button invokes the wallet.
-    if (next.kind === "signing" && isAttendedSigning(next.payload)) {
-      return;
-    }
-
-    processingRef.current = true;
-    processRequest(next).finally(() => {
-      processingRef.current = false;
-    });
-
-    async function processRequest(req: WalletRequest) {
-      try {
-        if (req.kind === "signing") {
-          if (isAttendedSigning(req.payload)) return;
-          const signatures = await signRequestPayloads(req);
-          await resolveWalletRequest(req.id, { kind: "signing", signatures });
-          return;
-        }
-        if (req.kind === "transaction") {
-          // `req.payload` narrows to WalletTxPayload via the discriminated union.
-          const payload = hasHydratedCalls(req.payload)
-            ? req.payload
-            : hydrateTxPayloadFromUserState(req.payload, user, {
-                strict: true,
-              });
-
-          if (!adapter.sendTransaction) {
-            await rejectWalletRequest(req.id, "Wallet provider is not ready");
-            return;
-          }
-
-          const defaultChainId =
-            payload.chainId ??
-            payload.calls?.[0]?.chainId ??
-            currentChainId ??
-            1;
-          await maybeSwitchEvmChain(defaultChainId);
-          const simulationResult = await simulateBatchTransactions(
-            toSimulationTransactions(payload),
-            {
-              from: UserState.address(user),
-              chainId: defaultChainId,
-            },
-          );
-
-          // Fee injection is the production path: simulation succeeds,
-          // returns a non-zero fee, and we append it to the batch so Aomi
-          // gets paid atomically with the user's tx. Simulation can come
-          // back without a fee for test / 0-balance / unsupported-chain
-          // scenarios — in that case we still want the wallet to pop so
-          // the user can sign (and have the tx revert on-chain if
-          // applicable) rather than silently rejecting. `strictAa: false`
-          // lets the fee-injected batch fall back from AA to sequential
-          // EOA sends if the wallet/bundler fails after sign.
-          const payloadWithFee = simulationResult.fee
-            ? appendFeeCallToPayload(
-                payload,
-                simulationResult.fee,
-                defaultChainId,
-                { strictAa: false },
-              )
-            : payload;
-          if (payloadWithFee === payload) {
-            showNotification({
-              type: "notice",
-              title: "Proceeding without fee on failed simulation",
-              duration: 6000,
-            });
-          }
-
-          let result;
-          try {
-            result = await adapter.sendTransaction(payloadWithFee, {
-              chainIdAlreadySelected: defaultChainId,
-            });
-          } catch (error) {
-            // A sequential (non-atomic) executor may have landed a PREFIX
-            // of the batch before failing — adapters signal that by
-            // attaching `partial` to the thrown error. Reporting such a
-            // failure as a blanket reject erases on-chain truth: the
-            // backend re-queues every leg and a retry double-executes the
-            // ones that already mined (observed: a re-run 5 ETH stake
-            // against the already-debited balance). Resolve with per-leg
-            // outcomes instead; anything without partial info falls
-            // through to the normal reject path.
-            const partial = (
-              error as {
-                partial?: {
-                  executedTxIds?: number[];
-                  lastTxHash?: string | null;
-                  failedTxId?: number | null;
-                  remainingTxIds?: number[];
-                };
-              }
-            )?.partial;
-            const executed = partial?.executedTxIds ?? [];
-            if (executed.length > 0 && partial?.lastTxHash) {
-              const failedTxIds = [
-                partial.failedTxId,
-                ...(partial.remainingTxIds ?? []),
-              ].filter((id): id is number => typeof id === "number");
-              await resolveWalletRequest(req.id, {
-                kind: "transaction",
-                txHash: partial.lastTxHash,
-                batched: true,
-                callCount: payload.calls?.length,
-                completedTxIds: executed,
-                failedTxIds,
-                failureReason:
-                  error instanceof Error
-                    ? error.message
-                    : "Batch aborted after a mid-sequence failure",
-              });
-              return;
-            }
-            throw error;
-          }
-          await resolveWalletRequest(req.id, {
-            kind: "transaction",
-            ...result,
-          });
-          return;
-        }
-
-        if (req.kind === "solana_send" || req.kind === "solana_sign_and_send") {
-          const execute = async (payload: WalletSolanaSignPayload) => {
-            if (!payload.unsignedTx) {
-              throw new Error("Missing unsigned_tx payload");
-            }
-            await maybeSwitchSolanaCluster(payload.cluster);
-            if (
-              req.kind === "solana_sign_and_send" &&
-              adapter.signAndSendSolanaTransaction
-            ) {
-              return adapter.signAndSendSolanaTransaction(payload);
-            }
-            if (adapter.sendSolanaTransaction) {
-              return adapter.sendSolanaTransaction(payload);
-            }
-            if (!adapter.signSolanaTransaction) {
-              throw new Error("Solana wallet provider is not ready");
-            }
-            if (!adapter.solanaRpcHttpUrl) {
-              throw new Error("Solana RPC is not configured for broadcast");
-            }
-            const signed = await adapter.signSolanaTransaction(payload);
-            const connection = new SolanaConnection(
-              adapter.solanaRpcHttpUrl,
-              "confirmed",
-            );
-            const signature = await connection.sendRawTransaction(
-              decodeBase64(signed.signedTx),
-            );
-            await connection.confirmTransaction(signature, "confirmed");
-            return { signature, signedTx: signed.signedTx };
-          };
-
-          const transactions = req.payload.transactions ?? [];
-          if (transactions.length > 1) {
-            const legs: WalletSolanaLegResult[] = [];
-            for (const [index, transaction] of transactions.entries()) {
-              try {
-                const result = await execute({
-                  ...req.payload,
-                  unsignedTx: transaction.unsignedTx,
-                  description:
-                    transaction.description ?? req.payload.description,
-                  transactions: undefined,
-                });
-                legs.push({
-                  id: transaction.id,
-                  status: "submitted",
-                  signature: result.signature,
-                  signedTx: result.signedTx,
-                });
-              } catch (error) {
-                legs.push({
-                  id: transaction.id,
-                  status: "failed",
-                  reason:
-                    error instanceof Error ? error.message : "Request failed",
-                });
-                legs.push(
-                  ...transactions.slice(index + 1).map((remaining) => ({
-                    id: remaining.id,
-                    status: "skipped" as const,
-                  })),
-                );
-                break;
-              }
-            }
-            const submitted = legs.filter(
-              (leg) => leg.status === "submitted" && leg.signature,
-            );
-            if (submitted.length === 0) {
-              await rejectWalletRequest(
-                req.id,
-                legs.find((leg) => leg.reason)?.reason ?? "Request failed",
-              );
-              return;
-            }
-            const last = submitted.at(-1)!;
-            await resolveWalletRequest(req.id, {
-              kind: req.kind,
-              signature: last.signature!,
-              signedTx: last.signedTx,
-              legs,
-            });
-            return;
-          }
-
-          const result = await execute(req.payload);
-          await resolveWalletRequest(req.id, {
-            kind: req.kind,
-            ...result,
-          });
-          return;
-        }
-      } catch (error) {
-        console.error("[RuntimeTxHandler] Request failed:", error);
-        await rejectWalletRequest(
-          req.id,
-          error instanceof Error ? error.message : "Request failed",
+    const action = pendingActions[0];
+    if (!action || processing.current || isAttended(action)) return;
+    processing.current = true;
+    const execute =
+      action.request.type === "sign"
+        ? sign(action as SigningAction)
+        : action.request.type === "execute_evm"
+          ? executeEvm(action.request)
+          : executeSvm(action.request);
+    void execute
+      .then((result) => respondToAction(action.id, result))
+      .catch((error: unknown) => {
+        console.error("[RuntimeTxHandler] Action failed:", error);
+        return rejectAction(
+          action.id,
+          error instanceof Error ? error.message : "Action failed",
         );
+      })
+      .finally(() => {
+        processing.current = false;
+      });
+  }, [executeEvm, executeSvm, pendingActions, rejectAction, respondToAction, sign]);
+
+  const decide = async (approved: boolean) => {
+    if (!attendedAction || approving) return;
+    setApproving(true);
+    try {
+      if (approved) {
+        await respondToAction(attendedAction.id, await sign(attendedAction));
+      } else {
+        await rejectAction(attendedAction.id, "Request rejected");
       }
-    }
-  }, [
-    adapter,
-    user,
-    pendingWalletRequests,
-    currentChainId,
-    resolveWalletRequest,
-    rejectWalletRequest,
-    simulateBatchTransactions,
-    showNotification,
-    maybeSwitchEvmChain,
-    maybeSwitchSolanaCluster,
-    signRequestPayloads,
-  ]);
-
-  const rejectAa = async () => {
-    if (!aaRequest || isSigningAa) return;
-    setIsSigningAa(true);
-    try {
-      await rejectWalletRequest(aaRequest.id, "Request rejected");
     } catch (error) {
       showNotification({
         type: "error",
-        title: error instanceof Error ? error.message : "AA rejection failed",
+        title: error instanceof Error ? error.message : "Action response failed",
         duration: 6000,
       });
     } finally {
-      setIsSigningAa(false);
+      setApproving(false);
     }
   };
 
-  const approveAa = async () => {
-    if (!aaRequest || isSigningAa) return;
-    setIsSigningAa(true);
-    try {
-      const signatures = await signRequestPayloads(aaRequest);
-      await resolveWalletRequest(aaRequest.id, {
-        kind: "signing",
-        signatures,
-      });
-      showNotification({
-        type: "notice",
-        title: "Signature accepted; Aomi is broadcasting",
-        duration: 4000,
-      });
-    } catch (error) {
-      showNotification({
-        type: "error",
-        title: error instanceof Error ? error.message : "AA signing failed",
-        duration: 6000,
-      });
-    } finally {
-      setIsSigningAa(false);
-    }
-  };
+  if (!attendedAction) return null;
+  const request = attendedAction.request;
+  const isSvm = request.chainFamily === "svm";
+  const chainName = isSvm
+    ? normalizeSolanaCluster(request.cluster) ?? request.cluster ?? "Solana"
+    : adapter.supportedChains?.find((chain) => chain.id === request.chainId)?.name ??
+      `Chain ${request.chainId}`;
+  const calls = (request.calls ?? []) as Array<{
+    to?: string;
+    value?: string;
+    data?: string;
+  }>;
+  const fees = (request.fees ?? []) as Array<{
+    asset?: unknown;
+    amount?: string;
+    recipient?: string;
+  }>;
 
-  if (aaRequest) {
-    const isSvm = aaRequest.payload.chainFamily === "svm";
-    const chainName = isSvm
-      ? (normalizeSolanaCluster(aaRequest.payload.cluster) ??
-        aaRequest.payload.cluster ??
-        "Solana")
-      : (adapter.supportedChains?.find(
-          (chain) => chain.id === aaRequest.payload.chainId,
-        )?.name ?? `Chain ${aaRequest.payload.chainId}`);
-    const signatureCount = aaRequest.payload.payloads.length;
-    const calls = aaRequest.payload.calls ?? [];
-    const fees = aaRequest.payload.fees ?? [];
-    return (
-      <Dialog open onOpenChange={(open) => !open && void rejectAa()}>
-        <DialogContent
-          showCloseButton={false}
-          className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"
-        >
-          <DialogHeader>
-            <div className="bg-primary/10 text-primary mb-1 flex size-10 items-center justify-center rounded-full">
-              <ShieldCheck className="size-5" />
-            </div>
-            <DialogTitle>Approve account action</DialogTitle>
-            <DialogDescription>
-              {isSvm
-                ? "Review the sealed transaction and mandatory Aomi fees. Your wallet signs the exact bytes; Aomi submits and watches the transaction from the backend."
-                : "Review the exact application calls and mandatory Aomi fees. Your wallet signs; Aomi sponsors and broadcasts the ERC-4337 operation from the backend."}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="bg-muted/40 grid gap-3 rounded-xl border p-4 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Network</span>
-              <span className="font-medium">{chainName}</span>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Account</span>
-              <span className="font-mono text-xs">
-                {aaRequest.payload.signer.slice(0, 8)}…
-                {aaRequest.payload.signer.slice(-6)}
-              </span>
-            </div>
-            {aaRequest.payload.executor ? (
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Executor</span>
-                <span className="font-mono text-xs">
-                  {aaRequest.payload.executor.slice(0, 8)}…
-                  {aaRequest.payload.executor.slice(-6)}
-                </span>
-              </div>
-            ) : null}
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Operations</span>
-              <span className="font-medium">{calls.length || 1}</span>
-            </div>
-            {aaRequest.payload.sponsorship ? (
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Sponsorship</span>
-                <span className="font-medium">Required · backend only</span>
-              </div>
-            ) : null}
-            {aaRequest.payload.expiresAt ? (
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Signature expires</span>
-                <span className="font-mono text-xs">
-                  {aaRequest.payload.expiresAt}
-                </span>
-              </div>
-            ) : null}
-            {aaRequest.payload.callsDigest ? (
-              <div className="border-t pt-3">
-                <p className="text-muted-foreground mb-1 text-xs font-medium uppercase tracking-wide">
-                  Final call digest
-                </p>
-                <p className="break-all font-mono text-xs">
-                  {aaRequest.payload.callsDigest}
-                </p>
-              </div>
-            ) : null}
-            {calls.length ? (
-              <div className="border-t pt-3">
-                <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
-                  Application calls
-                </p>
-                <div className="grid gap-2">
-                  {calls.map((call, index) => (
-                    <div
-                      key={`${call.to}-${index}`}
-                      className="bg-background rounded-lg border p-3 text-xs"
-                    >
-                      <p className="mb-1 font-medium">Call {index + 1}</p>
-                      <p className="break-all font-mono">To: {call.to}</p>
-                      <p className="break-all font-mono">Value: {call.value}</p>
-                      <p className="break-all font-mono">
-                        Data: {call.data ?? "0x"}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            <div className="border-t pt-3">
-              <p className="text-muted-foreground mb-2 text-xs font-medium uppercase tracking-wide">
-                Mandatory Aomi fees
-              </p>
-              {fees.map((fee, index) => (
-                <div
-                  key={`${fee.recipient}-${index}`}
-                  className="bg-background mb-2 rounded-lg border p-3 text-xs last:mb-0"
-                >
-                  <p className="break-all font-mono">
-                    Asset: {aaFeeAssetLabel(fee.asset)}
-                  </p>
-                  <p className="break-all font-mono">Amount: {fee.amount}</p>
-                  <p className="break-all font-mono">
-                    Recipient: {fee.recipient}
-                  </p>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-muted-foreground">Wallet approvals</span>
-              <span className="font-medium">{signatureCount}</span>
-            </div>
+  return (
+    <Dialog open onOpenChange={(open) => !open && void decide(false)}>
+      <DialogContent showCloseButton={false} className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <div className="bg-primary/10 text-primary mb-1 flex size-10 items-center justify-center rounded-full">
+            <ShieldCheck className="size-5" />
           </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => void rejectAa()}
-              disabled={isSigningAa}
-            >
-              Cancel
-            </Button>
-            <Button onClick={() => void approveAa()} disabled={isSigningAa}>
-              {isSigningAa
-                ? "Waiting for wallet…"
-                : `Review & sign${signatureCount > 1 ? ` (${signatureCount})` : ""}`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
-  }
+          <DialogTitle>Approve account action</DialogTitle>
+          <DialogDescription>
+            Review the exact operation. Your wallet signs; Aomi broadcasts from the backend.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="bg-muted/40 grid gap-3 rounded-xl border p-4 text-sm">
+          <Fact label="Network" value={chainName} />
+          <Fact label="Account" value={`${request.signer.slice(0, 8)}…${request.signer.slice(-6)}`} mono />
+          <Fact label="Operations" value={String(calls.length || 1)} />
+          {calls.map((call, index) => (
+            <div key={index} className="bg-background rounded-lg border p-3 text-xs">
+              <p className="mb-1 font-medium">Call {index + 1}</p>
+              <p className="break-all font-mono">To: {call.to}</p>
+              <p className="break-all font-mono">Value: {call.value}</p>
+              <p className="break-all font-mono">Data: {call.data ?? "0x"}</p>
+            </div>
+          ))}
+          {fees.map((fee, index) => (
+            <div key={index} className="bg-background rounded-lg border p-3 text-xs">
+              <p className="break-all font-mono">Asset: {feeAssetLabel(fee.asset)}</p>
+              <p className="break-all font-mono">Amount: {fee.amount}</p>
+              <p className="break-all font-mono">Recipient: {fee.recipient}</p>
+            </div>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => void decide(false)} disabled={approving}>
+            Cancel
+          </Button>
+          <Button onClick={() => void decide(true)} disabled={approving}>
+            {approving ? "Waiting for wallet…" : "Review & sign"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
-  return null;
+function Fact({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={mono ? "font-mono text-xs" : "font-medium"}>{value}</span>
+    </div>
+  );
 }

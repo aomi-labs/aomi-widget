@@ -1,4 +1,5 @@
 import type { WalletEip712Payload, WalletTxPayload } from "../../wallet-utils";
+import { parseAomiTaskEvent } from "../../types";
 import { CliSession } from "../cli-session";
 import {
   DIM,
@@ -27,8 +28,8 @@ import { buildCliUserState } from "../user-state";
 import type { UserStateAAMode } from "../../user-state";
 import { parseSolanaKeypairSecret } from "../solana-signer";
 import {
-  walletRequestToPendingSolTx,
-  walletRequestToPendingTx,
+  actionToPendingSolTx,
+  actionToPendingTx,
 } from "../transactions";
 
 type WalletSnapshot = {
@@ -209,22 +210,29 @@ export async function chatCommand(
       // one announced by `task_started` (keyed by agent, parallel-safe).
       const agentLabels = new Map<string, string>();
       session.on("task_started", (event) => {
-        agentLabels.set(event.agent_id, event.label || event.agent_id);
-        printTaskStarted(event);
+        const task = parseAomiTaskEvent(event);
+        if (!task || task.type !== "task_started") return;
+        agentLabels.set(task.agent_id, task.label || task.agent_id);
+        printTaskStarted(task);
       });
       session.on("task_activity", (event) => {
-        printTaskActivity(event);
+        const task = parseAomiTaskEvent(event);
+        if (task?.type === "task_activity") printTaskActivity(task);
       });
       session.on("task_completed", (event) => {
-        printTaskCompleted(event, agentLabels.get(event.agent_id));
-        agentLabels.delete(event.agent_id);
+        const task = parseAomiTaskEvent(event);
+        if (!task || task.type !== "task_completed") return;
+        printTaskCompleted(task, agentLabels.get(task.agent_id));
+        agentLabels.delete(task.agent_id);
       });
 
       session.on("processing_start", () => {
         console.log(`${DIM}⏳ Thinking…${RESET}`);
       });
-      session.on("system_notice", ({ message: msg }) => {
-        console.log(`${YELLOW}📢 ${msg}${RESET}`);
+      session.on("message", (event) => {
+        if (event.sender === "notice") {
+          console.log(`${YELLOW}📢 ${event.content}${RESET}`);
+        }
       });
       session.on("system_error", ({ message: msg }) => {
         console.log(`\x1b[31m❌ ${msg}${RESET}`);
@@ -244,9 +252,7 @@ export async function chatCommand(
 
     printedAgentCount = allMessages
       .slice(0, seedIdx)
-      .filter(
-        (entry) => entry.sender === "agent" || entry.sender === "assistant",
-      ).length;
+      .filter((entry) => entry.sender === "agent").length;
 
     if (verbose) {
       printedAgentCount = printNewAgentMessages(allMessages, printedAgentCount);
@@ -257,7 +263,7 @@ export async function chatCommand(
 
     if (
       session.getIsProcessing() &&
-      session.getPendingRequests().length === 0
+      session.getPendingActions().length === 0
     ) {
       await new Promise<void>((resolve) => {
         // Wait for the backend to finish its turn so ALL system events
@@ -303,13 +309,11 @@ export async function chatCommand(
       console.log(`${DIM}✅ Done${RESET}`);
     }
 
-    cli.syncPendingFromUserState(session.getUserState());
-    for (const request of session.getPendingRequests()) {
-      if (request.kind === "transaction" || request.kind === "signing") {
-        const pending = walletRequestToPendingTx(request);
-        if (pending) cli.addPendingTx(pending);
-      }
-      const pending = walletRequestToPendingSolTx(request);
+    cli.syncWalletFromUserState(session.getUserState());
+    for (const action of session.getPendingActions()) {
+      const evm = actionToPendingTx(action);
+      if (evm) cli.addPendingTx(evm);
+      const pending = actionToPendingSolTx(action);
       if (pending) cli.addPendingSolTx(pending);
     }
     cli.reload();
@@ -341,14 +345,12 @@ export async function chatCommand(
     if (!verbose) {
       const agentMessages = session
         .getMessages()
-        .filter(
-          (entry) => entry.sender === "agent" || entry.sender === "assistant",
-        );
+        .filter((entry) => entry.sender === "agent");
       const last = agentMessages[agentMessages.length - 1];
 
       if (last?.content) {
         console.log(last.content);
-      } else if (session.getAgentStatus() === "interrupted") {
+      } else if (session.getTurnState() === "interrupted") {
         console.log("(interrupted)");
       } else if (newPendingTxs.length === 0) {
         console.log("(no response)");

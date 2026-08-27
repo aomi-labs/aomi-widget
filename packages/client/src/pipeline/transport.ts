@@ -5,28 +5,13 @@ import type {
   EvmSimulatedBuild,
   EvmStageInput,
   EvmStagedBuild,
-  PipelineAppResponse,
-  PipelineAppsResponse,
-  PipelineCatalogResponse,
   PipelineCommitOptions,
   PipelineDirectory,
   PipelineErrorBody,
-  PipelineExecutionOptions,
-  PipelineExecutionResponse,
   PipelineFilesystemResource,
   PipelineInvokeOptions,
-  PipelineListOptions,
   PipelineOperationBuildInput,
   PipelineOperationDescriptor,
-  PipelineRunRequest,
-  PipelineSearchOptions,
-  PipelineSearchResponse,
-  PipelineSkillsResponse,
-  PipelineToolCallRequest,
-  PipelineToolListOptions,
-  PipelineToolResponse,
-  PipelineToolSearchOptions,
-  PipelineToolsResponse,
   SvmCommitResult,
   SvmSimulatedBuild,
   SvmStageInput,
@@ -244,105 +229,6 @@ export class PipelineTransport {
     );
   }
 
-  /** @deprecated Use `pipeline.apps.list()` filesystem discovery. */
-  listApps(options: PipelineListOptions = {}): Promise<PipelineAppsResponse> {
-    return json(this.requestResponse, "GET", "/v1/pipeline/apps", {
-      query: { limit: options.limit },
-    });
-  }
-
-  /** @deprecated Use `pipeline.app(app).directory()`. */
-  getApp(app: string): Promise<PipelineAppResponse> {
-    return json(
-      this.requestResponse,
-      "GET",
-      `/v1/pipeline/apps/${encodeURIComponent(required("app", app))}`,
-    );
-  }
-
-  /** @deprecated Crawl the filesystem discovery surface. */
-  searchApps(
-    options: PipelineSearchOptions = {},
-  ): Promise<PipelineSearchResponse> {
-    return json(this.requestResponse, "GET", "/v1/pipeline/search/apps", {
-      query: { q: options.q, limit: options.limit },
-    });
-  }
-
-  /** @deprecated Use fixed chain routes or scoped operations. */
-  listTools(
-    options: PipelineToolListOptions = {},
-  ): Promise<PipelineToolsResponse> {
-    return json(this.requestResponse, "GET", "/v1/pipeline/tools", {
-      query: {
-        app: options.app,
-        namespace: options.namespace,
-        limit: options.limit,
-      },
-    });
-  }
-
-  /** @deprecated Use fixed chain routes or scoped operations. */
-  getTool(
-    toolId: string,
-    options: { app?: string } = {},
-  ): Promise<PipelineToolResponse> {
-    return json(
-      this.requestResponse,
-      "GET",
-      `/v1/pipeline/tools/${encodeURIComponent(required("toolId", toolId))}`,
-      { query: { app: options.app } },
-    );
-  }
-
-  /** @deprecated Crawl the filesystem discovery surface. */
-  searchTools(
-    options: PipelineToolSearchOptions = {},
-  ): Promise<PipelineSearchResponse> {
-    return json(this.requestResponse, "GET", "/v1/pipeline/search/tools", {
-      query: { q: options.q, app: options.app, limit: options.limit },
-    });
-  }
-
-  /** @deprecated Use `pipeline.skills.list()` filesystem discovery. */
-  listSkills(
-    options: PipelineListOptions = {},
-  ): Promise<PipelineSkillsResponse> {
-    return json(this.requestResponse, "GET", "/v1/pipeline/skills", {
-      query: { limit: options.limit },
-    });
-  }
-
-  /** @deprecated Use `pipeline.skill(skill).directory()`. */
-  getSkill(skillId: string): Promise<PipelineCatalogResponse> {
-    return json(
-      this.requestResponse,
-      "GET",
-      `/v1/pipeline/skills/${encodeURIComponent(required("skillId", skillId))}`,
-    );
-  }
-
-  /** @deprecated Use fixed chain lifecycle or scoped `invoke()`. */
-  callTool<T extends PipelineExecutionResponse = PipelineExecutionResponse>(
-    request: PipelineToolCallRequest,
-    options: PipelineExecutionOptions,
-  ): Promise<T> {
-    return json(this.requestResponse, "POST", "/v1/pipeline/tool-calls", {
-      headers: executionHeaders(options),
-      body: request,
-    });
-  }
-
-  /** @deprecated Use chain-specific Build composition. */
-  run<T extends PipelineExecutionResponse = PipelineExecutionResponse>(
-    request: PipelineRunRequest,
-    options: PipelineExecutionOptions,
-  ): Promise<T> {
-    return json(this.requestResponse, "POST", "/v1/pipeline/runs", {
-      headers: executionHeaders(options),
-      body: request,
-    });
-  }
 }
 
 async function invokeOperation<T>(
@@ -386,16 +272,17 @@ async function pipelineError(response: Response): Promise<PipelineApiError> {
   const body = (await response
     .json()
     .catch(() => null)) as PipelineErrorBody | null;
+  const error = asRecord(body?.error);
   return new PipelineApiError(
     response.status,
-    body?.error?.code ?? "pipeline_request_failed",
-    body?.error?.message ??
+    stringValue(error?.code) ?? "pipeline_request_failed",
+    stringValue(error?.message) ??
       `Pipeline request failed with HTTP ${response.status}`,
     response.status === 408 ||
       response.status === 429 ||
       response.status >= 500,
-    body?.error?.requestId ?? response.headers.get("x-request-id") ?? undefined,
-    body?.error?.details,
+    stringValue(error?.requestId) ?? response.headers.get("x-request-id") ?? undefined,
+    error?.details,
   );
 }
 
@@ -464,10 +351,16 @@ function mutationHeaders(options: {
   };
 }
 
-function executionHeaders(options: PipelineExecutionOptions): HeadersInit {
-  return mutationHeaders(options);
-}
-
 function randomIdempotencyKey(): string {
   return `idem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }

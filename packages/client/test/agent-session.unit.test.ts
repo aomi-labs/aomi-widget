@@ -1,18 +1,58 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AgentApiError, AomiClient, Session } from "../src";
-import type { AgentAction, AgentDelta } from "../src";
+import type { Action, Event, EventPage } from "../src";
 
-function delta(overrides: Partial<AgentDelta> = {}): AgentDelta {
+const occurredAt = Date.parse("2026-08-20T00:00:00Z");
+
+function page(
+  events: Event[] = [],
+  overrides: Partial<EventPage> = {},
+): EventPage {
   return {
-    sessionId: "session-agent",
-    status: "complete",
-    cursor: "stream-v1.cursor-1",
-    messages: [],
-    activity: [],
-    actions: [],
-    title: "Agent thread",
-    hasMore: false,
+    session_id: "session-agent",
+    cursor: `cursor-${events.at(-1)?.sequence ?? 0}`,
+    events,
+    has_more: false,
+    ...overrides,
+  };
+}
+
+function meta(type: string, sequence: number) {
+  return {
+    type,
+    event_id: `event-${sequence}`,
+    sequence,
+    turn_id: "turn-1",
+    occurred_at: occurredAt + sequence,
+  };
+}
+
+function turn(
+  sequence: number,
+  state: "processing" | "awaiting_action" | "complete",
+) {
+  return {
+    ...meta("turn_state_changed", sequence),
+    type: "turn_state_changed",
+    state,
+  } as const;
+}
+
+function action(
+  request: Action["request"],
+  overrides: Partial<Action> = {},
+): Action {
+  return {
+    ...meta("action", 2),
+    type: "action",
+    id: "action-1",
+    revision: 1,
+    state: "pending",
+    request,
+    result: null,
+    created_at: occurredAt,
+    expires_at: null,
     ...overrides,
   };
 }
@@ -24,85 +64,47 @@ function client() {
   });
 }
 
-const evmAction: AgentAction = {
-  id: "act_evm",
-  type: "external_transaction",
-  chainFamily: "evm",
-  executionKind: "eoa",
-  chainId: 8453,
-  signer: "0x1111111111111111111111111111111111111111",
-  broadcaster: "wallet",
-  generation: 1,
-  contextGeneration: 0,
-  revision: 3,
-  status: "pending",
-  createdAt: "2026-08-20T00:00:00Z",
-  expiresAt: null,
-  description: "Approve batch",
-  transactions: [
-    {
-      id: "leg_1",
-      from: "0x1111111111111111111111111111111111111111",
-      to: "0x2222222222222222222222222222222222222222",
-      value: "0x1",
-      data: "0x",
-      gas: null,
-      maxFeePerGas: null,
-      maxPriorityFeePerGas: null,
-      gasPrice: null,
-      nonce: null,
-      transactionType: null,
-      accessList: [],
-      description: "First",
-      simulation: { success: true, gasUsed: null, error: null },
-      intentHash: `0x${"1".repeat(64)}`,
-    },
-    {
-      id: "leg_2",
-      from: "0x1111111111111111111111111111111111111111",
-      to: "0x3333333333333333333333333333333333333333",
-      value: "0x2",
-      data: "0x",
-      gas: null,
-      maxFeePerGas: null,
-      maxPriorityFeePerGas: null,
-      gasPrice: null,
-      nonce: null,
-      transactionType: null,
-      accessList: [],
-      description: "Second",
-      simulation: { success: true, gasUsed: null, error: null },
-      intentHash: `0x${"2".repeat(64)}`,
-    },
-  ],
-};
-
 describe("ClientSession Agent transport", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
 
-  it("starts through client.agent and applies stable message deltas", async () => {
+  it("reduces one ordered Event page into messages, title, and lifecycle", async () => {
     const api = client();
     vi.spyOn(api.agent, "start").mockResolvedValue(
-      delta({
-        messages: [
-          {
-            id: "msg_1",
-            role: "agent",
-            content: "done",
-            createdAt: "2026-08-20T00:00:00Z",
-            streaming: false,
-          },
-        ],
-      }),
+      page([
+        {
+          ...meta("message", 1),
+          type: "message",
+          message_key: "message-1",
+          sender: "agent",
+          content: "done",
+          is_streaming: false,
+        },
+        {
+          ...meta("title_changed", 2),
+          type: "title_changed",
+          title: "Agent thread",
+        },
+        turn(3, "complete"),
+      ]),
     );
     const session = new Session(api, {
       sessionId: "session-agent",
       app: "default",
     });
-    const messages = vi.fn();
-    session.on("messages", messages);
+    const events = vi.fn();
+    session.on("event", events);
 
-    await expect(session.send("hello")).resolves.toMatchObject({
+    await expect(session.send("hello")).resolves.toEqual({
+      messages: [
+        expect.objectContaining({
+          id: "message-1",
+          sender: "agent",
+          content: "done",
+        }),
+      ],
       title: "Agent thread",
     });
     expect(api.agent.start).toHaveBeenCalledWith(
@@ -113,26 +115,21 @@ describe("ClientSession Agent transport", () => {
       }),
       { idempotencyKey: expect.stringMatching(/^idem_[a-f0-9]{32}$/) },
     );
-    expect(session.getMessages()).toEqual([
-      expect.objectContaining({
-        id: "msg_1",
-        sender: "agent",
-        content: "done",
-      }),
+    expect(events.mock.calls.map(([event]) => event.sequence)).toEqual([
+      1, 2, 3,
     ]);
-    expect(messages).toHaveBeenCalledTimes(1);
-    expect(session.getAgentStatus()).toBe("complete");
+    expect(session.getTurnState()).toBe("complete");
     session.close();
   });
 
-  it("reuses the start operation key after an uncertain response", async () => {
+  it("reuses the start Intent idempotency key after an uncertain response", async () => {
     const api = client();
     const start = vi
       .spyOn(api.agent, "start")
       .mockRejectedValueOnce(
         new AgentApiError(503, "upstream_unavailable", "try again", true),
       )
-      .mockResolvedValue(delta());
+      .mockResolvedValue(page([turn(1, "complete")]));
     const session = new Session(api, { sessionId: "session-agent" });
 
     await expect(session.send("hello")).rejects.toThrow("try again");
@@ -145,49 +142,38 @@ describe("ClientSession Agent transport", () => {
     session.close();
   });
 
-  it("applies a progressive tool trace before the final without interrupting", async () => {
+  it("preserves cursor order across tool progress and the terminal message", async () => {
     vi.useFakeTimers();
     const api = client();
     vi.spyOn(api.agent, "start").mockResolvedValue(
-      delta({
-        status: "processing",
-        cursor: "stream-v1.cursor-3",
-        messages: [
+      page(
+        [
+          turn(1, "processing"),
           {
-            id: "msg_user",
-            role: "user",
-            content: "Check ETH price",
-            createdAt: "2026-08-21T00:00:00Z",
-            streaming: false,
-          },
-          {
-            id: "msg_tool",
-            role: "agent",
-            content: "",
-            createdAt: "2026-08-21T00:00:01Z",
-            streaming: false,
-            toolResult: ["Check ETH price", '{"price":2352}'],
-            toolName: "web_search",
-            toolArguments: { query: "ETH price" },
+            ...meta("tool_update", 2),
+            type: "tool_update",
+            tool: "web_search",
+            message: "Checking ETH price",
           },
         ],
-      }),
+        { cursor: "cursor-2" },
+      ),
     );
-    vi.spyOn(api.agent, "check").mockResolvedValue(
-      delta({
-        cursor: "stream-v1.cursor-5",
-        messages: [
+    const poll = vi.spyOn(api.agent, "poll").mockResolvedValue(
+      page(
+        [
           {
-            id: "msg_final",
-            role: "agent",
+            ...meta("message", 3),
+            type: "message",
+            sender: "agent",
             content: "ETH is $2,352.",
-            createdAt: "2026-08-21T00:00:02Z",
-            streaming: false,
+            is_streaming: false,
           },
+          turn(4, "complete"),
         ],
-      }),
+        { cursor: "cursor-4" },
+      ),
     );
-    const interrupt = vi.spyOn(api.agent, "interrupt");
     const session = new Session(api, {
       sessionId: "session-agent",
       pollIntervalMs: 10,
@@ -195,208 +181,86 @@ describe("ClientSession Agent transport", () => {
 
     await session.sendAsync("Check ETH price");
     expect(session.getIsProcessing()).toBe(true);
-    expect(session.getMessages()[1]).toMatchObject({
-      id: "msg_tool",
-      tool_result: ["Check ETH price", '{"price":2352}'],
-      tool_name: "web_search",
-      tool_arguments: { query: "ETH price" },
-    });
+    await vi.advanceTimersByTimeAsync(0);
 
-    await vi.advanceTimersByTimeAsync(10);
-    expect(api.agent.check).toHaveBeenCalledWith("session-agent", {
-      cursor: "stream-v1.cursor-3",
+    expect(poll).toHaveBeenCalledWith("session-agent", {
+      cursor: "cursor-2",
       waitMs: 25_000,
     });
-    expect(session.getMessages().at(-1)).toMatchObject({
-      id: "msg_final",
-      content: "ETH is $2,352.",
-    });
+    expect(session.getMessages()).toEqual([
+      expect.objectContaining({ content: "ETH is $2,352." }),
+    ]);
     expect(session.getIsProcessing()).toBe(false);
-    expect(interrupt).not.toHaveBeenCalled();
-
     session.close();
-    vi.useRealTimers();
   });
 
-  it("reconstructs an awaiting EVM action and preserves partial batch truth", async () => {
+  it("keeps the complete EVM request in the Action and responds by revision", async () => {
     const api = client();
+    const pending = action({
+      type: "execute_evm",
+      transactions: [
+        {
+          chain_id: 8453,
+          from: "0x1111111111111111111111111111111111111111",
+          to: "0x2222222222222222222222222222222222222222",
+          value: "1",
+          data: "0x1234",
+          label: "Transfer",
+          kind: "transfer",
+        },
+      ],
+    });
     vi.spyOn(api.agent, "start").mockResolvedValue(
-      delta({ status: "awaiting_user", actions: [evmAction] }),
+      page([turn(1, "processing"), pending, turn(3, "awaiting_action")]),
     );
-    const resolveAction = vi
-      .spyOn(api.agent, "resolveAction")
-      .mockResolvedValue({ ...evmAction, status: "submitted", revision: 4 });
+    const respond = vi.spyOn(api.agent, "respondToAction").mockResolvedValue(
+      action(pending.request, {
+        sequence: 4,
+        event_id: "event-4",
+        revision: 2,
+        state: "rejected",
+        result: { status: "rejected", reason: "Not now" },
+      }),
+    );
+    vi.spyOn(api.agent, "poll").mockResolvedValue(
+      page([turn(5, "complete")], { cursor: "cursor-5" }),
+    );
     const session = new Session(api, { sessionId: "session-agent" });
 
     await session.sendAsync("execute");
-    expect(session.getPendingRequests()).toEqual([
-      expect.objectContaining({
-        id: "txreq-act_evm",
-        kind: "transaction",
-        payload: expect.objectContaining({ txIds: [1, 2], chainId: 8453 }),
-      }),
-    ]);
-    await session.resolve("txreq-act_evm", {
-      kind: "transaction",
-      txHash: "0xconfirmed",
-      completedTxIds: [1],
-      failedTxIds: [2],
-      failureReason: "reverted",
-    });
+    expect(session.getPendingActions()).toEqual([pending]);
+    await session.rejectAction("action-1", "Not now");
 
-    expect(resolveAction).toHaveBeenCalledWith("session-agent", "act_evm", {
-      status: "submitted",
-      revision: 3,
-      legs: [
-        { id: "leg_1", status: "submitted", transactionId: "0xconfirmed" },
-        { id: "leg_2", status: "failed", reason: "reverted" },
-      ],
+    expect(respond).toHaveBeenCalledWith("session-agent", "action-1", 1, {
+      status: "rejected",
+      reason: "Not now",
     });
-    expect(session.getPendingRequests()).toEqual([]);
+    expect(session.getPendingActions()).toEqual([]);
     session.close();
   });
 
-  it("recovers a signing action on refresh and submits ordered outputs", async () => {
+  it("recovers a signing Action from the Event ledger without snapshot state", async () => {
     const api = client();
-    const signing: AgentAction = {
-      id: "act_sign",
-      type: "signing_request",
+    const pending = action({
+      type: "sign",
+      requestId: "sign-1",
       chainFamily: "evm",
       executionKind: "message",
       signer: "0x1111111111111111111111111111111111111111",
-      broadcaster: "wallet",
-      generation: 1,
-      contextGeneration: 0,
-      revision: 7,
-      status: "pending",
-      createdAt: "2026-08-20T00:00:00Z",
-      expiresAt: null,
-      description: "Sign message",
-      payloads: [
-        {
-          id: "payload_1",
-          kind: "evm_personal",
-          message: "0x6869",
-          digest: `0x${"3".repeat(64)}`,
-        },
-      ],
       chainId: 1,
-      cluster: null,
-      operationId: null,
-      executor: null,
-      callsDigest: null,
-      calls: [],
-      fees: [],
-      sponsorship: null,
-    };
-    vi.spyOn(api.agent, "check").mockResolvedValue(
-      delta({ status: "awaiting_user", actions: [signing] }),
+      description: "Sign message",
+      payloads: [{ kind: "evm_personal", message: "0x6869" }],
+    });
+    vi.spyOn(api.agent, "poll").mockResolvedValue(
+      page([pending, turn(3, "awaiting_action")], { cursor: "cursor-3" }),
     );
-    const resolveAction = vi
-      .spyOn(api.agent, "resolveAction")
-      .mockResolvedValue({ ...signing, status: "signed", revision: 8 });
     const session = new Session(api, { sessionId: "session-agent" });
 
     await session.fetchCurrentState();
-    expect(session.getPendingRequests()[0]).toMatchObject({
-      id: "act_sign",
-      kind: "signing",
-    });
-    await session.resolve("act_sign", {
-      kind: "signing",
-      signatures: ["0xsigned"],
-    });
-    expect(resolveAction).toHaveBeenCalledWith("session-agent", "act_sign", {
-      status: "signed",
-      revision: 7,
-      outputs: [{ id: "payload_1", signature: "0xsigned" }],
-    });
-    session.close();
-  });
 
-  it("preserves per-leg SVM batch outcomes", async () => {
-    const api = client();
-    const svm: AgentAction = {
-      id: "act_svm",
-      type: "external_transaction",
-      chainFamily: "svm",
-      executionKind: "wallet",
-      cluster: "solana:devnet",
-      signer: "Signer1111111111111111111111111111111111111",
-      broadcaster: "wallet",
-      generation: 1,
-      contextGeneration: 0,
-      revision: 2,
-      status: "pending",
-      createdAt: "2026-08-20T00:00:00Z",
-      expiresAt: null,
-      description: "Approve SVM batch",
-      transactions: [
-        {
-          id: "leg_1",
-          unsignedTransactionBase64: "dHgx",
-          recentBlockhash: "blockhash-1",
-          lastValidBlockHeight: null,
-          preserveBlockhash: true,
-          description: "First",
-          intentHash: `0x${"4".repeat(64)}`,
-        },
-        {
-          id: "leg_2",
-          unsignedTransactionBase64: "dHgy",
-          recentBlockhash: "blockhash-2",
-          lastValidBlockHeight: null,
-          preserveBlockhash: true,
-          description: "Second",
-          intentHash: `0x${"5".repeat(64)}`,
-        },
-      ],
-    };
-    vi.spyOn(api.agent, "start").mockResolvedValue(
-      delta({ status: "awaiting_user", actions: [svm] }),
-    );
-    const resolveAction = vi
-      .spyOn(api.agent, "resolveAction")
-      .mockResolvedValue({ ...svm, status: "submitted", revision: 3 });
-    const session = new Session(api, { sessionId: "session-agent" });
-
-    await session.sendAsync("execute svm batch");
-    expect(session.getPendingRequests()[0]).toMatchObject({
-      id: "act_svm",
-      payload: {
-        transactions: [
-          { id: "leg_1", unsignedTx: "dHgx" },
-          { id: "leg_2", unsignedTx: "dHgy" },
-        ],
-      },
-    });
-    await session.resolve("act_svm", {
-      kind: "solana_sign_and_send",
-      signature: "sig-1",
-      legs: [
-        {
-          id: "leg_1",
-          status: "submitted",
-          signature: "sig-1",
-          signedTx: "c2lnbmVkLTE=",
-        },
-        { id: "leg_2", status: "failed", reason: "expired blockhash" },
-      ],
-    });
-
-    expect(resolveAction).toHaveBeenCalledWith("session-agent", "act_svm", {
-      status: "submitted",
-      revision: 2,
-      legs: [
-        {
-          id: "leg_1",
-          status: "submitted",
-          transactionId: "sig-1",
-          signedTransactionBase64: "c2lnbmVkLTE=",
-        },
-        { id: "leg_2", status: "failed", reason: "expired blockhash" },
-      ],
-    });
+    expect(session.getPendingActions()).toEqual([pending]);
+    expect(session.getTurnState()).toBe("awaiting_action");
+    expect(session.getIsPolling()).toBe(false);
     session.close();
   });
 });

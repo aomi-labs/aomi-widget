@@ -28,7 +28,7 @@ function renderHarness() {
 }
 
 describe("ExtUserProvider.setUser", () => {
-  it("wipes wallet identity but preserves the selected chain on disconnect", () => {
+  it("wipes wallet identity and rejects runtime pending state on disconnect", () => {
     const ref = renderHarness();
 
     act(() => {
@@ -54,16 +54,12 @@ describe("ExtUserProvider.setUser", () => {
     expect(UserState.isConnected(u)).toBe(false);
     expect(u.evm).toEqual({ chain_id: 8453 });
     expect(u.svm).toBeUndefined();
-    expect(u.pending).toMatchObject({
-      evm_txs: { "1": { foo: "bar" } },
-      evm_sigs: { "2": {} },
-      svm_ixs: { "3": {} },
-    });
+    expect(u).not.toHaveProperty("pending");
     expect(UserState.walletProvider(u)).toBeUndefined();
     expect(UserState.authMethod(u)).toBeUndefined();
   });
 
-  it("clears address-scoped fields but preserves pending + identity during an address transition", () => {
+  it("clears address-scoped fields and rejects pending state during an address transition", () => {
     const ref = renderHarness();
 
     act(() => {
@@ -86,17 +82,15 @@ describe("ExtUserProvider.setUser", () => {
     });
 
     const u = ref.current!.user;
-    expect(UserState.address(u)).toBe("0x4444444444444444444444444444444444444444");
+    expect(UserState.address(u)).toBe(
+      "0x4444444444444444444444444444444444444444",
+    );
     // Identity-static fields persist across the in-place switch.
     expect(UserState.walletProvider(u)).toBe("para");
     expect(UserState.chainId(u)).toBe(8453);
     // ens belonged to the prior address and is cleared on the switch.
     expect(UserState.ensName(u)).toBeUndefined();
-    expect(u.pending).toMatchObject({
-      evm_txs: { "1": {} },
-      evm_sigs: { "2": {} },
-      svm_ixs: { "3": {} },
-    });
+    expect(u).not.toHaveProperty("pending");
   });
 
   it("preserves identity fields when the same address re-sets (case-insensitive)", () => {

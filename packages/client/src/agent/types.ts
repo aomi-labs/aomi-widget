@@ -2,23 +2,22 @@ import type { components } from "../generated/agent-v1/types";
 
 type Schemas = components["schemas"];
 
-export type AgentStatus = Schemas["AgentDelta"]["status"];
-export type AgentMessage = Schemas["AgentMessage"];
-export type AgentActivity = Schemas["AgentActivity"];
-export type AgentActionBase = Schemas["AgentActionBase"];
-export type EvmTransactionIntent = Schemas["EvmTransactionIntent"];
-export type SvmTransactionIntent = Schemas["SvmTransactionIntent"];
-export type EvmExternalTransactionAction =
-  Schemas["EvmExternalTransactionAction"];
-export type SvmExternalTransactionAction =
-  Schemas["SvmExternalTransactionAction"];
-export type AgentSignablePayload = Schemas["SignablePayload"];
-export type SigningRequestAction = Schemas["SigningRequestAction"];
-export type AgentAction = Schemas["AgentAction"];
-export type AgentDelta = Schemas["AgentDelta"];
-export type AgentWalletContext = Schemas["WalletContext"];
-export type AgentStartRequest = Schemas["StartTurnRequest"];
-export type AgentActionResult = Schemas["ActionResult"];
-export type AgentSessionRecord = Schemas["AgentSession"];
-export type AgentSessionPage = Schemas["SessionPage"];
-export type AgentErrorBody = Schemas["ErrorEnvelope"];
+export type Event = Schemas["ConcreteEvent"];
+export type EventPage = Schemas["EventPage"];
+export type MessageEvent = Schemas["MessageEvent"];
+export type TurnStateChangedEvent = Schemas["TurnStateChangedEvent"];
+export type ToolEvent = Schemas["ToolEvent"];
+export type TaskEvent = Schemas["TaskEvent"];
+export type TitleEvent = Schemas["TitleEvent"];
+export type ErrorEvent = Schemas["ErrorEvent"];
+export type Action = Schemas["Action"];
+export type ActionRequest = Schemas["ActionRequest"];
+export type ActionResult = Schemas["ActionResult"];
+export type UserState = Schemas["UserState"];
+export type StartTurnIntent = Schemas["StartTurnIntent"];
+export type InterruptIntent = Schemas["InterruptIntent"];
+export type RespondToActionIntent = Schemas["RespondToActionIntent"];
+export type Session = Schemas["Session"];
+export type SessionPage = Schemas["SessionPage"];
+export type ErrorBody = Schemas["ErrorEnvelope"];
+export type TurnState = TurnStateChangedEvent["state"];

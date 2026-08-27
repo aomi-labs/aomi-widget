@@ -77,7 +77,7 @@ export async function logCommand(config: CliConfig): Promise<void> {
         if (content) {
           console.log(`${time}${CYAN}👤 You:${RESET} ${content}`);
         }
-      } else if (sender === "agent" || sender === "assistant") {
+      } else if (sender === "agent") {
         if (msg.tool_result) {
           const [toolName, result] = msg.tool_result;
           console.log(

@@ -4,7 +4,7 @@ import type {
   AomiTaskCompletedEvent,
   AomiTaskStartedEvent,
 } from "../types";
-import type { AgentActivity } from "../agent/types";
+import type { ToolEvent } from "../agent/types";
 import type { CliPaymentEvent } from "./payment";
 import { STATE_ROOT_DIR, getActiveStateFilePath } from "./state";
 
@@ -30,7 +30,7 @@ export function printJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
-export function printToolComplete(event: AgentActivity): void {
+export function printToolComplete(event: ToolEvent): void {
   const name = getToolNameFromEvent(event);
   const result = getToolResultFromEvent(event);
   const line = formatToolResultLine(name, result);
@@ -117,19 +117,21 @@ export function printPaymentEvent(event: CliPaymentEvent): void {
   }
 }
 
-export function getToolNameFromEvent(event: AgentActivity): string {
+export function getToolNameFromEvent(event: ToolEvent): string {
+  const value = event as ToolEvent & Record<string, unknown>;
   return (
-    (event.tool_name as string | undefined) ??
-    (event.name as string | undefined) ??
+    (value.tool_name as string | undefined) ??
+    (value.name as string | undefined) ??
     "unknown"
   );
 }
 
 export function getToolResultFromEvent(
-  event: AgentActivity,
+  event: ToolEvent,
 ): string | undefined {
+  const value = event as ToolEvent & Record<string, unknown>;
   return (
-    (event.result as string | undefined) ?? (event.output as string | undefined)
+    (value.result as string | undefined) ?? (value.output as string | undefined)
   );
 }
 
@@ -176,9 +178,7 @@ export function printNewAgentMessages(
   messages: AomiMessage[],
   lastPrintedCount: number,
 ): number {
-  const agentMessages = messages.filter(
-    (message) => message.sender === "agent" || message.sender === "assistant",
-  );
+  const agentMessages = messages.filter((message) => message.sender === "agent");
 
   let handled = lastPrintedCount;
   for (let i = lastPrintedCount; i < agentMessages.length; i++) {

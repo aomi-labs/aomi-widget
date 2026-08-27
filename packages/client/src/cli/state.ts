@@ -15,8 +15,6 @@ import {
   type UserState,
 } from "../user-state";
 import {
-  pendingTxsFromBackendUserState,
-  pendingSolTxsFromBackendUserState,
   walletSnapshotFromUserState,
 } from "./user-state";
 import type { CliAAProvider, CliEmbeddedProvider } from "./types";
@@ -817,7 +815,7 @@ export type SyncPendingTxsResult = {
   pendingSolTxs: PendingSolTx[];
 };
 
-export function syncPendingTxsFromUserState(
+export function syncWalletFromUserState(
   state: CliSessionState,
   userState: UserState | null | undefined,
 ): SyncPendingTxsResult {
@@ -840,17 +838,9 @@ export function syncPendingTxsFromUserState(
   // AA mode / smart account are backend authority and no longer round-tripped
   // through user_state; the CLI keeps its own `--aa` preference locally.
 
-  state.pendingTxs = pendingTxsFromBackendUserState(
-    normalizedUserState,
-    state.pendingTxs ?? [],
-  );
-  state.pendingSolTxs = pendingSolTxsFromBackendUserState(
-    normalizedUserState,
-    state.pendingSolTxs ?? [],
-  );
   writeState(state);
   return {
-    pendingTxs: state.pendingTxs,
-    pendingSolTxs: state.pendingSolTxs,
+    pendingTxs: state.pendingTxs ?? [],
+    pendingSolTxs: state.pendingSolTxs ?? [],
   };
 }

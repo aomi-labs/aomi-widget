@@ -2,36 +2,50 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createControlClient: vi.fn(),
-  callTool: vi.fn(),
-  run: vi.fn(),
+  invoke: vi.fn(),
+  listApps: vi.fn(),
 }));
 
 vi.mock("../../src/cli/context", () => ({
   createControlClient: (...args: unknown[]) => {
     mocks.createControlClient(...args);
-    return { pipeline: { callTool: mocks.callTool, run: mocks.run } };
+    return {
+      pipeline: {
+        apps: { list: mocks.listApps },
+        app: () => ({ invoke: mocks.invoke }),
+      },
+    };
   },
 }));
 
 vi.mock("../../src/cli/cli-session", () => ({
-  CliSession: { load: () => ({ sessionId: "active-session" }) },
+  CliSession: {
+    load: () => ({ sessionId: "active-session", app: "portfolio" }),
+  },
 }));
 
 import {
   parsePipelineArguments,
+  pipelineAppsCommand,
   pipelineCallCommand,
-  pipelineRunCommand,
 } from "../../src/cli/commands/pipeline";
 
 describe("Pipeline CLI", () => {
   beforeEach(() => {
     mocks.createControlClient.mockReset();
-    mocks.callTool.mockReset().mockResolvedValue({ balance: 1 });
-    mocks.run.mockReset().mockResolvedValue({ value: 1, steps: [] });
+    mocks.invoke.mockReset().mockResolvedValue({ balance: 1 });
+    mocks.listApps.mockReset().mockResolvedValue({
+      kind: "directory",
+      path: "/v1/pipeline/apps",
+      entries: [
+        { name: "portfolio", kind: "directory", href: "/portfolio" },
+        { name: "swap", kind: "directory", href: "/swap" },
+      ],
+    });
     vi.spyOn(console, "log").mockImplementation(() => undefined);
   });
 
-  it("calls only through client.pipeline with public execution context", async () => {
+  it("invokes the selected app operation through the filesystem API", async () => {
     await pipelineCallCommand(
       { baseUrl: "https://portal.example", secrets: {} },
       {
@@ -45,12 +59,11 @@ describe("Pipeline CLI", () => {
       },
     );
 
-    expect(mocks.callTool).toHaveBeenCalledWith(
+    expect(mocks.invoke).toHaveBeenCalledWith(
+      "svm_get_balance",
       {
+        owner: "wallet",
         sessionId: "active-session",
-        toolId: "svm_get_balance",
-        arguments: { owner: "wallet" },
-        app: "portfolio",
         applicationId: 42,
         platform: "community",
         skills: ["balances"],
@@ -66,21 +79,15 @@ describe("Pipeline CLI", () => {
     );
   });
 
-  it("passes the MCP program grammar through without local interpretation", async () => {
-    const program = "balance=$(svm_get_balance owner=wallet)\nreturn $balance";
-    await pipelineRunCommand(
-      { secrets: {} },
-      { program, idempotencyKey: "run-1" },
-    );
+  it("filters the canonical app directory locally", async () => {
+    await pipelineAppsCommand({ secrets: {} }, { query: "port", limit: 1 });
 
-    expect(mocks.run).toHaveBeenCalledWith(
-      {
-        sessionId: "active-session",
-        program,
-        app: "default",
-        skills: [],
-      },
-      { idempotencyKey: "run-1" },
+    expect(mocks.listApps).toHaveBeenCalledTimes(1);
+    expect(console.log).toHaveBeenCalledWith(
+      expect.stringContaining('"name": "portfolio"'),
+    );
+    expect(console.log).not.toHaveBeenCalledWith(
+      expect.stringContaining('"name": "swap"'),
     );
   });
 
@@ -90,17 +97,17 @@ describe("Pipeline CLI", () => {
     );
   });
 
-  it("rejects invalid dynamic application ids before execution", async () => {
+  it("rejects invalid application ids before invocation", async () => {
     await expect(
-      pipelineRunCommand(
+      pipelineCallCommand(
         { secrets: {} },
         {
-          program: "return value",
+          toolId: "balance",
           applicationId: "not-an-id",
-          idempotencyKey: "run-2",
+          idempotencyKey: "call-2",
         },
       ),
     ).rejects.toThrow("--application-id must be a positive integer");
-    expect(mocks.run).not.toHaveBeenCalled();
+    expect(mocks.invoke).not.toHaveBeenCalled();
   });
 });

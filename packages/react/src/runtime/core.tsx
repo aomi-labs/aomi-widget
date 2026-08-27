@@ -21,7 +21,7 @@ import {
 } from "./orchestrator";
 import { buildThreadListAdapter } from "./threadlist-adapter";
 import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
-import { useWalletHandler } from "../handlers/wallet-handler";
+import { useActionHandler } from "../handlers/action-handler";
 import {
   RuntimeUserStateProvider,
   useRuntimeUserStateEffects,
@@ -101,13 +101,13 @@ export function AomiRuntimeCore({
   } = useControl();
 
   // ---------------------------------------------------------------------------
-  // Wallet handler (receives requests from orchestrator)
+  // Action handler
   // ---------------------------------------------------------------------------
   const sessionManagerRef = useRef<
     ReturnType<typeof useRuntimeOrchestrator>["sessionManager"] | null
   >(null);
 
-  const walletHandler = useWalletHandler({
+  const actionHandler = useActionHandler({
     getSession: () =>
       sessionManagerRef.current?.get(threadContext.currentThreadId),
   });
@@ -163,7 +163,7 @@ export function AomiRuntimeCore({
       // keeps the same thread so payment setup can retry without another
       // create/model round trip.
     },
-    onPendingRequestsChange: walletHandler.setRequests,
+    onActionsChange: actionHandler.setActions,
     onEvent: (event) => eventContext.dispatch(event),
   });
 
@@ -559,13 +559,13 @@ export function AomiRuntimeCore({
       dismissNotification: notificationContext.dismissNotification,
       clearAllNotifications: notificationContext.clearAll,
 
-      // Wallet API
-      pendingWalletRequests: walletHandler.pendingRequests,
-      hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
-      startWalletRequest: walletHandler.startRequest,
-      dismissWalletRequest: walletHandler.dismissRequest,
-      resolveWalletRequest: walletHandler.resolveRequest,
-      rejectWalletRequest: walletHandler.rejectRequest,
+      // Action API
+      pendingActions: actionHandler.pendingActions,
+      hasBlockingActions: actionHandler.hasBlockingActions,
+      startAction: actionHandler.startAction,
+      dismissAction: actionHandler.dismissAction,
+      respondToAction: actionHandler.respondToAction,
+      rejectAction: actionHandler.rejectAction,
       simulateBatchTransactions,
 
       // Event API
@@ -588,7 +588,7 @@ export function AomiRuntimeCore({
       sendMessage,
       cancelGeneration,
       notificationContext,
-      walletHandler,
+      actionHandler,
       simulateBatchTransactions,
       eventContext,
     ],

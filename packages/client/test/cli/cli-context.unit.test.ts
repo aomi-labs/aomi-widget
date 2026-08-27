@@ -20,7 +20,7 @@ describe("CLI control client", () => {
       baseUrl: "https://api.example",
       accountBearer: "explicit-bearer",
       secrets: {},
-    }).pipeline.listApps();
+    }).pipeline.apps.list();
 
     const headers = new Headers(request.mock.calls[0]?.[1]?.headers);
     expect(headers.get("authorization")).toBeNull();

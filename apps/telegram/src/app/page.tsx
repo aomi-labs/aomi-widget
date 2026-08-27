@@ -3,17 +3,17 @@
 import { useEffect, useRef } from "react";
 import { useAccount, useModal } from "@getpara/react-sdk-lite";
 
-import { useAomiWalletRequest } from "@/hooks/use-aomi-wallet-request";
+import { useAomiAction } from "@/hooks/use-aomi-action";
 import { useCanonicalAccount } from "@/hooks/use-canonical-account";
 import { useTelegramLaunch } from "@/hooks/use-telegram-launch";
-import { useWalletExecutor } from "@/hooks/use-wallet-executor";
-import { describeRequest, requestChain } from "@/lib/wallet-request";
+import { useActionExecutor } from "@/hooks/use-action-executor";
+import { actionChain, describeAction } from "@/lib/action";
 
 function statusText(input: {
   account: ReturnType<typeof useCanonicalAccount>;
-  execution: ReturnType<typeof useWalletExecutor>;
+  execution: ReturnType<typeof useActionExecutor>;
   launch: ReturnType<typeof useTelegramLaunch>;
-  walletRequest: ReturnType<typeof useAomiWalletRequest>;
+  actionState: ReturnType<typeof useAomiAction>;
 }): string {
   if (input.launch.status === "loading") return "Opening Telegram wallet…";
   if (input.launch.status === "error") return "Open this wallet from Telegram.";
@@ -23,18 +23,17 @@ function statusText(input: {
   if (input.account.status === "error")
     return "Could not connect your Aomi account.";
   if (!input.launch.context?.sessionId) return "Wallet connected";
-  if (input.walletRequest.status === "error")
-    return "Could not load the wallet request.";
+  if (input.actionState.status === "error") return "Could not load the Action.";
   if (
-    input.walletRequest.status === "loading" ||
-    input.walletRequest.status === "waiting"
+    input.actionState.status === "loading" ||
+    input.actionState.status === "waiting"
   ) {
-    return "Waiting for the wallet request…";
+    return "Waiting for an Action…";
   }
   if (input.execution.status === "awaiting_wallet") return "Signing…";
   if (input.execution.status === "done") return "Approved";
   if (input.execution.status === "error")
-    return "The wallet request was not approved.";
+    return "The Action was not approved.";
   return "Wallet connected";
 }
 
@@ -44,15 +43,15 @@ export default function Home() {
   const opened = useRef(false);
   const launch = useTelegramLaunch();
   const canonicalAccount = useCanonicalAccount(launch.context);
-  const walletRequest = useAomiWalletRequest({
+  const actionState = useAomiAction({
     enabled: launch.status === "ready" && canonicalAccount.status === "ready",
     provider: canonicalAccount.provider,
     requestId: launch.context?.requestId ?? null,
     sessionId: launch.context?.sessionId ?? null,
   });
-  const execution = useWalletExecutor({
-    request: walletRequest.request,
-    session: walletRequest.session,
+  const execution = useActionExecutor({
+    action: actionState.action,
+    session: actionState.session,
   });
 
   useEffect(() => {
@@ -61,8 +60,8 @@ export default function Home() {
     openModal();
   }, [launch.status, openModal]);
 
-  const summary = walletRequest.request
-    ? describeRequest(walletRequest.request, requestChain(walletRequest.request))
+  const summary = actionState.action
+    ? describeAction(actionState.action, actionChain(actionState.action))
     : null;
 
   // Nothing is signed until the user reads this and taps Approve — the Telegram
@@ -111,7 +110,7 @@ export default function Home() {
     account: canonicalAccount,
     execution,
     launch,
-    walletRequest,
+    actionState,
   });
 
   return (

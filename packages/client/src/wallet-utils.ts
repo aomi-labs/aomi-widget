@@ -12,7 +12,6 @@
 
 import { type Hex, getAddress } from "viem";
 import type { AAWalletCall } from "./aa/types";
-import { UserState } from "./user-state";
 
 export type WalletTxAaPreference = "auto" | "eip4337" | "eip7702" | "none";
 
@@ -38,10 +37,6 @@ export type WalletTxPayload = {
   aaStrict?: boolean;
   requestId?: string;
   calls?: WalletTxCallPayload[];
-};
-
-type HydrateTxPayloadOptions = {
-  strict?: boolean;
 };
 
 export type WalletEip712Payload = {
@@ -135,16 +130,6 @@ function asRecord(value: unknown): UnknownRecord | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value))
     return undefined;
   return value as UnknownRecord;
-}
-
-function pendingTxsFromUserState(
-  userState: unknown,
-): UnknownRecord | undefined {
-  const normalized = UserState.normalize(userState as UserState);
-  const pending = asRecord(normalized?.pending);
-  return (
-    asRecord(pending?.evm_txs) ?? asRecord(asRecord(userState)?.pending_txs)
-  );
 }
 
 function getToolArgs(payload: unknown): UnknownRecord {
@@ -318,27 +303,6 @@ function normalizeAddress(value: unknown): string | undefined {
   }
 }
 
-export function normalizePendingTxData(
-  pendingEntry: UnknownRecord,
-): string | undefined {
-  const data =
-    typeof pendingEntry.data === "string" ? pendingEntry.data : undefined;
-  if (!data) {
-    return undefined;
-  }
-
-  const kind =
-    typeof pendingEntry.kind === "string"
-      ? pendingEntry.kind.toLowerCase()
-      : undefined;
-
-  if (kind === "native_transfer") {
-    return undefined;
-  }
-
-  return data;
-}
-
 // =============================================================================
 // Normalization
 // =============================================================================
@@ -383,91 +347,6 @@ export function normalizeTxPayload(payload: unknown): WalletTxPayload | null {
     aaPreference,
     aaStrict,
     requestId,
-  };
-}
-
-export function hydrateTxPayloadFromUserState(
-  payload: WalletTxPayload,
-  userState: unknown,
-  options?: HydrateTxPayloadOptions,
-): WalletTxPayload {
-  const strict = options?.strict === true;
-  const txIds =
-    Array.isArray(payload.txIds) && payload.txIds.length > 0
-      ? payload.txIds
-      : payload.txId !== undefined
-        ? [payload.txId]
-        : [];
-  if (txIds.length === 0) {
-    if (strict) {
-      throw new Error("pending_tx_not_found");
-    }
-    return payload;
-  }
-
-  const pendingTxsRaw = pendingTxsFromUserState(userState);
-  if (!pendingTxsRaw) {
-    if (strict) {
-      throw new Error("pending_tx_not_found");
-    }
-    return payload;
-  }
-
-  const calls: WalletTxCallPayload[] = [];
-  for (const txId of txIds) {
-    const pendingEntry = asRecord(pendingTxsRaw[String(txId)]);
-    if (!pendingEntry) {
-      if (strict) {
-        throw new Error("pending_tx_not_found");
-      }
-      continue;
-    }
-
-    const to = normalizeAddress(pendingEntry.to);
-    if (!to) {
-      if (strict) {
-        throw new Error("pending_transaction_missing_call_data");
-      }
-      continue;
-    }
-
-    calls.push({
-      txId,
-      to,
-      value: parseValue(pendingEntry.value),
-      data: normalizePendingTxData(pendingEntry),
-      chainId:
-        parseChainId(pendingEntry.chain_id) ??
-        parseChainId(pendingEntry.chainId) ??
-        parseChainId(payload.chainId),
-      from:
-        typeof pendingEntry.from === "string" ? pendingEntry.from : undefined,
-      gas: typeof pendingEntry.gas === "string" ? pendingEntry.gas : undefined,
-      description:
-        typeof pendingEntry.label === "string"
-          ? pendingEntry.label
-          : typeof pendingEntry.description === "string"
-            ? pendingEntry.description
-            : undefined,
-    });
-  }
-  if (calls.length === 0) {
-    if (strict) {
-      throw new Error("pending_tx_not_found");
-    }
-    return payload;
-  }
-  const first = calls[0];
-
-  return {
-    ...payload,
-    txIds,
-    txId: payload.txId ?? first.txId,
-    to: payload.to ?? first.to,
-    value: payload.value ?? first.value,
-    data: payload.data ?? first.data,
-    chainId: payload.chainId ?? first.chainId,
-    calls,
   };
 }
 

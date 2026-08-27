@@ -7,68 +7,48 @@ export async function pipelineAppsCommand(
   config: CliConfig,
   options: { query?: string; limit?: number },
 ): Promise<void> {
-  const pipeline = createControlClient(config).pipeline;
-  printJson(
-    options.query
-      ? await pipeline.searchApps({ q: options.query, limit: options.limit })
-      : await pipeline.listApps({ limit: options.limit }),
-  );
+  const directory = await createControlClient(config).pipeline.apps.list();
+  printJson(filterEntries(directory, options));
 }
 
 export async function pipelineAppCommand(
   config: CliConfig,
   app: string,
 ): Promise<void> {
-  printJson(await createControlClient(config).pipeline.getApp(app));
+  printJson(await createControlClient(config).pipeline.app(app).directory());
 }
 
 export async function pipelineToolsCommand(
   config: CliConfig,
-  options: {
-    query?: string;
-    app?: string;
-    namespace?: string;
-    limit?: number;
-  },
+  options: { query?: string; app?: string; namespace?: string; limit?: number },
 ): Promise<void> {
-  const pipeline = createControlClient(config).pipeline;
-  printJson(
-    options.query
-      ? await pipeline.searchTools({
-          q: options.query,
-          app: options.app,
-          limit: options.limit,
-        })
-      : await pipeline.listTools({
-          app: options.app,
-          namespace: options.namespace,
-          limit: options.limit,
-        }),
-  );
+  const app = options.app?.trim() || CliSession.load()?.app || config.app || "default";
+  const directory = await createControlClient(config).pipeline.app(app).operations();
+  printJson(filterEntries(directory, options));
 }
 
 export async function pipelineToolCommand(
   config: CliConfig,
-  toolId: string,
+  operation: string,
   app?: string,
 ): Promise<void> {
-  printJson(
-    await createControlClient(config).pipeline.getTool(toolId, { app }),
-  );
+  const owner = app?.trim() || CliSession.load()?.app || config.app || "default";
+  printJson(await createControlClient(config).pipeline.app(owner).operation(operation));
 }
 
 export async function pipelineSkillsCommand(
   config: CliConfig,
   limit?: number,
 ): Promise<void> {
-  printJson(await createControlClient(config).pipeline.listSkills({ limit }));
+  const directory = await createControlClient(config).pipeline.skills.list();
+  printJson(filterEntries(directory, { limit }));
 }
 
 export async function pipelineSkillCommand(
   config: CliConfig,
-  skillId: string,
+  skill: string,
 ): Promise<void> {
-  printJson(await createControlClient(config).pipeline.getSkill(skillId));
+  printJson(await createControlClient(config).pipeline.skill(skill).directory());
 }
 
 export async function pipelineCallCommand(
@@ -84,56 +64,25 @@ export async function pipelineCallCommand(
     idempotencyKey: string;
   },
 ): Promise<void> {
-  const result = await createControlClient(config, {
+  const app = options.app?.trim() || CliSession.load()?.app || config.app || "default";
+  const client = createControlClient(config, {
     payment: true,
     onPayment: printPaymentEvent,
-  }).pipeline.callTool(
-    {
-      sessionId: pipelineSessionId(options.sessionId),
-      toolId: options.toolId,
-      arguments: parseArguments(options.arguments),
-      app: options.app?.trim() || "default",
-      applicationId: pipelineApplicationId(options.applicationId),
-      platform: options.platform?.trim() || undefined,
-      skills: options.skills ?? [],
-    },
-    { idempotencyKey: options.idempotencyKey },
-  );
-  printJson(result);
-}
-
-export async function pipelineRunCommand(
-  config: CliConfig,
-  options: {
-    sessionId?: string;
-    program: string;
-    app?: string;
-    applicationId?: string;
-    platform?: string;
-    skills?: string[];
-    idempotencyKey: string;
-  },
-): Promise<void> {
-  const result = await createControlClient(config, {
-    payment: true,
-    onPayment: printPaymentEvent,
-  }).pipeline.run(
-    {
-      sessionId: pipelineSessionId(options.sessionId),
-      program: options.program,
-      app: options.app?.trim() || "default",
-      applicationId: pipelineApplicationId(options.applicationId),
-      platform: options.platform?.trim() || undefined,
-      skills: options.skills ?? [],
-    },
-    { idempotencyKey: options.idempotencyKey },
-  );
-  printJson(result);
-}
-
-function pipelineSessionId(explicit?: string): string {
-  return (
-    explicit?.trim() || CliSession.load()?.sessionId || crypto.randomUUID()
+  });
+  printJson(
+    await client.pipeline.app(app).invoke(
+      options.toolId,
+      {
+        ...parsePipelineArguments(options.arguments),
+        sessionId: pipelineSessionId(options.sessionId),
+        ...(pipelineApplicationId(options.applicationId)
+          ? { applicationId: pipelineApplicationId(options.applicationId) }
+          : {}),
+        ...(options.platform ? { platform: options.platform } : {}),
+        ...(options.skills?.length ? { skills: options.skills } : {}),
+      },
+      { idempotencyKey: options.idempotencyKey },
+    ),
   );
 }
 
@@ -148,7 +97,22 @@ export function parsePipelineArguments(
   return value as Record<string, unknown>;
 }
 
-const parseArguments = parsePipelineArguments;
+function filterEntries(
+  directory: { entries: Array<{ name: string }> },
+  options: { query?: string; namespace?: string; limit?: number },
+) {
+  const query = options.query?.trim().toLowerCase();
+  const namespace = options.namespace?.trim().toLowerCase();
+  const entries = directory.entries.filter((entry) => {
+    const name = entry.name.toLowerCase();
+    return (!query || name.includes(query)) && (!namespace || name.startsWith(`${namespace}.`));
+  });
+  return { ...directory, entries: entries.slice(0, options.limit) };
+}
+
+function pipelineSessionId(explicit?: string): string {
+  return explicit?.trim() || CliSession.load()?.sessionId || crypto.randomUUID();
+}
 
 function pipelineApplicationId(value?: string): number | undefined {
   if (!value?.trim()) return undefined;

@@ -4,12 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import type {
+  Action,
   AomiClient,
   AomiMessage,
   UserState,
-  WalletRequest,
 } from "@aomi-labs/client";
-import { CLIENT_TYPE_WEB_UI } from "@aomi-labs/client";
+import { CLIENT_TYPE_WEB_UI, parseAomiTaskEvent } from "@aomi-labs/client";
 import { Session as ClientSession } from "@aomi-labs/client";
 import {
   useThreadContext,
@@ -29,7 +29,7 @@ type OrchestratorOptions = {
   prepareThreadForSend?: (threadId: string) => Promise<void> | void;
   onSendSuccess?: (threadId: string) => void;
   onSendError?: (threadId: string, error: unknown) => Promise<void> | void;
-  onPendingRequestsChange?: (requests: WalletRequest[]) => void;
+  onActionsChange?: (actions: Action[]) => void;
   onEvent?: (event: {
     type: string;
     payload: unknown;
@@ -526,8 +526,8 @@ export function useRuntimeOrchestrator(
       );
 
       cleanups.push(
-        session.on("wallet_requests_changed", (requests) =>
-          optionsRef.current.onPendingRequestsChange?.(requests),
+        session.on("actions_changed", (actions) =>
+          optionsRef.current.onActionsChange?.(actions),
         ),
       );
 
@@ -564,7 +564,9 @@ export function useRuntimeOrchestrator(
         type: K,
       ) =>
         session.on(type, (event) => {
-          threadContextRef.current.applyTaskEvent(threadId, event);
+          const task = parseAomiTaskEvent(event);
+          if (!task) return;
+          threadContextRef.current.applyTaskEvent(threadId, task);
           optionsRef.current.onEvent?.({
             type,
             payload: event,
@@ -575,10 +577,7 @@ export function useRuntimeOrchestrator(
       cleanups.push(forwardTaskEvent("task_started"));
       cleanups.push(forwardTaskEvent("task_activity"));
       cleanups.push(forwardTaskEvent("task_completed"));
-      cleanups.push(forwardEvent("system_notice"));
       cleanups.push(forwardEvent("system_error"));
-      cleanups.push(forwardEvent("async_callback"));
-      cleanups.push(forwardEvent("user_state_request"));
 
       listenerCleanups.current.set(threadId, () => {
         for (const cleanup of cleanups) cleanup();
@@ -604,8 +603,8 @@ export function useRuntimeOrchestrator(
         existingSession &&
         (hydratedThreadIds.current.has(threadId) || cachedMessages.length > 0)
       ) {
-        optionsRef.current.onPendingRequestsChange?.(
-          existingSession.getPendingRequests(),
+        optionsRef.current.onActionsChange?.(
+          existingSession.getActions(),
         );
         if (threadContextRef.current.currentThreadId === threadId) {
           setIsRunning(existingSession.getIsProcessing());
@@ -620,8 +619,8 @@ export function useRuntimeOrchestrator(
           const session = getSession(threadId);
           await session.fetchCurrentState();
           hydratedThreadIds.current.add(threadId);
-          optionsRef.current.onPendingRequestsChange?.(
-            session.getPendingRequests(),
+          optionsRef.current.onActionsChange?.(
+            session.getActions(),
           );
 
           if (threadContextRef.current.currentThreadId === threadId) {
@@ -710,7 +709,7 @@ export function useRuntimeOrchestrator(
           threadId,
           sessionId: session.sessionId,
           isProcessing: session.getIsProcessing(),
-          pendingRequestCount: session.getPendingRequests().length,
+          pendingActionCount: session.getPendingActions().length,
         });
         optionsRef.current.onSendSuccess?.(threadId);
         if (!session.getIsProcessing()) {
@@ -725,8 +724,8 @@ export function useRuntimeOrchestrator(
           optimisticMessageId,
           "sent",
         );
-        optionsRef.current.onPendingRequestsChange?.(
-          session.getPendingRequests(),
+        optionsRef.current.onActionsChange?.(
+          session.getActions(),
         );
       } catch (error) {
         clearTimeout(submittingFallbackTimer);

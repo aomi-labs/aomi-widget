@@ -1,5 +1,5 @@
 import type { components } from "../generated/agent-v1/types";
-import type { WalletRequest, WalletRequestResult } from "../session/types";
+import type { Action, ActionResult } from "../agent/types";
 
 type Schemas = components["schemas"];
 
@@ -196,9 +196,9 @@ export interface EvmCommitResult {
   status: "committed" | "submitted" | "awaiting_wallet";
   digest: string;
   receipts?: PipelineTransactionReceipt[];
-  walletRequest?: Extract<WalletRequest, { kind: "transaction" | "signing" }>;
-  /** Present on high-level results when the configured wallet handled a request. */
-  walletResult?: WalletRequestResult;
+  action?: Action;
+  /** Present on high-level results when the configured wallet handled the Action. */
+  actionResult?: ActionResult;
 }
 
 export interface SvmAccountMeta {
@@ -279,97 +279,8 @@ export interface SvmCommitResult {
   status: "committed" | "submitted" | "awaiting_wallet";
   digest: string;
   receipts?: PipelineTransactionReceipt[];
-  walletRequest?: Extract<
-    WalletRequest,
-    { kind: "signing" | "solana_send" | "solana_sign_and_send" }
-  >;
-  /** Present on high-level results when the configured wallet handled a request. */
-  walletResult?: WalletRequestResult;
+  action?: Action;
+  /** Present on high-level results when the configured wallet handled the Action. */
+  actionResult?: ActionResult;
 }
-
-export interface AomiSigningAction {
-  id: string;
-  chainFamily: "evm" | "svm";
-  kind: "signing";
-  status: string;
-  description?: string;
-  signer: string;
-  chainId?: number;
-  cluster?: string;
-}
-
-export type AomiAction =
-  | EvmPresentedAction
-  | SvmPresentedAction
-  | AomiSigningAction;
-
-// ---------------------------------------------------------------------------
-// Deprecated flat Pipeline compatibility contract
-// ---------------------------------------------------------------------------
-
-export type PipelineCatalogResponse =
-  | Schemas["PipelineAppList"]
-  | Schemas["PipelineAppDescription"]
-  | Schemas["PipelineToolList"]
-  | Schemas["PipelineToolDescription"]
-  | Schemas["PipelineSkillList"]
-  | Schemas["PipelineSkill"]
-  | Schemas["PipelineSearchResults"];
-export type PipelineExecutionResponse =
-  | Schemas["PipelineToolCallResponse"]
-  | Schemas["PipelineRunResponse"];
-export type PipelineAction = Schemas["PipelineAction"];
 export type PipelineErrorBody = Schemas["ErrorEnvelope"];
-export type PipelineResource = Record<string, unknown>;
-
-export interface PipelineListOptions {
-  /** Result limit, bounded by the selected catalog operation. */
-  limit?: number;
-}
-
-export interface PipelineToolListOptions extends PipelineListOptions {
-  app?: string;
-  namespace?: string;
-}
-
-export interface PipelineSearchOptions extends PipelineListOptions {
-  q?: string;
-}
-
-export interface PipelineToolSearchOptions extends PipelineSearchOptions {
-  app?: string;
-}
-
-/** Headers binding one fail-closed, at-most-once compatibility execution. */
-export interface PipelineExecutionOptions {
-  idempotencyKey: string;
-  paymentSignature?: string;
-}
-
-export type PipelineAppsResponse = Schemas["PipelineAppList"];
-export type PipelineAppResponse = Schemas["PipelineAppDescription"];
-export type PipelineToolsResponse = Schemas["PipelineToolList"];
-export type PipelineToolResponse = Schemas["PipelineToolDescription"];
-export type PipelineSkillsResponse = Schemas["PipelineSkillList"];
-export type PipelineSearchResponse = Schemas["PipelineSearchResults"];
-
-type GeneratedPipelineToolCallRequest = Schemas["PipelineToolCallRequest"];
-
-/** @deprecated Use chain lifecycle or scoped operation methods. */
-export type PipelineToolCallRequest = Omit<
-  GeneratedPipelineToolCallRequest,
-  "skills"
-> & { skills?: string[] };
-
-type GeneratedPipelineRunRequest = Schemas["PipelineRunRequest"];
-type PipelineRunRequestBase = Omit<
-  GeneratedPipelineRunRequest,
-  "program" | "plan" | "skills"
-> & { skills?: string[] };
-
-/** @deprecated Use chain lifecycle or scoped operation methods. */
-export type PipelineRunRequest = PipelineRunRequestBase &
-  (
-    | { program: string; plan?: never }
-    | { program?: never; plan: Record<string, unknown> }
-  );
