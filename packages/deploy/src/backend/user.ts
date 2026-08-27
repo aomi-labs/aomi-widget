@@ -18,6 +18,7 @@ import type {
   GetUserPaymentsInput,
   GetUserProjectLatestDeploymentInput,
   GetUserProjectDeploymentInput,
+  GetUserProjectReleaseSecretsInput,
   GetUserProjectRequiredSecretsInput,
   GetUserProjectUsageInput,
   GetUserStatementsInput,
@@ -44,6 +45,7 @@ import type {
   ProjectSdkUpgradeResult,
   ProjectSdkUpgradeStatusResult,
   SaveBuilderModelKeyInput,
+  SecretSlot,
   SetModelKeyGrantsInput,
   UpdateUserBotInput,
   UserDeployment,
@@ -53,6 +55,7 @@ import type {
   UserProject,
   UserProjectAppsResult,
   UserProjectLatestDeployment,
+  UserProjectReleaseSecretsResult,
   UserProjectRequiredSecretsResult,
   UserTransactionsResult,
 } from "../types";
@@ -88,6 +91,35 @@ import {
   setLimit,
 } from "../wire";
 import { BackendPlatformClient } from "./platform";
+
+/** The `by_app` map of either secrets read, before per-read shaping. */
+function rawSecretsByApp(
+  raw: Record<string, unknown>,
+): Record<
+  string,
+  { application_id?: unknown; release_tag?: unknown; slots?: unknown[] }
+> {
+  return (raw.by_app ?? {}) as Record<
+    string,
+    { application_id?: unknown; release_tag?: unknown; slots?: unknown[] }
+  >;
+}
+
+/** Slots the backend declared, dropping any entry that is not a whole slot. */
+function parseSecretSlots(slots: unknown[] | undefined): SecretSlot[] {
+  return (slots ?? []).flatMap((slot) => {
+    if (!slot || typeof slot !== "object") return [];
+    const rawSlot = slot as Record<string, unknown>;
+    const name = rawSlot.name;
+    const description = rawSlot.description;
+    const requiredFlag = rawSlot.required;
+    return typeof name === "string" &&
+      typeof description === "string" &&
+      typeof requiredFlag === "boolean"
+      ? [{ name, description, required: requiredFlag }]
+      : [];
+  });
+}
 
 function botRegistrations(raw: Record<string, unknown>): BotRegistration[] {
   return ((raw.bot_registrations ?? []) as unknown[]).map(camelBotRegistration);
@@ -249,31 +281,62 @@ export class BackendClient extends BackendPlatformClient {
       "get_user_project_required_secrets",
       (raw) => ({
         byApp: Object.fromEntries(
-          Object.entries(
-            (raw.by_app ?? {}) as Record<
-              string,
-              { application_id?: unknown; slots?: unknown[] }
-            >,
-          ).map(([app, value]) => [
+          Object.entries(rawSecretsByApp(raw)).map(([app, value]) => [
             app,
             {
               applicationId: Number(value.application_id),
-              slots: (value.slots ?? []).flatMap((slot) => {
-                if (!slot || typeof slot !== "object") return [];
-                const rawSlot = slot as Record<string, unknown>;
-                const name = rawSlot.name;
-                const description = rawSlot.description;
-                const requiredFlag = rawSlot.required;
-                return typeof name === "string" &&
-                  typeof description === "string" &&
-                  typeof requiredFlag === "boolean"
-                  ? [{ name, description, required: requiredFlag }]
-                  : [];
-              }),
+              slots: parseSecretSlots(value.slots),
             },
           ]),
         ),
       }),
+    );
+  }
+
+  /**
+   * What each *candidate* release declares it needs, read by the backend on
+   * the platform's own GitHub App installation.
+   *
+   * The console has no GitHub credential of its own: reading release manifests
+   * from the BFF required an operator-planted token, and its absence failed
+   * activation closed with an error no retry could clear. The backend already
+   * holds the credential it verifies releases with, so the question belongs
+   * there.
+   */
+  async getUserProjectReleaseSecrets(
+    input: GetUserProjectReleaseSecretsInput,
+  ): Promise<UserProjectReleaseSecretsResult> {
+    const pairs = input.pairs.map((pair) => ({
+      app: required(pair.app, "app"),
+      releaseTag: required(pair.releaseTag, "releaseTag"),
+    }));
+    if (pairs.length === 0) return { byApp: {} };
+    return this.ownedGetLoose(
+      input,
+      "releases/required-secrets",
+      "get_user_project_release_secrets",
+      (raw) => ({
+        byApp: Object.fromEntries(
+          Object.entries(rawSecretsByApp(raw)).map(([app, value]) => [
+            app,
+            {
+              applicationId:
+                value.application_id === null ||
+                value.application_id === undefined
+                  ? null
+                  : Number(value.application_id),
+              releaseTag: String(value.release_tag ?? ""),
+              slots: parseSecretSlots(value.slots),
+            },
+          ]),
+        ),
+      }),
+      (params) => {
+        // Positional pairing, comma-separated: the release-tag and app-name
+        // grammars contain no commas, so this needs no escaping.
+        params.set("release_tags", pairs.map((p) => p.releaseTag).join(","));
+        params.set("apps", pairs.map((p) => p.app).join(","));
+      },
     );
   }
 
@@ -325,7 +388,10 @@ export class BackendClient extends BackendPlatformClient {
       "promote",
       bearer,
     );
-    await this.audit("promote", input.actor, { projectId, apps: input.apps ?? [] });
+    await this.audit("promote", input.actor, {
+      projectId,
+      apps: input.apps ?? [],
+    });
     const ok = raw.ok === true;
     const activation = camelActivateResult(raw).activation;
     return {

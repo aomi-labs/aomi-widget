@@ -53,7 +53,6 @@ export {
 } from "./http";
 
 export {
-  fetchReleaseSecretSlots,
   missingSecretsForActivation,
   RequiredSecretsCheckError,
   REQUIRED_SECRETS_CHECK_UNAVAILABLE,

@@ -100,6 +100,25 @@ function activationProjectWithRepo(platformRepo: string, id = 99) {
   });
 }
 
+/** The backend's declared-slot answer for the one app these tests activate.
+ *  Reading release manifests is the backend's job now — it holds the platform's
+ *  GitHub App installation; this BFF holds no GitHub credential at all. */
+function releaseSecrets(...required: string[]) {
+  return Response.json({
+    by_app: {
+      "my-bot": {
+        application_id: 77,
+        release_tag: "apps-555-r1-my-bot-abc",
+        slots: required.map((name) => ({
+          name,
+          description: "d",
+          required: true,
+        })),
+      },
+    },
+  });
+}
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.restoreAllMocks();
@@ -726,13 +745,12 @@ describe("createLaunchRoutes activation security", () => {
 
   it("relays Manager's rejection for an unmatched activate app/tag pair", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
-    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationProjectWithRepo("aomi-labs/community"))
-      .mockResolvedValueOnce(Response.json({ by_app: {} }))
-      .mockResolvedValueOnce(Response.json({ assets: [] }))
-      .mockResolvedValueOnce(Response.json({ error: "release not found" }, { status: 404 }));
+      .mockResolvedValueOnce(
+        Response.json({ error: "release not found" }, { status: 404 }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await routes().activate(
@@ -743,47 +761,26 @@ describe("createLaunchRoutes activation security", () => {
       }),
     );
 
-    // The sequence is intentionally Project lookup → secret state → GitHub
-    // release manifest → Project activation; keep this assertion next to the
-    // Manager-rejection regression.
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    // The sequence is intentionally Project lookup → declared slots → secret
+    // state → Project activation. An unmatched pair is now refused by the
+    // declared-slots read, which validates the same projection membership
+    // activation does; its 404 is relayed rather than reported as a failed
+    // check.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(res.status).toBe(404);
   });
 
   it("409s when a required secret is unfilled", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
-    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationProjectWithRepo("aomi-labs/my-bot-app"))
       .mockResolvedValueOnce(
+        releaseSecrets("MY_BOT_API_KEY", "MY_BOT_SECRET_KEY"),
+      )
+      .mockResolvedValueOnce(
         Response.json({
           by_app: { "my-bot": ["$SECRET:APP:my-bot::MY_BOT_API_KEY"] },
-        }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({
-          assets: [
-            { name: "manifest.json", url: "https://api.github.com/asset/1" },
-          ],
-        }),
-      )
-      .mockResolvedValueOnce(
-        Response.json({
-          plugins: {
-            "my-bot": {
-              file: "libmybot.dylib",
-              sha256: "x",
-              secrets: [
-                { name: "MY_BOT_API_KEY", description: "d", required: true },
-                {
-                  name: "MY_BOT_SECRET_KEY",
-                  description: "d",
-                  required: true,
-                },
-              ],
-            },
-          },
         }),
       );
     vi.stubGlobal("fetch", fetchMock);
@@ -802,17 +799,15 @@ describe("createLaunchRoutes activation security", () => {
       error: "missing required secrets",
       missing: { "my-bot": ["MY_BOT_SECRET_KEY"] },
     });
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it("activates when the release manifest declares no secrets for the app", async () => {
+  it("activates when the release declares no secrets for the app", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
-    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationProjectWithRepo("aomi-labs/my-bot-app"))
-      .mockResolvedValueOnce(Response.json({ by_app: {} }))
-      .mockResolvedValueOnce(Response.json({ assets: [] }))
+      .mockResolvedValueOnce(releaseSecrets())
       .mockResolvedValueOnce(
         Response.json({ ok: true, activation: { apps: [] } }),
       );
@@ -827,25 +822,16 @@ describe("createLaunchRoutes activation security", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    // No declared slots, so the vault is never read: three calls, not four.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("activates an owned app/tag pair", async () => {
     session.mockResolvedValueOnce({ githubUserId: "42", githubLogin: "alice" });
-    vi.stubEnv("GITHUB_TOKEN", "gh-token");
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(activationProject())
-      .mockResolvedValueOnce(
-        Response.json({
-          latest_deployment: {
-            platform_repo: "aomi-labs/community",
-            created_at: 1,
-          },
-        }),
-      )
-      .mockResolvedValueOnce(Response.json({ by_app: {} }))
-      .mockResolvedValueOnce(Response.json({ assets: [] }))
+      .mockResolvedValueOnce(releaseSecrets())
       .mockResolvedValueOnce(
         Response.json({ ok: true, activation: { apps: [] } }),
       );
@@ -860,8 +846,12 @@ describe("createLaunchRoutes activation security", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(fetchMock).toHaveBeenCalledTimes(5);
-    expect(fetchMock.mock.calls[4][1]).toMatchObject({
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // The declared-slots read is a GET on the project's own release door.
+    expect(String(fetchMock.mock.calls[1][0])).toContain(
+      "/releases/required-secrets",
+    );
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({
       method: "POST",
       body: JSON.stringify({
         release_tags: ["apps-555-r1-my-bot-abc"],

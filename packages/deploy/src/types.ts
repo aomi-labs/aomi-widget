@@ -69,6 +69,7 @@ export interface AuditEvent {
     | "get_user_project_latest_deployment"
     | "get_user_project_deployment"
     | "get_user_project_required_secrets"
+    | "get_user_project_release_secrets"
     | "deactivate"
     | "ingest_secrets";
   platform?: string;
@@ -526,6 +527,28 @@ export interface GetUserProjectRequiredSecretsInput extends BearerOverride {
 
 export interface UserProjectRequiredSecretsResult {
   byApp: Record<string, { applicationId: number; slots: SecretSlot[] }>;
+}
+
+/** Declared slots for *candidate* releases — the pre-activation counterpart of
+ *  {@link GetUserProjectRequiredSecretsInput}, which can only answer for
+ *  releases already live. */
+export interface GetUserProjectReleaseSecretsInput extends BearerOverride {
+  githubUserId: string;
+  projectId: number;
+  pairs: { app: string; releaseTag: string }[];
+}
+
+export interface UserProjectReleaseSecretsResult {
+  byApp: Record<
+    string,
+    {
+      /** Null only if the app has no row yet, which a deployed release always
+       *  has: the row is bound at deploy time, not at first activation. */
+      applicationId: number | null;
+      releaseTag: string;
+      slots: SecretSlot[];
+    }
+  >;
 }
 
 export interface ListUserProjectDeploymentsInput extends BearerOverride {
