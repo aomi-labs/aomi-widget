@@ -28,11 +28,11 @@ export default function ContactPage() {
         >
           <img
             src="/assets/images/bubble.svg"
-            alt="Aomi"
+            alt=""
             className="h-6 w-6 drop-shadow-sm invert"
           />
-          <span className="font-geist text-sm font-semibold tracking-tight text-white drop-shadow-sm">
-            Aomi
+          <span className="font-pt-serif text-sm font-bold tracking-tight text-white drop-shadow-sm">
+            aomi
           </span>
         </Link>
       </nav>
@@ -140,7 +140,9 @@ export default function ContactPage() {
                   <h3 className="font-geist mb-1 text-lg font-semibold text-white">
                     Twitter / X
                   </h3>
-                  <p className="font-geist text-sm text-stone-400">@aomi_labs</p>
+                  <p className="font-geist text-sm text-stone-400">
+                    @aomi_labs
+                  </p>
                 </div>
               </a>
 
@@ -196,7 +198,9 @@ export default function ContactPage() {
                   <h3 className="font-geist mb-1 text-lg font-semibold text-white">
                     Telegram
                   </h3>
-                  <p className="font-geist text-sm text-stone-400">@aomi_sendit_bot</p>
+                  <p className="font-geist text-sm text-stone-400">
+                    @aomi_sendit_bot
+                  </p>
                 </div>
               </a>
 

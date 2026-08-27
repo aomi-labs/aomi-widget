@@ -24,8 +24,8 @@ export default function ResearchPage() {
       <header>
         <Link
           href="/"
-          aria-label="Aomi home"
-          className="flex items-center justify-end gap-2 pr-5 font-serif text-xl font-bold tracking-tight text-foreground"
+          aria-label="aomi home"
+          className="font-pt-serif flex items-center justify-end gap-2 pr-5 text-xl font-bold tracking-tight text-foreground"
         >
           <img
             src="/assets/images/bubble.svg"

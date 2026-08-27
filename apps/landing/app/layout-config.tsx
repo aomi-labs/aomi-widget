@@ -29,8 +29,8 @@ export const baseLayoutOptions: BaseLayoutProps = {
   nav: {
     title: (
       <span className="flex items-center gap-2">
-        <img src="/assets/images/bubble.svg" alt="Aomi" className="h-5 w-5" />
-        <span className="font-semibold tracking-tight">Aomi</span>
+        <img src="/assets/images/bubble.svg" alt="" className="h-5 w-5" />
+        <span className="font-pt-serif font-bold tracking-tight">aomi</span>
       </span>
     ),
     url: "https://aomi.dev",

@@ -18,7 +18,7 @@ export function AomiMark({ className }: { className?: string }) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
-      className={cn("shrink-0 text-foreground", className)}
+      className={cn("text-foreground shrink-0", className)}
     >
       <path
         d="M184.214 54.146C184.214 37.0059 170.37 23.1111 153.293 23.1111C136.215 23.1111 122.371 37.0059 122.371 54.146C122.371 71.2861 136.215 85.1809 153.293 85.1809C170.37 85.1809 184.214 71.2861 184.214 54.146ZM207.241 54.146C207.241 84.0501 183.088 108.292 153.293 108.292C123.498 108.292 99.3442 84.0501 99.3442 54.146C99.3442 24.242 123.498 7.65756e-07 153.293 0C183.088 0 207.241 24.242 207.241 54.146Z"
@@ -51,11 +51,11 @@ export function AomiLogo({
       <AomiMark className={cn("h-5 w-5", markClassName)} />
       {!markOnly && (
         <div className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-[13px] font-semibold leading-none text-foreground">
-            Aomi
+          <span className="font-display text-foreground truncate text-[14px] font-bold leading-none tracking-tight">
+            aomi
           </span>
           {showBuildLabel ? (
-            <span className="shrink-0 rounded-sm bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-subtle">
+            <span className="bg-surface-2 text-subtle shrink-0 rounded-sm px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide">
               Build
             </span>
           ) : null}
@@ -70,7 +70,7 @@ export function AomiLogo({
     <Link
       href={href}
       onClick={onClick}
-      className="rounded-md outline-none transition-opacity hover:opacity-90 focus-visible:ring-1 focus-visible:ring-ring"
+      className="focus-visible:ring-ring rounded-md outline-none transition-opacity hover:opacity-90 focus-visible:ring-1"
     >
       {content}
     </Link>

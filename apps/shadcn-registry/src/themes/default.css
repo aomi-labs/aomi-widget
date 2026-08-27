@@ -184,7 +184,11 @@
   /* Alpha tints — the accent/10 + accent/45 pair and the overlay hairline
      recurred across chips, tinted buttons and menus as ad-hoc opacities. */
   --aomi-accent-tint: color-mix(in srgb, var(--aomi-accent) 10%, transparent);
-  --aomi-accent-outline: color-mix(in srgb, var(--aomi-accent) 45%, transparent);
+  --aomi-accent-outline: color-mix(
+    in srgb,
+    var(--aomi-accent) 45%,
+    transparent
+  );
   --aomi-overlay-border: color-mix(in srgb, var(--aomi-muted) 30%, transparent);
 
   --aomi-danger: #d2495b; /* text + outline */
@@ -269,7 +273,11 @@
      Repeating them re-derives against the dark palette in either case. */
   --aomi-ring: var(--aomi-accent);
   --aomi-accent-tint: color-mix(in srgb, var(--aomi-accent) 10%, transparent);
-  --aomi-accent-outline: color-mix(in srgb, var(--aomi-accent) 45%, transparent);
+  --aomi-accent-outline: color-mix(
+    in srgb,
+    var(--aomi-accent) 45%,
+    transparent
+  );
   --aomi-overlay-border: color-mix(in srgb, var(--aomi-muted) 30%, transparent);
 }
 
@@ -285,7 +293,16 @@
   /* One focus ring for every interactive element. Wrapped in :where() so it
      contributes no specificity — any component that wants its own focus
      treatment still wins, but nothing falls through to the browser default. */
-  :where(a, button, input, select, textarea, summary, [role="switch"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  :where(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role="switch"],
+    [tabindex]:not([tabindex="-1"])
+  ):focus-visible {
     outline: 2px solid var(--aomi-ring);
     outline-offset: 2px;
   }
@@ -387,6 +404,10 @@
   font-family: var(--font-pt-serif, "PT Serif", ui-serif, Georgia, serif);
 }
 
+.aomi-brand-wordmark {
+  font-family: var(--font-pt-serif, "PT Serif", ui-serif, Georgia, serif);
+}
+
 /* Prevent iOS from zooming on input focus (font-size >= 16px) */
 @media screen and (max-width: 767px) {
   .aui-composer-input {
@@ -429,8 +450,7 @@
   will-change: transform;
 }
 
-.aui-suggestions-marquee
-  .aui-thread-welcome-suggestions-track-secondary {
+.aui-suggestions-marquee .aui-thread-welcome-suggestions-track-secondary {
   display: flex;
   animation-duration: 72s;
   animation-delay: -17s;
@@ -475,8 +495,7 @@
     animation: none;
   }
 
-  .aui-suggestions-marquee
-    .aui-thread-welcome-suggestions-track-secondary {
+  .aui-suggestions-marquee .aui-thread-welcome-suggestions-track-secondary {
     display: flex;
   }
 

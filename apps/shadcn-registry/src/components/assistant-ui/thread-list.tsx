@@ -54,28 +54,7 @@ const ThreadListItems: FC = () => {
   return <ThreadListPrimitive.Items components={{ ThreadListItem }} />;
 };
 
-const SKELETON_WIDTHS = [
-  "85%",
-  "72%",
-  "90%",
-  "68%",
-  "78%",
-  "95%",
-  "74%",
-  "82%",
-  "70%",
-  "88%",
-  "76%",
-  "92%",
-  "80%",
-  "69%",
-  "86%",
-  "73%",
-  "91%",
-  "77%",
-  "84%",
-  "71%",
-];
+const SKELETON_WIDTHS = ["58%", "46%", "64%", "51%", "56%", "43%"];
 
 const ThreadListSkeleton: FC = () => {
   return (
@@ -83,15 +62,15 @@ const ThreadListSkeleton: FC = () => {
       role="status"
       aria-label="Loading threads"
       aria-live="polite"
-      className="aui-thread-list-skeleton-root flex flex-1 flex-col gap-1 overflow-hidden"
+      className="aui-thread-list-skeleton-root flex flex-none flex-col gap-1 overflow-hidden pr-3"
     >
       {SKELETON_WIDTHS.map((width, i) => (
         <div
           key={i}
-          className="aui-thread-list-skeleton-wrapper flex h-9 shrink-0 items-center rounded-2xl px-4"
+          className="aui-thread-list-skeleton-wrapper flex h-7 shrink-0 items-center px-4"
         >
           <Skeleton
-            className="aui-thread-list-skeleton h-3"
+            className="aui-thread-list-skeleton h-1.5 rounded-full opacity-30"
             style={{ width }}
           />
         </div>
@@ -126,7 +105,7 @@ const ThreadListItem: FC = () => {
     >
       <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 pr-1 text-start">
         {/* Sky dot marks the active session, per the design mock */}
-        <span className="bg-aomi-accent-strong size-1.5 shrink-0 rounded-full opacity-0 group-data-active/thread:opacity-100" />
+        <span className="bg-aomi-accent-strong group-data-active/thread:opacity-100 size-1.5 shrink-0 rounded-full opacity-0" />
         <ThreadListItemTitle />
       </ThreadListItemPrimitive.Trigger>
       <ThreadListItemMenu

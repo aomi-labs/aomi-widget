@@ -33,7 +33,7 @@ export function ThreadListSidebar({
     >
       <SidebarHeader className="aomi-sidebar-header">
         <div className="aomi-sidebar-header-content mb-3 ml-4 mt-4 flex items-center justify-between">
-          {/* Wordmark row per the design mock: logo · Aomi · chevron */}
+          {/* Brand lockup: mark · aomi · chevron */}
           <a
             href="https://aomi.dev"
             target="_blank"
@@ -41,8 +41,8 @@ export function ThreadListSidebar({
             className="flex items-center gap-2"
           >
             <AomiMark className="aomi-sidebar-header-icon size-6" />
-            <span className="text-[15px] font-semibold tracking-[-0.01em]">
-              Aomi
+            <span className="aomi-brand-wordmark text-[15px] font-bold tracking-[-0.01em]">
+              aomi
             </span>
             <ChevronDown className="text-aomi-muted size-3.5" />
           </a>

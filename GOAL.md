@@ -31,6 +31,20 @@ mistaken for another supported environment.
 
 Progress:
 
+- 2026-07-28 Build payment-lifecycle deployment verification: confirmed PR
+  #401's merge commit is an ancestor of the current `main` deployment, the
+  `build-staging.aomi.dev` Vercel deployment is ready, its Usage route serves
+  the expected Build artifact, and the staging backend health check returns
+  `200`. Production remains on the separate `prod` branch.
+
+- 2026-07-27 Brand lockup consistency: every visible Aomi mark-and-wordmark
+  pairing across the widget, Landing, Portal, and Build now uses the PT Serif
+  display face with the bold lowercase “aomi” name.
+
+- 2026-07-27 Compact thread loading state: reduced the Recent-list skeleton
+  to six shorter, thinner, lower-contrast rows so loading no longer fills the
+  entire chat sidebar.
+
 - 2026-07-27 Build layout: standardized all twelve primary pages on responsive gutters and PT Serif titles paired with their navigation icons.
 
 - 2026-07-27 Build project membership: the Projects index now treats GitHub

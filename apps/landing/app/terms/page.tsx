@@ -27,11 +27,11 @@ export default function TermsPage() {
         >
           <img
             src="/assets/images/bubble.svg"
-            alt="Aomi"
+            alt=""
             className="h-6 w-6 drop-shadow-sm invert"
           />
-          <span className="font-geist text-sm font-semibold tracking-tight text-white drop-shadow-sm">
-            Aomi
+          <span className="font-pt-serif text-sm font-bold tracking-tight text-white drop-shadow-sm">
+            aomi
           </span>
         </Link>
       </nav>
@@ -53,239 +53,296 @@ export default function TermsPage() {
           <div className="overflow-hidden rounded-[2rem] bg-stone-100/95 p-8 ring-1 ring-stone-200 backdrop-blur-xl md:p-12">
             <div className="max-w-none">
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   1. Acceptance of Terms
                 </h2>
-                <p className="mb-2 font-geist text-base leading-relaxed text-stone-600">
-                  By accessing or using Aomi Labs&apos; services, including our widget, API, SDK, 
-                  and related tools (collectively, the &quot;Services&quot;), you agree to be bound by these 
-                  Terms of Service (&quot;Terms&quot;). If you do not agree to these Terms, do not use our Services.
+                <p className="font-geist mb-2 text-base leading-relaxed text-stone-600">
+                  By accessing or using Aomi Labs&apos; services, including our
+                  widget, API, SDK, and related tools (collectively, the
+                  &quot;Services&quot;), you agree to be bound by these Terms of
+                  Service (&quot;Terms&quot;). If you do not agree to these
+                  Terms, do not use our Services.
                 </p>
                 <p className="font-geist text-base leading-relaxed text-stone-600">
-                  If you are using our Services on behalf of an organization, you represent that you have 
-                  the authority to bind that organization to these Terms.
+                  If you are using our Services on behalf of an organization,
+                  you represent that you have the authority to bind that
+                  organization to these Terms.
                 </p>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   2. Description of Services
                 </h2>
-                <p className="mb-2 font-geist text-base leading-relaxed text-stone-600">
-                  Aomi provides blockchain AI infrastructure that enables developers to integrate 
-                  AI-powered features into their applications. Our Services include:
+                <p className="font-geist mb-2 text-base leading-relaxed text-stone-600">
+                  Aomi provides blockchain AI infrastructure that enables
+                  developers to integrate AI-powered features into their
+                  applications. Our Services include:
                 </p>
-                <ul className="mb-2 list-disc space-y-1 pl-6 font-geist text-base text-stone-600">
+                <ul className="font-geist mb-2 list-disc space-y-1 pl-6 text-base text-stone-600">
                   <li>Embeddable widget for blockchain interactions</li>
                   <li>API and SDK for programmatic access</li>
-                  <li>AI-powered transaction processing and natural language interfaces</li>
+                  <li>
+                    AI-powered transaction processing and natural language
+                    interfaces
+                  </li>
                   <li>Developer documentation and tools</li>
                 </ul>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   3. Account Registration
                 </h2>
-                <p className="mb-2 font-geist text-base leading-relaxed text-stone-600">
-                  To access certain features, you must create an account. You agree to:
+                <p className="font-geist mb-2 text-base leading-relaxed text-stone-600">
+                  To access certain features, you must create an account. You
+                  agree to:
                 </p>
-                <ul className="mb-2 list-disc space-y-1 pl-6 font-geist text-base text-stone-600">
+                <ul className="font-geist mb-2 list-disc space-y-1 pl-6 text-base text-stone-600">
                   <li>Provide accurate, current, and complete information</li>
                   <li>Maintain the security of your account credentials</li>
                   <li>Promptly update your information if it changes</li>
-                  <li>Accept responsibility for all activities under your account</li>
+                  <li>
+                    Accept responsibility for all activities under your account
+                  </li>
                   <li>Notify us immediately of any unauthorized access</li>
                 </ul>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   4. Acceptable Use
                 </h2>
-                <p className="mb-2 font-geist text-base leading-relaxed text-stone-600">
+                <p className="font-geist mb-2 text-base leading-relaxed text-stone-600">
                   You agree not to use our Services to:
                 </p>
-                <ul className="mb-2 list-disc space-y-1 pl-6 font-geist text-base text-stone-600">
+                <ul className="font-geist mb-2 list-disc space-y-1 pl-6 text-base text-stone-600">
                   <li>Violate any applicable laws or regulations</li>
-                  <li>Engage in money laundering, fraud, or terrorist financing</li>
+                  <li>
+                    Engage in money laundering, fraud, or terrorist financing
+                  </li>
                   <li>Circumvent sanctions or trade restrictions</li>
                   <li>Infringe on intellectual property rights</li>
                   <li>Transmit malicious code or interfere with our systems</li>
                   <li>Attempt to gain unauthorized access to our Services</li>
-                  <li>Use automated means to access our Services without permission</li>
+                  <li>
+                    Use automated means to access our Services without
+                    permission
+                  </li>
                   <li>Engage in market manipulation or wash trading</li>
                 </ul>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   5. API and SDK Usage
                 </h2>
-                <p className="mb-2 font-geist text-base leading-relaxed text-stone-600">
+                <p className="font-geist mb-2 text-base leading-relaxed text-stone-600">
                   Your use of our API and SDK is subject to:
                 </p>
-                <ul className="mb-2 list-disc space-y-1 pl-6 font-geist text-base text-stone-600">
-                  <li>Rate limits and usage quotas as specified in our documentation</li>
+                <ul className="font-geist mb-2 list-disc space-y-1 pl-6 text-base text-stone-600">
+                  <li>
+                    Rate limits and usage quotas as specified in our
+                    documentation
+                  </li>
                   <li>Our API documentation and guidelines</li>
                   <li>Attribution requirements where applicable</li>
-                  <li>Prohibition on reselling API access without authorization</li>
+                  <li>
+                    Prohibition on reselling API access without authorization
+                  </li>
                 </ul>
                 <p className="font-geist text-base leading-relaxed text-stone-600">
-                  We reserve the right to modify, suspend, or discontinue API features with reasonable notice.
+                  We reserve the right to modify, suspend, or discontinue API
+                  features with reasonable notice.
                 </p>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   6. Fees and Payment
                 </h2>
-                <p className="mb-2 font-geist text-base leading-relaxed text-stone-600">
-                  Some Services may require payment. By using paid Services, you agree to:
+                <p className="font-geist mb-2 text-base leading-relaxed text-stone-600">
+                  Some Services may require payment. By using paid Services, you
+                  agree to:
                 </p>
-                <ul className="mb-2 list-disc space-y-1 pl-6 font-geist text-base text-stone-600">
+                <ul className="font-geist mb-2 list-disc space-y-1 pl-6 text-base text-stone-600">
                   <li>Pay all applicable fees as specified</li>
                   <li>Provide accurate billing information</li>
                   <li>Authorize us to charge your payment method</li>
                 </ul>
                 <p className="font-geist text-base leading-relaxed text-stone-600">
-                  Fees are non-refundable except as required by law or as otherwise stated.
+                  Fees are non-refundable except as required by law or as
+                  otherwise stated.
                 </p>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   7. Blockchain Transactions
                 </h2>
                 <div className="mb-2 rounded-xl bg-amber-50 p-4 ring-1 ring-amber-200">
                   <p className="font-geist text-sm text-amber-900">
-                    <strong>Important:</strong> Blockchain transactions are irreversible. You are solely 
-                    responsible for verifying transaction details before confirming.
+                    <strong>Important:</strong> Blockchain transactions are
+                    irreversible. You are solely responsible for verifying
+                    transaction details before confirming.
                   </p>
                 </div>
-                <p className="mb-2 font-geist text-base leading-relaxed text-stone-600">
+                <p className="font-geist mb-2 text-base leading-relaxed text-stone-600">
                   You acknowledge that:
                 </p>
-                <ul className="mb-2 list-disc space-y-1 pl-6 font-geist text-base text-stone-600">
-                  <li>Blockchain transactions cannot be reversed once confirmed</li>
-                  <li>Network fees (gas) are determined by the blockchain network, not by us</li>
+                <ul className="font-geist mb-2 list-disc space-y-1 pl-6 text-base text-stone-600">
+                  <li>
+                    Blockchain transactions cannot be reversed once confirmed
+                  </li>
+                  <li>
+                    Network fees (gas) are determined by the blockchain network,
+                    not by us
+                  </li>
                   <li>Transaction timing depends on network conditions</li>
-                  <li>You are responsible for maintaining secure custody of your private keys</li>
-                  <li>We do not custody your assets or have access to your private keys</li>
+                  <li>
+                    You are responsible for maintaining secure custody of your
+                    private keys
+                  </li>
+                  <li>
+                    We do not custody your assets or have access to your private
+                    keys
+                  </li>
                 </ul>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   8. AI-Generated Content
                 </h2>
-                <p className="mb-2 font-geist text-base leading-relaxed text-stone-600">
-                  Our Services use artificial intelligence to process natural language and generate responses. 
-                  You acknowledge that:
+                <p className="font-geist mb-2 text-base leading-relaxed text-stone-600">
+                  Our Services use artificial intelligence to process natural
+                  language and generate responses. You acknowledge that:
                 </p>
-                <ul className="mb-2 list-disc space-y-1 pl-6 font-geist text-base text-stone-600">
+                <ul className="font-geist mb-2 list-disc space-y-1 pl-6 text-base text-stone-600">
                   <li>AI outputs may not always be accurate or complete</li>
-                  <li>You should verify AI-generated information before taking action</li>
-                  <li>AI suggestions are not financial, legal, or investment advice</li>
-                  <li>You are responsible for reviewing and approving all transactions</li>
+                  <li>
+                    You should verify AI-generated information before taking
+                    action
+                  </li>
+                  <li>
+                    AI suggestions are not financial, legal, or investment
+                    advice
+                  </li>
+                  <li>
+                    You are responsible for reviewing and approving all
+                    transactions
+                  </li>
                 </ul>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   9. Intellectual Property
                 </h2>
-                <p className="mb-2 font-geist text-base leading-relaxed text-stone-600">
-                  Our Services, including software, documentation, trademarks, and content, are owned by 
-                  Aomi Labs and protected by intellectual property laws. We grant you a limited, 
-                  non-exclusive, non-transferable license to use our Services in accordance with these Terms.
+                <p className="font-geist mb-2 text-base leading-relaxed text-stone-600">
+                  Our Services, including software, documentation, trademarks,
+                  and content, are owned by Aomi Labs and protected by
+                  intellectual property laws. We grant you a limited,
+                  non-exclusive, non-transferable license to use our Services in
+                  accordance with these Terms.
                 </p>
                 <p className="font-geist text-base leading-relaxed text-stone-600">
-                  You retain ownership of your data and content. By using our Services, you grant us a 
-                  license to process your data as necessary to provide the Services.
+                  You retain ownership of your data and content. By using our
+                  Services, you grant us a license to process your data as
+                  necessary to provide the Services.
                 </p>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   10. Disclaimer of Warranties
                 </h2>
                 <div className="mb-2 rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200">
-                  <p className="font-geist text-sm uppercase tracking-wide text-stone-700">
-                    OUR SERVICES ARE PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT WARRANTIES OF 
-                    ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF 
-                    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+                  <p className="font-geist text-sm tracking-wide text-stone-700 uppercase">
+                    OUR SERVICES ARE PROVIDED &quot;AS IS&quot; AND &quot;AS
+                    AVAILABLE&quot; WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR
+                    IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF
+                    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND
+                    NON-INFRINGEMENT.
                   </p>
                 </div>
                 <p className="font-geist text-base leading-relaxed text-stone-600">
-                  We do not guarantee that our Services will be uninterrupted, secure, or error-free.
+                  We do not guarantee that our Services will be uninterrupted,
+                  secure, or error-free.
                 </p>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   11. Limitation of Liability
                 </h2>
-                <p className="mb-2 font-geist text-base leading-relaxed text-stone-600">
-                  TO THE MAXIMUM EXTENT PERMITTED BY LAW, AOMI LABS SHALL NOT BE LIABLE FOR ANY 
-                  INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING BUT 
-                  NOT LIMITED TO LOSS OF PROFITS, DATA, OR DIGITAL ASSETS, ARISING FROM YOUR USE OF OUR SERVICES.
+                <p className="font-geist mb-2 text-base leading-relaxed text-stone-600">
+                  TO THE MAXIMUM EXTENT PERMITTED BY LAW, AOMI LABS SHALL NOT BE
+                  LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL,
+                  OR PUNITIVE DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF
+                  PROFITS, DATA, OR DIGITAL ASSETS, ARISING FROM YOUR USE OF OUR
+                  SERVICES.
                 </p>
                 <p className="font-geist text-base leading-relaxed text-stone-600">
-                  Our total liability shall not exceed the greater of (a) the amount you paid us in the 
-                  12 months preceding the claim, or (b) $100.
+                  Our total liability shall not exceed the greater of (a) the
+                  amount you paid us in the 12 months preceding the claim, or
+                  (b) $100.
                 </p>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   12. Indemnification
                 </h2>
                 <p className="font-geist text-base leading-relaxed text-stone-600">
-                  You agree to indemnify and hold harmless Aomi Labs and its officers, directors, 
-                  employees, and agents from any claims, damages, losses, or expenses arising from 
-                  your use of our Services or violation of these Terms.
+                  You agree to indemnify and hold harmless Aomi Labs and its
+                  officers, directors, employees, and agents from any claims,
+                  damages, losses, or expenses arising from your use of our
+                  Services or violation of these Terms.
                 </p>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   13. Termination
                 </h2>
-                <p className="mb-2 font-geist text-base leading-relaxed text-stone-600">
-                  We may suspend or terminate your access to our Services at any time for any reason, 
-                  including violation of these Terms. You may terminate your account at any time by 
-                  contacting us.
+                <p className="font-geist mb-2 text-base leading-relaxed text-stone-600">
+                  We may suspend or terminate your access to our Services at any
+                  time for any reason, including violation of these Terms. You
+                  may terminate your account at any time by contacting us.
                 </p>
                 <p className="font-geist text-base leading-relaxed text-stone-600">
-                  Upon termination, your right to use our Services ceases immediately. Sections that 
-                  by their nature should survive termination shall survive.
+                  Upon termination, your right to use our Services ceases
+                  immediately. Sections that by their nature should survive
+                  termination shall survive.
                 </p>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   14. Governing Law
                 </h2>
                 <p className="font-geist text-base leading-relaxed text-stone-600">
-                  These Terms shall be governed by and construed in accordance with the laws of the 
-                  State of Delaware, United States, without regard to conflict of law principles.
+                  These Terms shall be governed by and construed in accordance
+                  with the laws of the State of Delaware, United States, without
+                  regard to conflict of law principles.
                 </p>
               </section>
 
               <section className="mb-8">
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   15. Changes to Terms
                 </h2>
                 <p className="font-geist text-base leading-relaxed text-stone-600">
-                  We may modify these Terms at any time. We will notify you of material changes by 
-                  posting the updated Terms and updating the &quot;Last updated&quot; date. Your continued use 
-                  of our Services constitutes acceptance of the modified Terms.
+                  We may modify these Terms at any time. We will notify you of
+                  material changes by posting the updated Terms and updating the
+                  &quot;Last updated&quot; date. Your continued use of our
+                  Services constitutes acceptance of the modified Terms.
                 </p>
               </section>
 
               <section>
-                <h2 className="mb-2 font-geist text-xl font-semibold text-stone-800">
+                <h2 className="font-geist mb-2 text-xl font-semibold text-stone-800">
                   16. Contact Us
                 </h2>
                 <p className="font-geist text-base leading-relaxed text-stone-600">
@@ -293,9 +350,13 @@ export default function TermsPage() {
                 </p>
                 <div className="mt-4 rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200">
                   <p className="font-geist text-base text-stone-600">
-                    <strong className="text-stone-800">Aomi Labs</strong><br />
+                    <strong className="text-stone-800">Aomi Labs</strong>
+                    <br />
                     Email:{" "}
-                    <a href="mailto:legal@aomi.dev" className="text-stone-800 underline hover:text-stone-600">
+                    <a
+                      href="mailto:legal@aomi.dev"
+                      className="text-stone-800 underline hover:text-stone-600"
+                    >
                       legal@aomi.dev
                     </a>
                   </p>
