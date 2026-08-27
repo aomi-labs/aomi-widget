@@ -50,6 +50,23 @@
     app's own DynManifest.version. The stale-descriptor issue behind it is the
     runtime dlopen hot-reload seam (backend reconcile.rs), owned by another
     Codex session mid-experiment — deliberately not touched here.
+  - SHIPPED + STAGING VERIFIED 2026-08-08: FE PR aomi#468 and BE PR
+    product-mono#946 both merged by Cecilia, CI green (BE CI's DB-backed Rust
+    job ran the full 157 tests). Post-deploy staging probes: all 6 app secrets
+    reads 200 (worker fix live); required-secrets 200 for the legacy-`latest`
+    projects (1643, 1647-partial); import run for all 5 projects — recovered
+    2 deployments for world-markets/1646 (the original bug: page now shows
+    the full 6-deployment history — the project Deployments tab reads the
+    deployment_activations log, which survived the cutover, while the feed
+    reads the restored projection), 1 each for 1647/1643, 0 for 1645/1644
+    (their pre-cutover deployment branches no longer exist — unrecoverable
+    legacy data, out of scope per Cecilia). REMAINING legacy 500s:
+    required-secrets for 1647/1645/1644 ("live release has no deployment
+    projection" for active releases whose manifests are gone) — true
+    integrity signal, left as-is. Browser-verified on build-staging (both
+    platforms): operate scoping live, no console errors. Minor FE nit filed
+    as a task chip: operate sidebar links for transactions/observability/
+    usage/logs drop the ?platform= param that sibling links carry.
 
 2026-08-08 — OPERATE PAGES IGNORED THE SELECTED PLATFORM (apps/build, working
 
