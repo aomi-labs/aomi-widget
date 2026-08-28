@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { createParaViemClientHook } from "@getpara/react-core/evm/viem";
 import {
   toViemSignMessageArgs,
@@ -21,18 +21,9 @@ import {
 
 import { actionChain, errorMessage } from "@/lib/action";
 
-type State = {
+export type ActionControl = {
   error: string | null;
-  status:
-    | "idle"
-    | "preparing"
-    | "review"
-    | "awaiting_wallet"
-    | "done"
-    | "error";
-};
-
-export type ActionControl = State & {
+  status: "idle" | "preparing" | "review" | "awaiting_wallet" | "done" | "error";
   approve: () => void;
   reject: () => void;
 };
@@ -43,7 +34,6 @@ export function useActionControl(input: {
   action: Action | null;
   session: Session | null;
 }): ActionControl {
-  const [state, setState] = useState<State>({ error: null, status: "idle" });
   const chain = actionChain(input.action);
   const { viemClient } = useEmbeddedParaViemClient({
     walletClientConfig: {
@@ -98,49 +88,49 @@ export function useActionControl(input: {
     input.session?.actions.setCapabilities(capabilities);
   }, [capabilities, input.session]);
 
-  useEffect(() => {
-    const action = input.action;
-    const handler = input.session?.actions;
-    if (!action || !handler) return;
-    if (!handler.canExecute(action.id)) {
-      setState({ error: "unsupported_action", status: "error" });
-      return;
-    }
-    setState({ error: null, status: "review" });
-  }, [capabilities, input.action, input.session]);
-
   const approve = useCallback(() => {
     const action = input.action;
     const handler = input.session?.actions;
     if (!action || !handler || !handler.canExecute(action.id)) return;
-    setState({ error: null, status: "awaiting_wallet" });
-    void handler
-      .execute(action.id)
-      .then(() => setState({ error: null, status: "done" }))
-      .catch((error: unknown) => {
-        setState({ error: errorMessage(error), status: "error" });
-      });
+    void handler.execute(action.id).catch(() => undefined);
   }, [input.action, input.session]);
 
   const reject = useCallback(() => {
     const action = input.action;
     const handler = input.session?.actions;
     if (!action || !handler) return;
-    setState({ error: null, status: "awaiting_wallet" });
     void handler
       .reject(action.id, "Declined in the Telegram Mini App.")
-      .then(() => setState({ error: null, status: "done" }))
-      .catch((error: unknown) => {
-        setState({ error: errorMessage(error), status: "error" });
-      });
+      .catch(() => undefined);
   }, [input.action, input.session]);
 
+  const action = input.action;
+  const handler = input.session?.actions;
+  const attempt = action
+    ? input.session?.getSnapshot().actionAttempts.get(action.id)
+    : undefined;
+  const status: ActionControl["status"] = !action || !handler
+    ? "idle"
+    : attempt?.state === "failed"
+      ? "error"
+      : attempt?.state === "executing" || attempt?.state === "responding"
+        ? "awaiting_wallet"
+        : action.state !== "pending"
+          ? "done"
+          : !viemClient?.account
+            ? "preparing"
+            : handler.canExecute(action.id)
+              ? "review"
+              : "error";
+
   return {
-    ...state,
-    status:
-      state.status === "review" && !viemClient?.account
-        ? "preparing"
-        : state.status,
+    error:
+      attempt?.state === "failed"
+        ? errorMessage(attempt.error)
+        : status === "error"
+          ? "unsupported_action"
+          : null,
+    status,
     approve,
     reject,
   };

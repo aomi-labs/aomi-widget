@@ -2,8 +2,12 @@ import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { mintAgentApiBearer } from "../packages/account/src/index.ts";
 import {
+  mintAccountBearer,
+  mintAgentApiBearer,
+} from "../packages/account/src/index.ts";
+import {
+  AgentApiError,
   AomiClient,
   type Action,
   type Event,
@@ -11,18 +15,26 @@ import {
 } from "../packages/client/src/index.ts";
 
 const origin = process.env.AOMI_AGENT_E2E_ORIGIN ?? "http://127.0.0.1:8082";
+const backendOrigin =
+  process.env.AOMI_AGENT_E2E_BACKEND_ORIGIN ?? "http://127.0.0.1:8080";
+const rpcOrigin =
+  process.env.AOMI_AGENT_E2E_RPC_ORIGIN ?? "http://127.0.0.1:8545";
 const productRoot = process.env.AOMI_PRODUCT_ROOT;
-assert.ok(productRoot, "AOMI_PRODUCT_ROOT must name the product-mono checkout under test");
+assert.ok(
+  productRoot,
+  "AOMI_PRODUCT_ROOT must name the product-mono checkout under test",
+);
 const authFixture = readFileSync(
   join(productRoot, "aomi/bin/api-server/src/auth.rs"),
   "utf8",
-).match(/const BFF_PRIVATE: &\[u8\] = b"([\s\S]*?-----END PRIVATE KEY-----\n)";/);
+).match(
+  /const BFF_PRIVATE: &\[u8\] = b"([\s\S]*?-----END PRIVATE KEY-----\n)";/,
+);
 assert.ok(authFixture, "the api-server development issuer fixture is missing");
 process.env.PORTAL_SERVICE_PRIVATE_KEY = authFixture[1];
 process.env.BACKEND_URL = origin;
 const userId =
-  process.env.AOMI_AGENT_E2E_USER_ID ??
-  "11111111-1111-4111-8111-111111111111";
+  process.env.AOMI_AGENT_E2E_USER_ID ?? "11111111-1111-4111-8111-111111111111";
 const sessionId =
   process.env.AOMI_AGENT_E2E_SESSION_ID ?? `cutover-e2e-${Date.now()}`;
 const expectAction = process.env.AOMI_AGENT_E2E_EXPECT_ACTION !== "false";
@@ -34,9 +46,69 @@ const resumeActionRevision = Number(
 const model = process.env.AOMI_AGENT_E2E_MODEL;
 const message =
   process.env.AOMI_AGENT_E2E_MESSAGE ??
-  ("Send 0 ETH on chain 31337 from my connected wallet to " +
+  "Send 0 ETH on chain 31337 from my connected wallet to " +
     "0x70997970C51812dc3A010C7d01b50e0d17dc79C8. " +
-    "Prepare the transaction and ask me to execute it.");
+    "Prepare and simulate the transaction, then call commit_txs in this same turn " +
+    "so the runtime emits an Action. Do not ask me for another chat message.";
+const wallet = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
+
+async function ensureWalletBound(): Promise<void> {
+  const { bearer } = await mintAccountBearer(userId);
+  const challenge = await fetch(
+    `${backendOrigin}/api/account/authorization/challenge`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${bearer}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ chain_type: "evm", wallet, mode: "bind" }),
+    },
+  );
+  if (challenge.status === 409) return;
+  assert.equal(challenge.status, 200, "wallet bind challenge failed");
+  const challenged = (await challenge.json()) as {
+    permit: unknown;
+    typed_data?: unknown;
+  };
+  assert.ok(challenged.typed_data, "wallet bind omitted typed data");
+
+  const signed = await fetch(rpcOrigin, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "eth_signTypedData_v4",
+      params: [wallet, JSON.stringify(challenged.typed_data)],
+    }),
+  });
+  assert.equal(signed.status, 200, "local wallet signing failed");
+  const signature = (await signed.json()) as {
+    result?: string;
+    error?: unknown;
+  };
+  assert.ok(signature.result, `local wallet signing failed: ${signature.error}`);
+
+  const committed = await fetch(
+    `${backendOrigin}/api/account/authorization/commit`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${bearer}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        permit: challenged.permit,
+        signature: signature.result,
+      }),
+    },
+  );
+  assert.ok(
+    committed.ok || committed.status === 409,
+    `wallet bind commit failed with HTTP ${committed.status}`,
+  );
+}
 
 const client = new AomiClient({
   baseUrl: origin,
@@ -59,6 +131,8 @@ const client = new AomiClient({
     };
   },
 });
+
+await ensureWalletBound();
 
 const allEvents: Event[] = [];
 let cursor: string | undefined;
@@ -93,15 +167,54 @@ function assertPublicAction(value: unknown): void {
   }
   if (!value || typeof value !== "object") return;
   for (const [key, child] of Object.entries(value)) {
-    assert.ok(!privateActionFields.has(key), `Action leaked private field ${key}`);
+    assert.ok(
+      !privateActionFields.has(key),
+      `Action leaked private field ${key}`,
+    );
     assertPublicAction(child);
   }
+}
+
+function assertExecutableSimulation(action: Action): void {
+  if (action.request.type === "sign") return;
+  assert.ok(action.request.simulation, "executable Action omitted simulation");
+  assert.ok(
+    ["passed", "failed"].includes(action.request.simulation.status),
+    `unknown simulation status ${action.request.simulation.status}`,
+  );
+}
+
+async function expectAgentError(
+  label: string,
+  operation: () => Promise<unknown>,
+  status: number,
+  code: string,
+): Promise<void> {
+  try {
+    await operation();
+  } catch (error) {
+    assert.ok(
+      error instanceof AgentApiError,
+      `${label} returned an untyped error`,
+    );
+    assert.equal(
+      error.status,
+      status,
+      `${label} returned HTTP ${error.status}`,
+    );
+    assert.equal(error.code, code, `${label} returned ${error.code}`);
+    return;
+  }
+  assert.fail(`${label} unexpectedly succeeded`);
 }
 
 function consume(page: EventPage): Action | undefined {
   assert.equal(page.session_id, sessionId);
   for (const event of page.events) {
-    assert.ok(publicEventTypes.has(event.type), `unknown public Event ${event.type}`);
+    assert.ok(
+      publicEventTypes.has(event.type),
+      `unknown public Event ${event.type}`,
+    );
     assert.ok(
       event.sequence > lastSequence,
       `event sequence ${event.sequence} did not advance past ${lastSequence}`,
@@ -111,9 +224,16 @@ function consume(page: EventPage): Action | undefined {
         ["user", "agent", "system", "notice"].includes(event.sender),
         `unknown Message sender ${event.sender}`,
       );
-      assert.equal(event.is_streaming, false, "streaming snapshots must not be durable Events");
+      assert.equal(
+        event.is_streaming,
+        false,
+        "streaming snapshots must not be durable Events",
+      );
     }
-    if (event.type === "action") assertPublicAction(event.request);
+    if (event.type === "action") {
+      assertPublicAction(event.request);
+      assertExecutableSimulation(event);
+    }
     lastSequence = event.sequence;
     allEvents.push(event);
   }
@@ -196,7 +316,7 @@ const first = await client.agent.start(
       connection: { is_connected: true, provider: "para" },
       evm: {
         chain_id: 31337,
-        address: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        address: wallet,
       },
       ext: { client_type: "web_ui" },
     },
@@ -218,12 +338,17 @@ if (!expectAction) {
     .filter((event) => event.type === "turn_state_changed")
     .map((event) => event.state);
   assert.ok(
-    lifecycle.some((state) => ["complete", "failed", "interrupted"].includes(state)),
+    lifecycle.some((state) =>
+      ["complete", "failed", "interrupted"].includes(state),
+    ),
   );
   console.log(JSON.stringify({ result: "pass", sessionId, lifecycle }));
   process.exit(0);
 }
-assert.ok(action, "the runtime reached a terminal state without emitting an Action");
+assert.ok(
+  action,
+  "the runtime reached a terminal state without emitting an Action",
+);
 if (stopAtAction) {
   console.log(
     JSON.stringify({
@@ -237,16 +362,56 @@ if (stopAtAction) {
   process.exit(0);
 }
 
+await expectAgentError(
+  "malformed cursor",
+  () => client.agent.poll(sessionId, { cursor: "not-an-event-cursor" }),
+  400,
+  "invalid_cursor",
+);
+const recovered = await client.agent.poll(sessionId);
+assert.equal(recovered.session_id, sessionId);
+assert.ok(
+  recovered.events.length > 0,
+  "cursorless recovery returned no ledger events",
+);
+
+await expectAgentError(
+  "incorrect Action revision",
+  () =>
+    client.agent.respondToAction(
+      sessionId,
+      action.id,
+      action.revision + 1,
+      { status: "rejected", reason: "cutover_e2e_wrong_revision" },
+      `wrong-revision-${sessionId}-${action.id}`,
+    ),
+  409,
+  "action_conflict",
+);
+
+const responseKey = `respond-${sessionId}-${action.id}`;
 const resolved = await client.agent.respondToAction(
   sessionId,
   action.id,
   action.revision,
   { status: "rejected", reason: "cutover_e2e_rejection" },
-  `respond-${sessionId}-${action.id}`,
+  responseKey,
 );
 assert.equal(resolved.id, action.id);
 assert.equal(resolved.revision, action.revision + 1);
 assert.equal(resolved.state, "rejected");
+const replayed = await client.agent.respondToAction(
+  sessionId,
+  action.id,
+  action.revision,
+  { status: "rejected", reason: "cutover_e2e_rejection" },
+  responseKey,
+);
+assert.deepEqual(
+  replayed,
+  resolved,
+  "duplicate response did not replay idempotently",
+);
 
 await pollUntil(
   (event) =>
@@ -260,7 +425,9 @@ const lifecycle = allEvents
 assert.ok(lifecycle.includes("processing"));
 assert.ok(lifecycle.includes("awaiting_action"));
 assert.ok(
-  lifecycle.some((state) => ["complete", "failed", "interrupted"].includes(state)),
+  lifecycle.some((state) =>
+    ["complete", "failed", "interrupted"].includes(state),
+  ),
 );
 
 console.log(

@@ -421,7 +421,7 @@ describe("wallet capabilities", () => {
 
     handler.ingest(action);
     await handler.execute(action.id);
-    expect(respond).toHaveBeenCalledWith(action, result);
+    expect(respond).toHaveBeenCalledWith(action, result, expect.any(String));
     expect(signTransaction).toHaveBeenCalledWith({
       transactionBase64: "AQ==",
       cluster: "solana:devnet",

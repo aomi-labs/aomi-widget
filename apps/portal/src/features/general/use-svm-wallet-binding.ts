@@ -33,13 +33,11 @@ const post: AuthorizationPoster = (path, body) =>
 export function useSvmWalletBinding() {
   const adapter = useAomiWalletKit();
   const svmAddress = adapter.identity.svmAddress;
-  const cluster = adapter.identity.svmCluster ?? adapter.identity.solanaCluster;
-  const capabilities =
-    adapter.identity.svmCapabilities ?? adapter.identity.solanaCapabilities;
+  const cluster = adapter.identity.svmCluster;
+  const capabilities = adapter.identity.svmCapabilities;
   const signSolanaMessage = adapter.signSolanaMessage;
-  const usesLegacyBinding =
-    (adapter.identity.svmTransport ?? adapter.identity.solanaTransport) ===
-    "embedded";
+  const requiresBinding =
+    adapter.identity.svmTransport === "embedded";
   const [state, setState] = useState<SvmBindingState>({ status: "no-wallet" });
   const [binding, setBinding] = useState(false);
 
@@ -76,7 +74,7 @@ export function useSvmWalletBinding() {
   }, [refresh]);
 
   const bind = useCallback(async (): Promise<boolean> => {
-    if (!usesLegacyBinding || !svmAddress || !signSolanaMessage) return false;
+    if (!requiresBinding || !svmAddress || !signSolanaMessage) return false;
     setBinding(true);
     try {
       await ensureSvmWalletBoundVia(post, svmAddress, async (message) => {
@@ -98,14 +96,14 @@ export function useSvmWalletBinding() {
     } finally {
       setBinding(false);
     }
-  }, [cluster, refresh, signSolanaMessage, svmAddress, usesLegacyBinding]);
+  }, [cluster, refresh, signSolanaMessage, svmAddress, requiresBinding]);
 
   return {
     state,
     binding,
-    usesLegacyBinding,
+    requiresBinding,
     canBind: Boolean(
-      usesLegacyBinding &&
+      requiresBinding &&
       svmAddress &&
       signSolanaMessage &&
       (capabilities?.canSignMessage ?? true),

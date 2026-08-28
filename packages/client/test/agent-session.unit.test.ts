@@ -94,13 +94,17 @@ describe("ClientSession Agent transport", () => {
       sessionId: "session-agent",
       app: "default",
     });
-    const events = vi.fn();
-    session.on("event", events);
+    const snapshots: number[][] = [];
+    const unsubscribe = session.subscribe(() => {
+      snapshots.push(
+        session.getSnapshot().events.map((event) => event.sequence),
+      );
+    });
 
     await expect(session.send("hello")).resolves.toEqual({
       messages: [
         expect.objectContaining({
-          id: "message-1",
+          message_key: "message-1",
           sender: "agent",
           content: "done",
         }),
@@ -115,10 +119,9 @@ describe("ClientSession Agent transport", () => {
       }),
       { idempotencyKey: expect.stringMatching(/^idem_[a-f0-9]{32}$/) },
     );
-    expect(events.mock.calls.map(([event]) => event.sequence)).toEqual([
-      1, 2, 3,
-    ]);
-    expect(session.getTurnState()).toBe("complete");
+    expect(snapshots.at(-1)).toEqual([1, 2, 3]);
+    expect(session.getSnapshot().turnState).toBe("complete");
+    unsubscribe();
     session.close();
   });
 
@@ -180,17 +183,41 @@ describe("ClientSession Agent transport", () => {
     });
 
     await session.sendAsync("Check ETH price");
-    expect(session.getIsProcessing()).toBe(true);
+    expect(session.getSnapshot().turnState).toBe("processing");
     await vi.advanceTimersByTimeAsync(0);
 
     expect(poll).toHaveBeenCalledWith("session-agent", {
       cursor: "cursor-2",
       waitMs: 25_000,
     });
-    expect(session.getMessages()).toEqual([
+    expect(session.getSnapshot().messages).toEqual([
       expect.objectContaining({ content: "ETH is $2,352." }),
     ]);
-    expect(session.getIsProcessing()).toBe(false);
+    expect(session.getSnapshot().turnState).toBe("complete");
+    session.close();
+  });
+
+  it("recovers an invalid Event cursor with one cursorless fetch", async () => {
+    const api = client();
+    const poll = vi
+      .spyOn(api.agent, "poll")
+      .mockRejectedValueOnce(
+        new AgentApiError(400, "invalid_cursor", "invalid cursor", false),
+      )
+      .mockResolvedValueOnce(
+        page([turn(1, "complete")], { cursor: "cursor-recovered" }),
+      );
+    const session = new Session(api, { sessionId: "session-agent" });
+
+    await session.fetchCurrentState();
+
+    expect(poll).toHaveBeenNthCalledWith(1, "session-agent", {
+      cursor: undefined,
+      waitMs: 0,
+    });
+    expect(poll).toHaveBeenNthCalledWith(2, "session-agent");
+    expect(session.getSnapshot().cursor).toBe("cursor-recovered");
+    expect(session.getSnapshot().turnState).toBe("complete");
     session.close();
   });
 
@@ -231,11 +258,97 @@ describe("ClientSession Agent transport", () => {
     expect(session.actions.pending()).toEqual([pending]);
     await session.actions.reject("action-1", "Not now");
 
-    expect(respond).toHaveBeenCalledWith("session-agent", "action-1", 1, {
-      status: "rejected",
-      reason: "Not now",
-    });
+    expect(respond).toHaveBeenCalledWith(
+      "session-agent",
+      "action-1",
+      1,
+      {
+        status: "rejected",
+        reason: "Not now",
+      },
+      expect.any(String),
+    );
     expect(session.actions.pending()).toEqual([]);
+    session.close();
+  });
+
+  it("keeps polling after an Action response until lifecycle resumes", async () => {
+    vi.useFakeTimers();
+    const api = client();
+    const pending = action({
+      type: "execute_evm",
+      transactions: [
+        {
+          chain_id: 8453,
+          from: "0x1111111111111111111111111111111111111111",
+          to: "0x2222222222222222222222222222222222222222",
+          value: "1",
+          data: "0x",
+          label: "Transfer",
+          kind: "transfer",
+        },
+      ],
+    });
+    vi.spyOn(api.agent, "start").mockResolvedValue(
+      page([turn(1, "processing"), pending, turn(3, "awaiting_action")]),
+    );
+    const rejected = action(pending.request, {
+      sequence: 4,
+      event_id: "event-4",
+      revision: 2,
+      state: "rejected",
+      result: { status: "rejected", reason: "Not now" },
+    });
+    vi.spyOn(api.agent, "respondToAction").mockResolvedValue(rejected);
+    const poll = vi
+      .spyOn(api.agent, "poll")
+      .mockResolvedValueOnce(page([rejected], { cursor: "cursor-4" }))
+      .mockResolvedValueOnce(
+        page([turn(5, "complete")], { cursor: "cursor-5" }),
+      )
+      .mockResolvedValueOnce(page([], { cursor: "cursor-5" }))
+      .mockResolvedValueOnce(
+        page(
+          [
+            {
+              ...meta("title_changed", 6),
+              type: "title_changed",
+              title: "Canonical title",
+            },
+          ],
+          { cursor: "cursor-6" },
+        ),
+      );
+    const session = new Session(api, {
+      sessionId: "session-agent",
+      pollIntervalMs: 10,
+    });
+
+    await session.sendAsync("execute");
+    await session.actions.reject("action-1", "Not now");
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(poll).toHaveBeenCalledTimes(1);
+    expect(session.getSnapshot().turnState).toBe("awaiting_action");
+    expect(session.getSnapshot().isPolling).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(poll).toHaveBeenCalledTimes(2);
+    expect(session.getSnapshot().turnState).toBe("complete");
+    expect(session.getSnapshot().isPolling).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(poll).toHaveBeenCalledTimes(3);
+    expect(session.getSnapshot().title).toBeUndefined();
+    expect(session.getSnapshot().isPolling).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(poll).toHaveBeenCalledTimes(4);
+    expect(session.getSnapshot().title).toBe("Canonical title");
+    expect(session.getSnapshot().isPolling).toBe(false);
     session.close();
   });
 
@@ -259,8 +372,8 @@ describe("ClientSession Agent transport", () => {
     await session.fetchCurrentState();
 
     expect(session.actions.pending()).toEqual([pending]);
-    expect(session.getTurnState()).toBe("awaiting_action");
-    expect(session.getIsPolling()).toBe(false);
+    expect(session.getSnapshot().turnState).toBe("awaiting_action");
+    expect(session.getSnapshot().isPolling).toBe(false);
     session.close();
   });
 });

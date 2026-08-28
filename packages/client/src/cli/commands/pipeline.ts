@@ -22,8 +22,11 @@ export async function pipelineToolsCommand(
   config: CliConfig,
   options: { query?: string; app?: string; namespace?: string; limit?: number },
 ): Promise<void> {
-  const app = options.app?.trim() || CliSession.load()?.app || config.app || "default";
-  const directory = await createControlClient(config).pipeline.app(app).operations();
+  const app =
+    options.app?.trim() || CliSession.load()?.app || config.app || "default";
+  const directory = await createControlClient(config)
+    .pipeline.app(app)
+    .operations();
   printJson(filterEntries(directory, options));
 }
 
@@ -32,8 +35,11 @@ export async function pipelineToolCommand(
   operation: string,
   app?: string,
 ): Promise<void> {
-  const owner = app?.trim() || CliSession.load()?.app || config.app || "default";
-  printJson(await createControlClient(config).pipeline.app(owner).operation(operation));
+  const owner =
+    app?.trim() || CliSession.load()?.app || config.app || "default";
+  printJson(
+    await createControlClient(config).pipeline.app(owner).operation(operation),
+  );
 }
 
 export async function pipelineSkillsCommand(
@@ -48,41 +54,39 @@ export async function pipelineSkillCommand(
   config: CliConfig,
   skill: string,
 ): Promise<void> {
-  printJson(await createControlClient(config).pipeline.skill(skill).directory());
+  printJson(
+    await createControlClient(config).pipeline.skill(skill).directory(),
+  );
 }
 
 export async function pipelineCallCommand(
   config: CliConfig,
   options: {
     toolId: string;
-    sessionId?: string;
     arguments?: string;
     app?: string;
     applicationId?: string;
     platform?: string;
-    skills?: string[];
     idempotencyKey: string;
   },
 ): Promise<void> {
-  const app = options.app?.trim() || CliSession.load()?.app || config.app || "default";
+  if (options.applicationId || options.platform) {
+    throw new TypeError(
+      "Pipeline filesystem operations do not accept hosted-app control metadata",
+    );
+  }
+  const app =
+    options.app?.trim() || CliSession.load()?.app || config.app || "default";
   const client = createControlClient(config, {
     payment: true,
     onPayment: printPaymentEvent,
   });
   printJson(
-    await client.pipeline.app(app).invoke(
-      options.toolId,
-      {
-        ...parsePipelineArguments(options.arguments),
-        sessionId: pipelineSessionId(options.sessionId),
-        ...(pipelineApplicationId(options.applicationId)
-          ? { applicationId: pipelineApplicationId(options.applicationId) }
-          : {}),
-        ...(options.platform ? { platform: options.platform } : {}),
-        ...(options.skills?.length ? { skills: options.skills } : {}),
-      },
-      { idempotencyKey: options.idempotencyKey },
-    ),
+    await client.pipeline
+      .app(app)
+      .invoke(options.toolId, parsePipelineArguments(options.arguments), {
+        idempotencyKey: options.idempotencyKey,
+      }),
   );
 }
 
@@ -105,20 +109,10 @@ function filterEntries(
   const namespace = options.namespace?.trim().toLowerCase();
   const entries = directory.entries.filter((entry) => {
     const name = entry.name.toLowerCase();
-    return (!query || name.includes(query)) && (!namespace || name.startsWith(`${namespace}.`));
+    return (
+      (!query || name.includes(query)) &&
+      (!namespace || name.startsWith(`${namespace}.`))
+    );
   });
   return { ...directory, entries: entries.slice(0, options.limit) };
-}
-
-function pipelineSessionId(explicit?: string): string {
-  return explicit?.trim() || CliSession.load()?.sessionId || crypto.randomUUID();
-}
-
-function pipelineApplicationId(value?: string): number | undefined {
-  if (!value?.trim()) return undefined;
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new TypeError("--application-id must be a positive integer");
-  }
-  return parsed;
 }

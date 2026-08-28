@@ -2,11 +2,9 @@ import { CliSession } from "../cli-session";
 import {
   CYAN,
   DIM,
-  GREEN,
   RESET,
   YELLOW,
   formatLogContent,
-  formatToolResultPreview,
   printDataFileLocation,
 } from "../output";
 import { clearState } from "../state";
@@ -25,11 +23,14 @@ export async function logCommand(config: CliConfig): Promise<void> {
   const session = cli.createClientSession(config);
   try {
     await session.fetchCurrentState();
-    const messages = session.getMessages();
-    const actions = session.actions.all();
-    const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
+    const snapshot = session.getSnapshot();
+    const messages = snapshot.messages;
+    const actions = snapshot.actions;
+    const toolCalls = snapshot.events.filter(
+      (event) => event.type === "tool_complete",
+    ).length;
     const tokenCountEstimate = estimateTokenCount(messages);
-    const topic = session.getTitle() ?? "Untitled Session";
+    const topic = snapshot.title ?? "Untitled Session";
 
     if (messages.length === 0) {
       console.log("No messages in this session.");
@@ -51,12 +52,9 @@ export async function logCommand(config: CliConfig): Promise<void> {
     for (const msg of messages) {
       const content = formatLogContent(msg.content);
       let time = "";
-      if (msg.timestamp) {
-        const raw = msg.timestamp;
-        const numeric = /^\d+$/.test(raw) ? parseInt(raw, 10) : NaN;
-        const date = !Number.isNaN(numeric)
-          ? new Date(numeric < 1e12 ? numeric * 1000 : numeric)
-          : new Date(raw);
+      if (msg.occurred_at) {
+        const raw = msg.occurred_at;
+        const date = new Date(raw < 1e12 ? raw * 1000 : raw);
         time = Number.isNaN(date.getTime())
           ? ""
           : `${DIM}${date.toLocaleTimeString()}${RESET} `;
@@ -68,12 +66,6 @@ export async function logCommand(config: CliConfig): Promise<void> {
           console.log(`${time}${CYAN}👤 You:${RESET} ${content}`);
         }
       } else if (sender === "agent") {
-        if (msg.tool_result) {
-          const [toolName, result] = msg.tool_result;
-          console.log(
-            `${time}${GREEN}🔧 [${toolName}]${RESET} ${formatToolResultPreview(result)}`,
-          );
-        }
         if (content) {
           console.log(`${time}${CYAN}🤖 Agent:${RESET} ${content}`);
         }

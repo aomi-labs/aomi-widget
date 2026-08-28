@@ -347,12 +347,12 @@ function parseChainId(value) {
   const n = parseInt(value, 10);
   if (Number.isNaN(n)) return void 0;
   if (!SUPPORTED_CHAIN_IDS.includes(n)) {
-    const list2 = SUPPORTED_CHAIN_IDS.map(
+    const list = SUPPORTED_CHAIN_IDS.map(
       (id) => `  ${id} (${CHAIN_NAMES[id]})`
     ).join("\n");
     fatal(`Unsupported chain ID: ${n}
 Supported chains:
-${list2}`);
+${list}`);
   }
   return n;
 }
@@ -420,14 +420,6 @@ __export(shared_exports, {
   parseSvmCluster: () => parseSvmCluster
 });
 import { privateKeyToAccount } from "viem/accounts";
-function parseEmbeddedProvider(raw) {
-  if (!raw) return void 0;
-  const normalized = raw.trim().toLowerCase();
-  if (normalized === "para" || normalized === "privy") {
-    return normalized;
-  }
-  fatal(`Unknown --embedded-provider value "${raw}". Use "para" or "privy".`);
-}
 function parseSvmCluster(raw) {
   if (!raw) return void 0;
   const lower = raw.trim().toLowerCase();
@@ -472,18 +464,14 @@ function resolveExecution(args) {
   return void 0;
 }
 function buildCliConfig(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
   const execution = resolveExecution(args);
   const privateKey = normalizePrivateKey(
-    (_a3 = str(args["private-key"])) != null ? _a3 : process.env.PRIVATE_KEY
+    (_a2 = str(args["private-key"])) != null ? _a2 : process.env.PRIVATE_KEY
   );
   const configuredPublicKey = (_b = str(args["public-key"])) != null ? _b : process.env.AOMI_PUBLIC_KEY;
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
   const accountBearer = (_c = str(args["account-bearer"])) != null ? _c : process.env.AOMI_ACCOUNT_BEARER;
-  const embeddedProvider = parseEmbeddedProvider(
-    (_d = str(args["embedded-provider"])) != null ? _d : process.env.AOMI_EMBEDDED_PROVIDER
-  );
-  const embeddedProviderToken = (_e = str(args["embedded-provider-token"])) != null ? _e : process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
   if (configuredPublicKey && !/^0x[0-9a-fA-F]{40}$/.test(configuredPublicKey.trim())) {
     fatal(
       "`--public-key` must be a 0x-prefixed EVM address. For a Solana identity, run `aomi wallet set --solana <key>` or pass `--solana-private-key`."
@@ -495,58 +483,41 @@ function buildCliConfig(args) {
     );
   }
   const aaProvider = parseAAProvider(
-    (_f = str(args["aa-provider"])) != null ? _f : process.env.AOMI_AA_PROVIDER
+    (_d = str(args["aa-provider"])) != null ? _d : process.env.AOMI_AA_PROVIDER
   );
-  const aaMode = parseAAMode((_g = str(args["aa-mode"])) != null ? _g : process.env.AOMI_AA_MODE);
+  const aaMode = parseAAMode((_e = str(args["aa-mode"])) != null ? _e : process.env.AOMI_AA_MODE);
   if (execution === "eoa" && (aaProvider || aaMode)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
-  if (accountBearer && (embeddedProvider || embeddedProviderToken)) {
-    fatal(
-      "Choose either `--account-bearer` or the `--embedded-provider` + `--embedded-provider-token` pair."
-    );
-  }
-  if (embeddedProvider && !embeddedProviderToken) {
-    fatal(
-      "`--embedded-provider-token` is required when `--embedded-provider` is set."
-    );
-  }
-  if (embeddedProviderToken && !embeddedProvider) {
-    fatal(
-      "`--embedded-provider` is required when `--embedded-provider-token` is set."
-    );
-  }
   const solanaPrivateKey = validateSolanaPrivateKey(
-    (_h = str(args["solana-private-key"])) != null ? _h : process.env.SOLANA_PRIVATE_KEY
+    (_f = str(args["solana-private-key"])) != null ? _f : process.env.SOLANA_PRIVATE_KEY
   );
   const svmCluster = parseSvmCluster(
-    (_i = str(args.cluster)) != null ? _i : process.env.AOMI_SOLANA_CLUSTER
+    (_g = str(args.cluster)) != null ? _g : process.env.AOMI_SOLANA_CLUSTER
   );
   return {
-    baseUrl: (_j = str(args["backend-url"])) != null ? _j : process.env.AOMI_BACKEND_URL,
-    apiKey: (_k = str(args["api-key"])) != null ? _k : process.env.AOMI_API_KEY,
+    baseUrl: (_h = str(args["backend-url"])) != null ? _h : process.env.AOMI_BACKEND_URL,
+    apiKey: (_i = str(args["api-key"])) != null ? _i : process.env.AOMI_API_KEY,
     json: args.json === true,
     verbose: args.verbose === true,
     accountBearer,
-    embeddedProvider,
-    embeddedProviderToken,
-    app: (_l = str(args.app)) != null ? _l : process.env.AOMI_APP,
-    applicationId: (_m = str(args["application-id"])) != null ? _m : process.env.AOMI_APPLICATION_ID,
-    appPlatform: (_n = str(args.platform)) != null ? _n : process.env.AOMI_APP_PLATFORM,
-    model: (_o = str(args.model)) != null ? _o : process.env.AOMI_MODEL,
+    app: (_j = str(args.app)) != null ? _j : process.env.AOMI_APP,
+    applicationId: (_k = str(args["application-id"])) != null ? _k : process.env.AOMI_APPLICATION_ID,
+    appPlatform: (_l = str(args.platform)) != null ? _l : process.env.AOMI_APP_PLATFORM,
+    model: (_m = str(args.model)) != null ? _m : process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey != null ? configuredPublicKey : derivedPublicKey,
     privateKey,
     solanaPrivateKey,
     svmCluster,
-    chainRpcUrl: (_p = str(args["rpc-url"])) != null ? _p : process.env.CHAIN_RPC_URL,
-    chain: parseChainId((_q = str(args.chain)) != null ? _q : process.env.AOMI_CHAIN_ID),
+    chainRpcUrl: (_n = str(args["rpc-url"])) != null ? _n : process.env.CHAIN_RPC_URL,
+    chain: parseChainId((_o = str(args.chain)) != null ? _o : process.env.AOMI_CHAIN_ID),
     secrets: {},
     execution,
     aaProvider,
     aaMode,
     paymentMethod: parsePaymentMethod(
-      (_r = str(args["payment-method"])) != null ? _r : process.env.AOMI_PAYMENT_METHOD
+      (_p = str(args["payment-method"])) != null ? _p : process.env.AOMI_PAYMENT_METHOD
     )
   };
 }
@@ -585,14 +556,6 @@ var init_shared = __esm({
       "account-bearer": {
         type: "string",
         description: "Aomi account bearer for authenticated REST/SSE requests"
-      },
-      "embedded-provider": {
-        type: "string",
-        description: 'Deprecated legacy provider exchange config ("para" or "privy")'
-      },
-      "embedded-provider-token": {
-        type: "string",
-        description: "Deprecated legacy provider token; use --account-bearer"
       },
       app: {
         type: "string",
@@ -643,427 +606,6 @@ var init_shared = __esm({
         description: 'Payment method for paid Agent/Pipeline calls, e.g. "coinbase"'
       }
     };
-  }
-});
-
-// src/user-state/normalize.ts
-function asObject(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return void 0;
-  }
-  return value;
-}
-function asEvmObject(value) {
-  return Array.isArray(value) ? asObject(value[0]) : asObject(value);
-}
-function pick(record, ...keys) {
-  if (!record) {
-    return void 0;
-  }
-  for (const key of keys) {
-    if (Object.prototype.hasOwnProperty.call(record, key) && record[key] !== void 0) {
-      return record[key];
-    }
-  }
-  return void 0;
-}
-function renameKey(obj, from, to) {
-  if (from === to) return;
-  if (Object.prototype.hasOwnProperty.call(obj, from)) {
-    if (!(to in obj) || obj[to] === void 0) {
-      obj[to] = obj[from];
-    }
-    delete obj[from];
-  }
-}
-function liftFlat(obj, flat, to, fromKeys) {
-  if (to in obj && obj[to] !== void 0) return;
-  const value = pick(flat, ...fromKeys);
-  if (value !== void 0) {
-    obj[to] = value;
-  }
-}
-function buildConnection(src, flat) {
-  const c = __spreadValues({}, src != null ? src : {});
-  renameKey(c, "isConnected", "is_connected");
-  renameKey(c, "providerLabel", "provider_label");
-  renameKey(c, "walletProviderSubject", "wallet_provider_subject");
-  renameKey(c, "authMethod", "auth_method");
-  renameKey(c, "authValue", "auth_value");
-  renameKey(c, "authVerifiedAt", "auth_verified_at");
-  liftFlat(c, flat, "is_connected", ["is_connected", "isConnected"]);
-  liftFlat(c, flat, "provider", ["wallet_provider", "walletProvider"]);
-  liftFlat(c, flat, "wallet_provider_subject", [
-    "wallet_provider_subject",
-    "walletProviderSubject"
-  ]);
-  liftFlat(c, flat, "auth_method", ["auth_method", "authMethod"]);
-  liftFlat(c, flat, "auth_value", ["auth_value", "authValue"]);
-  liftFlat(c, flat, "auth_verified_at", ["auth_verified_at", "authVerifiedAt"]);
-  dropNullKeys(c, "is_connected");
-  return Object.keys(c).length ? c : void 0;
-}
-function buildEvm(src, flat) {
-  const e = __spreadValues({}, src != null ? src : {});
-  renameKey(e, "chainId", "chain_id");
-  renameKey(e, "ensName", "ens_name");
-  delete e.aa;
-  delete e.sponsorship;
-  liftFlat(e, flat, "address", ["address"]);
-  liftFlat(e, flat, "chain_id", ["chain_id", "chainId"]);
-  if (e.chain_id != null) {
-    const cid = parseChainId2(e.chain_id);
-    if (cid !== void 0) e.chain_id = cid;
-    else delete e.chain_id;
-  }
-  liftFlat(e, flat, "ens_name", ["ens_name", "ensName"]);
-  return Object.keys(e).length ? e : void 0;
-}
-function buildSvm(src, flat) {
-  const s = __spreadValues({}, src != null ? src : {});
-  renameKey(s, "walletName", "wallet_name");
-  liftFlat(s, flat, "address", ["svm_address", "svmAddress"]);
-  dropNullKeys(s, "capabilities");
-  return Object.keys(s).length ? s : void 0;
-}
-function dropNullKeys(obj, ...keys) {
-  for (const key of keys) {
-    if (obj[key] === null || obj[key] === void 0) {
-      delete obj[key];
-    }
-  }
-}
-function deepMergePreserve(previous, incoming) {
-  const out = __spreadValues({}, previous);
-  for (const [key, value] of Object.entries(incoming)) {
-    const prevObj = asObject(out[key]);
-    const incObj = asObject(value);
-    if (prevObj && incObj) {
-      out[key] = deepMergePreserve(prevObj, incObj);
-    } else if (value !== void 0) {
-      out[key] = value;
-    }
-  }
-  return out;
-}
-function parseChainId2(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-  if (typeof value !== "string") {
-    return void 0;
-  }
-  const trimmed = value.trim();
-  if (!trimmed) return void 0;
-  const parsed = trimmed.startsWith("0x") ? Number.parseInt(trimmed.slice(2), 16) : Number.parseInt(trimmed, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
-}
-function address(state) {
-  var _a3;
-  const value = (_a3 = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a3.address;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function svmAddress(state) {
-  var _a3;
-  const value = (_a3 = asObject(state == null ? void 0 : state.svm)) == null ? void 0 : _a3.address;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function chainId(state) {
-  var _a3;
-  return parseChainId2((_a3 = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a3.chain_id);
-}
-function isConnected(state) {
-  var _a3;
-  const value = (_a3 = asObject(state == null ? void 0 : state.connection)) == null ? void 0 : _a3.is_connected;
-  return typeof value === "boolean" ? value : void 0;
-}
-function sameAddress(a, b) {
-  const na = typeof a === "string" ? a.toLowerCase() : void 0;
-  const nb = typeof b === "string" ? b.toLowerCase() : void 0;
-  return na !== void 0 && na === nb;
-}
-function normalizeUserState(userState) {
-  const src = asObject(userState);
-  if (!src) {
-    return void 0;
-  }
-  const out = {};
-  const connection = buildConnection(asObject(pick(src, "connection")), src);
-  if (connection) out.connection = connection;
-  const evm = buildEvm(asEvmObject(pick(src, "evm")), src);
-  if (evm) out.evm = evm;
-  const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
-  if (svm) out.svm = svm;
-  const ext = pick(src, "ext");
-  if (ext !== void 0) out.ext = ext;
-  const preferences = pick(src, "preferences");
-  if (preferences !== void 0)
-    out.preferences = preferences;
-  return out;
-}
-function stripDanglingConnection(state) {
-  if (isConnected(state) !== true || chainId(state) !== void 0 || svmAddress(state) !== void 0) {
-    return state;
-  }
-  const conn = asObject(state.connection);
-  if (!conn) return state;
-  const trimmed = __spreadValues({}, conn);
-  delete trimmed.is_connected;
-  if (Object.keys(trimmed).length) {
-    state.connection = trimmed;
-  } else {
-    delete state.connection;
-  }
-  return state;
-}
-function reconcileUserState(previousUserState, incomingUserState) {
-  const inc = normalizeUserState(incomingUserState);
-  if (!inc) return void 0;
-  const prev = normalizeUserState(previousUserState);
-  if (!prev) return stripDanglingConnection(inc);
-  const out = __spreadValues({}, inc);
-  const connectedNotBroken = isConnected(inc) !== false;
-  const prevConn = asObject(prev.connection);
-  const incConn = asObject(inc.connection);
-  if (connectedNotBroken && prevConn) {
-    out.connection = incConn ? deepMergePreserve(prevConn, incConn) : prevConn;
-  }
-  const prevEvm = asObject(prev.evm);
-  const incEvm = asObject(inc.evm);
-  const sameEvm = !!address(prev) && (!address(inc) || sameAddress(address(prev), address(inc)));
-  if (connectedNotBroken && prevEvm && (sameEvm || !incEvm)) {
-    out.evm = incEvm ? deepMergePreserve(prevEvm, incEvm) : prevEvm;
-  }
-  const prevSvm = asObject(prev.svm);
-  const incSvm = asObject(inc.svm);
-  const sameSvm = !!svmAddress(prev) && (!svmAddress(inc) || svmAddress(prev) === svmAddress(inc));
-  if (connectedNotBroken && prevSvm && (sameSvm || !incSvm)) {
-    out.svm = incSvm ? deepMergePreserve(prevSvm, incSvm) : prevSvm;
-  }
-  if (inc.ext === void 0 && prev.ext !== void 0) {
-    out.ext = prev.ext;
-  }
-  const outExt = asObject(out.ext);
-  if (outExt && Object.keys(outExt).length === 0) {
-    delete out.ext;
-  }
-  if (inc.preferences === void 0 && prev.preferences !== void 0) {
-    out.preferences = prev.preferences;
-  }
-  return stripDanglingConnection(out);
-}
-function toOwnedUserState(userState) {
-  const normalized = normalizeUserState(userState);
-  if (!normalized) return void 0;
-  return normalized;
-}
-var init_normalize = __esm({
-  "src/user-state/normalize.ts"() {
-    "use strict";
-  }
-});
-
-// src/user-state/accessors.ts
-function asObject2(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return void 0;
-  }
-  return value;
-}
-function evmBlock(userState) {
-  var _a3;
-  return asObject2((_a3 = normalizeUserState(userState)) == null ? void 0 : _a3.evm);
-}
-function svmBlock(userState) {
-  var _a3;
-  return asObject2((_a3 = normalizeUserState(userState)) == null ? void 0 : _a3.svm);
-}
-function connBlock(userState) {
-  var _a3;
-  return asObject2((_a3 = normalizeUserState(userState)) == null ? void 0 : _a3.connection);
-}
-function parseChainId3(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-  if (typeof value !== "string") return void 0;
-  const trimmed = value.trim();
-  if (!trimmed) return void 0;
-  const parsed = trimmed.startsWith("0x") ? Number.parseInt(trimmed.slice(2), 16) : Number.parseInt(trimmed, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
-}
-function optionalString(value) {
-  if (value === null) return null;
-  return typeof value === "string" && value.trim().length > 0 ? value : void 0;
-}
-function timestamp(value) {
-  if (value === null) return null;
-  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
-  if (typeof value !== "string") return void 0;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : void 0;
-}
-function address2(userState) {
-  var _a3;
-  const value = (_a3 = evmBlock(userState)) == null ? void 0 : _a3.address;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function svmAddress2(userState) {
-  var _a3;
-  const value = (_a3 = svmBlock(userState)) == null ? void 0 : _a3.address;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function chainId2(userState) {
-  var _a3;
-  return parseChainId3((_a3 = evmBlock(userState)) == null ? void 0 : _a3.chain_id);
-}
-function ensName(userState) {
-  var _a3;
-  const value = (_a3 = evmBlock(userState)) == null ? void 0 : _a3.ens_name;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function isConnected2(userState) {
-  var _a3;
-  const value = (_a3 = connBlock(userState)) == null ? void 0 : _a3.is_connected;
-  return typeof value === "boolean" ? value : void 0;
-}
-function walletProvider(userState) {
-  var _a3;
-  const value = (_a3 = connBlock(userState)) == null ? void 0 : _a3.provider;
-  if (value === null) return null;
-  return value === "para" || value === "privy" || value === "baseAccount" ? value : void 0;
-}
-function walletProviderSubject(userState) {
-  var _a3;
-  return optionalString((_a3 = connBlock(userState)) == null ? void 0 : _a3.wallet_provider_subject);
-}
-function authMethod(userState) {
-  var _a3;
-  const value = (_a3 = connBlock(userState)) == null ? void 0 : _a3.auth_method;
-  if (value === null) return null;
-  return typeof value === "string" && AUTH_METHODS.has(value) ? value : void 0;
-}
-function authValue(userState) {
-  var _a3;
-  return optionalString((_a3 = connBlock(userState)) == null ? void 0 : _a3.auth_value);
-}
-function authVerifiedAt(userState) {
-  var _a3;
-  return timestamp((_a3 = connBlock(userState)) == null ? void 0 : _a3.auth_verified_at);
-}
-function withExt(userState, key, value) {
-  var _a3, _b;
-  const normalizedUserState = (_a3 = normalizeUserState(userState)) != null ? _a3 : {};
-  const currentExt = (_b = asObject2(normalizedUserState.ext)) != null ? _b : {};
-  return __spreadProps(__spreadValues({}, normalizedUserState), {
-    ext: __spreadProps(__spreadValues({}, currentExt), {
-      [key]: value
-    })
-  });
-}
-var AUTH_METHODS, evmAddress;
-var init_accessors = __esm({
-  "src/user-state/accessors.ts"() {
-    "use strict";
-    init_normalize();
-    AUTH_METHODS = /* @__PURE__ */ new Set([
-      "google",
-      "apple",
-      "facebook",
-      "x",
-      "discord",
-      "github",
-      "farcaster",
-      "telegram",
-      "email",
-      "phone",
-      "wagmi"
-    ]);
-    evmAddress = address2;
-  }
-});
-
-// src/user-state/index.ts
-var CLIENT_TYPE_TS_CLI, UserState;
-var init_user_state = __esm({
-  "src/user-state/index.ts"() {
-    "use strict";
-    init_accessors();
-    init_normalize();
-    CLIENT_TYPE_TS_CLI = "ts_cli";
-    ((UserState2) => {
-      UserState2.normalize = normalizeUserState;
-      UserState2.reconcile = reconcileUserState;
-      UserState2.toOwned = toOwnedUserState;
-      UserState2.address = address2;
-      UserState2.evmAddress = evmAddress;
-      UserState2.svmAddress = svmAddress2;
-      UserState2.chainId = chainId2;
-      UserState2.ensName = ensName;
-      UserState2.isConnected = isConnected2;
-      UserState2.walletProvider = walletProvider;
-      UserState2.walletProviderSubject = walletProviderSubject;
-      UserState2.authMethod = authMethod;
-      UserState2.authValue = authValue;
-      UserState2.authVerifiedAt = authVerifiedAt;
-      UserState2.withExt = withExt;
-    })(UserState || (UserState = {}));
-  }
-});
-
-// src/types.ts
-function isAomiTaskEventType(type) {
-  return AOMI_TASK_EVENT_TYPES.includes(type);
-}
-function parseAomiTaskEvent(event) {
-  var _a3, _b, _c, _d;
-  const raw = event;
-  const type = asString(raw.type);
-  if (!type || !isAomiTaskEventType(type)) return null;
-  const agentId = asString(raw.agent_id);
-  if (!agentId) return null;
-  const callId = (_a3 = asString(raw.call_id)) != null ? _a3 : "";
-  if (type === "task_started") {
-    return __spreadValues(__spreadValues({
-      type,
-      call_id: callId,
-      agent_id: agentId,
-      label: (_b = asString(raw.label)) != null ? _b : "",
-      app: (_c = asString(raw.app)) != null ? _c : null,
-      resumed: raw.resumed === true
-    }, asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
-  }
-  if (type === "task_activity") {
-    const childSeq = raw.child_seq;
-    if (typeof childSeq !== "number" || !Number.isFinite(childSeq)) return null;
-    const kind = raw.kind === "note" ? "note" : "tool_call";
-    return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
-      type,
-      call_id: callId,
-      agent_id: agentId,
-      kind,
-      child_seq: childSeq
-    }, asString(raw.tool_name) ? { tool_name: raw.tool_name } : null), raw.args !== void 0 ? { args: raw.args } : null), asString(raw.result_preview) ? { result_preview: raw.result_preview } : null), asString(raw.text) ? { text: raw.text } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
-  }
-  return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
-    type,
-    call_id: callId,
-    agent_id: agentId,
-    status: (_d = asString(raw.status)) != null ? _d : "completed"
-  }, asString(raw.message) ? { message: raw.message } : null), typeof raw.staged_count === "number" ? { staged_count: raw.staged_count } : null), typeof raw.steps === "number" ? { steps: raw.steps } : null), typeof raw.duration_ms === "number" ? { duration_ms: raw.duration_ms } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
-}
-var AOMI_TASK_EVENT_TYPES, asString;
-var init_types = __esm({
-  "src/types.ts"() {
-    "use strict";
-    init_user_state();
-    init_user_state();
-    AOMI_TASK_EVENT_TYPES = [
-      "task_started",
-      "task_activity",
-      "task_completed"
-    ];
-    asString = (value) => typeof value === "string" ? value : void 0;
   }
 });
 
@@ -1209,6 +751,11 @@ var init_action_handler = __esm({
       all() {
         return this.snapshot;
       }
+      allAttempts() {
+        return new Map(
+          [...this.attempts].map(([id, attempt]) => [id, publicAttempt(attempt)])
+        );
+      }
       pending() {
         return this.all().filter((action) => action.state === "pending");
       }
@@ -1221,7 +768,12 @@ var init_action_handler = __esm({
         return this.pending().length > 0 || this.attempts.size > 0;
       }
       subscribe(listener) {
-        return this.on("changed", listener);
+        const actions = this.on("changed", listener);
+        const attempts = this.on("attempt_changed", listener);
+        return () => {
+          actions();
+          attempts();
+        };
       }
       setCapabilities(capabilities) {
         this.capabilities = capabilities;
@@ -1242,7 +794,8 @@ var init_action_handler = __esm({
           actionId: action.id,
           revision: action.revision,
           state: "executing",
-          controller: new AbortController()
+          controller: new AbortController(),
+          idempotencyKey: crypto.randomUUID()
         };
         this.attempts.set(id, attempt);
         this.emit("attempt_changed", publicAttempt(attempt));
@@ -1269,7 +822,8 @@ var init_action_handler = __esm({
           actionId: action.id,
           revision: action.revision,
           state: "responding",
-          controller: new AbortController()
+          controller: new AbortController(),
+          idempotencyKey: crypto.randomUUID()
         };
         attempt.result = result;
         this.attempts.set(id, attempt);
@@ -1312,7 +866,7 @@ var init_action_handler = __esm({
         attempt.state = "responding";
         attempt.error = void 0;
         this.emit("attempt_changed", publicAttempt(attempt));
-        return this.respond(action, attempt.result).then((next) => {
+        return this.respond(action, attempt.result, attempt.idempotencyKey).then((next) => {
           this.ingest(next);
           this.emit("resolved", next);
           return next;
@@ -1354,17 +908,17 @@ var init_actions = __esm({
 
 // src/agent/transport.ts
 function mutationHeaders(options = {}) {
-  var _a3;
+  var _a2;
   return __spreadValues({
-    "idempotency-key": (_a3 = options.idempotencyKey) != null ? _a3 : randomIdempotencyKey()
+    "idempotency-key": (_a2 = options.idempotencyKey) != null ? _a2 : randomIdempotencyKey()
   }, options.paymentSignature ? { "payment-signature": options.paymentSignature } : {});
 }
 function randomIdempotencyKey() {
-  var _a3, _b, _c;
-  return (_c = (_b = (_a3 = globalThis.crypto) == null ? void 0 : _a3.randomUUID) == null ? void 0 : _b.call(_a3)) != null ? _c : `agent_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  var _a2, _b, _c;
+  return (_c = (_b = (_a2 = globalThis.crypto) == null ? void 0 : _a2.randomUUID) == null ? void 0 : _b.call(_a2)) != null ? _c : `agent_${Date.now()}_${Math.random().toString(16).slice(2)}`;
 }
 async function parseAgentResponse(response) {
-  var _a3;
+  var _a2;
   if (response.ok) {
     if (response.status === 204) return void 0;
     return await response.json();
@@ -1381,7 +935,7 @@ async function parseAgentResponse(response) {
     code,
     code.replaceAll("_", " "),
     response.status === 408 || response.status === 429 || response.status >= 500,
-    (_a3 = response.headers.get("x-request-id")) != null ? _a3 : void 0,
+    (_a2 = response.headers.get("x-request-id")) != null ? _a2 : void 0,
     raw
   );
 }
@@ -1412,11 +966,11 @@ var init_transport = __esm({
         });
       }
       poll(sessionId, options = {}) {
-        var _a3;
+        var _a2;
         return this.json("GET", `/v1/agent/chat/${encodeURIComponent(sessionId)}`, {
           query: {
             cursor: options.cursor,
-            wait: Math.min(Math.max((_a3 = options.waitMs) != null ? _a3 : 0, 0), 3e4)
+            wait: Math.min(Math.max((_a2 = options.waitMs) != null ? _a2 : 0, 0), 3e4)
           }
         });
       }
@@ -1457,13 +1011,13 @@ var init_transport = __esm({
         });
       }
       async all() {
-        var _a3;
+        var _a2;
         const sessions = [];
         let cursor;
         do {
           const page = await this.list({ cursor, limit: 100 });
           sessions.push(...page.sessions);
-          cursor = (_a3 = page.nextCursor) != null ? _a3 : void 0;
+          cursor = (_a2 = page.nextCursor) != null ? _a2 : void 0;
         } while (cursor);
         return sessions;
       }
@@ -1494,7 +1048,7 @@ var init_transport = __esm({
 
 // src/app-descriptor.ts
 function normalizeAppDescriptor(item) {
-  var _a3, _b;
+  var _a2, _b;
   if (typeof item === "string") {
     const name2 = item.trim();
     return name2 ? { name: name2 } : null;
@@ -1506,7 +1060,7 @@ function normalizeAppDescriptor(item) {
   const descriptor = __spreadProps(__spreadValues({}, raw), {
     name
   });
-  const applicationId = (_b = (_a3 = raw.applicationId) != null ? _a3 : raw.application_id) != null ? _b : raw.id;
+  const applicationId = (_b = (_a2 = raw.applicationId) != null ? _a2 : raw.application_id) != null ? _b : raw.id;
   if (typeof applicationId === "number" || typeof applicationId === "string") {
     descriptor.applicationId = applicationId;
   }
@@ -1556,10 +1110,10 @@ function validatePipelineArguments(value, schema) {
   validate(value, schema, "$arguments");
 }
 function validate(value, schema, path) {
-  var _a3;
+  var _a2;
   if (schema === true) return;
   if (schema === false) throw new PipelineSchemaError(path, "is not allowed");
-  const variants = (_a3 = schema.oneOf) != null ? _a3 : schema.anyOf;
+  const variants = (_a2 = schema.oneOf) != null ? _a2 : schema.anyOf;
   if (Array.isArray(variants) && variants.length > 0) {
     const accepted = variants.some((variant) => {
       if (!isSchema(variant)) return false;
@@ -1678,12 +1232,12 @@ async function parsePipelineResponse(response) {
   throw await pipelineError(response);
 }
 async function pipelineError(response) {
-  var _a3, _b, _c, _d;
+  var _a2, _b, _c, _d;
   const body = await response.json().catch(() => null);
   const error = asRecord(body == null ? void 0 : body.error);
   return new PipelineApiError(
     response.status,
-    (_a3 = stringValue(error == null ? void 0 : error.code)) != null ? _a3 : "pipeline_request_failed",
+    (_a2 = stringValue(error == null ? void 0 : error.code)) != null ? _a2 : "pipeline_request_failed",
     (_b = stringValue(error == null ? void 0 : error.message)) != null ? _b : `Pipeline request failed with HTTP ${response.status}`,
     response.status === 408 || response.status === 429 || response.status >= 500,
     (_d = (_c = stringValue(error == null ? void 0 : error.requestId)) != null ? _c : response.headers.get("x-request-id")) != null ? _d : void 0,
@@ -1724,17 +1278,17 @@ function operationPath(path) {
   return full;
 }
 function commitHeaders(digest, options) {
-  var _a3;
+  var _a2;
   return mutationHeaders2(__spreadProps(__spreadValues({}, options), {
-    idempotencyKey: (_a3 = options.idempotencyKey) != null ? _a3 : digest
+    idempotencyKey: (_a2 = options.idempotencyKey) != null ? _a2 : digest
   }));
 }
 function mutationHeaders2(options) {
-  var _a3;
+  var _a2;
   return __spreadValues({
     "idempotency-key": required(
       "idempotencyKey",
-      (_a3 = options.idempotencyKey) != null ? _a3 : randomIdempotencyKey2()
+      (_a2 = options.idempotencyKey) != null ? _a2 : randomIdempotencyKey2()
     )
   }, options.paymentSignature ? { "payment-signature": options.paymentSignature } : {});
 }
@@ -1913,11 +1467,11 @@ var init_transport2 = __esm({
 
 // src/guest-auth.ts
 function createGuestSessionProvider(input2) {
-  var _a3;
-  const fetchImpl = (_a3 = input2.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
+  var _a2;
+  const fetchImpl = (_a2 = input2.fetch) != null ? _a2 : globalThis.fetch.bind(globalThis);
   let credential = null;
   let pending = null;
-  const provider = async (options) => {
+  const provider2 = async (options) => {
     if (options == null ? void 0 : options.forceRefresh) credential = null;
     if (credential) return credential;
     pending != null ? pending : pending = signInAnonymous(fetchImpl, input2.baseUrl).finally(() => {
@@ -1926,14 +1480,14 @@ function createGuestSessionProvider(input2) {
     credential = await pending;
     return credential;
   };
-  return Object.assign(provider, {
+  return Object.assign(provider2, {
     clear() {
       credential = null;
     }
   });
 }
 async function signInAnonymous(fetchImpl, baseUrl) {
-  var _a3, _b;
+  var _a2, _b;
   const response = await fetchImpl(
     `${baseUrl.replace(/\/+$/, "")}/api/auth/sign-in/anonymous`,
     {
@@ -1949,7 +1503,7 @@ async function signInAnonymous(fetchImpl, baseUrl) {
   if (!response.ok) {
     throw new Error(`Aomi guest sign-in failed with HTTP ${response.status}`);
   }
-  const token = (_b = (_a3 = response.headers.get("set-auth-token")) != null ? _a3 : response.headers.get("x-auth-token")) != null ? _b : response.headers.get("auth-token");
+  const token = (_b = (_a2 = response.headers.get("set-auth-token")) != null ? _a2 : response.headers.get("x-auth-token")) != null ? _b : response.headers.get("auth-token");
   if (!token) throw new Error("Aomi guest sign-in returned no bearer session");
   return token;
 }
@@ -2017,9 +1571,9 @@ function withSessionHeader(sessionId, init) {
 function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
   if (!getAccountBearer) return fetchImpl;
   return async (input2, init) => {
-    var _a3, _b;
+    var _a2, _b;
     const request = input2 instanceof Request ? input2 : void 0;
-    const path = new URL(String((_a3 = request == null ? void 0 : request.url) != null ? _a3 : input2), "http://localhost").pathname;
+    const path = new URL(String((_a2 = request == null ? void 0 : request.url) != null ? _a2 : input2), "http://localhost").pathname;
     if (path.startsWith("/v1/agent/") || path.startsWith("/v1/pipeline/")) {
       return fetchImpl(request ? request.clone() : input2, init);
     }
@@ -2048,10 +1602,10 @@ function wrapFetchWithAccountBearer(fetchImpl, getAccountBearer) {
 function wrapFetchWithPublicApiAuthorization(input2) {
   if (!input2.oauth && !input2.guest) return input2.fetch;
   return async (requestInput, init) => {
-    var _a3, _b, _c, _d, _e, _f;
+    var _a2, _b, _c, _d, _e, _f;
     const request = requestInput instanceof Request ? requestInput : void 0;
     const url = new URL(
-      String((_a3 = request == null ? void 0 : request.url) != null ? _a3 : requestInput),
+      String((_a2 = request == null ? void 0 : request.url) != null ? _a2 : requestInput),
       absoluteBase(input2.baseUrl)
     );
     const policy = publicApiPolicy(
@@ -2062,7 +1616,7 @@ function wrapFetchWithPublicApiAuthorization(input2) {
     if (!policy) return input2.fetch(requestInput, init);
     const baseHeaders = new Headers((_e = init == null ? void 0 : init.headers) != null ? _e : request == null ? void 0 : request.headers);
     const attempt = async (forceRefresh, dpopNonce2) => {
-      var _a4;
+      var _a3;
       const headers = new Headers(baseHeaders);
       if (input2.oauth) {
         const token = await input2.oauth({
@@ -2074,7 +1628,7 @@ function wrapFetchWithPublicApiAuthorization(input2) {
           throw new Error(
             "No OAuth grant covers this Aomi resource and scope set"
           );
-        const tokenType = (_a4 = token.tokenType) != null ? _a4 : "Bearer";
+        const tokenType = (_a3 = token.tokenType) != null ? _a3 : "Bearer";
         headers.set("authorization", `${tokenType} ${token.accessToken}`);
         if (tokenType === "DPoP") {
           if (!token.dpopProof) {
@@ -2149,10 +1703,10 @@ var init_client = __esm({
     APP_KEY_HEADER = "Aomi-App-Key";
     AomiClient = class {
       constructor(options) {
-        var _a3;
+        var _a2;
         this.baseUrl = options.baseUrl.replace(/\/+$/, "");
         this.apiKey = options.apiKey;
-        const fetchImpl = (_a3 = options.fetch) != null ? _a3 : globalThis.fetch.bind(globalThis);
+        const fetchImpl = (_a2 = options.fetch) != null ? _a2 : globalThis.fetch.bind(globalThis);
         const rawFetchImpl = typeof globalThis.fetch === "function" ? globalThis.fetch.bind(globalThis) : fetchImpl;
         const guest = options.oauth || options.getAccountBearer || options.guest === false ? void 0 : typeof options.guest === "function" ? options.guest : createGuestSessionProvider({
           baseUrl: this.baseUrl,
@@ -2192,7 +1746,7 @@ var init_client = __esm({
        * Prefer the typed helpers below for common chat/session/account flows.
        */
       async request(method, path, options) {
-        var _a3;
+        var _a2;
         const response = await this.requestResponse(method, path, options);
         if (!response.ok) {
           const body = await response.text().catch(() => "");
@@ -2202,19 +1756,19 @@ ${body}` : ""}`
           );
         }
         if (response.status === 204) return void 0;
-        const contentType = (_a3 = response.headers.get("content-type")) != null ? _a3 : "";
+        const contentType = (_a2 = response.headers.get("content-type")) != null ? _a2 : "";
         return contentType.includes("application/json") ? await response.json() : await response.text();
       }
       /** Raw authenticated response transport shared by JSON, SSE, and MCP clients. */
       async requestResponse(method, path, options) {
-        var _a3;
+        var _a2;
         const url = buildApiUrl(this.baseUrl, path, normalizeQuery(options == null ? void 0 : options.query));
         const headers = new Headers(options == null ? void 0 : options.headers);
         if (options == null ? void 0 : options.sessionId) {
           headers.set(SESSION_ID_HEADER, options.sessionId);
           headers.set(THREAD_ID_HEADER, options.sessionId);
         }
-        const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
+        const apiKey = (_a2 = options == null ? void 0 : options.apiKey) != null ? _a2 : this.apiKey;
         if (apiKey) {
           headers.set(APP_KEY_HEADER, apiKey);
         }
@@ -2318,13 +1872,13 @@ ${body}` : ""}`
        * the chat shell uses it to gate app load when required slots are unfilled.
        */
       async getApps(sessionId, options) {
-        var _a3;
+        var _a2;
         const platforms = normalizePlatformFilter(options == null ? void 0 : options.platforms);
         const url = buildApiUrl(this.baseUrl, "/api/thread/apps", {
           platform: platforms.length > 0 ? platforms : void 0,
           application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
         });
-        const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
+        const apiKey = (_a2 = options == null ? void 0 : options.apiKey) != null ? _a2 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
           headers.set(APP_KEY_HEADER, apiKey);
@@ -2384,7 +1938,7 @@ ${body}` : ""}`
        * Mint a Privy browser auth URL bound to the current backend session.
        */
       async beginPrivyAuth(sessionId, options) {
-        var _a3;
+        var _a2;
         const url = buildApiUrl(this.baseUrl, "/api/auth/privy/begin");
         const response = await this.rawFetchImpl(url, {
           method: "POST",
@@ -2393,7 +1947,7 @@ ${body}` : ""}`
           }),
           body: JSON.stringify({
             application: options == null ? void 0 : options.application,
-            purpose: (_a3 = options == null ? void 0 : options.purpose) != null ? _a3 : "link_wallet",
+            purpose: (_a2 = options == null ? void 0 : options.purpose) != null ? _a2 : "link_wallet",
             wallet_family: (options == null ? void 0 : options.walletFamily) === "evm" ? void 0 : options == null ? void 0 : options.walletFamily
           })
         });
@@ -2415,11 +1969,11 @@ ${body}` : ""}`
        * Get available models.
        */
       async getModels(sessionId, options) {
-        var _a3;
+        var _a2;
         const url = buildApiUrl(this.baseUrl, "/api/thread/models", {
           application_id: applicationIdParam(options == null ? void 0 : options.applicationId)
         });
-        const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
+        const apiKey = (_a2 = options == null ? void 0 : options.apiKey) != null ? _a2 : this.apiKey;
         const headers = new Headers(withSessionHeader(sessionId));
         if (apiKey) {
           headers.set(APP_KEY_HEADER, apiKey);
@@ -2436,8 +1990,8 @@ ${body}` : ""}`
        * Set the model for a session.
        */
       async setModel(sessionId, rig, options) {
-        var _a3;
-        const apiKey = (_a3 = options == null ? void 0 : options.apiKey) != null ? _a3 : this.apiKey;
+        var _a2;
+        const apiKey = (_a2 = options == null ? void 0 : options.apiKey) != null ? _a2 : this.apiKey;
         const url = buildApiUrl(this.baseUrl, "/api/thread/model", {
           rig,
           app: options == null ? void 0 : options.app,
@@ -2461,7 +2015,7 @@ ${body}` : ""}`
        * List BYOK keys (one per LLM provider) bound to the current account.
        */
       async listByokKeys(sessionId) {
-        var _a3;
+        var _a2;
         const url = buildApiUrl(this.baseUrl, "/api/account/payment");
         const response = await this.fetchImpl(url, {
           headers: withSessionHeader(sessionId)
@@ -2470,12 +2024,12 @@ ${body}` : ""}`
           throw new Error(`Failed to get BYOK keys: HTTP ${response.status}`);
         }
         const data = await response.json();
-        return (_a3 = data.byok) != null ? _a3 : [];
+        return (_a2 = data.byok) != null ? _a2 : [];
       }
       /**
        * Save or replace a BYOK key for the current account.
        */
-      async saveByokKey(sessionId, provider, byokKey, label) {
+      async saveByokKey(sessionId, provider2, byokKey, label) {
         const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
         const response = await this.fetchImpl(url, {
           method: "POST",
@@ -2483,7 +2037,7 @@ ${body}` : ""}`
             "Content-Type": "application/json"
           }),
           body: JSON.stringify({
-            provider,
+            provider: provider2,
             byok_key: byokKey,
             label
           })
@@ -2497,10 +2051,10 @@ ${body}` : ""}`
       /**
        * Delete a BYOK key for the current account.
        */
-      async deleteByokKey(sessionId, provider) {
+      async deleteByokKey(sessionId, provider2) {
         const url = buildApiUrl(
           this.baseUrl,
-          `/api/account/payment/byok/${encodeURIComponent(provider)}`
+          `/api/account/payment/byok/${encodeURIComponent(provider2)}`
         );
         const response = await this.fetchImpl(url, {
           method: "DELETE",
@@ -2529,13 +2083,13 @@ ${body}` : ""}`
           headers.set(APP_KEY_HEADER, this.apiKey);
         }
         const normalizedTransactions = transactions.map((transaction) => {
-          var _a3, _b;
+          var _a2, _b;
           return {
             to: transaction.to,
             value: transaction.value,
             data: transaction.data,
             label: transaction.label,
-            chain_id: (_b = (_a3 = transaction.chain_id) != null ? _a3 : transaction.chainId) != null ? _b : options == null ? void 0 : options.chainId
+            chain_id: (_b = (_a2 = transaction.chain_id) != null ? _a2 : transaction.chainId) != null ? _b : options == null ? void 0 : options.chainId
           };
         });
         const payload = {
@@ -2561,70 +2115,6 @@ ${body}` : ""}`
   }
 });
 
-// src/session/json.ts
-function stableUserStateString(state) {
-  return JSON.stringify(sortJson(state != null ? state : {}));
-}
-function sortJson(value) {
-  if (Array.isArray(value)) {
-    return value.map((entry) => sortJson(entry));
-  }
-  if (value && typeof value === "object") {
-    return Object.keys(value).sort().reduce((acc, key) => {
-      acc[key] = sortJson(value[key]);
-      return acc;
-    }, {});
-  }
-  return value;
-}
-var init_json = __esm({
-  "src/session/json.ts"() {
-    "use strict";
-  }
-});
-
-// src/session/state.ts
-function isRecord2(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function addExtValue(userState, key, value) {
-  const current = userState != null ? userState : {};
-  const currentExt = isRecord2(current["ext"]) ? current["ext"] : {};
-  return __spreadProps(__spreadValues({}, current), {
-    ext: __spreadProps(__spreadValues({}, currentExt), {
-      [key]: value
-    })
-  });
-}
-function removeExtValue(userState, key) {
-  if (!userState) return void 0;
-  const currentExt = userState["ext"];
-  if (!isRecord2(currentExt)) return void 0;
-  const nextExt = __spreadValues({}, currentExt);
-  delete nextExt[key];
-  return __spreadProps(__spreadValues({}, userState), { ext: nextExt });
-}
-function resolveWalletState(userState, address3, chainId4) {
-  const prevEvm = isRecord2(userState == null ? void 0 : userState.evm) ? userState == null ? void 0 : userState.evm : {};
-  const prevConn = isRecord2(userState == null ? void 0 : userState.connection) ? userState == null ? void 0 : userState.connection : {};
-  return __spreadProps(__spreadValues({}, userState != null ? userState : {}), {
-    evm: __spreadProps(__spreadValues({}, prevEvm), {
-      address: address3,
-      chain_id: chainId4 != null ? chainId4 : 1
-    }),
-    connection: __spreadProps(__spreadValues({}, prevConn), {
-      is_connected: true
-    })
-  });
-}
-var init_state = __esm({
-  "src/session/state.ts"() {
-    "use strict";
-    init_user_state();
-    init_json();
-  }
-});
-
 // src/aa/policy.ts
 var init_policy = __esm({
   "src/aa/policy.ts"() {
@@ -2633,89 +2123,98 @@ var init_policy = __esm({
 });
 
 // src/session/index.ts
-function eventTimestamp(value) {
-  return new Date(
-    value < 1e12 ? value * 1e3 : value
-  ).toISOString();
-}
-var TERMINAL_TURN_STATES, ClientSession;
+var TERMINAL_TURN_STATES, TERMINAL_EVENT_DRAIN_MS, ClientSession;
 var init_session = __esm({
   "src/session/index.ts"() {
     "use strict";
     init_actions();
     init_transport();
     init_client();
-    init_event();
-    init_user_state();
-    init_json();
-    init_state();
     init_policy();
     TERMINAL_TURN_STATES = /* @__PURE__ */ new Set([
       "complete",
       "interrupted",
       "failed"
     ]);
-    ClientSession = class extends TypedEventEmitter {
+    TERMINAL_EVENT_DRAIN_MS = 6e4;
+    ClientSession = class {
       constructor(clientOrOptions, sessionOptions) {
-        var _a3, _b, _c, _d, _e;
-        super();
         this.pollTimer = null;
         this.pollingActive = false;
         this.pollInFlight = false;
         this.pollFailureCount = 0;
-        this._isProcessing = false;
-        this._messages = [];
+        this.awaitingResume = false;
+        this.isSubmitting = false;
+        this.events = [];
+        this.eventIds = /* @__PURE__ */ new Set();
+        this.messages = [];
         this.closed = false;
         this.pendingResolve = null;
+        this.listeners = /* @__PURE__ */ new Set();
+        this.actionUnsubscribers = [];
+        this.applyingPage = false;
+        this.getSnapshot = () => this.snapshot;
+        this.subscribe = (listener) => {
+          this.listeners.add(listener);
+          return () => this.listeners.delete(listener);
+        };
         this.handleVisibilityChange = () => {
           if (typeof document !== "undefined" && !document.hidden && !this.pollInFlight) {
             this.schedulePoll(0);
           }
         };
+        var _a2, _b, _c, _d, _e;
         this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
-        this.sessionId = (_a3 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a3 : crypto.randomUUID();
+        this.sessionId = (_a2 = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a2 : crypto.randomUUID();
         this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
         this.model = sessionOptions == null ? void 0 : sessionOptions.model;
         this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
-        const initial = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
-        this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(
-          initial != null ? initial : {},
-          "client_type",
-          sessionOptions.clientType
-        ) : initial;
+        this.getUserState = sessionOptions == null ? void 0 : sessionOptions.getUserState;
         this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
         this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
         this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
         this.actions = new ActionHandler(
           (_e = sessionOptions == null ? void 0 : sessionOptions.actions) != null ? _e : {},
-          (action, result) => this.client.agent.respondToAction(
+          (action, result, idempotencyKey) => this.client.agent.respondToAction(
             this.sessionId,
             action.id,
             action.revision,
-            result
+            result,
+            idempotencyKey
           )
         );
-        this.actions.on("resolved", () => {
-          this.beginProcessing();
-          this.startPolling();
-        });
+        this.snapshot = this.buildSnapshot();
+        this.actionUnsubscribers.push(
+          this.actions.subscribe(() => {
+            if (!this.applyingPage) this.publish();
+          }),
+          this.actions.on("resolved", () => {
+            this.awaitingResume = true;
+            this.startPolling();
+          })
+        );
       }
       async send(message) {
         const page = await this.submit(message);
-        if (this.isTerminal()) return this.result();
-        this.beginProcessing();
-        if (this.turnState !== "awaiting_action" || page.has_more)
+        if (this.isTerminal()) {
+          this.drainTerminalPage(page);
+          return this.result();
+        }
+        if (this.turnState !== "awaiting_action" || page.has_more) {
           this.startPolling();
+        }
         return new Promise((resolve) => {
           this.pendingResolve = resolve;
         });
       }
       async sendAsync(message) {
         const page = await this.submit(message);
-        if (!this.isTerminal()) {
-          this.beginProcessing();
-          if (this.turnState !== "awaiting_action" || page.has_more)
-            this.startPolling();
+        if (this.isTerminal()) {
+          this.drainTerminalPage(page);
+          return page;
+        }
+        if (this.turnState !== "awaiting_action" || page.has_more) {
+          this.startPolling();
         }
         return page;
       }
@@ -2725,68 +2224,16 @@ var init_session = __esm({
         this.applyEventPage(
           await this.client.agent.interrupt(this.sessionId, this.turnId)
         );
-        this.finishProcessing();
-      }
-      close() {
-        if (this.closed) return;
-        this.closed = true;
-        this.stopPolling();
-        this.resolvePending();
-        this.actions.close();
-        this.removeAllListeners();
-      }
-      getMessages() {
-        return [...this._messages];
-      }
-      getTitle() {
-        return this._title;
-      }
-      getUserState() {
-        return this.userState ? __spreadValues({}, this.userState) : void 0;
-      }
-      getTurnState() {
-        return this.turnState;
-      }
-      getTurnId() {
-        return this.turnId;
-      }
-      getIsProcessing() {
-        return this._isProcessing;
-      }
-      getIsPolling() {
-        return this.pollingActive;
+        if (this.isTerminal()) this.finish();
       }
       syncRuntimeOptions(options) {
-        var _a3;
+        var _a2;
         this.app = options.app;
         this.model = options.model;
         this.applicationId = options.applicationId;
-        this.clientId = (_a3 = options.clientId) != null ? _a3 : this.clientId;
-        if (options.userState) this.resolveUserState(options.userState);
+        this.clientId = (_a2 = options.clientId) != null ? _a2 : this.clientId;
+        this.getUserState = options.getUserState;
         if (options.actions) this.actions.setCapabilities(options.actions);
-      }
-      resolveUserState(userState, opts) {
-        const previous = stableUserStateString(this.userState);
-        this.userState = UserState.reconcile(this.userState, userState);
-        if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previous !== stableUserStateString(this.userState)) {
-          this.emit("user_state_updated", this.userState);
-        }
-      }
-      setClientType(clientType) {
-        var _a3;
-        this.resolveUserState(
-          UserState.withExt((_a3 = this.userState) != null ? _a3 : {}, "client_type", clientType)
-        );
-      }
-      addExtValue(key, value) {
-        this.resolveUserState(addExtValue(this.userState, key, value));
-      }
-      removeExtValue(key) {
-        const next = removeExtValue(this.userState, key);
-        if (next) this.resolveUserState(next);
-      }
-      resolveWallet(address3, chainId4) {
-        this.resolveUserState(resolveWalletState(this.userState, address3, chainId4));
       }
       async sync() {
         this.assertOpen();
@@ -2794,29 +2241,29 @@ var init_session = __esm({
       }
       async fetchCurrentState() {
         const page = await this.sync();
-        if (!this.isTerminal() && this.turnState !== "awaiting_action") {
-          this.beginProcessing();
+        if (this.isTerminal()) this.finish();
+        else if (this.turnState && this.turnState !== "awaiting_action") {
           this.startPolling();
-        } else if (this.isTerminal()) {
-          this.finishProcessing();
         }
         if (page.has_more) this.startPolling();
       }
       startPolling() {
-        var _a3;
+        var _a2;
         if (this.pollingActive || this.closed) return;
         this.pollingActive = true;
-        (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling started", this.sessionId);
+        (_a2 = this.logger) == null ? void 0 : _a2.debug("[session] polling started", this.sessionId);
         if (typeof document !== "undefined") {
           document.addEventListener(
             "visibilitychange",
             this.handleVisibilityChange
           );
         }
+        this.publish();
         this.schedulePoll(0);
       }
       stopPolling() {
-        var _a3;
+        var _a2;
+        if (!this.pollingActive && !this.pollTimer) return;
         this.pollingActive = false;
         if (this.pollTimer) clearTimeout(this.pollTimer);
         this.pollTimer = null;
@@ -2826,29 +2273,44 @@ var init_session = __esm({
             this.handleVisibilityChange
           );
         }
-        (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] polling stopped", this.sessionId);
+        (_a2 = this.logger) == null ? void 0 : _a2.debug("[session] polling stopped", this.sessionId);
+        this.publish();
+      }
+      close() {
+        if (this.closed) return;
+        this.closed = true;
+        this.stopPolling();
+        this.resolvePending();
+        for (const unsubscribe of this.actionUnsubscribers) unsubscribe();
+        this.actionUnsubscribers = [];
+        this.actions.close();
+        this.listeners.clear();
       }
       async submit(message) {
-        var _a3;
+        var _a2, _b;
         this.assertOpen();
         const text2 = message.trim();
         if (!text2) throw new TypeError("message is required");
         const applicationId = Number(this.applicationId);
-        const operation = ((_a3 = this.startOperation) == null ? void 0 : _a3.message) === text2 ? this.startOperation : {
+        const operation = ((_a2 = this.startOperation) == null ? void 0 : _a2.message) === text2 ? this.startOperation : {
           message: text2,
           idempotencyKey: `idem_${crypto.randomUUID().replaceAll("-", "")}`
         };
         this.startOperation = operation;
+        this.awaitingResume = false;
+        this.terminalDrainUntil = void 0;
+        this.isSubmitting = true;
+        this.error = void 0;
+        this.publish();
         try {
+          const state = (_b = this.getUserState) == null ? void 0 : _b.call(this);
           const page = await this.client.agent.start(
             __spreadValues(__spreadValues(__spreadValues({
               sessionId: this.sessionId,
               clientId: this.clientId,
               message: text2
-            }, Number.isSafeInteger(applicationId) && applicationId > 0 ? { applicationId } : { app: this.app }), this.model ? { model: this.model } : {}), this.userState ? {
-              userState: UserState.toOwned(
-                this.userState
-              )
+            }, Number.isSafeInteger(applicationId) && applicationId > 0 ? { applicationId } : { app: this.app }), this.model ? { model: this.model } : {}), state ? {
+              userState: state
             } : {}),
             { idempotencyKey: operation.idempotencyKey }
           );
@@ -2856,10 +2318,14 @@ var init_session = __esm({
           this.applyEventPage(page);
           return page;
         } catch (error) {
+          this.error = error;
           if (error instanceof AgentApiError && !error.retryable) {
             this.startOperation = void 0;
           }
           throw error;
+        } finally {
+          this.isSubmitting = false;
+          this.publish();
         }
       }
       async fetchPage(waitMs = 0) {
@@ -2871,7 +2337,7 @@ var init_session = __esm({
           this.applyEventPage(page);
           return page;
         } catch (error) {
-          if (!(error instanceof AgentApiError) || error.code !== "cursor_mismatch") {
+          if (!(error instanceof AgentApiError) || error.code !== "invalid_cursor") {
             throw error;
           }
           this.cursor = void 0;
@@ -2881,71 +2347,75 @@ var init_session = __esm({
         }
       }
       applyEventPage(page) {
-        var _a3, _b;
+        var _a2;
         if (page.session_id !== this.sessionId) {
           throw new TypeError("Agent response session does not match the request");
         }
-        let messagesChanged = false;
-        for (const event of page.events) {
-          let emitEvent = true;
-          switch (event.type) {
-            case "message":
-              this.applyMessage(event);
-              messagesChanged = true;
-              break;
-            case "turn_state_changed":
-              this.turnId = (_a3 = event.turn_id) != null ? _a3 : this.turnId;
-              this.turnState = event.state;
-              break;
-            case "title_changed":
-              if (event.title !== void 0) this._title = event.title;
-              break;
-            case "action":
-              this.turnId = (_b = event.turn_id) != null ? _b : this.turnId;
-              emitEvent = this.actions.ingest(event);
-              break;
+        this.applyingPage = true;
+        try {
+          for (const event of page.events) {
+            if (this.eventIds.has(event.event_id)) continue;
+            const previous = this.events.at(-1);
+            if (previous && event.sequence <= previous.sequence) {
+              throw new TypeError("Agent events are not monotonically ordered");
+            }
+            this.eventIds.add(event.event_id);
+            this.events.push(event);
+            this.turnId = (_a2 = event.turn_id) != null ? _a2 : this.turnId;
+            switch (event.type) {
+              case "message":
+                this.applyMessage(event);
+                break;
+              case "turn_state_changed":
+                this.turnState = event.state;
+                if (event.state !== "awaiting_action") {
+                  this.awaitingResume = false;
+                }
+                break;
+              case "title_changed":
+                this.title = event.title;
+                break;
+              case "action":
+                this.actions.ingest(event);
+                break;
+            }
           }
-          if (emitEvent) {
-            this.emit("event", event);
-            this.emit(event.type, event);
-          }
+          this.cursor = page.cursor;
+          this.error = void 0;
+        } finally {
+          this.applyingPage = false;
         }
-        this.cursor = page.cursor;
-        if (messagesChanged) this.emit("messages", [...this._messages]);
+        this.publish();
       }
       applyMessage(event) {
-        var _a3, _b, _c;
-        const id = (_a3 = event.message_key) != null ? _a3 : event.event_id;
-        const message = {
-          id,
-          message_key: (_b = event.message_key) != null ? _b : void 0,
-          sender: event.sender,
-          content: event.content,
-          timestamp: eventTimestamp(event.occurred_at),
-          is_streaming: (_c = event.is_streaming) != null ? _c : false
-        };
-        const index = this._messages.findIndex((current) => current.id === id);
-        if (index >= 0) this._messages[index] = message;
-        else this._messages.push(message);
+        var _a2;
+        const key = (_a2 = event.message_key) != null ? _a2 : event.event_id;
+        const index = this.messages.findIndex(
+          (message) => {
+            var _a3;
+            return ((_a3 = message.message_key) != null ? _a3 : message.event_id) === key;
+          }
+        );
+        if (index >= 0) this.messages[index] = event;
+        else this.messages.push(event);
       }
       async pollTick() {
-        var _a3;
+        var _a2;
         if (!this.pollingActive || this.pollInFlight) return;
         this.pollTimer = null;
         this.pollInFlight = true;
         try {
           const page = await this.fetchPage(25e3);
           this.pollFailureCount = 0;
-          if (this.isTerminal()) {
-            this.emit("backend_idle", void 0);
-            this.finishProcessing();
-          } else if (this.turnState === "awaiting_action" && !page.has_more) {
+          if (this.isTerminal()) this.drainTerminalPage(page);
+          else if (this.turnState === "awaiting_action" && !this.awaitingResume && !page.has_more) {
             this.stopPolling();
           }
         } catch (error) {
           this.pollFailureCount += 1;
-          (_a3 = this.logger) == null ? void 0 : _a3.debug("[session] poll error", error);
-          this.emit("error", { error });
+          this.error = error;
+          (_a2 = this.logger) == null ? void 0 : _a2.debug("[session] poll error", error);
+          this.publish();
         } finally {
           this.pollInFlight = false;
           if (this.pollingActive) {
@@ -2958,27 +2428,56 @@ var init_session = __esm({
           }
         }
       }
-      beginProcessing() {
-        if (this._isProcessing) return;
-        this._isProcessing = true;
-        this.emit("processing_start", void 0);
-      }
-      finishProcessing() {
+      finish() {
+        this.awaitingResume = false;
+        this.terminalDrainUntil = void 0;
         this.stopPolling();
-        if (this._isProcessing) this.emit("processing_end", void 0);
-        this._isProcessing = false;
         this.resolvePending();
       }
+      drainTerminalPage(page) {
+        var _a2;
+        this.resolvePending();
+        const hasTitle = page.events.some(
+          (event) => event.type === "title_changed"
+        );
+        if (hasTitle || this.title) {
+          this.finish();
+          return;
+        }
+        (_a2 = this.terminalDrainUntil) != null ? _a2 : this.terminalDrainUntil = Date.now() + TERMINAL_EVENT_DRAIN_MS;
+        if (page.events.length === 0 && Date.now() >= this.terminalDrainUntil) {
+          this.finish();
+          return;
+        }
+        this.startPolling();
+      }
       isTerminal() {
-        return this.turnState !== void 0 && TERMINAL_TURN_STATES.has(this.turnState);
+        return Boolean(this.turnState && TERMINAL_TURN_STATES.has(this.turnState));
       }
       result() {
-        return { messages: [...this._messages], title: this._title };
+        return { messages: this.messages, title: this.title };
       }
       resolvePending() {
         const resolve = this.pendingResolve;
         this.pendingResolve = null;
         resolve == null ? void 0 : resolve(this.result());
+      }
+      buildSnapshot() {
+        return __spreadValues(__spreadProps(__spreadValues(__spreadProps(__spreadValues(__spreadValues(__spreadValues({
+          sessionId: this.sessionId
+        }, this.cursor ? { cursor: this.cursor } : {}), this.turnId ? { turnId: this.turnId } : {}), this.turnState ? { turnState: this.turnState } : {}), {
+          events: [...this.events],
+          messages: [...this.messages],
+          actions: this.actions.all()
+        }), this.title ? { title: this.title } : {}), {
+          isPolling: this.pollingActive,
+          isSubmitting: this.isSubmitting,
+          actionAttempts: this.actions.allAttempts()
+        }), this.error === void 0 ? {} : { error: this.error });
+      }
+      publish() {
+        this.snapshot = this.buildSnapshot();
+        for (const listener of this.listeners) listener();
       }
       currentPollInterval() {
         return typeof document !== "undefined" && document.hidden ? 2e3 : this.pollIntervalMs;
@@ -3003,44 +2502,6 @@ var init_session2 = __esm({
   }
 });
 
-// src/cli/user-state.ts
-function buildCliUserState(evmAddress2, chainId4, options) {
-  const userState = {};
-  if (evmAddress2 !== void 0) {
-    const evm = { address: evmAddress2 };
-    if (chainId4 !== void 0) {
-      evm.chain_id = chainId4;
-    }
-    userState.evm = evm;
-  }
-  if ((options == null ? void 0 : options.svmAddress) !== void 0) {
-    userState.svm = { address: options.svmAddress };
-    if (options.svmCluster !== void 0) {
-      userState.svm.cluster = options.svmCluster;
-    }
-  }
-  if (userState.evm || userState.svm) {
-    userState.connection = {
-      is_connected: true
-    };
-  }
-  return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
-}
-function walletSnapshotFromUserState(userState) {
-  const address3 = UserState.address(userState);
-  const isConnected3 = UserState.isConnected(userState);
-  return {
-    publicKey: isConnected3 === false ? void 0 : address3,
-    chainId: UserState.chainId(userState)
-  };
-}
-var init_user_state2 = __esm({
-  "src/cli/user-state.ts"() {
-    "use strict";
-    init_user_state();
-  }
-});
-
 // src/cli/state.ts
 import {
   chmodSync,
@@ -3052,7 +2513,7 @@ import {
   writeFileSync
 } from "fs";
 import { basename, join } from "path";
-import { homedir, tmpdir } from "os";
+import { homedir } from "os";
 function ensureStorageDirs() {
   mkdirSync(SESSIONS_DIR, { recursive: true, mode: STATE_DIR_MODE });
   try {
@@ -3083,9 +2544,6 @@ function toCliSessionState(stored) {
     modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
     accountBearer: stored.accountBearer,
-    sessionCookie: stored.sessionCookie,
-    embeddedProvider: stored.embeddedProvider,
-    embeddedProviderToken: stored.embeddedProviderToken,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     svmPublicKey: stored.svmPublicKey,
@@ -3101,14 +2559,14 @@ function toCliSessionState(stored) {
   };
 }
 function readStoredSession(path) {
-  var _a3;
+  var _a2;
   try {
     const raw = readFileSync(path, "utf-8");
     const parsed = JSON.parse(raw);
     if (typeof parsed.sessionId !== "string" || typeof parsed.baseUrl !== "string") {
       return null;
     }
-    const fallbackLocalId = (_a3 = parseSessionFileLocalId(basename(path))) != null ? _a3 : 0;
+    const fallbackLocalId = (_a2 = parseSessionFileLocalId(basename(path))) != null ? _a2 : 0;
     return {
       sessionId: parsed.sessionId,
       clientId: parsed.clientId,
@@ -3118,9 +2576,6 @@ function readStoredSession(path) {
       modelSynced: parsed.modelSynced,
       apiKey: parsed.apiKey,
       accountBearer: parsed.accountBearer,
-      sessionCookie: parsed.sessionCookie,
-      embeddedProvider: parsed.embeddedProvider,
-      embeddedProviderToken: parsed.embeddedProviderToken,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       svmPublicKey: parsed.svmPublicKey,
@@ -3226,51 +2681,15 @@ function getNextLocalId(sessions) {
   }, 0);
   return maxLocalId + 1;
 }
-function migrateLegacyStateIfNeeded() {
-  if (_migrationDone) return;
-  _migrationDone = true;
-  if (!existsSync(LEGACY_STATE_FILE)) return;
-  const existing = readAllStoredSessions();
-  if (existing.length > 0) {
-    return;
-  }
-  try {
-    const raw = readFileSync(LEGACY_STATE_FILE, "utf-8");
-    const legacy = JSON.parse(raw);
-    if (!legacy.sessionId || !legacy.baseUrl) {
-      return;
-    }
-    const now = Date.now();
-    const migrated = __spreadProps(__spreadValues({}, legacy), {
-      sessionId: legacy.sessionId,
-      baseUrl: legacy.baseUrl,
-      localId: 1,
-      createdAt: now,
-      updatedAt: now
-    });
-    ensureStorageDirs();
-    const migratedPath = toSessionFilePath(1);
-    writeFileSync(migratedPath, JSON.stringify(migrated, null, 2), {
-      mode: STATE_FILE_MODE
-    });
-    try {
-      chmodSync(migratedPath, STATE_FILE_MODE);
-    } catch (e) {
-    }
-    writeActiveLocalId(1);
-    rmSync(LEGACY_STATE_FILE);
-  } catch (e) {
-  }
-}
 function resolveStoredSession(selector, sessions) {
-  var _a3, _b;
+  var _a2, _b;
   const trimmed = selector.trim();
   if (!trimmed) return null;
   const localMatch = trimmed.match(/^(?:session-)?(\d+)$/);
   if (localMatch) {
     const localId = parseInt(localMatch[1], 10);
     if (!Number.isNaN(localId)) {
-      return (_a3 = sessions.find((session) => session.localId === localId)) != null ? _a3 : null;
+      return (_a2 = sessions.find((session) => session.localId === localId)) != null ? _a2 : null;
     }
   }
   return (_b = sessions.find((session) => session.sessionId === trimmed)) != null ? _b : null;
@@ -3286,7 +2705,6 @@ function toStoredSessionRecord(stored) {
   };
 }
 function getActiveStateFilePath() {
-  migrateLegacyStateIfNeeded();
   const sessions = readAllStoredSessions();
   const activeLocalId = readActiveLocalId();
   if (activeLocalId === null) return null;
@@ -3294,11 +2712,9 @@ function getActiveStateFilePath() {
   return active ? toSessionFilePath(active.localId) : null;
 }
 function listStoredSessions() {
-  migrateLegacyStateIfNeeded();
   return readAllStoredSessions().map(toStoredSessionRecord);
 }
 function setActiveSession(selector) {
-  migrateLegacyStateIfNeeded();
   const sessions = readAllStoredSessions();
   const target = resolveStoredSession(selector, sessions);
   if (!target) return null;
@@ -3306,8 +2722,7 @@ function setActiveSession(selector) {
   return toStoredSessionRecord(target);
 }
 function deleteStoredSession(selector) {
-  var _a3, _b;
-  migrateLegacyStateIfNeeded();
+  var _a2, _b;
   const sessions = readAllStoredSessions();
   const target = resolveStoredSession(selector, sessions);
   if (!target) return null;
@@ -3324,20 +2739,19 @@ function deleteStoredSession(selector) {
     const remaining = readAllStoredSessions().sort(
       (a, b) => b.updatedAt - a.updatedAt
     );
-    writeActiveLocalId((_b = (_a3 = remaining[0]) == null ? void 0 : _a3.localId) != null ? _b : null);
+    writeActiveLocalId((_b = (_a2 = remaining[0]) == null ? void 0 : _a2.localId) != null ? _b : null);
   }
   return toStoredSessionRecord(target);
 }
 function readState() {
-  var _a3;
-  migrateLegacyStateIfNeeded();
+  var _a2;
   const sessions = readAllStoredSessions();
   if (sessions.length === 0) return null;
   const activeLocalId = readActiveLocalId();
   if (activeLocalId === null) {
     return null;
   }
-  const active = (_a3 = sessions.find((session) => session.localId === activeLocalId)) != null ? _a3 : null;
+  const active = (_a2 = sessions.find((session) => session.localId === activeLocalId)) != null ? _a2 : null;
   if (!active) {
     writeActiveLocalId(null);
     return null;
@@ -3345,15 +2759,14 @@ function readState() {
   return toCliSessionState(active);
 }
 function writeState(state) {
-  var _a3, _b;
-  migrateLegacyStateIfNeeded();
+  var _a2, _b;
   ensureStorageDirs();
   const sessions = readAllStoredSessions();
   const existing = sessions.find(
     (session) => session.sessionId === state.sessionId
   );
   const now = Date.now();
-  const localId = (_a3 = existing == null ? void 0 : existing.localId) != null ? _a3 : getNextLocalId(sessions);
+  const localId = (_a2 = existing == null ? void 0 : existing.localId) != null ? _a2 : getNextLocalId(sessions);
   const createdAt = (_b = existing == null ? void 0 : existing.createdAt) != null ? _b : now;
   const payload = __spreadProps(__spreadValues({}, state), {
     localId,
@@ -3371,49 +2784,155 @@ function writeState(state) {
   writeActiveLocalId(localId);
 }
 function clearState() {
-  migrateLegacyStateIfNeeded();
   writeActiveLocalId(null);
 }
-function syncWalletFromUserState(state, userState) {
-  const normalizedUserState = UserState.normalize(userState);
-  const walletSnapshot = walletSnapshotFromUserState(normalizedUserState);
-  const isConnected3 = UserState.isConnected(normalizedUserState);
-  if (walletSnapshot.publicKey !== void 0) {
-    state.publicKey = walletSnapshot.publicKey;
-  } else if (isConnected3 === false) {
-    state.publicKey = void 0;
-  }
-  if (walletSnapshot.chainId !== void 0) {
-    state.chainId = walletSnapshot.chainId;
-  } else if (isConnected3 === false) {
-    state.chainId = void 0;
-  }
-  writeState(state);
-}
-var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, STATE_DIR_MODE, STATE_FILE_MODE, _a, LEGACY_STATE_FILE, _a2, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE, _migrationDone;
-var init_state2 = __esm({
+var SESSION_FILE_PREFIX, SESSION_FILE_SUFFIX, STATE_DIR_MODE, STATE_FILE_MODE, _a, STATE_ROOT_DIR, SESSIONS_DIR, ACTIVE_SESSION_FILE;
+var init_state = __esm({
   "src/cli/state.ts"() {
     "use strict";
-    init_user_state();
-    init_user_state2();
     SESSION_FILE_PREFIX = "session-";
     SESSION_FILE_SUFFIX = ".json";
     STATE_DIR_MODE = 448;
     STATE_FILE_MODE = 384;
-    LEGACY_STATE_FILE = join(
-      (_a = process.env.XDG_RUNTIME_DIR) != null ? _a : tmpdir(),
-      "aomi-session.json"
-    );
-    STATE_ROOT_DIR = (_a2 = process.env.AOMI_STATE_DIR) != null ? _a2 : join(homedir(), ".aomi");
+    STATE_ROOT_DIR = (_a = process.env.AOMI_STATE_DIR) != null ? _a : join(homedir(), ".aomi");
     SESSIONS_DIR = join(STATE_ROOT_DIR, "sessions");
     ACTIVE_SESSION_FILE = join(STATE_ROOT_DIR, "active-session.txt");
-    _migrationDone = false;
+  }
+});
+
+// src/user-state/accessors.ts
+function asObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return void 0;
+  }
+  return value;
+}
+function evmBlock(userState) {
+  return asObject(userState == null ? void 0 : userState.evm);
+}
+function svmBlock(userState) {
+  return asObject(userState == null ? void 0 : userState.svm);
+}
+function connBlock(userState) {
+  return asObject(userState == null ? void 0 : userState.connection);
+}
+function parseChainId2(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  const parsed = trimmed.startsWith("0x") ? Number.parseInt(trimmed.slice(2), 16) : Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
+function address(userState) {
+  var _a2;
+  const value = (_a2 = evmBlock(userState)) == null ? void 0 : _a2.address;
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function svmAddress(userState) {
+  var _a2;
+  const value = (_a2 = svmBlock(userState)) == null ? void 0 : _a2.address;
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function chainId(userState) {
+  var _a2;
+  return parseChainId2((_a2 = evmBlock(userState)) == null ? void 0 : _a2.chain_id);
+}
+function ensName(userState) {
+  var _a2;
+  const value = (_a2 = evmBlock(userState)) == null ? void 0 : _a2.ens_name;
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function isConnected(userState) {
+  var _a2;
+  const value = (_a2 = connBlock(userState)) == null ? void 0 : _a2.is_connected;
+  return typeof value === "boolean" ? value : void 0;
+}
+function provider(userState) {
+  var _a2;
+  const value = (_a2 = connBlock(userState)) == null ? void 0 : _a2.provider;
+  if (value === null) return null;
+  return typeof value === "string" ? value : void 0;
+}
+function authMethod(userState) {
+  var _a2;
+  const value = (_a2 = connBlock(userState)) == null ? void 0 : _a2.auth_method;
+  if (value === null) return null;
+  return typeof value === "string" ? value : void 0;
+}
+function withExt(userState, key, value) {
+  var _a2;
+  const currentExt = (_a2 = asObject(userState.ext)) != null ? _a2 : {};
+  return __spreadProps(__spreadValues({}, userState), {
+    ext: __spreadProps(__spreadValues({}, currentExt), {
+      [key]: value
+    })
+  });
+}
+var evmAddress;
+var init_accessors = __esm({
+  "src/user-state/accessors.ts"() {
+    "use strict";
+    evmAddress = address;
+  }
+});
+
+// src/user-state/index.ts
+var CLIENT_TYPE_TS_CLI, UserState;
+var init_user_state = __esm({
+  "src/user-state/index.ts"() {
+    "use strict";
+    init_accessors();
+    CLIENT_TYPE_TS_CLI = "ts_cli";
+    ((UserState2) => {
+      UserState2.address = address;
+      UserState2.evmAddress = evmAddress;
+      UserState2.svmAddress = svmAddress;
+      UserState2.chainId = chainId;
+      UserState2.ensName = ensName;
+      UserState2.isConnected = isConnected;
+      UserState2.provider = provider;
+      UserState2.authMethod = authMethod;
+      UserState2.withExt = withExt;
+    })(UserState || (UserState = {}));
+  }
+});
+
+// src/cli/user-state.ts
+function buildCliUserState(evmAddress2, chainId3, options) {
+  const userState = {};
+  if (evmAddress2 !== void 0) {
+    const evm = { address: evmAddress2 };
+    if (chainId3 !== void 0) {
+      evm.chain_id = chainId3;
+    }
+    userState.evm = evm;
+  }
+  if ((options == null ? void 0 : options.svmAddress) !== void 0) {
+    userState.svm = { address: options.svmAddress };
+    if (options.svmCluster !== void 0) {
+      userState.svm.cluster = options.svmCluster;
+    }
+  }
+  if (userState.evm || userState.svm) {
+    userState.connection = {
+      is_connected: true
+    };
+  }
+  return UserState.withExt(userState, "client_type", CLIENT_TYPE_TS_CLI);
+}
+var init_user_state2 = __esm({
+  "src/cli/user-state.ts"() {
+    "use strict";
+    init_user_state();
   }
 });
 
 // src/siws.ts
 function buildSiwsMessage(input2) {
-  var _a3;
+  var _a2;
   const statement = input2.intent === "link" ? "Only sign this message if you want this Solana wallet attached to the current Aomi account." : "Sign in to Aomi.";
   return `${input2.domain} wants you to sign in with your Solana account:
 ${input2.address}
@@ -3424,7 +2943,7 @@ URI: ${input2.uri}
 Version: 1
 Chain ID: ${input2.chainId}
 Nonce: ${input2.nonce}
-Issued At: ${((_a3 = input2.issuedAt) != null ? _a3 : /* @__PURE__ */ new Date()).toISOString()}`;
+Issued At: ${((_a2 = input2.issuedAt) != null ? _a2 : /* @__PURE__ */ new Date()).toISOString()}`;
 }
 var init_siws = __esm({
   "src/siws.ts"() {
@@ -3436,26 +2955,25 @@ var init_siws = __esm({
 import { privateKeyToAccount as privateKeyToAccount2 } from "viem/accounts";
 function createCliAuthTokenProvider(readState2, now = Date.now) {
   return async () => {
-    var _a3;
     const state = readState2();
     const auth = state.auth;
     if ((auth == null ? void 0 : auth.sessionToken) && auth.expiresAt > now() + AUTH_REFRESH_SKEW_MS) {
       return auth.sessionToken;
     }
-    return (_a3 = state.accountBearer) != null ? _a3 : state.sessionCookie;
+    return state.accountBearer;
   };
 }
 async function signInWithCliSiwe({
   baseUrl,
   privateKey,
-  chainId: chainId4 = DEFAULT_CHAIN_ID,
+  chainId: chainId3 = DEFAULT_CHAIN_ID,
   fetch: fetchImpl = fetch,
   now = Date.now
 }) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i;
   const portalUrl = normalizeBaseUrl(baseUrl);
   const account = privateKeyToAccount2(privateKey);
-  const address3 = account.address;
+  const address2 = account.address;
   const nonceHttpResponse = await fetchImpl(
     joinUrl(portalUrl, "/api/auth/siwe/nonce"),
     {
@@ -3465,7 +2983,7 @@ async function signInWithCliSiwe({
         "Content-Type": "application/json"
       },
       credentials: "include",
-      body: JSON.stringify({ walletAddress: address3, chainId: chainId4 })
+      body: JSON.stringify({})
     }
   );
   if (!nonceHttpResponse.ok) {
@@ -3481,10 +2999,10 @@ async function signInWithCliSiwe({
     throw new Error("SIWE nonce response is missing nonce");
   }
   const message = buildSiweMessage({
-    address: address3,
-    chainId: chainId4,
+    address: address2,
+    chainId: chainId3,
     nonce,
-    domain: (_a3 = normalizeDomain(nonceResponse.domain)) != null ? _a3 : domainFromBaseUrl(portalUrl),
+    domain: (_a2 = normalizeDomain(nonceResponse.domain)) != null ? _a2 : domainFromBaseUrl(portalUrl),
     uri: (_b = normalizeUri(nonceResponse.uri)) != null ? _b : portalUrl
   });
   const signature2 = await account.signMessage({ message });
@@ -3500,9 +3018,7 @@ async function signInWithCliSiwe({
       credentials: "include",
       body: JSON.stringify({
         message,
-        signature: signature2,
-        walletAddress: address3,
-        chainId: chainId4
+        signature: signature2
       })
     }
   );
@@ -3525,13 +3041,13 @@ async function signInWithCliSiwe({
   );
   const expiresAt = (_e = parseExpiresAt((_d = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _d.expiresAt)) != null ? _e : now() + DEFAULT_SESSION_TTL_MS;
   return {
-    address: address3,
+    address: address2,
     auth: {
       sessionToken,
       expiresAt,
       walletFamily: "evm",
-      walletAddress: typeof ((_f = verifyBody.user) == null ? void 0 : _f.walletAddress) === "string" ? verifyBody.user.walletAddress : address3,
-      chainId: typeof ((_g = verifyBody.user) == null ? void 0 : _g.chainId) === "number" ? verifyBody.user.chainId : chainId4,
+      walletAddress: typeof ((_f = verifyBody.user) == null ? void 0 : _f.walletAddress) === "string" ? verifyBody.user.walletAddress : address2,
+      chainId: typeof ((_g = verifyBody.user) == null ? void 0 : _g.chainId) === "number" ? verifyBody.user.chainId : chainId3,
       betterAuthUserId: typeof ((_h = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _h.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : typeof verifyBody.user_id === "string" ? verifyBody.user_id : typeof ((_i = verifyBody.user) == null ? void 0 : _i.id) === "string" ? verifyBody.user.id : void 0
     }
   };
@@ -3539,17 +3055,17 @@ async function signInWithCliSiwe({
 async function signInWithCliSiws({
   baseUrl,
   privateKey,
-  chainId: chainId4 = DEFAULT_SVM_CLUSTER,
+  chainId: chainId3 = DEFAULT_SVM_CLUSTER,
   fetch: fetchImpl = fetch,
   now = Date.now
 }) {
-  var _a3, _b, _c;
+  var _a2, _b, _c;
   const keypair = parseSolanaKeypairSecret(privateKey);
-  const address3 = keypair.publicKey.toBase58();
+  const address2 = keypair.publicKey.toBase58();
   const result = await performCliSiws({
     baseUrl,
-    address: address3,
-    chainId: chainId4,
+    address: address2,
+    chainId: chainId3,
     intent: "sign-in",
     signMessage: (message) => signSolanaMessage(
       Buffer.from(message, "utf8").toString("base64"),
@@ -3566,29 +3082,29 @@ async function signInWithCliSiws({
     normalizeBaseUrl(baseUrl),
     result.sessionToken
   );
-  const expiresAt = (_b = parseExpiresAt((_a3 = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _a3.expiresAt)) != null ? _b : now() + DEFAULT_SESSION_TTL_MS;
+  const expiresAt = (_b = parseExpiresAt((_a2 = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _a2.expiresAt)) != null ? _b : now() + DEFAULT_SESSION_TTL_MS;
   return {
-    address: address3,
-    chainId: chainId4,
+    address: address2,
+    chainId: chainId3,
     auth: {
       sessionToken: result.sessionToken,
       expiresAt,
       walletFamily: "svm",
-      walletAddress: address3,
-      chainScope: chainId4,
+      walletAddress: address2,
+      chainScope: chainId3,
       betterAuthUserId: typeof ((_c = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _c.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : result.betterAuthUserId
     }
   };
 }
 async function linkCliSiwsWallet(input2) {
-  var _a3, _b, _c;
+  var _a2, _b, _c;
   const keypair = parseSolanaKeypairSecret(input2.privateKey);
-  const address3 = keypair.publicKey.toBase58();
-  const chainId4 = (_a3 = input2.chainId) != null ? _a3 : DEFAULT_SVM_CLUSTER;
+  const address2 = keypair.publicKey.toBase58();
+  const chainId3 = (_a2 = input2.chainId) != null ? _a2 : DEFAULT_SVM_CLUSTER;
   const result = await performCliSiws({
     baseUrl: input2.baseUrl,
-    address: address3,
-    chainId: chainId4,
+    address: address2,
+    chainId: chainId3,
     intent: "link",
     sessionToken: input2.sessionToken,
     signMessage: (message) => signSolanaMessage(
@@ -3600,12 +3116,12 @@ async function linkCliSiwsWallet(input2) {
   });
   return {
     status: result.status === "noop" ? "noop" : "linked",
-    address: address3,
-    chainId: chainId4
+    address: address2,
+    chainId: chainId3
   };
 }
 async function performCliSiws(input2) {
-  var _a3, _b, _c, _d;
+  var _a2, _b, _c, _d;
   const portalUrl = normalizeBaseUrl(input2.baseUrl);
   const headers = new Headers({
     Accept: "application/json",
@@ -3642,7 +3158,7 @@ async function performCliSiws(input2) {
     chainId: input2.chainId,
     nonce,
     intent: input2.intent,
-    domain: (_a3 = normalizeDomain(nonceResponse.domain)) != null ? _a3 : domainFromBaseUrl(portalUrl),
+    domain: (_a2 = normalizeDomain(nonceResponse.domain)) != null ? _a2 : domainFromBaseUrl(portalUrl),
     uri: (_b = normalizeUri(nonceResponse.uri)) != null ? _b : portalUrl,
     issuedAt: new Date(input2.now())
   });
@@ -3678,9 +3194,9 @@ async function performCliSiws(input2) {
   };
 }
 async function signOutCliSession(input2) {
-  var _a3;
+  var _a2;
   if (!input2.sessionToken) return;
-  const response = await ((_a3 = input2.fetch) != null ? _a3 : fetch)(
+  const response = await ((_a2 = input2.fetch) != null ? _a2 : fetch)(
     joinUrl(normalizeBaseUrl(input2.baseUrl), "/api/auth/sign-out"),
     {
       method: "POST",
@@ -3776,9 +3292,9 @@ async function fetchPortalAccount(fetchImpl, baseUrl, sessionToken) {
   return await response.json().catch(() => null);
 }
 async function requestJson(fetchImpl, url, init, label) {
-  var _a3;
+  var _a2;
   const response = await fetchImpl(url, __spreadValues({
-    headers: __spreadValues({ Accept: "application/json" }, (_a3 = init.headers) != null ? _a3 : {})
+    headers: __spreadValues({ Accept: "application/json" }, (_a2 = init.headers) != null ? _a2 : {})
   }, init));
   if (!response.ok) {
     throw new Error(
@@ -3820,24 +3336,20 @@ var init_auth = __esm({
 
 // src/cli/client-factory.ts
 function resolveCliBaseUrl(config) {
-  var _a3;
-  return (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
+  var _a2;
+  return (_a2 = config.baseUrl) != null ? _a2 : DEFAULT_CLI_BASE_URL;
 }
 function createCliGetAccountBearer(config) {
   if (config.accountBearer) {
     const bearer = config.accountBearer;
     return async () => bearer;
   }
-  if (config.sessionCookie) {
-    const sessionCookie = config.sessionCookie;
-    return async () => sessionCookie;
-  }
   return void 0;
 }
 function createCliClient(config, overrides = {}) {
-  var _a3, _b;
+  var _a2, _b;
   const mergedConfig = __spreadProps(__spreadValues({}, config), {
-    baseUrl: (_a3 = overrides.baseUrl) != null ? _a3 : config.baseUrl,
+    baseUrl: (_a2 = overrides.baseUrl) != null ? _a2 : config.baseUrl,
     apiKey: (_b = overrides.apiKey) != null ? _b : config.apiKey
   });
   return new AomiClient({
@@ -3858,8 +3370,8 @@ var init_client_factory = __esm({
 // src/payment.ts
 import { wrapFetchWithPayment } from "@x402/fetch";
 function paymentResponseHeader(response) {
-  var _a3;
-  return (_a3 = response.headers.get("payment-response")) != null ? _a3 : response.headers.get("x-payment-response");
+  var _a2;
+  return (_a2 = response.headers.get("payment-response")) != null ? _a2 : response.headers.get("x-payment-response");
 }
 function withInitialResponse(initialResponse, fetchImpl) {
   let pendingResponse = initialResponse;
@@ -3927,10 +3439,10 @@ function parseBase64Json(value) {
   }
 }
 async function paymentRequirementFrom(response) {
-  var _a3;
+  var _a2;
   const fromHeader = response.headers.get("Payment-Required");
   const payload = fromHeader ? parseBase64Json(fromHeader) : await response.clone().json().catch(() => void 0);
-  const accepted = (_a3 = payload == null ? void 0 : payload.accepts) == null ? void 0 : _a3[0];
+  const accepted = (_a2 = payload == null ? void 0 : payload.accepts) == null ? void 0 : _a2[0];
   if (!accepted) return void 0;
   return {
     amount: stringValue2(accepted.amount),
@@ -3941,23 +3453,23 @@ async function paymentRequirementFrom(response) {
   };
 }
 function receiptIdFrom(response) {
-  var _a3;
+  var _a2;
   const receipt = response.headers.get("Payment-Receipt");
   if (receipt) return receipt;
   const header = paymentResponseHeader2(response);
   const settlement = header ? parseBase64Json(header) : void 0;
-  return (_a3 = stringValue2(settlement == null ? void 0 : settlement.transaction)) != null ? _a3 : stringValue2(settlement == null ? void 0 : settlement.network);
+  return (_a2 = stringValue2(settlement == null ? void 0 : settlement.transaction)) != null ? _a2 : stringValue2(settlement == null ? void 0 : settlement.network);
 }
 function paymentResponseHeader2(response) {
-  var _a3;
-  return (_a3 = response.headers.get("Payment-Response")) != null ? _a3 : response.headers.get("X-Payment-Response");
+  var _a2;
+  return (_a2 = response.headers.get("Payment-Response")) != null ? _a2 : response.headers.get("X-Payment-Response");
 }
 function hasPaymentSignature(request) {
   return request.headers.has("Payment-Signature") || request.headers.has("X-Payment");
 }
 function createTracedFetch(fetchImpl, onPayment) {
   return async (input2, init) => {
-    var _a3;
+    var _a2;
     const request = new Request(input2, init);
     const isPaymentRetry = hasPaymentSignature(request);
     if (isPaymentRetry) {
@@ -3977,7 +3489,7 @@ function createTracedFetch(fetchImpl, onPayment) {
           type: "rejected",
           url: request.url,
           status: response.status,
-          reason: (_a3 = await paymentRequirementFrom(response)) == null ? void 0 : _a3.error
+          reason: (_a2 = await paymentRequirementFrom(response)) == null ? void 0 : _a2.error
         }
       );
     } else if (response.status === 402) {
@@ -4020,8 +3532,8 @@ var init_payment2 = __esm({
 
 // src/cli/oauth-device-auth.ts
 async function signInWithOAuthDevice(input2) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j;
-  const fetchImpl = (_a3 = input2.fetch) != null ? _a3 : fetch;
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  const fetchImpl = (_a2 = input2.fetch) != null ? _a2 : fetch;
   const baseUrl = normalizeBaseUrl(input2.baseUrl);
   const client = input2.clientId ? { client_id: input2.clientId } : await requestJson(
     fetchImpl,
@@ -4121,8 +3633,8 @@ var init_oauth_device_auth = __esm({
 
 // src/wallet/capabilities.ts
 function walletCapabilities(wallets) {
-  var _a3, _b, _c, _d;
-  return __spreadValues(__spreadValues(__spreadValues({}, ((_a3 = wallets.evm) == null ? void 0 : _a3.sendCalls) || ((_b = wallets.evm) == null ? void 0 : _b.sendTransaction) ? { execute_evm: executeEvm(wallets.evm) } : {}), ((_c = wallets.svm) == null ? void 0 : _c.signAndSendTransaction) || ((_d = wallets.svm) == null ? void 0 : _d.sendTransaction) ? { execute_svm: executeSvm(wallets.svm) } : {}), canSign(wallets) ? { sign: sign(wallets) } : {});
+  var _a2, _b, _c, _d;
+  return __spreadValues(__spreadValues(__spreadValues({}, ((_a2 = wallets.evm) == null ? void 0 : _a2.sendCalls) || ((_b = wallets.evm) == null ? void 0 : _b.sendTransaction) ? { execute_evm: executeEvm(wallets.evm) } : {}), ((_c = wallets.svm) == null ? void 0 : _c.signAndSendTransaction) || ((_d = wallets.svm) == null ? void 0 : _d.sendTransaction) ? { execute_svm: executeSvm(wallets.svm) } : {}), canSign(wallets) ? { sign: sign(wallets) } : {});
 }
 function executeEvm(wallet) {
   return async (request, signal) => {
@@ -4134,7 +3646,7 @@ function executeEvm(wallet) {
     )) {
       throw new Error("The active EVM wallet does not match the Action");
     }
-    if (chainId3(wallet) !== first.chain_id) {
+    if (chainId2(wallet) !== first.chain_id) {
       if (!wallet.switchChain) {
         throw new Error(`EVM wallet cannot switch to chain ${first.chain_id}`);
       }
@@ -4169,11 +3681,11 @@ function executeEvm(wallet) {
     return {
       status: "submitted",
       legs: transactions.map((_, index) => {
-        var _a3;
+        var _a2;
         return {
           id: `leg_${index + 1}`,
           status: "submitted",
-          transactionId: (_a3 = hashes[index]) != null ? _a3 : hashes[hashes.length - 1]
+          transactionId: (_a2 = hashes[index]) != null ? _a2 : hashes[hashes.length - 1]
         };
       })
     };
@@ -4181,7 +3693,7 @@ function executeEvm(wallet) {
 }
 function executeSvm(wallet) {
   return async (request, signal) => {
-    var _a3;
+    var _a2;
     const { transactions } = request;
     const first = transactions[0];
     if (!first) throw new Error("SVM Action contains no transactions");
@@ -4210,7 +3722,7 @@ function executeSvm(wallet) {
       legs.push(__spreadValues({
         id: `leg_${index + 1}`,
         status: "submitted",
-        transactionId: (_a3 = transactionHashes(result)[0]) != null ? _a3 : signature(result)
+        transactionId: (_a2 = transactionHashes(result)[0]) != null ? _a2 : signature(result)
       }, typeof result === "object" && "signedTransaction" in result ? { signedTransactionBase64: result.signedTransaction } : {}));
     }
     return { status: "submitted", legs };
@@ -4225,7 +3737,7 @@ function sign(wallets) {
       if (wallet.address.toLowerCase() !== request.signer.toLowerCase()) {
         throw new Error("The active EVM wallet is not the requested signer");
       }
-      if (request.chainId && chainId3(wallet) !== request.chainId) {
+      if (request.chainId && chainId2(wallet) !== request.chainId) {
         if (!wallet.switchChain) {
           throw new Error(
             `EVM wallet cannot switch to chain ${request.chainId}`
@@ -4312,7 +3824,7 @@ function canSign({ evm, svm }) {
     (evm == null ? void 0 : evm.signMessage) || (evm == null ? void 0 : evm.signTypedData) || (svm == null ? void 0 : svm.signMessage) || (svm == null ? void 0 : svm.signTransaction)
   );
 }
-function chainId3(wallet) {
+function chainId2(wallet) {
   return typeof wallet.chainId === "function" ? wallet.chainId() : wallet.chainId;
 }
 function cluster(wallet) {
@@ -4325,13 +3837,13 @@ async function switchCluster(wallet, next) {
   await wallet.switchCluster(next);
 }
 function transactionHashes(result) {
-  var _a3;
+  var _a2;
   if (typeof result === "string") return [result];
   if (Array.isArray(result.hashes)) return result.hashes.filter(isString);
   if (Array.isArray(result.transactionHashes)) {
     return result.transactionHashes.filter(isString);
   }
-  const hash = (_a3 = result.hash) != null ? _a3 : result.transactionHash;
+  const hash = (_a2 = result.hash) != null ? _a2 : result.transactionHash;
   return hash ? [hash] : [];
 }
 function signature(result) {
@@ -4366,7 +3878,7 @@ function isHexBytes(value) {
   return /^0x(?:[0-9a-fA-F]{2})*$/.test(value);
 }
 function toViemSignTypedDataArgs(payload) {
-  var _a3;
+  var _a2;
   const typedData = payload.typed_data;
   const primaryType = typeof (typedData == null ? void 0 : typedData.primaryType) === "string" && typedData.primaryType.trim().length > 0 ? typedData.primaryType : void 0;
   if (!typedData || !primaryType) {
@@ -4375,7 +3887,7 @@ function toViemSignTypedDataArgs(payload) {
   return {
     domain: asRecord2(typedData.domain),
     types: Object.fromEntries(
-      Object.entries((_a3 = typedData.types) != null ? _a3 : {}).filter(
+      Object.entries((_a2 = typedData.types) != null ? _a2 : {}).filter(
         ([typeName]) => typeName !== "EIP712Domain"
       )
     ),
@@ -4411,9 +3923,9 @@ import { privateKeyToAccount as privateKeyToAccount4 } from "viem/accounts";
 import * as viemChains from "viem/chains";
 import { clusterApiUrl, Connection } from "@solana/web3.js";
 function cliActionCapabilities(cli, config) {
-  var _a3;
+  var _a2;
   const wallets = {};
-  const privateKey = (_a3 = config == null ? void 0 : config.privateKey) != null ? _a3 : cli.privateKey;
+  const privateKey = (_a2 = config == null ? void 0 : config.privateKey) != null ? _a2 : cli.privateKey;
   if (privateKey) wallets.evm = evmWallet(privateKey, cli.chainId, config);
   const solanaKey = cli.resolvedSvmPrivateKey(config == null ? void 0 : config.solanaPrivateKey);
   if (solanaKey) {
@@ -4430,50 +3942,50 @@ function evmWallet(privateKey, initialChainId, config) {
   }
   const account = privateKeyToAccount4(privateKey);
   let activeChainId = initialChainId;
-  const chain = (chainId4) => resolveChain(chainId4, config == null ? void 0 : config.chainRpcUrl);
-  const client = (chainId4) => createWalletClient({
+  const chain = (chainId3) => resolveChain(chainId3, config == null ? void 0 : config.chainRpcUrl);
+  const client = (chainId3) => createWalletClient({
     account,
-    chain: chain(chainId4),
+    chain: chain(chainId3),
     transport: http(config == null ? void 0 : config.chainRpcUrl)
   });
   return {
     address: account.address,
     chainId: () => activeChainId,
-    switchChain: async (chainId4) => {
-      activeChainId = chainId4;
+    switchChain: async (chainId3) => {
+      activeChainId = chainId3;
     },
-    sendTransaction: async ({ chainId: chainId4, to, data, value }) => {
+    sendTransaction: async ({ chainId: chainId3, to, data, value }) => {
       if (!isAddress(to) || data !== void 0 && !isHex(data)) {
         throw new Error("Action contains an invalid EVM transaction");
       }
-      const hash = await client(chainId4).sendTransaction({
+      const hash = await client(chainId3).sendTransaction({
         account,
-        chain: chain(chainId4),
+        chain: chain(chainId3),
         to: getAddress(to),
         data,
         value: value === void 0 ? void 0 : BigInt(value)
       });
       const receipt = await createPublicClient({
-        chain: chain(chainId4),
+        chain: chain(chainId3),
         transport: http(config == null ? void 0 : config.chainRpcUrl)
       }).waitForTransactionReceipt({ hash });
       if (receipt.status !== "success") throw new Error("Transaction reverted");
       return hash;
     },
-    signMessage: async ({ message, chainId: chainId4 }) => {
-      var _a3;
+    signMessage: async ({ message, chainId: chainId3 }) => {
+      var _a2;
       const args = toViemSignMessageArgs({ non_typed_data: message });
       if (!args) throw new Error("Action contains an invalid EVM message");
-      return client((_a3 = chainId4 != null ? chainId4 : activeChainId) != null ? _a3 : 1).signMessage(__spreadValues({
+      return client((_a2 = chainId3 != null ? chainId3 : activeChainId) != null ? _a2 : 1).signMessage(__spreadValues({
         account
       }, args));
     },
-    signTypedData: async ({ typedData, chainId: chainId4 }) => {
+    signTypedData: async ({ typedData, chainId: chainId3 }) => {
       var _b;
       const args = toViemSignTypedDataArgs({ typed_data: typedData });
       if (!(args == null ? void 0 : args.message)) throw new Error("Action contains invalid typed data");
-      const _a3 = args, { message } = _a3, request = __objRest(_a3, ["message"]);
-      return client((_b = chainId4 != null ? chainId4 : activeChainId) != null ? _b : 1).signTypedData(__spreadProps(__spreadValues({
+      const _a2 = args, { message } = _a2, request = __objRest(_a2, ["message"]);
+      return client((_b = chainId3 != null ? chainId3 : activeChainId) != null ? _b : 1).signTypedData(__spreadProps(__spreadValues({
         account
       }, request), {
         message
@@ -4510,11 +4022,11 @@ function svmWallet(privateKey, initialCluster) {
     })
   };
 }
-function resolveChain(chainId4, rpcUrl) {
-  const known = Object.values(viemChains).find((value) => value.id === chainId4);
+function resolveChain(chainId3, rpcUrl) {
+  const known = Object.values(viemChains).find((value) => value.id === chainId3);
   return known != null ? known : {
-    id: chainId4,
-    name: `Chain ${chainId4}`,
+    id: chainId3,
+    name: `Chain ${chainId3}`,
     nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
     rpcUrls: { default: { http: rpcUrl ? [rpcUrl] : [] } }
   };
@@ -4535,7 +4047,7 @@ var init_action_capabilities = __esm({
 
 // src/cli/cli-session.ts
 async function refreshCliGrant(fetchImpl, baseUrl, grant) {
-  var _a3, _b, _c, _d;
+  var _a2, _b, _c, _d;
   const response = await fetchImpl(
     `${baseUrl.replace(/\/+$/, "")}/api/auth/oauth2/token`,
     {
@@ -4543,7 +4055,7 @@ async function refreshCliGrant(fetchImpl, baseUrl, grant) {
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         grant_type: "refresh_token",
-        refresh_token: (_a3 = grant.refreshToken) != null ? _a3 : "",
+        refresh_token: (_a2 = grant.refreshToken) != null ? _a2 : "",
         client_id: grant.clientId,
         resource: grant.resource,
         scope: grant.scopes.join(" ")
@@ -4569,7 +4081,7 @@ var init_cli_session = __esm({
   "src/cli/cli-session.ts"() {
     "use strict";
     init_session2();
-    init_state2();
+    init_state();
     init_user_state2();
     init_solana_signer();
     init_auth();
@@ -4620,7 +4132,7 @@ var init_cli_session = __esm({
       }
       /** Create a fresh session and persist it. */
       static create(config, seed, sessionId = crypto.randomUUID()) {
-        var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+        var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
         let svmPublicKey;
         if (config.solanaPrivateKey) {
           try {
@@ -4633,24 +4145,21 @@ var init_cli_session = __esm({
         const state = {
           sessionId,
           clientId: crypto.randomUUID(),
-          baseUrl: (_b = (_a3 = config.baseUrl) != null ? _a3 : seed == null ? void 0 : seed.baseUrl) != null ? _b : DEFAULT_CLI_BASE_URL,
+          baseUrl: (_b = (_a2 = config.baseUrl) != null ? _a2 : seed == null ? void 0 : seed.baseUrl) != null ? _b : DEFAULT_CLI_BASE_URL,
           app: (_c = config.app) != null ? _c : seed == null ? void 0 : seed.app,
           model: (_d = config.model) != null ? _d : seed == null ? void 0 : seed.model,
           apiKey: (_e = config.apiKey) != null ? _e : seed == null ? void 0 : seed.apiKey,
           accountBearer: (_f = config.accountBearer) != null ? _f : seed == null ? void 0 : seed.accountBearer,
-          sessionCookie: (_g = config.sessionCookie) != null ? _g : seed == null ? void 0 : seed.sessionCookie,
-          embeddedProvider: (_h = config.embeddedProvider) != null ? _h : seed == null ? void 0 : seed.embeddedProvider,
-          embeddedProviderToken: (_i = config.embeddedProviderToken) != null ? _i : seed == null ? void 0 : seed.embeddedProviderToken,
-          publicKey: (_j = config.publicKey) != null ? _j : seed == null ? void 0 : seed.publicKey,
+          publicKey: (_g = config.publicKey) != null ? _g : seed == null ? void 0 : seed.publicKey,
           privateKey: seed == null ? void 0 : seed.privateKey,
           svmPublicKey: svmPublicKey != null ? svmPublicKey : seed == null ? void 0 : seed.svmPublicKey,
-          svmCluster: (_k = config.svmCluster) != null ? _k : seed == null ? void 0 : seed.svmCluster,
+          svmCluster: (_h = config.svmCluster) != null ? _h : seed == null ? void 0 : seed.svmCluster,
           // Carry forward only persisted Solana keys from `wallet set --solana`.
           // Keys supplied via --solana-private-key/env stay transient.
           svmPrivateKey: seed == null ? void 0 : seed.svmPrivateKey,
-          chainId: (_l = config.chain) != null ? _l : seed == null ? void 0 : seed.chainId,
-          aaProvider: (_m = config.aaProvider) != null ? _m : seed == null ? void 0 : seed.aaProvider,
-          aaMode: (_n = config.aaMode) != null ? _n : seed == null ? void 0 : seed.aaMode,
+          chainId: (_i = config.chain) != null ? _i : seed == null ? void 0 : seed.chainId,
+          aaProvider: (_j = config.aaProvider) != null ? _j : seed == null ? void 0 : seed.aaProvider,
+          aaMode: (_k = config.aaMode) != null ? _k : seed == null ? void 0 : seed.aaMode,
           secretHandles: seed == null ? void 0 : seed.secretHandles,
           auth: seed == null ? void 0 : seed.auth,
           oauthGrants: seed == null ? void 0 : seed.oauthGrants
@@ -4700,15 +4209,15 @@ var init_cli_session = __esm({
         return this.state.clientId;
       }
       get secretHandles() {
-        var _a3;
-        return (_a3 = this.state.secretHandles) != null ? _a3 : {};
+        var _a2;
+        return (_a2 = this.state.secretHandles) != null ? _a2 : {};
       }
       get auth() {
         return this.state.auth;
       }
       get oauthGrants() {
-        var _a3;
-        return (_a3 = this.state.oauthGrants) != null ? _a3 : {};
+        var _a2;
+        return (_a2 = this.state.oauthGrants) != null ? _a2 : {};
       }
       // ---------------------------------------------------------------------------
       // Mutators (auto-persist)
@@ -4735,22 +4244,6 @@ var init_cli_session = __esm({
         }
         if (config.accountBearer !== void 0 && config.accountBearer !== this.state.accountBearer) {
           this.state.accountBearer = config.accountBearer;
-          delete this.state.embeddedProvider;
-          delete this.state.embeddedProviderToken;
-          changed = true;
-        }
-        if (config.sessionCookie !== void 0 && config.sessionCookie !== this.state.sessionCookie) {
-          this.state.sessionCookie = config.sessionCookie;
-          changed = true;
-        }
-        if (config.embeddedProvider !== void 0 && config.embeddedProvider !== this.state.embeddedProvider) {
-          this.state.embeddedProvider = config.embeddedProvider;
-          delete this.state.accountBearer;
-          changed = true;
-        }
-        if (config.embeddedProviderToken !== void 0 && config.embeddedProviderToken !== this.state.embeddedProviderToken) {
-          this.state.embeddedProviderToken = config.embeddedProviderToken;
-          delete this.state.accountBearer;
           changed = true;
         }
         if (config.publicKey !== void 0 && config.publicKey !== this.state.publicKey) {
@@ -4832,16 +4325,16 @@ var init_cli_session = __esm({
        * persisted choice, then mainnet. Persistence paths stamp their defaults
        * before saving so display, state, and this resolver stay aligned. */
       resolvedSvmCluster(fromConfig) {
-        var _a3;
-        return (_a3 = fromConfig != null ? fromConfig : this.state.svmCluster) != null ? _a3 : "solana:mainnet";
+        var _a2;
+        return (_a2 = fromConfig != null ? fromConfig : this.state.svmCluster) != null ? _a2 : "solana:mainnet";
       }
       setChainId(id) {
         this.state.chainId = id;
         this.save();
       }
       addSecretHandles(handles) {
-        var _a3;
-        this.state.secretHandles = __spreadValues(__spreadValues({}, (_a3 = this.state.secretHandles) != null ? _a3 : {}), handles);
+        var _a2;
+        this.state.secretHandles = __spreadValues(__spreadValues({}, (_a2 = this.state.secretHandles) != null ? _a2 : {}), handles);
         this.save();
       }
       clearSecretHandles() {
@@ -4887,16 +4380,12 @@ var init_cli_session = __esm({
         }
         return this.state.clientId;
       }
-      syncWalletFromUserState(userState) {
-        syncWalletFromUserState(this.state, userState);
-        this.reload();
-      }
       // ---------------------------------------------------------------------------
       // Bridge to ClientSession
       // ---------------------------------------------------------------------------
       /** Build a ClientSession from the current state. */
       createClientSession(config, options) {
-        var _a3;
+        var _a2;
         const oauth = this.createOAuthProvider(fetch);
         const authorizedFetch = oauth ? wrapFetchWithPublicApiAuthorization({
           fetch,
@@ -4921,27 +4410,35 @@ var init_cli_session = __esm({
             sessionId: this.state.sessionId,
             clientId: this.state.clientId,
             app: this.state.app,
-            model: (_a3 = config == null ? void 0 : config.model) != null ? _a3 : this.state.model,
+            model: (_a2 = config == null ? void 0 : config.model) != null ? _a2 : this.state.model,
             applicationId: config == null ? void 0 : config.applicationId,
+            getUserState: () => buildCliUserState(this.state.publicKey, this.state.chainId, {
+              svmAddress: this.state.svmPublicKey,
+              svmCluster: this.resolvedSvmCluster(config == null ? void 0 : config.svmCluster)
+            }),
             actions: cliActionCapabilities(this, config)
           }
-        );
-        session.resolveUserState(
-          buildCliUserState(this.state.publicKey, this.state.chainId, {
-            svmAddress: this.state.svmPublicKey,
-            svmCluster: this.resolvedSvmCluster(config == null ? void 0 : config.svmCluster)
-          })
         );
         return session;
       }
       createOAuthProvider(fetchImpl) {
+        if (this.state.accountBearer) {
+          const bearer = this.state.accountBearer;
+          return async ({ resource, scopes }) => ({
+            accessToken: bearer,
+            expiresAt: Number.MAX_SAFE_INTEGER,
+            resource,
+            scopes,
+            tokenType: "Bearer"
+          });
+        }
         if (!this.state.oauthGrants || Object.keys(this.state.oauthGrants).length === 0) {
           return void 0;
         }
         const pendingByResource = /* @__PURE__ */ new Map();
         return async ({ resource, scopes, forceRefresh }) => {
-          var _a3, _b;
-          let grant = (_a3 = this.state.oauthGrants) == null ? void 0 : _a3[resource];
+          var _a2, _b;
+          let grant = (_a2 = this.state.oauthGrants) == null ? void 0 : _a2[resource];
           if (!grant || !scopes.every((scope) => grant == null ? void 0 : grant.scopes.includes(scope))) {
             const expandedScopes = Array.from(
               /* @__PURE__ */ new Set([...(_b = grant == null ? void 0 : grant.scopes) != null ? _b : [], ...scopes, "offline_access"])
@@ -5027,20 +4524,15 @@ function printTaskCompleted(event, label) {
   );
 }
 function formatTaskActivity(event) {
-  var _a3, _b;
-  const raw = event.kind === "note" ? (_a3 = event.text) != null ? _a3 : "" : (_b = event.tool_name) != null ? _b : "unknown tool";
+  const raw = event.kind === "note" ? event.text : event.tool_name;
   const normalized = raw.replace(/\s+/g, " ").trim();
   if (normalized.length <= TASK_LINE_MAX) return normalized;
   return `${normalized.slice(0, TASK_LINE_MAX)}\u2026`;
 }
 function formatTaskCompletionStats(event) {
-  var _a3, _b;
-  const steps = (_a3 = event.steps) != null ? _a3 : 0;
-  const seconds = (((_b = event.duration_ms) != null ? _b : 0) / 1e3).toFixed(1);
+  const steps = event.steps;
+  const seconds = (event.duration_ms / 1e3).toFixed(1);
   return `${steps} ${steps === 1 ? "step" : "steps"}, ${seconds}s`;
-}
-function printToolResultLine(name, result) {
-  console.log(formatToolResultLine(name, result));
 }
 function printPaymentEvent(event) {
   switch (event.type) {
@@ -5071,33 +4563,10 @@ function printPaymentEvent(event) {
   }
 }
 function getToolNameFromEvent(event) {
-  var _a3, _b;
-  const value = event;
-  return (_b = (_a3 = value.tool_name) != null ? _a3 : value.name) != null ? _b : "unknown";
+  return event.tool_name;
 }
 function getToolResultFromEvent(event) {
-  var _a3;
-  const value = event;
-  return (_a3 = value.result) != null ? _a3 : value.output;
-}
-function toToolResultKey(name, result) {
-  return `${name}
-${result != null ? result : ""}`;
-}
-function getMessageToolResults(messages, startAt = 0) {
-  const results = [];
-  for (let i = startAt; i < messages.length; i++) {
-    const toolResult = messages[i].tool_result;
-    if (!toolResult) {
-      continue;
-    }
-    const [name, result] = toolResult;
-    if (!name || typeof result !== "string") {
-      continue;
-    }
-    results.push({ name, result });
-  }
-  return results;
+  return typeof event.result === "string" ? event.result : JSON.stringify(event.result);
 }
 function isAlwaysVisibleTool(name) {
   const normalized = name.toLowerCase();
@@ -5146,7 +4615,7 @@ var DIM, CYAN, YELLOW, GREEN, RESET, TASK_LINE_MAX;
 var init_output = __esm({
   "src/cli/output.ts"() {
     "use strict";
-    init_state2();
+    init_state();
     DIM = "\x1B[2m";
     CYAN = "\x1B[36m";
     YELLOW = "\x1B[33m";
@@ -5158,10 +4627,16 @@ var init_output = __esm({
 
 // src/cli/context.ts
 function createControlClient(config, options = {}) {
-  var _a3, _b;
+  var _a2, _b;
   const cli = CliSession.load();
-  const baseUrl = (_a3 = config.baseUrl) != null ? _a3 : DEFAULT_CLI_BASE_URL;
-  const oauth = cli == null ? void 0 : cli.createOAuthProvider(fetch);
+  const baseUrl = (_a2 = config.baseUrl) != null ? _a2 : DEFAULT_CLI_BASE_URL;
+  const oauth = config.accountBearer ? async ({ resource, scopes }) => ({
+    accessToken: config.accountBearer,
+    expiresAt: Number.MAX_SAFE_INTEGER,
+    resource,
+    scopes,
+    tokenType: "Bearer"
+  }) : cli == null ? void 0 : cli.createOAuthProvider(fetch);
   const authorizedFetch = oauth ? wrapFetchWithPublicApiAuthorization({ fetch, baseUrl, oauth }) : fetch;
   const paymentFetch = options.payment ? createCliPaymentFetch(config, options.onPayment, authorizedFetch) : void 0;
   return new AomiClient({
@@ -5174,8 +4649,8 @@ function createControlClient(config, options = {}) {
     oauth: paymentFetch ? void 0 : oauth,
     guest: false,
     getAccountBearer: (_b = createCliGetAccountBearer(config)) != null ? _b : createCliAuthTokenProvider(() => {
-      var _a4;
-      return (_a4 = readState()) != null ? _a4 : {};
+      var _a3;
+      return (_a3 = readState()) != null ? _a3 : {};
     })
   });
 }
@@ -5207,7 +4682,7 @@ var init_context = __esm({
     init_auth();
     init_client_factory();
     init_payment2();
-    init_state2();
+    init_state();
   }
 });
 
@@ -5215,12 +4690,19 @@ var init_context = __esm({
 var chat_exports = {};
 __export(chat_exports, {
   chatCommand: () => chatCommand,
-  resolveSvmAddressForChat: () => resolveSvmAddressForChat,
-  shouldBroadcastWalletStateChange: () => shouldBroadcastWalletStateChange,
-  syncWalletStateForChat: () => syncWalletStateForChat
+  resolveSvmAddressForChat: () => resolveSvmAddressForChat
 });
-function normalizeAddress(address3) {
-  return address3 == null ? void 0 : address3.toLowerCase();
+function waitForTurnStop(session) {
+  return new Promise((resolve) => {
+    const check = () => {
+      const state = session.getSnapshot().turnState;
+      if (!state || !STOPPED_TURN_STATES.has(state)) return;
+      unsubscribe();
+      resolve();
+    };
+    const unsubscribe = session.subscribe(check);
+    check();
+  });
 }
 function deriveSvmAddress(solanaPrivateKey) {
   if (!solanaPrivateKey) return void 0;
@@ -5231,119 +4713,64 @@ function deriveSvmAddress(solanaPrivateKey) {
   }
 }
 function resolveSvmAddressForChat(persistedSvmAddress, solanaPrivateKey) {
-  var _a3;
-  return (_a3 = deriveSvmAddress(solanaPrivateKey)) != null ? _a3 : persistedSvmAddress;
-}
-function shouldBroadcastWalletStateChange(config, previous, next) {
-  var _a3, _b;
-  if (next.svmAddress) {
-    return (previous == null ? void 0 : previous.svmAddress) !== next.svmAddress;
-  }
-  if (!next.publicKey || next.chainId === void 0) {
-    return false;
-  }
-  return normalizeAddress(previous == null ? void 0 : previous.publicKey) !== normalizeAddress(next.publicKey) || (previous == null ? void 0 : previous.chainId) !== next.chainId || (previous == null ? void 0 : previous.aaProvider) !== next.aaProvider || (previous == null ? void 0 : previous.aaMode) !== next.aaMode || normalizeAddress((_a3 = previous == null ? void 0 : previous.smartAccount) != null ? _a3 : void 0) !== normalizeAddress((_b = next.smartAccount) != null ? _b : void 0);
-}
-async function syncWalletStateForChat(config, previous, next, cli, session) {
-  if (!shouldBroadcastWalletStateChange(config, previous, next) || !next.publicKey && !next.svmAddress) {
-    return;
-  }
-  const userState = buildCliUserState(next.publicKey, next.chainId, {
-    svmAddress: next.svmAddress,
-    // --cluster wins, then the persisted choice, then mainnet — so an
-    // EVM-only command cannot silently reset a persisted devnet/testnet
-    // Solana wallet in the shared default-runtime context.
-    svmCluster: cli.resolvedSvmCluster(config.svmCluster)
-  });
-  session.resolveUserState(userState);
+  var _a2;
+  return (_a2 = deriveSvmAddress(solanaPrivateKey)) != null ? _a2 : persistedSvmAddress;
 }
 async function chatCommand(config, message, verbose) {
-  var _a3, _b, _c, _d, _e, _f, _g;
   if (!message) {
     fatal("Usage: aomi chat <message>");
   }
-  const previousCli = config.freshSession ? null : CliSession.load();
-  const previousWallet = previousCli ? {
-    publicKey: previousCli.publicKey,
-    chainId: previousCli.chainId,
-    aaProvider: (_a3 = previousCli.toState().aaProvider) != null ? _a3 : null,
-    aaMode: (_b = previousCli.toState().aaMode) != null ? _b : null,
-    smartAccount: (_c = previousCli.toState().smartAccount) != null ? _c : null,
-    svmAddress: void 0
-    // force re-sync of SVM state on every chat
-  } : null;
   const cli = CliSession.loadOrCreate(config);
   const session = cli.createClientSession(config, {
     onPayment: printPaymentEvent
   });
-  const resolvedSolanaKey = cli.resolvedSvmPrivateKey(config.solanaPrivateKey);
-  const svmAddress3 = resolveSvmAddressForChat(
-    cli.svmPublicKey,
-    resolvedSolanaKey
-  );
   try {
     await ingestSecretsForSession(config, cli, session.client);
     await applyRequestedModelIfPresent(config, cli, session);
-    await syncWalletStateForChat(
-      config,
-      previousWallet,
-      {
-        publicKey: cli.publicKey,
-        chainId: cli.chainId,
-        aaProvider: (_e = (_d = cli.toState().aaProvider) != null ? _d : config.aaProvider) != null ? _e : null,
-        aaMode: (_f = cli.toState().aaMode) != null ? _f : null,
-        smartAccount: (_g = cli.toState().smartAccount) != null ? _g : null,
-        svmAddress: svmAddress3
-      },
-      cli,
-      session
-    );
     const previousActionIds = new Set(
       session.actions.all().map((action) => action.id)
     );
     let printedAgentCount = 0;
-    const seenToolResults = /* @__PURE__ */ new Set();
-    session.on("tool_complete", (event) => {
-      const name = getToolNameFromEvent(event);
-      const result = getToolResultFromEvent(event);
-      const key = toToolResultKey(name, result);
-      seenToolResults.add(key);
-      if (verbose || isAlwaysVisibleTool(name)) {
-        printToolComplete(event);
-      }
-    });
-    if (verbose) {
-      const agentLabels = /* @__PURE__ */ new Map();
-      session.on("task_started", (event) => {
-        const task = parseAomiTaskEvent(event);
-        if (!task || task.type !== "task_started") return;
-        agentLabels.set(task.agent_id, task.label || task.agent_id);
-        printTaskStarted(task);
-      });
-      session.on("task_activity", (event) => {
-        const task = parseAomiTaskEvent(event);
-        if ((task == null ? void 0 : task.type) === "task_activity") printTaskActivity(task);
-      });
-      session.on("task_completed", (event) => {
-        const task = parseAomiTaskEvent(event);
-        if (!task || task.type !== "task_completed") return;
-        printTaskCompleted(task, agentLabels.get(task.agent_id));
-        agentLabels.delete(task.agent_id);
-      });
-      session.on("processing_start", () => {
+    let handledSequence = 0;
+    let thinkingPrinted = false;
+    const agentLabels = /* @__PURE__ */ new Map();
+    const render = () => {
+      const snapshot = session.getSnapshot();
+      if (verbose && !thinkingPrinted && (snapshot.isSubmitting || snapshot.turnState === "processing")) {
+        thinkingPrinted = true;
         console.log(`${DIM}\u23F3 Thinking\u2026${RESET}`);
-      });
-      session.on("message", (event) => {
-        if (event.sender === "notice") {
+      }
+      for (const event of snapshot.events) {
+        if (event.sequence <= handledSequence) continue;
+        handledSequence = event.sequence;
+        if (event.type === "tool_complete") {
+          const name = getToolNameFromEvent(event);
+          if (verbose || isAlwaysVisibleTool(name)) printToolComplete(event);
+        } else if (verbose && event.type === "task_started") {
+          agentLabels.set(event.agent_id, event.label || event.agent_id);
+          printTaskStarted(event);
+        } else if (verbose && event.type === "task_activity") {
+          printTaskActivity(event);
+        } else if (verbose && event.type === "task_completed") {
+          printTaskCompleted(event, agentLabels.get(event.agent_id));
+          agentLabels.delete(event.agent_id);
+        } else if (verbose && event.type === "message" && event.sender === "notice") {
           console.log(`${YELLOW}\u{1F4E2} ${event.content}${RESET}`);
+        } else if (verbose && event.type === "error") {
+          console.log(`\x1B[31m\u274C ${event.message}${RESET}`);
         }
-      });
-      session.on("system_error", ({ message: msg }) => {
-        console.log(`\x1B[31m\u274C ${msg}${RESET}`);
-      });
-    }
+      }
+      if (verbose) {
+        printedAgentCount = printNewAgentMessages(
+          snapshot.messages,
+          printedAgentCount
+        );
+      }
+    };
+    const unsubscribe = session.subscribe(render);
     await session.sendAsync(message);
-    const allMessages = session.getMessages();
+    render();
+    const allMessages = session.getSnapshot().messages;
     let seedIdx = allMessages.length;
     for (let i = allMessages.length - 1; i >= 0; i--) {
       if (allMessages[i].sender === "user") {
@@ -5352,49 +4779,13 @@ async function chatCommand(config, message, verbose) {
       }
     }
     printedAgentCount = allMessages.slice(0, seedIdx).filter((entry) => entry.sender === "agent").length;
+    render();
+    await waitForTurnStop(session);
+    render();
+    unsubscribe();
     if (verbose) {
-      printedAgentCount = printNewAgentMessages(allMessages, printedAgentCount);
-      session.on("messages", (messages) => {
-        printedAgentCount = printNewAgentMessages(messages, printedAgentCount);
-      });
-    }
-    if (session.getIsProcessing() && session.actions.pending().length === 0) {
-      await new Promise((resolve) => {
-        session.on("backend_idle", () => resolve());
-        session.on("processing_end", () => resolve());
-      });
-    }
-    const messageToolResults = getMessageToolResults(
-      session.getMessages(),
-      seedIdx + 1
-    );
-    if (verbose) {
-      for (const tool of messageToolResults) {
-        const key = toToolResultKey(tool.name, tool.result);
-        if (seenToolResults.has(key)) {
-          continue;
-        }
-        printToolResultLine(tool.name, tool.result);
-      }
-    } else {
-      for (const tool of messageToolResults) {
-        const key = toToolResultKey(tool.name, tool.result);
-        if (seenToolResults.has(key)) {
-          continue;
-        }
-        if (isAlwaysVisibleTool(tool.name)) {
-          printToolResultLine(tool.name, tool.result);
-        }
-      }
-    }
-    if (verbose) {
-      printedAgentCount = printNewAgentMessages(
-        session.getMessages(),
-        printedAgentCount
-      );
       console.log(`${DIM}\u2705 Done${RESET}`);
     }
-    cli.syncWalletFromUserState(session.getUserState());
     const newActions = session.actions.pending().filter((action) => !previousActionIds.has(action.id));
     for (const action of newActions) {
       console.log(`\u26A1 Action awaiting response: ${action.id}`);
@@ -5414,11 +4805,11 @@ async function chatCommand(config, message, verbose) {
       }
     }
     if (!verbose) {
-      const agentMessages = session.getMessages().filter((entry) => entry.sender === "agent");
+      const agentMessages = session.getSnapshot().messages.filter((entry) => entry.sender === "agent");
       const last = agentMessages[agentMessages.length - 1];
       if (last == null ? void 0 : last.content) {
         console.log(last.content);
-      } else if (session.getTurnState() === "interrupted") {
+      } else if (session.getSnapshot().turnState === "interrupted") {
         console.log("(interrupted)");
       } else if (newActions.length === 0) {
         console.log("(no response)");
@@ -5434,16 +4825,21 @@ async function chatCommand(config, message, verbose) {
     session.close();
   }
 }
+var STOPPED_TURN_STATES;
 var init_chat = __esm({
   "src/cli/commands/chat.ts"() {
     "use strict";
-    init_types();
     init_cli_session();
     init_output();
     init_context();
     init_errors();
-    init_user_state2();
     init_solana_signer();
+    STOPPED_TURN_STATES = /* @__PURE__ */ new Set([
+      "awaiting_action",
+      "complete",
+      "interrupted",
+      "failed"
+    ]);
   }
 });
 
@@ -5557,7 +4953,7 @@ __export(simulate_exports, {
 });
 import { formatEther } from "viem";
 async function simulateCommand(config, selectors) {
-  var _a3;
+  var _a2;
   const cli = CliSession.load();
   if (!cli) fatal("No active session. Run `aomi chat` first.");
   if (selectors.length === 0) {
@@ -5590,7 +4986,7 @@ async function simulateCommand(config, selectors) {
     `${DIM}Simulating ${transactions.length} transaction(s) as an atomic batch...${RESET}`
   );
   const client = createCliClient(
-    __spreadProps(__spreadValues({}, config), { secrets: (_a3 = config.secrets) != null ? _a3 : {} }),
+    __spreadProps(__spreadValues({}, config), { secrets: (_a2 = config.secrets) != null ? _a2 : {} }),
     { baseUrl: cli.baseUrl, apiKey: cli.apiKey }
   );
   const { result } = await client.simulateBatch(cli.sessionId, transactions, {
@@ -5658,15 +5054,11 @@ function padRight(value, width) {
   return value.padEnd(width, " ");
 }
 function estimateTokenCount(messages) {
-  var _a3;
   let totalChars = 0;
   for (const message of messages) {
     const content = formatLogContent(message.content);
     if (content) {
       totalChars += content.length + 1;
-    }
-    if ((_a3 = message.tool_result) == null ? void 0 : _a3[1]) {
-      totalChars += message.tool_result[1].length;
     }
   }
   return Math.round(totalChars / 4);
@@ -5715,7 +5107,7 @@ __export(sessions_exports, {
   sessionsCommand: () => sessionsCommand
 });
 async function fetchRemoteSessionStats(record) {
-  var _a3;
+  var _a2;
   const client = new AomiClient({
     baseUrl: record.state.baseUrl,
     apiKey: record.state.apiKey,
@@ -5723,21 +5115,12 @@ async function fetchRemoteSessionStats(record) {
   });
   try {
     const page = await client.agent.poll(record.sessionId);
-    const messages = page.events.filter((event) => event.type === "message").map((message) => {
-      var _a4;
-      return {
-        id: (_a4 = message.message_key) != null ? _a4 : message.event_id,
-        sender: message.sender,
-        content: message.content,
-        timestamp: new Date(message.occurred_at * 1e3).toISOString(),
-        is_streaming: message.is_streaming
-      };
-    });
+    const messages = page.events.filter((event) => event.type === "message");
     const title = page.events.findLast(
       (event) => event.type === "title_changed"
     );
     return {
-      topic: (title == null ? void 0 : title.type) === "title_changed" ? (_a3 = title.title) != null ? _a3 : "Untitled Session" : "Untitled Session",
+      topic: (title == null ? void 0 : title.type) === "title_changed" ? (_a2 = title.title) != null ? _a2 : "Untitled Session" : "Untitled Session",
       messageCount: messages.length,
       tokenCountEstimate: estimateTokenCount(messages),
       toolCalls: page.events.filter((event) => event.type === "tool_complete").length,
@@ -5750,11 +5133,11 @@ async function fetchRemoteSessionStats(record) {
   }
 }
 function printSessionSummary(record, stats, isActive) {
-  var _a3;
+  var _a2;
   const header = isActive ? `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId}, active)` : `\u{1F9F5} Session id: ${record.sessionId} (session-${record.localId})`;
   console.log(`${YELLOW}------ ${header} ------${RESET}`);
   printKeyValueTable([
-    ["\u{1F9E0} topic", (_a3 = stats == null ? void 0 : stats.topic) != null ? _a3 : "Unavailable (fetch failed)"],
+    ["\u{1F9E0} topic", (_a2 = stats == null ? void 0 : stats.topic) != null ? _a2 : "Unavailable (fetch failed)"],
     ["\u{1F4AC} msg count", stats ? String(stats.messageCount) : "n/a"],
     [
       "\u{1F9EE} token count",
@@ -5765,7 +5148,7 @@ function printSessionSummary(record, stats, isActive) {
   ]);
 }
 async function sessionsCommand(_config) {
-  var _a3;
+  var _a2;
   const sessions = listStoredSessions().sort(
     (a, b) => b.updatedAt - a.updatedAt
   );
@@ -5774,7 +5157,7 @@ async function sessionsCommand(_config) {
     printDataFileLocation();
     return;
   }
-  const activeSessionId = (_a3 = CliSession.load()) == null ? void 0 : _a3.sessionId;
+  const activeSessionId = (_a2 = CliSession.load()) == null ? void 0 : _a2.sessionId;
   const statsResults = await Promise.all(
     sessions.map((record) => fetchRemoteSessionStats(record))
   );
@@ -5854,7 +5237,7 @@ var init_sessions = __esm({
     init_cli_session();
     init_errors();
     init_output();
-    init_state2();
+    init_state();
     init_auth();
     init_tables();
   }
@@ -5878,7 +5261,7 @@ __export(control_exports, {
   statusCommand: () => statusCommand
 });
 async function statusCommand(config) {
-  var _a3, _b, _c;
+  var _a2, _b, _c, _d;
   const cli = CliSession.load();
   if (!cli) {
     if (config.json) {
@@ -5893,18 +5276,20 @@ async function statusCommand(config) {
   const session = cli.createClientSession(config);
   try {
     await session.fetchCurrentState();
+    const snapshot = session.getSnapshot();
     console.log(
       JSON.stringify(
         {
           sessionId: cli.sessionId,
           baseUrl: cli.baseUrl,
           app: cli.app,
-          model: (_a3 = cli.model) != null ? _a3 : null,
+          model: (_a2 = cli.model) != null ? _a2 : null,
           chainId: (_b = cli.chainId) != null ? _b : null,
-          isProcessing: session.getIsProcessing(),
-          messageCount: session.getMessages().length,
-          title: (_c = session.getTitle()) != null ? _c : null,
-          actions: session.actions.all().length,
+          turnState: (_c = snapshot.turnState) != null ? _c : null,
+          isSubmitting: snapshot.isSubmitting,
+          messageCount: snapshot.messages.length,
+          title: (_d = snapshot.title) != null ? _d : null,
+          actions: snapshot.actions.length,
           pendingActions: session.actions.pending().length
         },
         null,
@@ -5952,7 +5337,7 @@ async function interruptCommand(config) {
   }
 }
 async function appsCommand(config) {
-  var _a3, _b;
+  var _a2, _b;
   const client = createControlClient(config);
   const cli = CliSession.load();
   const response = await client.pipeline.apps.list();
@@ -5965,7 +5350,7 @@ async function appsCommand(config) {
     console.log("No apps available.");
     return;
   }
-  const currentApp = (_a3 = cli == null ? void 0 : cli.app) != null ? _a3 : config.app;
+  const currentApp = (_a2 = cli == null ? void 0 : cli.app) != null ? _a2 : config.app;
   if (config.json) {
     printJson(
       apps.map((descriptor) => __spreadProps(__spreadValues({}, descriptor), {
@@ -5981,10 +5366,10 @@ async function appsCommand(config) {
   }
 }
 async function modelsCommand(config) {
-  var _a3, _b;
+  var _a2, _b;
   const client = createControlClient(config);
   const cli = CliSession.load();
-  const sessionId = (_a3 = cli == null ? void 0 : cli.sessionId) != null ? _a3 : crypto.randomUUID();
+  const sessionId = (_a2 = cli == null ? void 0 : cli.sessionId) != null ? _a2 : crypto.randomUUID();
   const models = await client.getModels(sessionId, {
     apiKey: (_b = config.apiKey) != null ? _b : cli == null ? void 0 : cli.apiKey
   });
@@ -5998,7 +5383,7 @@ async function modelsCommand(config) {
   }
 }
 function currentAppCommand(config = { secrets: {} }) {
-  var _a3, _b;
+  var _a2, _b;
   const cli = CliSession.load();
   if (!cli) {
     if (config.json) {
@@ -6010,14 +5395,14 @@ function currentAppCommand(config = { secrets: {} }) {
     return;
   }
   if (config.json) {
-    printJson({ active: true, app: (_a3 = cli.app) != null ? _a3 : "default" });
+    printJson({ active: true, app: (_a2 = cli.app) != null ? _a2 : "default" });
     return;
   }
   console.log((_b = cli.app) != null ? _b : "(default)");
   printDataFileLocation({ verbose: config.verbose });
 }
 function currentChainCommand(config = { secrets: {} }) {
-  var _a3;
+  var _a2;
   const cli = CliSession.load();
   if (!cli) {
     if (config.json) {
@@ -6029,7 +5414,7 @@ function currentChainCommand(config = { secrets: {} }) {
     return;
   }
   if (config.json) {
-    printJson({ active: true, chainId: (_a3 = cli.chainId) != null ? _a3 : null });
+    printJson({ active: true, chainId: (_a2 = cli.chainId) != null ? _a2 : null });
     return;
   }
   if (cli.chainId === void 0) {
@@ -6050,7 +5435,7 @@ function currentBackendCommand() {
   printDataFileLocation();
 }
 function currentWalletCommand(config = { secrets: {} }) {
-  var _a3, _b;
+  var _a2, _b;
   const cli = CliSession.load();
   if (!cli) {
     if (config.json) {
@@ -6066,7 +5451,7 @@ function currentWalletCommand(config = { secrets: {} }) {
     cli.publicKey ? {
       family: "evm",
       address: cli.publicKey,
-      chainId: (_a3 = cli.chainId) != null ? _a3 : null,
+      chainId: (_a2 = cli.chainId) != null ? _a2 : null,
       hasSavedSigner: Boolean(cli.privateKey)
     } : null,
     state.svmPublicKey ? {
@@ -6102,14 +5487,14 @@ function currentWalletCommand(config = { secrets: {} }) {
   printDataFileLocation({ verbose: config.verbose });
 }
 function currentModelCommand() {
-  var _a3;
+  var _a2;
   const cli = CliSession.load();
   if (!cli) {
     console.log("No active session");
     printDataFileLocation();
     return;
   }
-  console.log((_a3 = cli.model) != null ? _a3 : "(default backend model)");
+  console.log((_a2 = cli.model) != null ? _a2 : "(default backend model)");
   printDataFileLocation();
 }
 function setAppCommand(config, app, options) {
@@ -6140,10 +5525,10 @@ function chainsCommand(config = { secrets: {} }) {
   const cli = CliSession.load();
   const currentChainId = cli == null ? void 0 : cli.chainId;
   const chains = SUPPORTED_CHAIN_IDS.map((id) => {
-    var _a3;
+    var _a2;
     return {
       id,
-      name: (_a3 = CHAIN_NAMES[id]) != null ? _a3 : `Chain ${id}`,
+      name: (_a2 = CHAIN_NAMES[id]) != null ? _a2 : `Chain ${id}`,
       current: currentChainId === id
     };
   });
@@ -6174,7 +5559,7 @@ __export(history_exports, {
   logCommand: () => logCommand
 });
 async function logCommand(config) {
-  var _a3, _b;
+  var _a2, _b;
   const cli = CliSession.load();
   if (!cli) {
     console.log("No active session");
@@ -6185,11 +5570,14 @@ async function logCommand(config) {
   const session = cli.createClientSession(config);
   try {
     await session.fetchCurrentState();
-    const messages = session.getMessages();
-    const actions = session.actions.all();
-    const toolCalls = messages.filter((msg) => Boolean(msg.tool_result)).length;
+    const snapshot = session.getSnapshot();
+    const messages = snapshot.messages;
+    const actions = snapshot.actions;
+    const toolCalls = snapshot.events.filter(
+      (event) => event.type === "tool_complete"
+    ).length;
     const tokenCountEstimate = estimateTokenCount(messages);
-    const topic = (_a3 = session.getTitle()) != null ? _a3 : "Untitled Session";
+    const topic = (_a2 = snapshot.title) != null ? _a2 : "Untitled Session";
     if (messages.length === 0) {
       console.log("No messages in this session.");
       printDataFileLocation();
@@ -6208,10 +5596,9 @@ async function logCommand(config) {
     for (const msg of messages) {
       const content = formatLogContent(msg.content);
       let time = "";
-      if (msg.timestamp) {
-        const raw = msg.timestamp;
-        const numeric = /^\d+$/.test(raw) ? parseInt(raw, 10) : NaN;
-        const date = !Number.isNaN(numeric) ? new Date(numeric < 1e12 ? numeric * 1e3 : numeric) : new Date(raw);
+      if (msg.occurred_at) {
+        const raw = msg.occurred_at;
+        const date = new Date(raw < 1e12 ? raw * 1e3 : raw);
         time = Number.isNaN(date.getTime()) ? "" : `${DIM}${date.toLocaleTimeString()}${RESET} `;
       }
       const sender = (_b = msg.sender) != null ? _b : "unknown";
@@ -6220,12 +5607,6 @@ async function logCommand(config) {
           console.log(`${time}${CYAN}\u{1F464} You:${RESET} ${content}`);
         }
       } else if (sender === "agent") {
-        if (msg.tool_result) {
-          const [toolName, result] = msg.tool_result;
-          console.log(
-            `${time}${GREEN}\u{1F527} [${toolName}]${RESET} ${formatToolResultPreview(result)}`
-          );
-        }
         if (content) {
           console.log(`${time}${CYAN}\u{1F916} Agent:${RESET} ${content}`);
         }
@@ -6261,7 +5642,7 @@ var init_history = __esm({
     "use strict";
     init_cli_session();
     init_output();
-    init_state2();
+    init_state();
     init_tables();
   }
 });
@@ -6296,7 +5677,7 @@ function setWalletCommand(privateKeyInput) {
   printDataFileLocation();
 }
 function setSvmWalletCommand(keyInput, cluster2) {
-  var _a3;
+  var _a2;
   let keypair;
   try {
     keypair = parseSolanaKeypairSecret(keyInput.trim());
@@ -6308,19 +5689,19 @@ Usage: aomi wallet set --solana <base58-secret-key> [--cluster <cluster>]`
   }
   const publicKey = keypair.publicKey.toBase58();
   const cli = loadOrCreateForSettings();
-  const effectiveCluster = (_a3 = cluster2 != null ? cluster2 : cli.svmCluster) != null ? _a3 : "solana:mainnet";
+  const effectiveCluster = (_a2 = cluster2 != null ? cluster2 : cli.svmCluster) != null ? _a2 : "solana:mainnet";
   cli.setSvmWallet(keyInput.trim(), publicKey, effectiveCluster);
   console.log(`Solana wallet set to ${publicKey} (cluster ${effectiveCluster})`);
   printDataFileLocation();
 }
 function setChainCommand(chainIdInput) {
-  const chainId4 = parseChainId(chainIdInput);
-  if (chainId4 === void 0) {
+  const chainId3 = parseChainId(chainIdInput);
+  if (chainId3 === void 0) {
     fatal("Usage: aomi chain set <chain-id>");
   }
   const cli = loadOrCreateForSettings();
-  cli.setChainId(chainId4);
-  console.log(`Chain set to ${chainId4}`);
+  cli.setChainId(chainId3);
+  console.log(`Chain set to ${chainId3}`);
   printDataFileLocation();
 }
 function setBackendCommand(url) {
@@ -6351,14 +5732,14 @@ import { createHash, randomBytes } from "crypto";
 import { createServer } from "http";
 async function signInWithDeviceProvider({
   baseUrl,
-  provider,
+  provider: provider2,
   fetch: fetchImpl = fetch,
   now = Date.now,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   openBrowser = openUrlInBrowser,
   randomBytes: randomBytesImpl = randomBytes
 }) {
-  var _a3, _b, _c, _d;
+  var _a2, _b, _c, _d;
   const portalUrl = normalizeBaseUrl(baseUrl);
   const state = base64Url(randomBytesImpl(32));
   const verifier = base64Url(randomBytesImpl(32));
@@ -6373,7 +5754,7 @@ async function signInWithDeviceProvider({
       state,
       codeChallenge,
       redirectUri,
-      provider
+      provider: provider2
     });
     console.log(`Opening browser for Aomi account login: ${authUrl}`);
     await openBrowser(authUrl);
@@ -6404,10 +5785,10 @@ async function signInWithDeviceProvider({
       sessionToken
     );
     return {
-      provider: exchange.provider === "privy" || exchange.provider === "para" ? exchange.provider : provider,
+      provider: exchange.provider === "privy" || exchange.provider === "para" ? exchange.provider : provider2,
       auth: {
         sessionToken,
-        expiresAt: (_c = (_b = parseExpiresAt(exchange.expiresAt)) != null ? _b : parseExpiresAt((_a3 = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _a3.expiresAt)) != null ? _c : now() + DEFAULT_SESSION_TTL_MS,
+        expiresAt: (_c = (_b = parseExpiresAt(exchange.expiresAt)) != null ? _b : parseExpiresAt((_a2 = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _a2.expiresAt)) != null ? _c : now() + DEFAULT_SESSION_TTL_MS,
         betterAuthUserId: typeof ((_d = accountInfo == null ? void 0 : accountInfo.session) == null ? void 0 : _d.betterAuthUserId) === "string" ? accountInfo.session.betterAuthUserId : typeof exchange.betterAuthUserId === "string" ? exchange.betterAuthUserId : void 0
       }
     };
@@ -6417,7 +5798,7 @@ async function signInWithDeviceProvider({
 }
 async function getDeviceProviderCredential({
   baseUrl,
-  provider,
+  provider: provider2,
   sessionToken,
   fetch: fetchImpl = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -6449,7 +5830,7 @@ async function getDeviceProviderCredential({
           state,
           codeChallenge,
           redirectUri,
-          provider
+          provider: provider2
         })
       },
       "Device auth link intent"
@@ -6462,12 +5843,12 @@ async function getDeviceProviderCredential({
       state,
       codeChallenge,
       redirectUri,
-      provider,
+      provider: provider2,
       mode: "link",
       linkIntent: intent.linkIntent
     });
     console.log(
-      `Opening browser to link ${provider != null ? provider : "provider"}: ${authUrl}`
+      `Opening browser to link ${provider2 != null ? provider2 : "provider"}: ${authUrl}`
     );
     await openBrowser(authUrl);
     console.log("Waiting for browser authentication...");
@@ -6488,7 +5869,7 @@ async function getDeviceProviderCredential({
       "Device auth link exchange"
     );
     return __spreadProps(__spreadValues({}, exchange), {
-      provider: exchange.provider === "privy" || exchange.provider === "para" ? exchange.provider : provider
+      provider: exchange.provider === "privy" || exchange.provider === "para" ? exchange.provider : provider2
     });
   } finally {
     await closeServer(server);
@@ -6521,9 +5902,9 @@ async function createLoopbackCallback(input2) {
     }
   }, input2.timeoutMs);
   const server = createServer((req, res) => {
-    var _a3, _b, _c, _d;
+    var _a2, _b, _c, _d;
     try {
-      const host = (_a3 = req.headers.host) != null ? _a3 : "127.0.0.1";
+      const host = (_a2 = req.headers.host) != null ? _a2 : "127.0.0.1";
       const url = new URL((_b = req.url) != null ? _b : "/", `http://${host}`);
       if (url.pathname !== "/callback") {
         res.writeHead(404).end("Not found");
@@ -6566,10 +5947,10 @@ async function createLoopbackCallback(input2) {
       resolve();
     });
   });
-  const address3 = server.address();
+  const address2 = server.address();
   return {
     server,
-    redirectUri: `http://127.0.0.1:${address3.port}/callback`,
+    redirectUri: `http://127.0.0.1:${address2.port}/callback`,
     callback
   };
 }
@@ -6606,8 +5987,8 @@ var init_device_auth = __esm({
 // src/cli/account-graph.ts
 import { privateKeyToAccount as privateKeyToAccount6 } from "viem/accounts";
 function requireAccountGraphClient(cli) {
-  var _a3;
-  const sessionToken = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken;
+  var _a2;
+  const sessionToken = (_a2 = cli.auth) == null ? void 0 : _a2.sessionToken;
   if (!sessionToken) {
     fatal("No account session. Run `aomi account login` first.");
   }
@@ -6617,8 +5998,8 @@ function requireAccountGraphClient(cli) {
   });
 }
 function resolveAccountPrivateKey(cli, config) {
-  var _a3;
-  const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
+  var _a2;
+  const privateKey = (_a2 = config.privateKey) != null ? _a2 : cli.privateKey;
   if (!privateKey) {
     fatal(
       "No EVM private key configured.\nRun `aomi wallet set <evm-private-key>` or pass `--private-key`."
@@ -6627,9 +6008,9 @@ function resolveAccountPrivateKey(cli, config) {
   return privateKey;
 }
 function buildWalletLinkMessage(input2) {
-  var _a3, _b, _c;
+  var _a2, _b, _c;
   const baseUrl = normalizeBaseUrl(input2.baseUrl);
-  const domain = (_a3 = input2.domain) != null ? _a3 : new URL(baseUrl).host;
+  const domain = (_a2 = input2.domain) != null ? _a2 : new URL(baseUrl).host;
   const uri = (_b = input2.uri) != null ? _b : baseUrl;
   return `${domain} wants to link this wallet to your Aomi account:
 ${input2.address}
@@ -6643,18 +6024,18 @@ Nonce: ${input2.nonce}
 Issued At: ${((_c = input2.issuedAt) != null ? _c : /* @__PURE__ */ new Date()).toISOString()}`;
 }
 async function buildSignedWalletLink(input2) {
-  var _a3, _b, _c;
+  var _a2, _b, _c;
   const client = requireAccountGraphClient(input2.cli);
   const privateKey = resolveAccountPrivateKey(input2.cli, input2.config);
   const account = privateKeyToAccount6(privateKey);
-  const chainId4 = (_b = (_a3 = input2.config.chain) != null ? _a3 : input2.cli.chainId) != null ? _b : 1;
+  const chainId3 = (_b = (_a2 = input2.config.chain) != null ? _a2 : input2.cli.chainId) != null ? _b : 1;
   const nonce = await client.getWalletLinkNonce({
     address: account.address,
-    chainId: chainId4
+    chainId: chainId3
   });
   const message = buildWalletLinkMessage({
     address: account.address,
-    chainId: chainId4,
+    chainId: chainId3,
     nonce: nonce.nonce,
     domain: nonce.domain,
     uri: nonce.uri,
@@ -6664,7 +6045,7 @@ async function buildSignedWalletLink(input2) {
   return {
     family: "evm",
     address: account.address,
-    chainId: chainId4,
+    chainId: chainId3,
     nonce: nonce.nonce,
     message,
     signature: signature2,
@@ -6697,7 +6078,7 @@ function resolveAccountLink(account, selector) {
   return null;
 }
 function formatAccountGraphError(status, body, fallback) {
-  var _a3;
+  var _a2;
   const code = extractErrorCode(body);
   if (status === 401) {
     return "Session expired; run `aomi account login`";
@@ -6711,7 +6092,7 @@ function formatAccountGraphError(status, body, fallback) {
   if (status === 403 && code === "protected_identity") {
     return "This login identity is protected and cannot be edited directly.";
   }
-  return (_a3 = code != null ? code : fallback) != null ? _a3 : `Request failed: HTTP ${status}`;
+  return (_a2 = code != null ? code : fallback) != null ? _a2 : `Request failed: HTTP ${status}`;
 }
 function extractErrorCode(body) {
   if (!body || typeof body !== "object") return null;
@@ -6731,10 +6112,10 @@ var init_account_graph = __esm({
     init_errors();
     AccountGraphClient = class {
       constructor(input2) {
-        var _a3;
+        var _a2;
         this.baseUrl = normalizeBaseUrl(input2.baseUrl);
         this.sessionToken = input2.sessionToken;
-        this.fetchImpl = (_a3 = input2.fetch) != null ? _a3 : fetch;
+        this.fetchImpl = (_a2 = input2.fetch) != null ? _a2 : fetch;
       }
       getAccount() {
         return this.request("/api/aomi/account", {
@@ -6819,13 +6200,13 @@ var init_account_graph = __esm({
         });
       }
       async request(path, init) {
-        var _a3;
+        var _a2;
         const response = await this.fetchImpl(joinUrl(this.baseUrl, path), __spreadProps(__spreadValues({}, init), {
           credentials: "include",
           headers: __spreadValues({
             Accept: "application/json",
             Authorization: `Bearer ${this.sessionToken}`
-          }, (_a3 = init.headers) != null ? _a3 : {})
+          }, (_a2 = init.headers) != null ? _a2 : {})
         }));
         if (!response.ok) {
           throw new Error(
@@ -6859,7 +6240,7 @@ __export(account_exports, {
   whoamiCommand: () => whoamiCommand
 });
 async function accountLoginCommand(config, options = {}) {
-  var _a3;
+  var _a2;
   const cli = CliSession.loadOrCreate(config);
   if (options.solana && (options.wallet || options.provider)) {
     fatal("Choose only one of `--solana`, `--wallet`, or `--provider`.");
@@ -6907,16 +6288,16 @@ async function accountLoginCommand(config, options = {}) {
     }
     return;
   }
-  const provider = options.provider;
+  const provider2 = options.provider;
   const result = await signInWithDeviceProvider({
     baseUrl: cli.baseUrl,
-    provider
+    provider: provider2
   });
   cli.setAuthSession(result.auth);
   if (config.json) {
     printJson({
       status: "signed_in",
-      provider: (_a3 = result.provider) != null ? _a3 : null,
+      provider: (_a2 = result.provider) != null ? _a2 : null,
       baseUrl: cli.baseUrl,
       expiresAt: new Date(result.auth.expiresAt).toISOString()
     });
@@ -6931,27 +6312,27 @@ async function accountLoginCommand(config, options = {}) {
   printDataFileLocation({ verbose: config.verbose });
 }
 async function accountLoginWithSiws(cli, config) {
-  var _a3;
-  const privateKey = (_a3 = cli.resolvedSvmPrivateKey(config.solanaPrivateKey)) != null ? _a3 : process.env.SOLANA_PRIVATE_KEY;
+  var _a2;
+  const privateKey = (_a2 = cli.resolvedSvmPrivateKey(config.solanaPrivateKey)) != null ? _a2 : process.env.SOLANA_PRIVATE_KEY;
   if (!privateKey) {
     fatal(
       "No Solana private key configured.\nRun `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`."
     );
   }
-  const chainId4 = cli.resolvedSvmCluster(config.svmCluster);
+  const chainId3 = cli.resolvedSvmCluster(config.svmCluster);
   const result = await signInWithCliSiws({
     baseUrl: cli.baseUrl,
     privateKey,
-    chainId: chainId4
+    chainId: chainId3
   });
-  cli.setSvmWallet(privateKey, result.address, chainId4);
+  cli.setSvmWallet(privateKey, result.address, chainId3);
   cli.setAuthSession(result.auth);
   if (config.json) {
     printJson({
       status: "signed_in",
       provider: "siws",
       address: result.address,
-      chainId: chainId4,
+      chainId: chainId3,
       baseUrl: cli.baseUrl,
       expiresAt: new Date(result.auth.expiresAt).toISOString()
     });
@@ -6964,22 +6345,22 @@ async function accountLoginWithSiws(cli, config) {
   printDataFileLocation({ verbose: config.verbose });
 }
 async function accountLoginWithSiwe(cli, config) {
-  var _a3, _b, _c;
-  const privateKey = (_a3 = config.privateKey) != null ? _a3 : cli.privateKey;
+  var _a2, _b, _c;
+  const privateKey = (_a2 = config.privateKey) != null ? _a2 : cli.privateKey;
   if (!privateKey) {
     fatal(
       "No EVM private key configured.\nRun `aomi wallet set <evm-private-key>` or pass `--private-key`."
     );
   }
-  const chainId4 = (_c = (_b = config.chain) != null ? _b : cli.chainId) != null ? _c : DEFAULT_CHAIN_ID2;
+  const chainId3 = (_c = (_b = config.chain) != null ? _b : cli.chainId) != null ? _c : DEFAULT_CHAIN_ID2;
   const result = await signInWithCliSiwe({
     baseUrl: cli.baseUrl,
     privateKey,
-    chainId: chainId4
+    chainId: chainId3
   });
   cli.setWallet(privateKey, result.address);
-  if (cli.chainId !== chainId4) {
-    cli.setChainId(chainId4);
+  if (cli.chainId !== chainId3) {
+    cli.setChainId(chainId3);
   }
   cli.setAuthSession(result.auth);
   if (config.json) {
@@ -6987,7 +6368,7 @@ async function accountLoginWithSiwe(cli, config) {
       status: "signed_in",
       provider: "siwe",
       address: result.address,
-      chainId: chainId4,
+      chainId: chainId3,
       baseUrl: cli.baseUrl,
       expiresAt: new Date(result.auth.expiresAt).toISOString()
     });
@@ -6999,11 +6380,11 @@ async function accountLoginWithSiwe(cli, config) {
   );
   printDataFileLocation({ verbose: config.verbose });
 }
-function formatProvider(provider) {
-  return provider === "privy" ? "Privy" : "Para";
+function formatProvider(provider2) {
+  return provider2 === "privy" ? "Privy" : "Para";
 }
 async function accountWhoamiCommand(config) {
-  var _a3, _b;
+  var _a2, _b;
   const cli = CliSession.load();
   if (!cli) {
     if (config.json) {
@@ -7015,7 +6396,7 @@ async function accountWhoamiCommand(config) {
     return;
   }
   cli.mergeConfig(config);
-  if ((_a3 = cli.auth) == null ? void 0 : _a3.sessionToken) {
+  if ((_a2 = cli.auth) == null ? void 0 : _a2.sessionToken) {
     try {
       const account = await requireAccountGraphClient(cli).getAccount();
       if (config.json) {
@@ -7088,33 +6469,33 @@ async function accountLinksCommand(config) {
   printDataFileLocation({ verbose: config.verbose });
 }
 async function accountLinkCommand(config, options = {}) {
-  var _a3, _b, _c;
+  var _a2, _b, _c;
   const cli = loadMergedCli(config);
   const client = requireAccountGraphClient(cli);
-  const provider = normalizeProviderOption(options.provider);
-  const wantsWallet = options.wallet || !provider && !options.solana;
+  const provider2 = normalizeProviderOption(options.provider);
+  const wantsWallet = options.wallet || !provider2 && !options.solana;
   if ([
-    Boolean(provider),
+    Boolean(provider2),
     Boolean(options.wallet),
     Boolean(options.solana)
   ].filter(Boolean).length > 1) {
     fatal("Choose only one of `--provider`, `--wallet`, or `--solana`.");
   }
   if (options.solana) {
-    const privateKey = (_a3 = cli.resolvedSvmPrivateKey(config.solanaPrivateKey)) != null ? _a3 : process.env.SOLANA_PRIVATE_KEY;
+    const privateKey = (_a2 = cli.resolvedSvmPrivateKey(config.solanaPrivateKey)) != null ? _a2 : process.env.SOLANA_PRIVATE_KEY;
     if (!privateKey) {
       fatal(
         "No Solana private key configured.\nRun `aomi wallet set --solana <solana-private-key>` or pass `--solana-private-key`."
       );
     }
-    const chainId4 = cli.resolvedSvmCluster(config.svmCluster);
+    const chainId3 = cli.resolvedSvmCluster(config.svmCluster);
     const result = await linkCliSiwsWallet({
       baseUrl: cli.baseUrl,
       sessionToken: cli.auth.sessionToken,
       privateKey,
-      chainId: chainId4
+      chainId: chainId3
     });
-    cli.setSvmWallet(privateKey, result.address, chainId4);
+    cli.setSvmWallet(privateKey, result.address, chainId3);
     const account = await client.getAccount();
     if (config.json) {
       printJson(__spreadProps(__spreadValues({}, result), { account }));
@@ -7127,10 +6508,10 @@ async function accountLinkCommand(config, options = {}) {
     printDataFileLocation({ verbose: config.verbose });
     return;
   }
-  if (provider) {
+  if (provider2) {
     const result = await getDeviceProviderCredential({
       baseUrl: cli.baseUrl,
-      provider,
+      provider: provider2,
       sessionToken: (_c = (_b = cli.auth) == null ? void 0 : _b.sessionToken) != null ? _c : ""
     });
     if (result.status === "conflict") {
@@ -7140,7 +6521,7 @@ async function accountLinkCommand(config, options = {}) {
       printJson(result);
       return;
     }
-    console.log(`Linked ${formatProvider(provider)} login method`);
+    console.log(`Linked ${formatProvider(provider2)} login method`);
     if (result.status === "linked" && result.account) {
       printAccountLinks(result.account);
     }
@@ -7249,9 +6630,9 @@ function accountSwitchCommand(selector) {
   resumeSessionCommand(selector);
 }
 function hasAccountCredential(state) {
-  var _a3, _b;
+  var _a2, _b;
   return Boolean(
-    ((_a3 = state.auth) == null ? void 0 : _a3.sessionToken) || state.accountBearer || Object.keys((_b = state.oauthGrants) != null ? _b : {}).length
+    ((_a2 = state.auth) == null ? void 0 : _a2.sessionToken) || state.accountBearer || Object.keys((_b = state.oauthGrants) != null ? _b : {}).length
   );
 }
 function formatWalletChainType(chainType) {
@@ -7265,7 +6646,7 @@ function formatWalletChainType(chainType) {
   return chainType;
 }
 async function logoutCommand(config) {
-  var _a3, _b;
+  var _a2, _b;
   const cli = CliSession.load();
   if (!cli) {
     if (config.json) {
@@ -7277,7 +6658,7 @@ async function logoutCommand(config) {
     return;
   }
   cli.mergeConfig(config);
-  const token = (_a3 = cli.auth) == null ? void 0 : _a3.sessionToken;
+  const token = (_a2 = cli.auth) == null ? void 0 : _a2.sessionToken;
   try {
     for (const grant of Object.values(cli.oauthGrants)) {
       const token2 = (_b = grant.refreshToken) != null ? _b : grant.accessToken;
@@ -7311,14 +6692,14 @@ function loadMergedCli(config) {
   cli.mergeConfig(config);
   return cli;
 }
-function normalizeProviderOption(provider) {
-  if (!provider) return void 0;
-  const normalized = provider.trim().toLowerCase();
+function normalizeProviderOption(provider2) {
+  if (!provider2) return void 0;
+  const normalized = provider2.trim().toLowerCase();
   if (normalized === "privy" || normalized === "para") return normalized;
   fatal('Unknown --provider value. Use "privy" or "para".');
 }
 function printAccountSummary(account) {
-  var _a3;
+  var _a2;
   if (!account.user) {
     console.log("No active account");
     return;
@@ -7330,7 +6711,7 @@ function printAccountSummary(account) {
   if (account.user.email) {
     console.log(`Email:    ${account.user.email}`);
   }
-  if ((_a3 = account.session) == null ? void 0 : _a3.expiresAt) {
+  if ((_a2 = account.session) == null ? void 0 : _a2.expiresAt) {
     console.log(
       `Session:  expires ${new Date(account.session.expiresAt).toISOString()}`
     );
@@ -7339,7 +6720,7 @@ function printAccountSummary(account) {
   console.log(`Wallets:       ${account.wallets.length}`);
 }
 function printAccountLinks(account) {
-  var _a3, _b;
+  var _a2, _b;
   if (!account.user) {
     console.log("No active account");
     return;
@@ -7351,7 +6732,7 @@ function printAccountLinks(account) {
   if (account.user.email) {
     console.log(`Email:    ${account.user.email}`);
   }
-  if ((_a3 = account.session) == null ? void 0 : _a3.expiresAt) {
+  if ((_a2 = account.session) == null ? void 0 : _a2.expiresAt) {
     console.log(
       `Session:  expires ${new Date(account.session.expiresAt).toISOString()}`
     );
@@ -7398,8 +6779,8 @@ function formatIdentityLine(identity) {
 function formatWalletLine(wallet) {
   const label = wallet.label ? ` "${wallet.label}"` : "";
   const chain = wallet.chainId ? ` chain:${wallet.chainId}` : "";
-  const provider = wallet.provider ? ` [${wallet.provider}]` : "";
-  return `- wallet:${wallet.id} ${wallet.family}${provider}: ${wallet.address}${chain}${label}`;
+  const provider2 = wallet.provider ? ` [${wallet.provider}]` : "";
+  return `- wallet:${wallet.id} ${wallet.family}${provider2}: ${wallet.address}${chain}${label}`;
 }
 function walletBelongsToIdentity(wallet, identity) {
   if (wallet.provider && wallet.provider === identity.provider) return true;
@@ -7555,8 +6936,8 @@ function str2(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function requireToken(args) {
-  var _a3;
-  const token = (_a3 = str2(args["activation-token"])) != null ? _a3 : process.env.AOMI_DEPLOY_TOKEN;
+  var _a2;
+  const token = (_a2 = str2(args["activation-token"])) != null ? _a2 : process.env.AOMI_DEPLOY_TOKEN;
   if (!token) {
     throw new DeployCliError(
       "VALIDATION_ERROR",
@@ -7566,12 +6947,12 @@ function requireToken(args) {
   return token;
 }
 function resolveBackendUrl(args) {
-  var _a3, _b;
-  return ((_b = (_a3 = str2(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
+  var _a2, _b;
+  return ((_b = (_a2 = str2(args["backend-url"])) != null ? _a2 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
 }
 function resolvePlatform(args) {
-  var _a3, _b;
-  return (_b = (_a3 = str2(args.platform)) != null ? _a3 : process.env.AOMI_DEPLOY_PLATFORM) != null ? _b : "community";
+  var _a2, _b;
+  return (_b = (_a2 = str2(args.platform)) != null ? _a2 : process.env.AOMI_DEPLOY_PLATFORM) != null ? _b : "community";
 }
 async function fetchStatus(deploymentId, platform, activationToken, backendUrl) {
   const url = `${backendUrl}/api/platforms/${encodeURIComponent(platform)}/deployments/${encodeURIComponent(deploymentId)}/status`;
@@ -7611,12 +6992,12 @@ async function fetchStatus(deploymentId, platform, activationToken, backendUrl) 
   }
 }
 function printStatus(status) {
-  var _a3, _b;
+  var _a2, _b;
   const CYAN2 = "\x1B[36m";
   const DIM2 = "\x1B[2m";
   const RESET2 = "\x1B[0m";
   console.log(`${CYAN2}State:${RESET2} ${status.state}`);
-  if ((_a3 = status.ci) == null ? void 0 : _a3.url) {
+  if ((_a2 = status.ci) == null ? void 0 : _a2.url) {
     console.log(`${DIM2}CI:${RESET2}    ${status.ci.url}`);
   }
   if (status.deployment) {
@@ -7643,8 +7024,8 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 async function statusCommand2(args) {
-  var _a3, _b, _c;
-  const deploymentId = (_b = str2(args["deployment-id"])) != null ? _b : (_a3 = await readDeploymentState()) == null ? void 0 : _a3.deploymentId;
+  var _a2, _b, _c;
+  const deploymentId = (_b = str2(args["deployment-id"])) != null ? _b : (_a2 = await readDeploymentState()) == null ? void 0 : _a2.deploymentId;
   if (!deploymentId) {
     throw new DeployCliError(
       "VALIDATION_ERROR",
@@ -7711,8 +7092,8 @@ function str3(value) {
   return typeof value === "string" && value.trim() ? value.trim() : void 0;
 }
 function requireToken2(args) {
-  var _a3;
-  const token = (_a3 = str3(args["activation-token"])) != null ? _a3 : process.env.AOMI_DEPLOY_TOKEN;
+  var _a2;
+  const token = (_a2 = str3(args["activation-token"])) != null ? _a2 : process.env.AOMI_DEPLOY_TOKEN;
   if (!token) {
     throw new DeployCliError(
       "VALIDATION_ERROR",
@@ -7722,12 +7103,12 @@ function requireToken2(args) {
   return token;
 }
 function resolveBackendUrl2(args) {
-  var _a3, _b;
-  return ((_b = (_a3 = str3(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
+  var _a2, _b;
+  return ((_b = (_a2 = str3(args["backend-url"])) != null ? _a2 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
 }
 function resolvePlatform2(args) {
-  var _a3, _b;
-  return (_b = (_a3 = str3(args.platform)) != null ? _a3 : process.env.AOMI_DEPLOY_PLATFORM) != null ? _b : "community";
+  var _a2, _b;
+  return (_b = (_a2 = str3(args.platform)) != null ? _a2 : process.env.AOMI_DEPLOY_PLATFORM) != null ? _b : "community";
 }
 async function extractError(res) {
   try {
@@ -7740,9 +7121,9 @@ async function extractError(res) {
   }
 }
 async function activateCommand(args) {
-  var _a3, _b, _c;
+  var _a2, _b, _c;
   const state = await readDeploymentState();
-  const deploymentId = (_a3 = str3(args["deployment-id"])) != null ? _a3 : state == null ? void 0 : state.deploymentId;
+  const deploymentId = (_a2 = str3(args["deployment-id"])) != null ? _a2 : state == null ? void 0 : state.deploymentId;
   const releaseTagsRaw = str3(args["release-tags"]);
   const releaseTags = releaseTagsRaw !== void 0 ? releaseTagsRaw.split(",").map((t) => t.trim()).filter(Boolean) : (_b = state == null ? void 0 : state.releaseTags) != null ? _b : [];
   if (!deploymentId || releaseTags.length === 0) {
@@ -7878,7 +7259,7 @@ function checkGitRemote() {
   }
 }
 async function deviceAuthFlow(backendUrl, platform) {
-  var _a3, _b;
+  var _a2, _b;
   console.log(
     "\n No activation token found. Starting browser-based GitHub auth...\n"
   );
@@ -7915,7 +7296,7 @@ async function deviceAuthFlow(backendUrl, platform) {
     if (!statusRes.ok) continue;
     const body = await statusRes.json();
     if (body.status === "complete" && body.activation_token) {
-      console.log(` Authenticated as @${(_a3 = body.github_login) != null ? _a3 : "?"}
+      console.log(` Authenticated as @${(_a2 = body.github_login) != null ? _a2 : "?"}
 `);
       console.log(
         ` Tip: save your token to skip this step next time:
@@ -7940,8 +7321,8 @@ async function deviceAuthFlow(backendUrl, platform) {
   );
 }
 async function deployCommand(args) {
-  var _a3, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
-  const backendUrl = ((_b = (_a3 = str4(args["backend-url"])) != null ? _a3 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  const backendUrl = ((_b = (_a2 = str4(args["backend-url"])) != null ? _a2 : process.env.AOMI_BACKEND_URL) != null ? _b : "https://api.aomi.dev").replace(/\/+$/, "");
   const platform = (_d = (_c = str4(args.platform)) != null ? _c : process.env.AOMI_DEPLOY_PLATFORM) != null ? _d : "community";
   const activationToken = (_f = (_e = str4(args["activation-token"])) != null ? _e : process.env.AOMI_DEPLOY_TOKEN) != null ? _f : (await deviceAuthFlow(backendUrl, platform)).token;
   const projectId = Number(
@@ -8000,11 +7381,11 @@ async function deployCommand(args) {
   const text2 = await res.text();
   if (!res.ok) {
     const message = (() => {
-      var _a4, _b2;
+      var _a3, _b2;
       try {
         const json2 = JSON.parse(text2);
         if (json2 && typeof json2 === "object")
-          return (_b2 = (_a4 = json2.error) != null ? _a4 : json2.reason) != null ? _b2 : `${res.status} ${res.statusText}`;
+          return (_b2 = (_a3 = json2.error) != null ? _a3 : json2.reason) != null ? _b2 : `${res.status} ${res.statusText}`;
       } catch (e) {
       }
       return `${res.status} ${res.statusText}`;
@@ -8105,38 +7486,43 @@ async function pipelineAppCommand(config, app) {
   printJson(await createControlClient(config).pipeline.app(app).directory());
 }
 async function pipelineToolsCommand(config, options) {
-  var _a3, _b;
-  const app = ((_a3 = options.app) == null ? void 0 : _a3.trim()) || ((_b = CliSession.load()) == null ? void 0 : _b.app) || config.app || "default";
+  var _a2, _b;
+  const app = ((_a2 = options.app) == null ? void 0 : _a2.trim()) || ((_b = CliSession.load()) == null ? void 0 : _b.app) || config.app || "default";
   const directory = await createControlClient(config).pipeline.app(app).operations();
   printJson(filterEntries(directory, options));
 }
 async function pipelineToolCommand(config, operation, app) {
-  var _a3;
-  const owner = (app == null ? void 0 : app.trim()) || ((_a3 = CliSession.load()) == null ? void 0 : _a3.app) || config.app || "default";
-  printJson(await createControlClient(config).pipeline.app(owner).operation(operation));
+  var _a2;
+  const owner = (app == null ? void 0 : app.trim()) || ((_a2 = CliSession.load()) == null ? void 0 : _a2.app) || config.app || "default";
+  printJson(
+    await createControlClient(config).pipeline.app(owner).operation(operation)
+  );
 }
 async function pipelineSkillsCommand(config, limit2) {
   const directory = await createControlClient(config).pipeline.skills.list();
   printJson(filterEntries(directory, { limit: limit2 }));
 }
 async function pipelineSkillCommand(config, skill) {
-  printJson(await createControlClient(config).pipeline.skill(skill).directory());
+  printJson(
+    await createControlClient(config).pipeline.skill(skill).directory()
+  );
 }
 async function pipelineCallCommand(config, options) {
-  var _a3, _b, _c;
-  const app = ((_a3 = options.app) == null ? void 0 : _a3.trim()) || ((_b = CliSession.load()) == null ? void 0 : _b.app) || config.app || "default";
+  var _a2, _b;
+  if (options.applicationId || options.platform) {
+    throw new TypeError(
+      "Pipeline filesystem operations do not accept hosted-app control metadata"
+    );
+  }
+  const app = ((_a2 = options.app) == null ? void 0 : _a2.trim()) || ((_b = CliSession.load()) == null ? void 0 : _b.app) || config.app || "default";
   const client = createControlClient(config, {
     payment: true,
     onPayment: printPaymentEvent
   });
   printJson(
-    await client.pipeline.app(app).invoke(
-      options.toolId,
-      __spreadValues(__spreadValues(__spreadValues(__spreadProps(__spreadValues({}, parsePipelineArguments(options.arguments)), {
-        sessionId: pipelineSessionId(options.sessionId)
-      }), pipelineApplicationId(options.applicationId) ? { applicationId: pipelineApplicationId(options.applicationId) } : {}), options.platform ? { platform: options.platform } : {}), ((_c = options.skills) == null ? void 0 : _c.length) ? { skills: options.skills } : {}),
-      { idempotencyKey: options.idempotencyKey }
-    )
+    await client.pipeline.app(app).invoke(options.toolId, parsePipelineArguments(options.arguments), {
+      idempotencyKey: options.idempotencyKey
+    })
   );
 }
 function parsePipelineArguments(input2) {
@@ -8148,26 +7534,14 @@ function parsePipelineArguments(input2) {
   return value;
 }
 function filterEntries(directory, options) {
-  var _a3, _b;
-  const query = (_a3 = options.query) == null ? void 0 : _a3.trim().toLowerCase();
+  var _a2, _b;
+  const query = (_a2 = options.query) == null ? void 0 : _a2.trim().toLowerCase();
   const namespace = (_b = options.namespace) == null ? void 0 : _b.trim().toLowerCase();
   const entries = directory.entries.filter((entry) => {
     const name = entry.name.toLowerCase();
     return (!query || name.includes(query)) && (!namespace || name.startsWith(`${namespace}.`));
   });
   return __spreadProps(__spreadValues({}, directory), { entries: entries.slice(0, options.limit) });
-}
-function pipelineSessionId(explicit) {
-  var _a3;
-  return (explicit == null ? void 0 : explicit.trim()) || ((_a3 = CliSession.load()) == null ? void 0 : _a3.sessionId) || crypto.randomUUID();
-}
-function pipelineApplicationId(value) {
-  if (!(value == null ? void 0 : value.trim())) return void 0;
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new TypeError("--application-id must be a positive integer");
-  }
-  return parsed;
 }
 var init_pipeline = __esm({
   "src/cli/commands/pipeline.ts"() {
@@ -8181,17 +7555,17 @@ var init_pipeline = __esm({
 // src/cli/commands/byok.ts
 function parseByokKeyArg(input2) {
   const [providerPart, byokKeyPart] = input2.split(/:(.+)/, 2);
-  const provider = providerPart == null ? void 0 : providerPart.trim().toLowerCase();
+  const provider2 = providerPart == null ? void 0 : providerPart.trim().toLowerCase();
   const byokKey = byokKeyPart == null ? void 0 : byokKeyPart.trim();
-  if (!provider || !byokKey) {
+  if (!provider2 || !byokKey) {
     fatal("Invalid format. Use: <provider>:<key> (e.g. anthropic:sk-ant-...)");
   }
-  if (!SUPPORTED_PROVIDERS.has(provider)) {
+  if (!SUPPORTED_PROVIDERS.has(provider2)) {
     fatal(
-      `Unknown provider "${provider}". Supported: anthropic, openai, openrouter`
+      `Unknown provider "${provider2}". Supported: anthropic, openai, openrouter`
     );
   }
-  return { provider, byokKey };
+  return { provider: provider2, byokKey };
 }
 async function createByokKeyClient(config) {
   const cli = CliSession.loadOrCreate(config);
@@ -8202,9 +7576,9 @@ async function createByokKeyClient(config) {
   return { cli, client };
 }
 async function saveByokKeyCommand(config, byokKeyInput, options) {
-  const { provider, byokKey } = parseByokKeyArg(byokKeyInput);
+  const { provider: provider2, byokKey } = parseByokKeyArg(byokKeyInput);
   const { cli, client } = await createByokKeyClient(config);
-  const saved = await client.saveByokKey(cli.sessionId, provider, byokKey);
+  const saved = await client.saveByokKey(cli.sessionId, provider2, byokKey);
   console.log(`BYOK key set for ${saved.provider}: ${saved.key_prefix}...`);
   if ((options == null ? void 0 : options.printLocation) !== false) {
     printDataFileLocation();
@@ -8279,9 +7653,9 @@ function printReplHelp() {
   console.log("  :exit                  Quit the CLI");
 }
 function currentModelLabel(config) {
-  var _a3;
+  var _a2;
   const cli = CliSession.loadOrCreate(config);
-  return (_a3 = cli.model) != null ? _a3 : "(default backend model)";
+  return (_a2 = cli.model) != null ? _a2 : "(default backend model)";
 }
 async function handleModelCommand(config, command) {
   if (!command) {
@@ -8432,9 +7806,9 @@ var chatDef = defineCommand({
     }
   }),
   async run({ args }) {
-    var _a3;
+    var _a2;
     const { chatCommand: chatCommand2 } = await Promise.resolve().then(() => (init_chat(), chat_exports));
-    await chatCommand2(buildCliConfig(args), (_a3 = args.message) != null ? _a3 : "", args.verbose === true);
+    await chatCommand2(buildCliConfig(args), (_a2 = args.message) != null ? _a2 : "", args.verbose === true);
   }
 });
 
@@ -8753,7 +8127,7 @@ var walletSetDef = defineCommand7({
     }
   },
   async run({ args }) {
-    var _a3;
+    var _a2;
     const solanaKey = args.solana;
     if (solanaKey) {
       const { parseSvmCluster: parseSvmCluster2 } = await Promise.resolve().then(() => (init_shared(), shared_exports));
@@ -8768,7 +8142,7 @@ var walletSetDef = defineCommand7({
       const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
       fatal2("`--cluster` only applies with `--solana`.");
     }
-    const evmKey = (_a3 = args.evm) != null ? _a3 : args.privateKey;
+    const evmKey = (_a2 = args.evm) != null ? _a2 : args.privateKey;
     if (!evmKey) {
       const { fatal: fatal2 } = await Promise.resolve().then(() => (init_errors(), errors_exports));
       fatal2(
@@ -9337,14 +8711,6 @@ var pipelineSkillDef = defineCommand14({
   }
 });
 var executionArgs = __spreadProps(__spreadValues({}, globalArgs), {
-  session: {
-    type: "string",
-    description: "Pipeline session id (defaults to the active CLI session)"
-  },
-  skills: {
-    type: "string",
-    description: "Comma-separated Pipeline skill ids to activate"
-  },
   "idempotency-key": {
     type: "string",
     description: "Stable key for this logical execution; reuse it for a manual retry",
@@ -9372,12 +8738,10 @@ var pipelineCallDef = defineCommand14({
     const config = buildCliConfig(args);
     await pipelineCallCommand2(config, {
       toolId: getPositionals(args)[0],
-      sessionId: text(args.session),
       arguments: text(args.arguments),
       app: config.app,
       applicationId: config.applicationId,
       platform: config.appPlatform,
-      skills: list(args.skills),
       idempotencyKey: text(args["idempotency-key"])
     });
   }
@@ -9403,12 +8767,6 @@ function text(value) {
 function limit(value) {
   const parsed = Number(text(value));
   return Number.isFinite(parsed) ? parsed : void 0;
-}
-function list(value) {
-  const raw = text(value);
-  if (!raw) return void 0;
-  const values = raw.split(",").map((item) => item.trim()).filter(Boolean);
-  return values.length ? values : void 0;
 }
 
 // src/cli/root.ts
@@ -9542,8 +8900,8 @@ var root = defineCommand15({
 init_errors();
 var ROOT_SUBCOMMANDS = SUBCOMMAND_NAMES;
 function isPnpmExecWrapper() {
-  var _a3, _b;
-  const npmCommand = (_a3 = process.env.npm_command) != null ? _a3 : "";
+  var _a2, _b;
+  const npmCommand = (_a2 = process.env.npm_command) != null ? _a2 : "";
   const userAgent = (_b = process.env.npm_config_user_agent) != null ? _b : "";
   return npmCommand === "exec" && userAgent.includes("pnpm/");
 }

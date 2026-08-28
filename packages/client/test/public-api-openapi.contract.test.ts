@@ -20,11 +20,9 @@ describe("public Agent and Pipeline OpenAPI snapshot", () => {
       "POST /v1/agent/chat/{sessionId}/interrupt",
       "POST /v1/agent/mcp",
     ]);
-    for (const removed of [
-      "/api/thread/chat",
-      "/api/thread/state",
-      "/api/thread/interrupt",
-    ]) {
+    for (const removed of ["chat", "state", "interrupt"].map(
+      (route) => `/api/thread/${route}`,
+    )) {
       expect(publicApi.paths).not.toHaveProperty(removed);
     }
     expect(publicApi.paths["/v1/pipeline/mcp"].post.operationId).toBe(
@@ -98,11 +96,14 @@ describe("public Agent and Pipeline OpenAPI snapshot", () => {
 
   it("limits client UserState to connection, wallets, preferences, and extensions", () => {
     expect(publicApi.components.schemas.UserState.properties).toEqual({
-      connection: { type: "object", additionalProperties: true },
-      evm: { type: "object", additionalProperties: true },
-      svm: { type: "object", additionalProperties: true },
+      connection: { $ref: "#/components/schemas/UserStateConnection" },
+      evm: { $ref: "#/components/schemas/UserStateEvm" },
+      svm: { $ref: "#/components/schemas/UserStateSvm" },
       preferences: { type: "object", additionalProperties: true },
       ext: { type: "object", additionalProperties: true },
     });
+    expect(publicApi.components.schemas.UserStateConnection.additionalProperties).toBe(false);
+    expect(publicApi.components.schemas.UserStateEvm.additionalProperties).toBe(false);
+    expect(publicApi.components.schemas.UserStateSvm.additionalProperties).toBe(false);
   });
 });

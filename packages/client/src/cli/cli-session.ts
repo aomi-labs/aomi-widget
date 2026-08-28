@@ -12,7 +12,6 @@ import { ClientSession } from "../session";
 import type { CliConfig } from "./types";
 import {
   readState,
-  syncWalletFromUserState,
   writeState,
   type CliAuthSession,
   type CliOAuthGrant,
@@ -101,10 +100,6 @@ export class CliSession {
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
       accountBearer: config.accountBearer ?? seed?.accountBearer,
-      sessionCookie: config.sessionCookie ?? seed?.sessionCookie,
-      embeddedProvider: config.embeddedProvider ?? seed?.embeddedProvider,
-      embeddedProviderToken:
-        config.embeddedProviderToken ?? seed?.embeddedProviderToken,
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
@@ -205,31 +200,6 @@ export class CliSession {
       config.accountBearer !== this.state.accountBearer
     ) {
       this.state.accountBearer = config.accountBearer;
-      delete this.state.embeddedProvider;
-      delete this.state.embeddedProviderToken;
-      changed = true;
-    }
-    if (
-      config.sessionCookie !== undefined &&
-      config.sessionCookie !== this.state.sessionCookie
-    ) {
-      this.state.sessionCookie = config.sessionCookie;
-      changed = true;
-    }
-    if (
-      config.embeddedProvider !== undefined &&
-      config.embeddedProvider !== this.state.embeddedProvider
-    ) {
-      this.state.embeddedProvider = config.embeddedProvider;
-      delete this.state.accountBearer;
-      changed = true;
-    }
-    if (
-      config.embeddedProviderToken !== undefined &&
-      config.embeddedProviderToken !== this.state.embeddedProviderToken
-    ) {
-      this.state.embeddedProviderToken = config.embeddedProviderToken;
-      delete this.state.accountBearer;
       changed = true;
     }
     if (
@@ -404,13 +374,6 @@ export class CliSession {
     return this.state.clientId;
   }
 
-  syncWalletFromUserState(
-    userState: Parameters<typeof syncWalletFromUserState>[1],
-  ): void {
-    syncWalletFromUserState(this.state, userState);
-    this.reload();
-  }
-
   // ---------------------------------------------------------------------------
   // Bridge to ClientSession
   // ---------------------------------------------------------------------------
@@ -448,14 +411,13 @@ export class CliSession {
         app: this.state.app,
         model: config?.model ?? this.state.model,
         applicationId: config?.applicationId,
+        getUserState: () =>
+          buildCliUserState(this.state.publicKey, this.state.chainId, {
+            svmAddress: this.state.svmPublicKey,
+            svmCluster: this.resolvedSvmCluster(config?.svmCluster),
+          }),
         actions: cliActionCapabilities(this, config),
       },
-    );
-    session.resolveUserState(
-      buildCliUserState(this.state.publicKey, this.state.chainId, {
-        svmAddress: this.state.svmPublicKey,
-        svmCluster: this.resolvedSvmCluster(config?.svmCluster),
-      }),
     );
     return session;
   }
@@ -463,6 +425,16 @@ export class CliSession {
   createOAuthProvider(
     fetchImpl: typeof fetch,
   ): AomiOAuthTokenProvider | undefined {
+    if (this.state.accountBearer) {
+      const bearer = this.state.accountBearer;
+      return async ({ resource, scopes }) => ({
+        accessToken: bearer,
+        expiresAt: Number.MAX_SAFE_INTEGER,
+        resource,
+        scopes,
+        tokenType: "Bearer",
+      });
+    }
     if (
       !this.state.oauthGrants ||
       Object.keys(this.state.oauthGrants).length === 0

@@ -52,9 +52,6 @@ describe("Pipeline CLI", () => {
         toolId: "svm_get_balance",
         arguments: '{"owner":"wallet"}',
         app: "portfolio",
-        applicationId: "42",
-        platform: "community",
-        skills: ["balances"],
         idempotencyKey: "call-1",
       },
     );
@@ -63,10 +60,6 @@ describe("Pipeline CLI", () => {
       "svm_get_balance",
       {
         owner: "wallet",
-        sessionId: "active-session",
-        applicationId: 42,
-        platform: "community",
-        skills: ["balances"],
       },
       { idempotencyKey: "call-1" },
     );
@@ -97,17 +90,19 @@ describe("Pipeline CLI", () => {
     );
   });
 
-  it("rejects invalid application ids before invocation", async () => {
+  it("rejects hosted-app control metadata before invocation", async () => {
     await expect(
       pipelineCallCommand(
         { secrets: {} },
         {
           toolId: "balance",
-          applicationId: "not-an-id",
+          applicationId: "42",
           idempotencyKey: "call-2",
         },
       ),
-    ).rejects.toThrow("--application-id must be a positive integer");
+    ).rejects.toThrow(
+      "Pipeline filesystem operations do not accept hosted-app control metadata",
+    );
     expect(mocks.invoke).not.toHaveBeenCalled();
   });
 });

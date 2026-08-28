@@ -579,7 +579,7 @@ function createGuestSessionProvider(input) {
   const fetchImpl = (_a = input.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
   let credential = null;
   let pending = null;
-  const provider = async (options) => {
+  const provider2 = async (options) => {
     if (options == null ? void 0 : options.forceRefresh) credential = null;
     if (credential) return credential;
     pending != null ? pending : pending = signInAnonymous(fetchImpl, input.baseUrl).finally(() => {
@@ -588,7 +588,7 @@ function createGuestSessionProvider(input) {
     credential = await pending;
     return credential;
   };
-  return Object.assign(provider, {
+  return Object.assign(provider2, {
     clear() {
       credential = null;
     }
@@ -1129,7 +1129,7 @@ ${body}` : ""}`
   /**
    * Save or replace a BYOK key for the current account.
    */
-  async saveByokKey(sessionId, provider, byokKey, label) {
+  async saveByokKey(sessionId, provider2, byokKey, label) {
     const url = joinApiPath(this.baseUrl, "/api/account/payment/byok");
     const response = await this.fetchImpl(url, {
       method: "POST",
@@ -1137,7 +1137,7 @@ ${body}` : ""}`
         "Content-Type": "application/json"
       }),
       body: JSON.stringify({
-        provider,
+        provider: provider2,
         byok_key: byokKey,
         label
       })
@@ -1151,10 +1151,10 @@ ${body}` : ""}`
   /**
    * Delete a BYOK key for the current account.
    */
-  async deleteByokKey(sessionId, provider) {
+  async deleteByokKey(sessionId, provider2) {
     const url = buildApiUrl(
       this.baseUrl,
-      `/api/account/payment/byok/${encodeURIComponent(provider)}`
+      `/api/account/payment/byok/${encodeURIComponent(provider2)}`
     );
     const response = await this.fetchImpl(url, {
       method: "DELETE",
@@ -1331,6 +1331,11 @@ var ActionHandler = class extends TypedEventEmitter {
   all() {
     return this.snapshot;
   }
+  allAttempts() {
+    return new Map(
+      [...this.attempts].map(([id, attempt]) => [id, publicAttempt(attempt)])
+    );
+  }
   pending() {
     return this.all().filter((action) => action.state === "pending");
   }
@@ -1343,7 +1348,12 @@ var ActionHandler = class extends TypedEventEmitter {
     return this.pending().length > 0 || this.attempts.size > 0;
   }
   subscribe(listener) {
-    return this.on("changed", listener);
+    const actions = this.on("changed", listener);
+    const attempts = this.on("attempt_changed", listener);
+    return () => {
+      actions();
+      attempts();
+    };
   }
   setCapabilities(capabilities) {
     this.capabilities = capabilities;
@@ -1364,7 +1374,8 @@ var ActionHandler = class extends TypedEventEmitter {
       actionId: action.id,
       revision: action.revision,
       state: "executing",
-      controller: new AbortController()
+      controller: new AbortController(),
+      idempotencyKey: crypto.randomUUID()
     };
     this.attempts.set(id, attempt);
     this.emit("attempt_changed", publicAttempt(attempt));
@@ -1391,7 +1402,8 @@ var ActionHandler = class extends TypedEventEmitter {
       actionId: action.id,
       revision: action.revision,
       state: "responding",
-      controller: new AbortController()
+      controller: new AbortController(),
+      idempotencyKey: crypto.randomUUID()
     };
     attempt.result = result;
     this.attempts.set(id, attempt);
@@ -1434,7 +1446,7 @@ var ActionHandler = class extends TypedEventEmitter {
     attempt.state = "responding";
     attempt.error = void 0;
     this.emit("attempt_changed", publicAttempt(attempt));
-    return this.respond(action, attempt.result).then((next) => {
+    return this.respond(action, attempt.result, attempt.idempotencyKey).then((next) => {
       this.ingest(next);
       this.emit("resolved", next);
       return next;
@@ -1477,7 +1489,7 @@ function createOAuthTokenProvider(input) {
   let current = (_a = input.initial) != null ? _a : null;
   let pending = null;
   const now = (_b = input.now) != null ? _b : Date.now;
-  const provider = async (request) => {
+  const provider2 = async (request) => {
     const matches = (current == null ? void 0 : current.resource) === request.resource && request.scopes.every((scope) => current == null ? void 0 : current.scopes.includes(scope));
     if (current && matches && !request.forceRefresh && current.expiresAt > now() + 3e4) {
       return current;
@@ -1489,7 +1501,7 @@ function createOAuthTokenProvider(input) {
     current = await pending;
     return current;
   };
-  return Object.assign(provider, {
+  return Object.assign(provider2, {
     clear() {
       current = null;
     },
@@ -1774,405 +1786,6 @@ function decodeJwtPayload(token) {
   return JSON.parse(decodeBase64Url(payload));
 }
 
-// src/user-state/normalize.ts
-function asObject(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return void 0;
-  }
-  return value;
-}
-function asEvmObject(value) {
-  return Array.isArray(value) ? asObject(value[0]) : asObject(value);
-}
-function pick(record, ...keys) {
-  if (!record) {
-    return void 0;
-  }
-  for (const key of keys) {
-    if (Object.prototype.hasOwnProperty.call(record, key) && record[key] !== void 0) {
-      return record[key];
-    }
-  }
-  return void 0;
-}
-function renameKey(obj, from, to) {
-  if (from === to) return;
-  if (Object.prototype.hasOwnProperty.call(obj, from)) {
-    if (!(to in obj) || obj[to] === void 0) {
-      obj[to] = obj[from];
-    }
-    delete obj[from];
-  }
-}
-function liftFlat(obj, flat, to, fromKeys) {
-  if (to in obj && obj[to] !== void 0) return;
-  const value = pick(flat, ...fromKeys);
-  if (value !== void 0) {
-    obj[to] = value;
-  }
-}
-function buildConnection(src, flat) {
-  const c = __spreadValues({}, src != null ? src : {});
-  renameKey(c, "isConnected", "is_connected");
-  renameKey(c, "providerLabel", "provider_label");
-  renameKey(c, "walletProviderSubject", "wallet_provider_subject");
-  renameKey(c, "authMethod", "auth_method");
-  renameKey(c, "authValue", "auth_value");
-  renameKey(c, "authVerifiedAt", "auth_verified_at");
-  liftFlat(c, flat, "is_connected", ["is_connected", "isConnected"]);
-  liftFlat(c, flat, "provider", ["wallet_provider", "walletProvider"]);
-  liftFlat(c, flat, "wallet_provider_subject", [
-    "wallet_provider_subject",
-    "walletProviderSubject"
-  ]);
-  liftFlat(c, flat, "auth_method", ["auth_method", "authMethod"]);
-  liftFlat(c, flat, "auth_value", ["auth_value", "authValue"]);
-  liftFlat(c, flat, "auth_verified_at", ["auth_verified_at", "authVerifiedAt"]);
-  dropNullKeys(c, "is_connected");
-  return Object.keys(c).length ? c : void 0;
-}
-function buildEvm(src, flat) {
-  const e = __spreadValues({}, src != null ? src : {});
-  renameKey(e, "chainId", "chain_id");
-  renameKey(e, "ensName", "ens_name");
-  delete e.aa;
-  delete e.sponsorship;
-  liftFlat(e, flat, "address", ["address"]);
-  liftFlat(e, flat, "chain_id", ["chain_id", "chainId"]);
-  if (e.chain_id != null) {
-    const cid = parseChainId(e.chain_id);
-    if (cid !== void 0) e.chain_id = cid;
-    else delete e.chain_id;
-  }
-  liftFlat(e, flat, "ens_name", ["ens_name", "ensName"]);
-  return Object.keys(e).length ? e : void 0;
-}
-function buildSvm(src, flat) {
-  const s = __spreadValues({}, src != null ? src : {});
-  renameKey(s, "walletName", "wallet_name");
-  liftFlat(s, flat, "address", ["svm_address", "svmAddress"]);
-  dropNullKeys(s, "capabilities");
-  return Object.keys(s).length ? s : void 0;
-}
-function dropNullKeys(obj, ...keys) {
-  for (const key of keys) {
-    if (obj[key] === null || obj[key] === void 0) {
-      delete obj[key];
-    }
-  }
-}
-function deepMergePreserve(previous, incoming) {
-  const out = __spreadValues({}, previous);
-  for (const [key, value] of Object.entries(incoming)) {
-    const prevObj = asObject(out[key]);
-    const incObj = asObject(value);
-    if (prevObj && incObj) {
-      out[key] = deepMergePreserve(prevObj, incObj);
-    } else if (value !== void 0) {
-      out[key] = value;
-    }
-  }
-  return out;
-}
-function parseChainId(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-  if (typeof value !== "string") {
-    return void 0;
-  }
-  const trimmed = value.trim();
-  if (!trimmed) return void 0;
-  const parsed = trimmed.startsWith("0x") ? Number.parseInt(trimmed.slice(2), 16) : Number.parseInt(trimmed, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
-}
-function address(state) {
-  var _a;
-  const value = (_a = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a.address;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function svmAddress(state) {
-  var _a;
-  const value = (_a = asObject(state == null ? void 0 : state.svm)) == null ? void 0 : _a.address;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function chainId(state) {
-  var _a;
-  return parseChainId((_a = asEvmObject(state == null ? void 0 : state.evm)) == null ? void 0 : _a.chain_id);
-}
-function isConnected(state) {
-  var _a;
-  const value = (_a = asObject(state == null ? void 0 : state.connection)) == null ? void 0 : _a.is_connected;
-  return typeof value === "boolean" ? value : void 0;
-}
-function sameAddress(a, b) {
-  const na = typeof a === "string" ? a.toLowerCase() : void 0;
-  const nb = typeof b === "string" ? b.toLowerCase() : void 0;
-  return na !== void 0 && na === nb;
-}
-function normalizeUserState(userState) {
-  const src = asObject(userState);
-  if (!src) {
-    return void 0;
-  }
-  const out = {};
-  const connection = buildConnection(asObject(pick(src, "connection")), src);
-  if (connection) out.connection = connection;
-  const evm = buildEvm(asEvmObject(pick(src, "evm")), src);
-  if (evm) out.evm = evm;
-  const svm = buildSvm(asObject(pick(src, "svm", "solana")), src);
-  if (svm) out.svm = svm;
-  const ext = pick(src, "ext");
-  if (ext !== void 0) out.ext = ext;
-  const preferences = pick(src, "preferences");
-  if (preferences !== void 0)
-    out.preferences = preferences;
-  return out;
-}
-function stripDanglingConnection(state) {
-  if (isConnected(state) !== true || chainId(state) !== void 0 || svmAddress(state) !== void 0) {
-    return state;
-  }
-  const conn = asObject(state.connection);
-  if (!conn) return state;
-  const trimmed = __spreadValues({}, conn);
-  delete trimmed.is_connected;
-  if (Object.keys(trimmed).length) {
-    state.connection = trimmed;
-  } else {
-    delete state.connection;
-  }
-  return state;
-}
-function reconcileUserState(previousUserState, incomingUserState) {
-  const inc = normalizeUserState(incomingUserState);
-  if (!inc) return void 0;
-  const prev = normalizeUserState(previousUserState);
-  if (!prev) return stripDanglingConnection(inc);
-  const out = __spreadValues({}, inc);
-  const connectedNotBroken = isConnected(inc) !== false;
-  const prevConn = asObject(prev.connection);
-  const incConn = asObject(inc.connection);
-  if (connectedNotBroken && prevConn) {
-    out.connection = incConn ? deepMergePreserve(prevConn, incConn) : prevConn;
-  }
-  const prevEvm = asObject(prev.evm);
-  const incEvm = asObject(inc.evm);
-  const sameEvm = !!address(prev) && (!address(inc) || sameAddress(address(prev), address(inc)));
-  if (connectedNotBroken && prevEvm && (sameEvm || !incEvm)) {
-    out.evm = incEvm ? deepMergePreserve(prevEvm, incEvm) : prevEvm;
-  }
-  const prevSvm = asObject(prev.svm);
-  const incSvm = asObject(inc.svm);
-  const sameSvm = !!svmAddress(prev) && (!svmAddress(inc) || svmAddress(prev) === svmAddress(inc));
-  if (connectedNotBroken && prevSvm && (sameSvm || !incSvm)) {
-    out.svm = incSvm ? deepMergePreserve(prevSvm, incSvm) : prevSvm;
-  }
-  if (inc.ext === void 0 && prev.ext !== void 0) {
-    out.ext = prev.ext;
-  }
-  const outExt = asObject(out.ext);
-  if (outExt && Object.keys(outExt).length === 0) {
-    delete out.ext;
-  }
-  if (inc.preferences === void 0 && prev.preferences !== void 0) {
-    out.preferences = prev.preferences;
-  }
-  return stripDanglingConnection(out);
-}
-function toOwnedUserState(userState) {
-  const normalized = normalizeUserState(userState);
-  if (!normalized) return void 0;
-  return normalized;
-}
-
-// src/user-state/accessors.ts
-function asObject2(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return void 0;
-  }
-  return value;
-}
-function evmBlock(userState) {
-  var _a;
-  return asObject2((_a = normalizeUserState(userState)) == null ? void 0 : _a.evm);
-}
-function svmBlock(userState) {
-  var _a;
-  return asObject2((_a = normalizeUserState(userState)) == null ? void 0 : _a.svm);
-}
-function connBlock(userState) {
-  var _a;
-  return asObject2((_a = normalizeUserState(userState)) == null ? void 0 : _a.connection);
-}
-function parseChainId2(value) {
-  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
-    return value;
-  }
-  if (typeof value !== "string") return void 0;
-  const trimmed = value.trim();
-  if (!trimmed) return void 0;
-  const parsed = trimmed.startsWith("0x") ? Number.parseInt(trimmed.slice(2), 16) : Number.parseInt(trimmed, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
-}
-function optionalString(value) {
-  if (value === null) return null;
-  return typeof value === "string" && value.trim().length > 0 ? value : void 0;
-}
-function timestamp(value) {
-  if (value === null) return null;
-  if (typeof value === "number" && Number.isFinite(value)) return Math.trunc(value);
-  if (typeof value !== "string") return void 0;
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) ? parsed : void 0;
-}
-var AUTH_METHODS = /* @__PURE__ */ new Set([
-  "google",
-  "apple",
-  "facebook",
-  "x",
-  "discord",
-  "github",
-  "farcaster",
-  "telegram",
-  "email",
-  "phone",
-  "wagmi"
-]);
-function address2(userState) {
-  var _a;
-  const value = (_a = evmBlock(userState)) == null ? void 0 : _a.address;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-var evmAddress = address2;
-function svmAddress2(userState) {
-  var _a;
-  const value = (_a = svmBlock(userState)) == null ? void 0 : _a.address;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function chainId2(userState) {
-  var _a;
-  return parseChainId2((_a = evmBlock(userState)) == null ? void 0 : _a.chain_id);
-}
-function ensName(userState) {
-  var _a;
-  const value = (_a = evmBlock(userState)) == null ? void 0 : _a.ens_name;
-  return typeof value === "string" && value.length > 0 ? value : void 0;
-}
-function isConnected2(userState) {
-  var _a;
-  const value = (_a = connBlock(userState)) == null ? void 0 : _a.is_connected;
-  return typeof value === "boolean" ? value : void 0;
-}
-function walletProvider(userState) {
-  var _a;
-  const value = (_a = connBlock(userState)) == null ? void 0 : _a.provider;
-  if (value === null) return null;
-  return value === "para" || value === "privy" || value === "baseAccount" ? value : void 0;
-}
-function walletProviderSubject(userState) {
-  var _a;
-  return optionalString((_a = connBlock(userState)) == null ? void 0 : _a.wallet_provider_subject);
-}
-function authMethod(userState) {
-  var _a;
-  const value = (_a = connBlock(userState)) == null ? void 0 : _a.auth_method;
-  if (value === null) return null;
-  return typeof value === "string" && AUTH_METHODS.has(value) ? value : void 0;
-}
-function authValue(userState) {
-  var _a;
-  return optionalString((_a = connBlock(userState)) == null ? void 0 : _a.auth_value);
-}
-function authVerifiedAt(userState) {
-  var _a;
-  return timestamp((_a = connBlock(userState)) == null ? void 0 : _a.auth_verified_at);
-}
-function withExt(userState, key, value) {
-  var _a, _b;
-  const normalizedUserState = (_a = normalizeUserState(userState)) != null ? _a : {};
-  const currentExt = (_b = asObject2(normalizedUserState.ext)) != null ? _b : {};
-  return __spreadProps(__spreadValues({}, normalizedUserState), {
-    ext: __spreadProps(__spreadValues({}, currentExt), {
-      [key]: value
-    })
-  });
-}
-
-// src/user-state/index.ts
-var CLIENT_TYPE_TS_CLI = "ts_cli";
-var CLIENT_TYPE_WEB_UI = "web_ui";
-var UserState;
-((UserState2) => {
-  UserState2.normalize = normalizeUserState;
-  UserState2.reconcile = reconcileUserState;
-  UserState2.toOwned = toOwnedUserState;
-  UserState2.address = address2;
-  UserState2.evmAddress = evmAddress;
-  UserState2.svmAddress = svmAddress2;
-  UserState2.chainId = chainId2;
-  UserState2.ensName = ensName;
-  UserState2.isConnected = isConnected2;
-  UserState2.walletProvider = walletProvider;
-  UserState2.walletProviderSubject = walletProviderSubject;
-  UserState2.authMethod = authMethod;
-  UserState2.authValue = authValue;
-  UserState2.authVerifiedAt = authVerifiedAt;
-  UserState2.withExt = withExt;
-})(UserState || (UserState = {}));
-
-// src/session/json.ts
-function stableUserStateString(state) {
-  return JSON.stringify(sortJson(state != null ? state : {}));
-}
-function sortJson(value) {
-  if (Array.isArray(value)) {
-    return value.map((entry) => sortJson(entry));
-  }
-  if (value && typeof value === "object") {
-    return Object.keys(value).sort().reduce((acc, key) => {
-      acc[key] = sortJson(value[key]);
-      return acc;
-    }, {});
-  }
-  return value;
-}
-
-// src/session/state.ts
-function isRecord2(value) {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-function addExtValue(userState, key, value) {
-  const current = userState != null ? userState : {};
-  const currentExt = isRecord2(current["ext"]) ? current["ext"] : {};
-  return __spreadProps(__spreadValues({}, current), {
-    ext: __spreadProps(__spreadValues({}, currentExt), {
-      [key]: value
-    })
-  });
-}
-function removeExtValue(userState, key) {
-  if (!userState) return void 0;
-  const currentExt = userState["ext"];
-  if (!isRecord2(currentExt)) return void 0;
-  const nextExt = __spreadValues({}, currentExt);
-  delete nextExt[key];
-  return __spreadProps(__spreadValues({}, userState), { ext: nextExt });
-}
-function resolveWalletState(userState, address3, chainId4) {
-  const prevEvm = isRecord2(userState == null ? void 0 : userState.evm) ? userState == null ? void 0 : userState.evm : {};
-  const prevConn = isRecord2(userState == null ? void 0 : userState.connection) ? userState == null ? void 0 : userState.connection : {};
-  return __spreadProps(__spreadValues({}, userState != null ? userState : {}), {
-    evm: __spreadProps(__spreadValues({}, prevEvm), {
-      address: address3,
-      chain_id: chainId4 != null ? chainId4 : 1
-    }),
-    connection: __spreadProps(__spreadValues({}, prevConn), {
-      is_connected: true
-    })
-  });
-}
-
 // src/aa/policy.ts
 function aaModeFromExecutionKind(executionKind) {
   if (!executionKind) return void 0;
@@ -2188,67 +1801,85 @@ var TERMINAL_TURN_STATES = /* @__PURE__ */ new Set([
   "interrupted",
   "failed"
 ]);
-var ClientSession = class extends TypedEventEmitter {
+var TERMINAL_EVENT_DRAIN_MS = 6e4;
+var ClientSession = class {
   constructor(clientOrOptions, sessionOptions) {
-    var _a, _b, _c, _d, _e;
-    super();
     this.pollTimer = null;
     this.pollingActive = false;
     this.pollInFlight = false;
     this.pollFailureCount = 0;
-    this._isProcessing = false;
-    this._messages = [];
+    this.awaitingResume = false;
+    this.isSubmitting = false;
+    this.events = [];
+    this.eventIds = /* @__PURE__ */ new Set();
+    this.messages = [];
     this.closed = false;
     this.pendingResolve = null;
+    this.listeners = /* @__PURE__ */ new Set();
+    this.actionUnsubscribers = [];
+    this.applyingPage = false;
+    this.getSnapshot = () => this.snapshot;
+    this.subscribe = (listener) => {
+      this.listeners.add(listener);
+      return () => this.listeners.delete(listener);
+    };
     this.handleVisibilityChange = () => {
       if (typeof document !== "undefined" && !document.hidden && !this.pollInFlight) {
         this.schedulePoll(0);
       }
     };
+    var _a, _b, _c, _d, _e;
     this.client = clientOrOptions instanceof AomiClient ? clientOrOptions : new AomiClient(clientOrOptions);
     this.sessionId = (_a = sessionOptions == null ? void 0 : sessionOptions.sessionId) != null ? _a : crypto.randomUUID();
     this.app = (_b = sessionOptions == null ? void 0 : sessionOptions.app) != null ? _b : "default";
     this.model = sessionOptions == null ? void 0 : sessionOptions.model;
     this.applicationId = sessionOptions == null ? void 0 : sessionOptions.applicationId;
-    const initial = UserState.reconcile(void 0, sessionOptions == null ? void 0 : sessionOptions.userState);
-    this.userState = (sessionOptions == null ? void 0 : sessionOptions.clientType) ? UserState.withExt(
-      initial != null ? initial : {},
-      "client_type",
-      sessionOptions.clientType
-    ) : initial;
+    this.getUserState = sessionOptions == null ? void 0 : sessionOptions.getUserState;
     this.clientId = (_c = sessionOptions == null ? void 0 : sessionOptions.clientId) != null ? _c : crypto.randomUUID();
     this.pollIntervalMs = (_d = sessionOptions == null ? void 0 : sessionOptions.pollIntervalMs) != null ? _d : 500;
     this.logger = sessionOptions == null ? void 0 : sessionOptions.logger;
     this.actions = new ActionHandler(
       (_e = sessionOptions == null ? void 0 : sessionOptions.actions) != null ? _e : {},
-      (action, result) => this.client.agent.respondToAction(
+      (action, result, idempotencyKey) => this.client.agent.respondToAction(
         this.sessionId,
         action.id,
         action.revision,
-        result
+        result,
+        idempotencyKey
       )
     );
-    this.actions.on("resolved", () => {
-      this.beginProcessing();
-      this.startPolling();
-    });
+    this.snapshot = this.buildSnapshot();
+    this.actionUnsubscribers.push(
+      this.actions.subscribe(() => {
+        if (!this.applyingPage) this.publish();
+      }),
+      this.actions.on("resolved", () => {
+        this.awaitingResume = true;
+        this.startPolling();
+      })
+    );
   }
   async send(message) {
     const page = await this.submit(message);
-    if (this.isTerminal()) return this.result();
-    this.beginProcessing();
-    if (this.turnState !== "awaiting_action" || page.has_more)
+    if (this.isTerminal()) {
+      this.drainTerminalPage(page);
+      return this.result();
+    }
+    if (this.turnState !== "awaiting_action" || page.has_more) {
       this.startPolling();
+    }
     return new Promise((resolve) => {
       this.pendingResolve = resolve;
     });
   }
   async sendAsync(message) {
     const page = await this.submit(message);
-    if (!this.isTerminal()) {
-      this.beginProcessing();
-      if (this.turnState !== "awaiting_action" || page.has_more)
-        this.startPolling();
+    if (this.isTerminal()) {
+      this.drainTerminalPage(page);
+      return page;
+    }
+    if (this.turnState !== "awaiting_action" || page.has_more) {
+      this.startPolling();
     }
     return page;
   }
@@ -2258,36 +1889,7 @@ var ClientSession = class extends TypedEventEmitter {
     this.applyEventPage(
       await this.client.agent.interrupt(this.sessionId, this.turnId)
     );
-    this.finishProcessing();
-  }
-  close() {
-    if (this.closed) return;
-    this.closed = true;
-    this.stopPolling();
-    this.resolvePending();
-    this.actions.close();
-    this.removeAllListeners();
-  }
-  getMessages() {
-    return [...this._messages];
-  }
-  getTitle() {
-    return this._title;
-  }
-  getUserState() {
-    return this.userState ? __spreadValues({}, this.userState) : void 0;
-  }
-  getTurnState() {
-    return this.turnState;
-  }
-  getTurnId() {
-    return this.turnId;
-  }
-  getIsProcessing() {
-    return this._isProcessing;
-  }
-  getIsPolling() {
-    return this.pollingActive;
+    if (this.isTerminal()) this.finish();
   }
   syncRuntimeOptions(options) {
     var _a;
@@ -2295,31 +1897,8 @@ var ClientSession = class extends TypedEventEmitter {
     this.model = options.model;
     this.applicationId = options.applicationId;
     this.clientId = (_a = options.clientId) != null ? _a : this.clientId;
-    if (options.userState) this.resolveUserState(options.userState);
+    this.getUserState = options.getUserState;
     if (options.actions) this.actions.setCapabilities(options.actions);
-  }
-  resolveUserState(userState, opts) {
-    const previous = stableUserStateString(this.userState);
-    this.userState = UserState.reconcile(this.userState, userState);
-    if (!(opts == null ? void 0 : opts.skipEmit) && this.userState && previous !== stableUserStateString(this.userState)) {
-      this.emit("user_state_updated", this.userState);
-    }
-  }
-  setClientType(clientType) {
-    var _a;
-    this.resolveUserState(
-      UserState.withExt((_a = this.userState) != null ? _a : {}, "client_type", clientType)
-    );
-  }
-  addExtValue(key, value) {
-    this.resolveUserState(addExtValue(this.userState, key, value));
-  }
-  removeExtValue(key) {
-    const next = removeExtValue(this.userState, key);
-    if (next) this.resolveUserState(next);
-  }
-  resolveWallet(address3, chainId4) {
-    this.resolveUserState(resolveWalletState(this.userState, address3, chainId4));
   }
   async sync() {
     this.assertOpen();
@@ -2327,11 +1906,9 @@ var ClientSession = class extends TypedEventEmitter {
   }
   async fetchCurrentState() {
     const page = await this.sync();
-    if (!this.isTerminal() && this.turnState !== "awaiting_action") {
-      this.beginProcessing();
+    if (this.isTerminal()) this.finish();
+    else if (this.turnState && this.turnState !== "awaiting_action") {
       this.startPolling();
-    } else if (this.isTerminal()) {
-      this.finishProcessing();
     }
     if (page.has_more) this.startPolling();
   }
@@ -2346,10 +1923,12 @@ var ClientSession = class extends TypedEventEmitter {
         this.handleVisibilityChange
       );
     }
+    this.publish();
     this.schedulePoll(0);
   }
   stopPolling() {
     var _a;
+    if (!this.pollingActive && !this.pollTimer) return;
     this.pollingActive = false;
     if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = null;
@@ -2360,9 +1939,20 @@ var ClientSession = class extends TypedEventEmitter {
       );
     }
     (_a = this.logger) == null ? void 0 : _a.debug("[session] polling stopped", this.sessionId);
+    this.publish();
+  }
+  close() {
+    if (this.closed) return;
+    this.closed = true;
+    this.stopPolling();
+    this.resolvePending();
+    for (const unsubscribe of this.actionUnsubscribers) unsubscribe();
+    this.actionUnsubscribers = [];
+    this.actions.close();
+    this.listeners.clear();
   }
   async submit(message) {
-    var _a;
+    var _a, _b;
     this.assertOpen();
     const text = message.trim();
     if (!text) throw new TypeError("message is required");
@@ -2372,16 +1962,20 @@ var ClientSession = class extends TypedEventEmitter {
       idempotencyKey: `idem_${crypto.randomUUID().replaceAll("-", "")}`
     };
     this.startOperation = operation;
+    this.awaitingResume = false;
+    this.terminalDrainUntil = void 0;
+    this.isSubmitting = true;
+    this.error = void 0;
+    this.publish();
     try {
+      const state = (_b = this.getUserState) == null ? void 0 : _b.call(this);
       const page = await this.client.agent.start(
         __spreadValues(__spreadValues(__spreadValues({
           sessionId: this.sessionId,
           clientId: this.clientId,
           message: text
-        }, Number.isSafeInteger(applicationId) && applicationId > 0 ? { applicationId } : { app: this.app }), this.model ? { model: this.model } : {}), this.userState ? {
-          userState: UserState.toOwned(
-            this.userState
-          )
+        }, Number.isSafeInteger(applicationId) && applicationId > 0 ? { applicationId } : { app: this.app }), this.model ? { model: this.model } : {}), state ? {
+          userState: state
         } : {}),
         { idempotencyKey: operation.idempotencyKey }
       );
@@ -2389,10 +1983,14 @@ var ClientSession = class extends TypedEventEmitter {
       this.applyEventPage(page);
       return page;
     } catch (error) {
+      this.error = error;
       if (error instanceof AgentApiError && !error.retryable) {
         this.startOperation = void 0;
       }
       throw error;
+    } finally {
+      this.isSubmitting = false;
+      this.publish();
     }
   }
   async fetchPage(waitMs = 0) {
@@ -2404,7 +2002,7 @@ var ClientSession = class extends TypedEventEmitter {
       this.applyEventPage(page);
       return page;
     } catch (error) {
-      if (!(error instanceof AgentApiError) || error.code !== "cursor_mismatch") {
+      if (!(error instanceof AgentApiError) || error.code !== "invalid_cursor") {
         throw error;
       }
       this.cursor = void 0;
@@ -2414,52 +2012,57 @@ var ClientSession = class extends TypedEventEmitter {
     }
   }
   applyEventPage(page) {
-    var _a, _b;
+    var _a;
     if (page.session_id !== this.sessionId) {
       throw new TypeError("Agent response session does not match the request");
     }
-    let messagesChanged = false;
-    for (const event of page.events) {
-      let emitEvent = true;
-      switch (event.type) {
-        case "message":
-          this.applyMessage(event);
-          messagesChanged = true;
-          break;
-        case "turn_state_changed":
-          this.turnId = (_a = event.turn_id) != null ? _a : this.turnId;
-          this.turnState = event.state;
-          break;
-        case "title_changed":
-          if (event.title !== void 0) this._title = event.title;
-          break;
-        case "action":
-          this.turnId = (_b = event.turn_id) != null ? _b : this.turnId;
-          emitEvent = this.actions.ingest(event);
-          break;
+    this.applyingPage = true;
+    try {
+      for (const event of page.events) {
+        if (this.eventIds.has(event.event_id)) continue;
+        const previous = this.events.at(-1);
+        if (previous && event.sequence <= previous.sequence) {
+          throw new TypeError("Agent events are not monotonically ordered");
+        }
+        this.eventIds.add(event.event_id);
+        this.events.push(event);
+        this.turnId = (_a = event.turn_id) != null ? _a : this.turnId;
+        switch (event.type) {
+          case "message":
+            this.applyMessage(event);
+            break;
+          case "turn_state_changed":
+            this.turnState = event.state;
+            if (event.state !== "awaiting_action") {
+              this.awaitingResume = false;
+            }
+            break;
+          case "title_changed":
+            this.title = event.title;
+            break;
+          case "action":
+            this.actions.ingest(event);
+            break;
+        }
       }
-      if (emitEvent) {
-        this.emit("event", event);
-        this.emit(event.type, event);
-      }
+      this.cursor = page.cursor;
+      this.error = void 0;
+    } finally {
+      this.applyingPage = false;
     }
-    this.cursor = page.cursor;
-    if (messagesChanged) this.emit("messages", [...this._messages]);
+    this.publish();
   }
   applyMessage(event) {
-    var _a, _b, _c;
-    const id = (_a = event.message_key) != null ? _a : event.event_id;
-    const message = {
-      id,
-      message_key: (_b = event.message_key) != null ? _b : void 0,
-      sender: event.sender,
-      content: event.content,
-      timestamp: eventTimestamp(event.occurred_at),
-      is_streaming: (_c = event.is_streaming) != null ? _c : false
-    };
-    const index = this._messages.findIndex((current) => current.id === id);
-    if (index >= 0) this._messages[index] = message;
-    else this._messages.push(message);
+    var _a;
+    const key = (_a = event.message_key) != null ? _a : event.event_id;
+    const index = this.messages.findIndex(
+      (message) => {
+        var _a2;
+        return ((_a2 = message.message_key) != null ? _a2 : message.event_id) === key;
+      }
+    );
+    if (index >= 0) this.messages[index] = event;
+    else this.messages.push(event);
   }
   async pollTick() {
     var _a;
@@ -2469,16 +2072,15 @@ var ClientSession = class extends TypedEventEmitter {
     try {
       const page = await this.fetchPage(25e3);
       this.pollFailureCount = 0;
-      if (this.isTerminal()) {
-        this.emit("backend_idle", void 0);
-        this.finishProcessing();
-      } else if (this.turnState === "awaiting_action" && !page.has_more) {
+      if (this.isTerminal()) this.drainTerminalPage(page);
+      else if (this.turnState === "awaiting_action" && !this.awaitingResume && !page.has_more) {
         this.stopPolling();
       }
     } catch (error) {
       this.pollFailureCount += 1;
+      this.error = error;
       (_a = this.logger) == null ? void 0 : _a.debug("[session] poll error", error);
-      this.emit("error", { error });
+      this.publish();
     } finally {
       this.pollInFlight = false;
       if (this.pollingActive) {
@@ -2491,27 +2093,56 @@ var ClientSession = class extends TypedEventEmitter {
       }
     }
   }
-  beginProcessing() {
-    if (this._isProcessing) return;
-    this._isProcessing = true;
-    this.emit("processing_start", void 0);
-  }
-  finishProcessing() {
+  finish() {
+    this.awaitingResume = false;
+    this.terminalDrainUntil = void 0;
     this.stopPolling();
-    if (this._isProcessing) this.emit("processing_end", void 0);
-    this._isProcessing = false;
     this.resolvePending();
   }
+  drainTerminalPage(page) {
+    var _a;
+    this.resolvePending();
+    const hasTitle = page.events.some(
+      (event) => event.type === "title_changed"
+    );
+    if (hasTitle || this.title) {
+      this.finish();
+      return;
+    }
+    (_a = this.terminalDrainUntil) != null ? _a : this.terminalDrainUntil = Date.now() + TERMINAL_EVENT_DRAIN_MS;
+    if (page.events.length === 0 && Date.now() >= this.terminalDrainUntil) {
+      this.finish();
+      return;
+    }
+    this.startPolling();
+  }
   isTerminal() {
-    return this.turnState !== void 0 && TERMINAL_TURN_STATES.has(this.turnState);
+    return Boolean(this.turnState && TERMINAL_TURN_STATES.has(this.turnState));
   }
   result() {
-    return { messages: [...this._messages], title: this._title };
+    return { messages: this.messages, title: this.title };
   }
   resolvePending() {
     const resolve = this.pendingResolve;
     this.pendingResolve = null;
     resolve == null ? void 0 : resolve(this.result());
+  }
+  buildSnapshot() {
+    return __spreadValues(__spreadProps(__spreadValues(__spreadProps(__spreadValues(__spreadValues(__spreadValues({
+      sessionId: this.sessionId
+    }, this.cursor ? { cursor: this.cursor } : {}), this.turnId ? { turnId: this.turnId } : {}), this.turnState ? { turnState: this.turnState } : {}), {
+      events: [...this.events],
+      messages: [...this.messages],
+      actions: this.actions.all()
+    }), this.title ? { title: this.title } : {}), {
+      isPolling: this.pollingActive,
+      isSubmitting: this.isSubmitting,
+      actionAttempts: this.actions.allAttempts()
+    }), this.error === void 0 ? {} : { error: this.error });
+  }
+  publish() {
+    this.snapshot = this.buildSnapshot();
+    for (const listener of this.listeners) listener();
   }
   currentPollInterval() {
     return typeof document !== "undefined" && document.hidden ? 2e3 : this.pollIntervalMs;
@@ -2525,37 +2156,43 @@ var ClientSession = class extends TypedEventEmitter {
     if (this.closed) throw new Error("Session is closed");
   }
 };
-function eventTimestamp(value) {
-  return new Date(
-    value < 1e12 ? value * 1e3 : value
-  ).toISOString();
-}
 
 // src/sdk/agent.ts
 var AgentRun = class extends TypedEventEmitter {
   constructor(client, prompt, actions, options = {}) {
     super();
-    const userState = UserState.reconcile(void 0, options.userState);
+    const userState = options.userState;
     this.session = new ClientSession(client, __spreadProps(__spreadValues({}, options), {
       actions,
-      userState
+      getUserState: () => userState
     }));
-    this.session.on("action", (action) => this.emit("action", action));
-    this.session.actions.on(
-      "resolved",
-      (action) => this.emit("action", action)
-    );
-    this.session.on("error", ({ error }) => this.emit("error", { error }));
+    const revisions = /* @__PURE__ */ new Map();
+    let reportedError;
+    const unsubscribe = this.session.subscribe(() => {
+      var _a;
+      const snapshot = this.session.getSnapshot();
+      for (const action of snapshot.actions) {
+        if (((_a = revisions.get(action.id)) != null ? _a : -1) >= action.revision) continue;
+        revisions.set(action.id, action.revision);
+        this.emit("action", action);
+      }
+      if (snapshot.error !== void 0 && snapshot.error !== reportedError) {
+        reportedError = snapshot.error;
+        this.emit("error", { error: snapshot.error });
+      }
+    });
     this.completion = Promise.resolve().then(() => this.session.send(prompt)).then((result) => {
       const completed = __spreadProps(__spreadValues({}, result), {
         sessionId: this.session.sessionId,
         actions: this.session.actions.all()
       });
       this.emit("completed", completed);
+      unsubscribe();
       this.session.close();
       return completed;
     }).catch((error) => {
       this.emit("error", { error });
+      unsubscribe();
       this.session.close();
       throw error;
     });
@@ -2973,7 +2610,7 @@ function createSignedChallengeAdapter(config) {
     }
   };
 }
-function createSiweWidgetAuthAdapter(input) {
+function createSiweAccountAuthAdapter(input) {
   return createSignedChallengeAdapter({
     noncePath: "/api/widget/auth/siwe/nonce",
     verifyPath: "/api/widget/auth/siwe/verify",
@@ -2996,7 +2633,7 @@ function createSiweWidgetAuthAdapter(input) {
     })
   });
 }
-function createSiwsWidgetAuthAdapter(input) {
+function createSiwsAccountAuthAdapter(input) {
   return createSignedChallengeAdapter({
     noncePath: "/api/widget/auth/siws/nonce",
     verifyPath: "/api/widget/auth/siws/verify",
@@ -3014,7 +2651,7 @@ function createSiwsWidgetAuthAdapter(input) {
     })
   });
 }
-function createWidgetSessionProvider(input) {
+function createAccountSessionProvider(input) {
   var _a, _b, _c;
   const { adapter } = input;
   const fetchImpl = (_a = input.fetch) != null ? _a : fetch;
@@ -3115,7 +2752,7 @@ function createWidgetSessionProvider(input) {
     notify();
     if (session) await revokeSession(session);
   };
-  const provider = Object.assign(base2, {
+  const provider2 = Object.assign(base2, {
     required: true,
     revoke,
     signOut: async () => {
@@ -3140,53 +2777,53 @@ function createWidgetSessionProvider(input) {
       };
     }
   });
-  return provider;
+  return provider2;
 }
-var WidgetChallengeBindingError = class extends Error {
+var AccountChallengeBindingError = class extends Error {
   constructor(message) {
     super(`Widget challenge rejected before signing: ${message}`);
-    this.name = "WidgetChallengeBindingError";
+    this.name = "AccountChallengeBindingError";
   }
 };
 function assertChallengeBinding(challenge) {
   var _a, _b;
   if (!((_a = challenge.nonce) == null ? void 0 : _a.trim())) {
-    throw new WidgetChallengeBindingError("challenge has no nonce");
+    throw new AccountChallengeBindingError("challenge has no nonce");
   }
   const now = Date.now();
   const issued = Date.parse(challenge.issuedAt);
   if (Number.isNaN(issued)) {
-    throw new WidgetChallengeBindingError(
+    throw new AccountChallengeBindingError(
       "challenge has no parseable issuedAt"
     );
   }
   if (issued > now + MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS) {
-    throw new WidgetChallengeBindingError("challenge was issued in the future");
+    throw new AccountChallengeBindingError("challenge was issued in the future");
   }
   const expires = Date.parse(challenge.expirationTime);
   if (Number.isNaN(expires)) {
-    throw new WidgetChallengeBindingError(
+    throw new AccountChallengeBindingError(
       "challenge has no parseable expirationTime"
     );
   }
   if (expires <= now) {
-    throw new WidgetChallengeBindingError("challenge is already expired");
+    throw new AccountChallengeBindingError("challenge is already expired");
   }
   if (expires <= issued || expires - issued > MAX_WIDGET_CHALLENGE_LIFETIME_MS) {
-    throw new WidgetChallengeBindingError(
+    throw new AccountChallengeBindingError(
       "challenge validity window is not bounded"
     );
   }
   const pageOrigin = typeof window !== "undefined" && ((_b = window.location) == null ? void 0 : _b.origin) ? window.location.origin : null;
   if (!pageOrigin) return;
   if (challenge.uri !== pageOrigin) {
-    throw new WidgetChallengeBindingError(
+    throw new AccountChallengeBindingError(
       `challenge uri "${challenge.uri}" is not this page's origin "${pageOrigin}"`
     );
   }
   const pageHost = new URL(pageOrigin).host;
   if (challenge.domain !== pageHost) {
-    throw new WidgetChallengeBindingError(
+    throw new AccountChallengeBindingError(
       `challenge domain "${challenge.domain}" is not this page's host "${pageHost}"`
     );
   }
@@ -3251,53 +2888,94 @@ function safeEnv(read) {
   }
 }
 
-// src/types.ts
-var AOMI_TASK_EVENT_TYPES = [
-  "task_started",
-  "task_activity",
-  "task_completed"
-];
-function isAomiTaskEventType(type) {
-  return AOMI_TASK_EVENT_TYPES.includes(type);
-}
-var asString = (value) => typeof value === "string" ? value : void 0;
-function parseAomiTaskEvent(event) {
-  var _a, _b, _c, _d;
-  const raw = event;
-  const type = asString(raw.type);
-  if (!type || !isAomiTaskEventType(type)) return null;
-  const agentId = asString(raw.agent_id);
-  if (!agentId) return null;
-  const callId = (_a = asString(raw.call_id)) != null ? _a : "";
-  if (type === "task_started") {
-    return __spreadValues(__spreadValues({
-      type,
-      call_id: callId,
-      agent_id: agentId,
-      label: (_b = asString(raw.label)) != null ? _b : "",
-      app: (_c = asString(raw.app)) != null ? _c : null,
-      resumed: raw.resumed === true
-    }, asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
+// src/user-state/accessors.ts
+function asObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return void 0;
   }
-  if (type === "task_activity") {
-    const childSeq = raw.child_seq;
-    if (typeof childSeq !== "number" || !Number.isFinite(childSeq)) return null;
-    const kind = raw.kind === "note" ? "note" : "tool_call";
-    return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
-      type,
-      call_id: callId,
-      agent_id: agentId,
-      kind,
-      child_seq: childSeq
-    }, asString(raw.tool_name) ? { tool_name: raw.tool_name } : null), raw.args !== void 0 ? { args: raw.args } : null), asString(raw.result_preview) ? { result_preview: raw.result_preview } : null), asString(raw.text) ? { text: raw.text } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
-  }
-  return __spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues(__spreadValues({
-    type,
-    call_id: callId,
-    agent_id: agentId,
-    status: (_d = asString(raw.status)) != null ? _d : "completed"
-  }, asString(raw.message) ? { message: raw.message } : null), typeof raw.staged_count === "number" ? { staged_count: raw.staged_count } : null), typeof raw.steps === "number" ? { steps: raw.steps } : null), typeof raw.duration_ms === "number" ? { duration_ms: raw.duration_ms } : null), asString(raw.session_id) ? { session_id: raw.session_id } : null), asString(raw.thread_id) ? { thread_id: raw.thread_id } : null);
+  return value;
 }
+function evmBlock(userState) {
+  return asObject(userState == null ? void 0 : userState.evm);
+}
+function svmBlock(userState) {
+  return asObject(userState == null ? void 0 : userState.svm);
+}
+function connBlock(userState) {
+  return asObject(userState == null ? void 0 : userState.connection);
+}
+function parseChainId(value) {
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (typeof value !== "string") return void 0;
+  const trimmed = value.trim();
+  if (!trimmed) return void 0;
+  const parsed = trimmed.startsWith("0x") ? Number.parseInt(trimmed.slice(2), 16) : Number.parseInt(trimmed, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : void 0;
+}
+function address(userState) {
+  var _a;
+  const value = (_a = evmBlock(userState)) == null ? void 0 : _a.address;
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+var evmAddress = address;
+function svmAddress(userState) {
+  var _a;
+  const value = (_a = svmBlock(userState)) == null ? void 0 : _a.address;
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function chainId(userState) {
+  var _a;
+  return parseChainId((_a = evmBlock(userState)) == null ? void 0 : _a.chain_id);
+}
+function ensName(userState) {
+  var _a;
+  const value = (_a = evmBlock(userState)) == null ? void 0 : _a.ens_name;
+  return typeof value === "string" && value.length > 0 ? value : void 0;
+}
+function isConnected(userState) {
+  var _a;
+  const value = (_a = connBlock(userState)) == null ? void 0 : _a.is_connected;
+  return typeof value === "boolean" ? value : void 0;
+}
+function provider(userState) {
+  var _a;
+  const value = (_a = connBlock(userState)) == null ? void 0 : _a.provider;
+  if (value === null) return null;
+  return typeof value === "string" ? value : void 0;
+}
+function authMethod(userState) {
+  var _a;
+  const value = (_a = connBlock(userState)) == null ? void 0 : _a.auth_method;
+  if (value === null) return null;
+  return typeof value === "string" ? value : void 0;
+}
+function withExt(userState, key, value) {
+  var _a;
+  const currentExt = (_a = asObject(userState.ext)) != null ? _a : {};
+  return __spreadProps(__spreadValues({}, userState), {
+    ext: __spreadProps(__spreadValues({}, currentExt), {
+      [key]: value
+    })
+  });
+}
+
+// src/user-state/index.ts
+var CLIENT_TYPE_TS_CLI = "ts_cli";
+var CLIENT_TYPE_WEB_UI = "web_ui";
+var UserState;
+((UserState2) => {
+  UserState2.address = address;
+  UserState2.evmAddress = evmAddress;
+  UserState2.svmAddress = svmAddress;
+  UserState2.chainId = chainId;
+  UserState2.ensName = ensName;
+  UserState2.isConnected = isConnected;
+  UserState2.provider = provider;
+  UserState2.authMethod = authMethod;
+  UserState2.withExt = withExt;
+})(UserState || (UserState = {}));
 
 // src/wallet-utils.ts
 function asRecord2(value) {
@@ -3325,7 +3003,7 @@ function normalizeSolanaCluster(value) {
       return trimmed;
   }
 }
-function parseChainId3(value) {
+function parseChainId2(value) {
   if (typeof value === "number") {
     return Number.isSafeInteger(value) && value > 0 ? value : void 0;
   }
@@ -3415,7 +3093,7 @@ function executeEvm(wallet) {
     )) {
       throw new Error("The active EVM wallet does not match the Action");
     }
-    if (chainId3(wallet) !== first.chain_id) {
+    if (chainId2(wallet) !== first.chain_id) {
       if (!wallet.switchChain) {
         throw new Error(`EVM wallet cannot switch to chain ${first.chain_id}`);
       }
@@ -3506,7 +3184,7 @@ function sign(wallets) {
       if (wallet.address.toLowerCase() !== request.signer.toLowerCase()) {
         throw new Error("The active EVM wallet is not the requested signer");
       }
-      if (request.chainId && chainId3(wallet) !== request.chainId) {
+      if (request.chainId && chainId2(wallet) !== request.chainId) {
         if (!wallet.switchChain) {
           throw new Error(
             `EVM wallet cannot switch to chain ${request.chainId}`
@@ -3593,7 +3271,7 @@ function canSign({ evm, svm }) {
     (evm == null ? void 0 : evm.signMessage) || (evm == null ? void 0 : evm.signTypedData) || (svm == null ? void 0 : svm.signMessage) || (svm == null ? void 0 : svm.signTransaction)
   );
 }
-function chainId3(wallet) {
+function chainId2(wallet) {
   return typeof wallet.chainId === "function" ? wallet.chainId() : wallet.chainId;
 }
 function cluster(wallet) {
@@ -3636,14 +3314,14 @@ function isString(value) {
 function walletUserState(wallets) {
   var _a, _b, _c, _d;
   if (!wallets.evm && !wallets.svm) return void 0;
-  const chainId4 = typeof ((_a = wallets.evm) == null ? void 0 : _a.chainId) === "function" ? wallets.evm.chainId() : (_b = wallets.evm) == null ? void 0 : _b.chainId;
+  const chainId3 = typeof ((_a = wallets.evm) == null ? void 0 : _a.chainId) === "function" ? wallets.evm.chainId() : (_b = wallets.evm) == null ? void 0 : _b.chainId;
   const cluster2 = typeof ((_c = wallets.svm) == null ? void 0 : _c.cluster) === "function" ? wallets.svm.cluster() : (_d = wallets.svm) == null ? void 0 : _d.cluster;
   return __spreadValues(__spreadValues({
     connection: { is_connected: true }
   }, wallets.evm ? {
     evm: __spreadValues({
       address: wallets.evm.address
-    }, chainId4 === void 0 ? {} : { chain_id: chainId4 })
+    }, chainId3 === void 0 ? {} : { chain_id: chainId3 })
   } : {}), wallets.svm ? {
     svm: __spreadValues({
       address: wallets.svm.address
@@ -3966,11 +3644,11 @@ async function executeWalletCalls(params) {
   if (chainIds.length > 1) {
     throw new Error("mixed_chain_bundle_not_supported");
   }
-  const chainId4 = chainIds[0];
-  if (currentChainId !== chainId4) {
-    await switchChainAsync({ chainId: chainId4 });
+  const chainId3 = chainIds[0];
+  if (currentChainId !== chainId3) {
+    await switchChainAsync({ chainId: chainId3 });
   }
-  const chainCaps = resolveChainCapabilities(capabilities, chainId4);
+  const chainCaps = resolveChainCapabilities(capabilities, chainId3);
   const atomicStatus = (_b = chainCaps == null ? void 0 : chainCaps.atomic) == null ? void 0 : _b.status;
   const canUseAtomicSendCalls = normalizedCalls.length > 1 && (atomicStatus === "supported" || atomicStatus === "ready");
   const canUseSendCalls = canUseAtomicSendCalls || requiresSponsoredSendCalls;
@@ -3982,7 +3660,7 @@ async function executeWalletCalls(params) {
   });
   debugAA("native-wallet-sendCalls-plan", {
     callCount: normalizedCalls.length,
-    chainId: chainId4,
+    chainId: chainId3,
     chainCaps,
     canUseAtomicSendCalls,
     canUseSendCalls,
@@ -4010,7 +3688,7 @@ async function executeWalletCalls(params) {
   if (canUseSendCalls) {
     try {
       const sendCallsArgs = {
-        chainId: chainId4,
+        chainId: chainId3,
         calls: normalizedCalls.map(({ to, value, data }) => ({
           to,
           value,
@@ -4129,15 +3807,15 @@ function canFallbackToSequentialWalletSends(error, requiresSponsoredSendCalls) {
   }
   return isUnsupportedAtomicCapabilityError(error) || isRecoverableOptionalPaymasterError(error);
 }
-function resolveChainCapabilities(capabilities, chainId4) {
+function resolveChainCapabilities(capabilities, chainId3) {
   var _a, _b;
   if (!capabilities) {
     return void 0;
   }
   const asRecord3 = capabilities;
-  const eip155Key = `eip155:${chainId4}`;
-  const decimalKey = String(chainId4);
-  const hexKey = `0x${chainId4.toString(16)}`;
+  const eip155Key = `eip155:${chainId3}`;
+  const decimalKey = String(chainId3);
+  const hexKey = `0x${chainId3.toString(16)}`;
   return (_b = (_a = asRecord3[eip155Key]) != null ? _a : asRecord3[decimalKey]) != null ? _b : asRecord3[hexKey];
 }
 
@@ -4179,7 +3857,7 @@ function normalizeSimulatedFee(fee) {
     amountWei
   };
 }
-function buildFeeAAWalletCall(fee, chainId4) {
+function buildFeeAAWalletCall(fee, chainId3) {
   const normalizedFee = normalizeSimulatedFee(fee);
   if (!normalizedFee) {
     return null;
@@ -4187,7 +3865,7 @@ function buildFeeAAWalletCall(fee, chainId4) {
   return {
     to: normalizedFee.recipient,
     value: normalizedFee.amountWei,
-    chainId: chainId4
+    chainId: chainId3
   };
 }
 function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
@@ -4218,7 +3896,7 @@ function appendFeeCallToPayload(payload, fee, defaultChainId, options) {
 }
 export {
   ALCHEMY_CHAIN_SLUGS,
-  AOMI_TASK_EVENT_TYPES,
+  AccountChallengeBindingError,
   AccountCredentialUnavailableError,
   ActionHandler,
   AgentApiError,
@@ -4256,7 +3934,6 @@ export {
   SvmStaged,
   TypedEventEmitter,
   UserState,
-  WidgetChallengeBindingError,
   aaModeFromExecutionKind,
   appIdentityKey,
   appendFeeCallToPayload,
@@ -4266,17 +3943,16 @@ export {
   buildFeeAAWalletCall,
   buildSiwsMessage,
   createAccountBearerProvider,
+  createAccountSessionProvider,
   createGuestSessionProvider,
   createOAuthTokenProvider,
   createProviderCredentialAdapter,
-  createSiweWidgetAuthAdapter,
-  createSiwsWidgetAuthAdapter,
-  createWidgetSessionProvider,
+  createSiweAccountAuthAdapter,
+  createSiwsAccountAuthAdapter,
   ensureSvmWalletBound,
   ensureSvmWalletBoundVia,
   executeWalletCalls,
   handlePaymentChallenges,
-  isAomiTaskEventType,
   isUnboundWalletError,
   megaeth,
   monad,
@@ -4284,8 +3960,7 @@ export {
   normalizeAppDescriptor,
   normalizeSimulatedFee,
   normalizeSolanaCluster,
-  parseAomiTaskEvent,
-  parseChainId3 as parseChainId,
+  parseChainId2 as parseChainId,
   partialWalletExecution,
   posterFromClient,
   robinhood,

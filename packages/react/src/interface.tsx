@@ -5,12 +5,14 @@ import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import type {
   Action,
+  ActionAttempt,
   ActionResult,
   AomiSimulateResponse,
+  Event,
+  TurnState,
   UserState,
 } from "@aomi-labs/client";
 import type { ThreadMetadata } from "./state/thread-store";
-import type { EventSubscriber, SSEStatus } from "./contexts/event-context";
 import type {
   Notification,
   NotificationData,
@@ -34,8 +36,6 @@ export type AomiRuntimeApi = {
   addExtValue: (key: string, value: unknown) => void;
   /** Remove a value from user_state.ext */
   removeExtValue: (key: string) => void;
-  /** Subscribe to user state changes. Returns unsubscribe function. */
-  onUserStateChange: (callback: (user: UserState) => void) => () => void;
 
   // -------------------------------------------------------------------------
   // THREAD API
@@ -66,6 +66,8 @@ export type AomiRuntimeApi = {
   // -------------------------------------------------------------------------
   /** Whether the assistant is currently generating a response */
   isRunning: boolean;
+  /** True only before the first backend event for a submitted turn. */
+  isSubmitting: boolean;
   /** Get messages for a thread (defaults to currentThreadId) */
   getMessages: (threadId?: string) => ThreadMessageLike[];
   /** Send a message to the current thread */
@@ -90,6 +92,7 @@ export type AomiRuntimeApi = {
   // -------------------------------------------------------------------------
   /** Canonical runtime Actions awaiting a client response. */
   pendingActions: Action[];
+  actionAttempts: ReadonlyMap<string, ActionAttempt>;
   /** True while an Action is visible or awaiting backend acknowledgement. */
   hasBlockingActions: boolean;
   executeAction: (id: string) => Promise<void>;
@@ -109,12 +112,12 @@ export type AomiRuntimeApi = {
   ) => Promise<AomiSimulateResponse["result"]>;
 
   // -------------------------------------------------------------------------
-  // EVENT API
+  // EVENT STATE
   // -------------------------------------------------------------------------
-  /** Subscribe to inbound events by type. Returns unsubscribe function. */
-  subscribe: (type: string, callback: EventSubscriber) => () => void;
-  /** Current SSE connection status */
-  sseStatus: SSEStatus;
+  /** Canonical ordered events for the active session. */
+  events: readonly Event[];
+  /** Backend-owned lifecycle for the active turn. */
+  turnState?: TurnState;
 };
 
 // =============================================================================
@@ -152,8 +155,8 @@ export const AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
  *   // Notification API
  *   const { showNotification } = aomi;
  *
- *   // Event API
- *   const { subscribe } = aomi;
+ *   // Event state
+ *   const { events, turnState } = aomi;
  * }
  * ```
  */

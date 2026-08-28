@@ -348,7 +348,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateSessionRequest"
+                "$ref": "#/components/schemas/SessionUpdate"
               }
             }
           }
@@ -1266,19 +1266,16 @@
       },
       "UserState": {
         "type": "object",
-        "description": "Client-owned wallet provider, addresses, preferences, and extension values only.",
+        "description": "Client-owned provider, wallets, preferences, and extension values only.",
         "properties": {
           "connection": {
-            "type": "object",
-            "additionalProperties": true
+            "$ref": "#/components/schemas/UserStateConnection"
           },
           "evm": {
-            "type": "object",
-            "additionalProperties": true
+            "$ref": "#/components/schemas/UserStateEvm"
           },
           "svm": {
-            "type": "object",
-            "additionalProperties": true
+            "$ref": "#/components/schemas/UserStateSvm"
           },
           "preferences": {
             "type": "object",
@@ -1290,6 +1287,64 @@
           }
         },
         "additionalProperties": false
+      },
+      "UserStateConnection": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "is_connected": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": ["string", "null"]
+          },
+          "provider_label": {
+            "type": ["string", "null"]
+          },
+          "auth_method": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "UserStateEvm": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "type": ["string", "null"]
+          },
+          "chain_id": {
+            "type": ["integer", "null"],
+            "minimum": 1
+          },
+          "ens_name": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "UserStateSvm": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "type": ["string", "null"]
+          },
+          "cluster": {
+            "type": ["string", "null"]
+          },
+          "wallet_name": {
+            "type": ["string", "null"]
+          },
+          "transport": {
+            "type": ["string", "null"]
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       },
       "EventPage": {
         "type": "object",
@@ -1344,10 +1399,22 @@
             "$ref": "#/components/schemas/TurnStateChangedEvent"
           },
           {
-            "$ref": "#/components/schemas/ToolEvent"
+            "$ref": "#/components/schemas/ToolUpdateEvent"
           },
           {
-            "$ref": "#/components/schemas/TaskEvent"
+            "$ref": "#/components/schemas/ToolCompleteEvent"
+          },
+          {
+            "$ref": "#/components/schemas/TaskStartedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/TaskPhaseEvent"
+          },
+          {
+            "$ref": "#/components/schemas/TaskActivityEvent"
+          },
+          {
+            "$ref": "#/components/schemas/TaskCompletedEvent"
           },
           {
             "$ref": "#/components/schemas/TitleEvent"
@@ -1364,11 +1431,12 @@
           "mapping": {
             "message": "#/components/schemas/MessageEvent",
             "turn_state_changed": "#/components/schemas/TurnStateChangedEvent",
-            "tool_update": "#/components/schemas/ToolEvent",
-            "tool_complete": "#/components/schemas/ToolEvent",
-            "task_started": "#/components/schemas/TaskEvent",
-            "task_activity": "#/components/schemas/TaskEvent",
-            "task_completed": "#/components/schemas/TaskEvent",
+            "tool_update": "#/components/schemas/ToolUpdateEvent",
+            "tool_complete": "#/components/schemas/ToolCompleteEvent",
+            "task_started": "#/components/schemas/TaskStartedEvent",
+            "task_phase": "#/components/schemas/TaskPhaseEvent",
+            "task_activity": "#/components/schemas/TaskActivityEvent",
+            "task_completed": "#/components/schemas/TaskCompletedEvent",
             "title_changed": "#/components/schemas/TitleEvent",
             "error": "#/components/schemas/ErrorEvent",
             "action": "#/components/schemas/Action"
@@ -1428,35 +1496,274 @@
           }
         ]
       },
-      "ToolEvent": {
+      "ToolUpdateEvent": {
         "allOf": [
           {
             "$ref": "#/components/schemas/EventMeta"
           },
           {
             "type": "object",
-            "required": ["type"],
-            "additionalProperties": true,
+            "required": ["type", "id", "tool_name", "result"],
             "properties": {
               "type": {
-                "enum": ["tool_update", "tool_complete"]
+                "const": "tool_update"
+              },
+              "id": {
+                "type": "string"
+              },
+              "call_id": {
+                "type": ["string", "null"]
+              },
+              "tool_name": {
+                "type": "string"
+              },
+              "result": {}
+            }
+          }
+        ]
+      },
+      "ToolCompleteEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EventMeta"
+          },
+          {
+            "type": "object",
+            "required": ["type", "id", "tool_name", "result"],
+            "properties": {
+              "type": {
+                "const": "tool_complete"
+              },
+              "id": {
+                "type": "string"
+              },
+              "call_id": {
+                "type": ["string", "null"]
+              },
+              "tool_name": {
+                "type": "string"
+              },
+              "result": {}
+            }
+          }
+        ]
+      },
+      "TaskStartedEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EventMeta"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "call_id",
+              "agent_id",
+              "label",
+              "app",
+              "resumed"
+            ],
+            "properties": {
+              "type": {
+                "const": "task_started"
+              },
+              "call_id": {
+                "type": "string"
+              },
+              "agent_id": {
+                "type": "string"
+              },
+              "label": {
+                "type": ["string", "null"]
+              },
+              "app": {
+                "type": "string"
+              },
+              "resumed": {
+                "type": "boolean"
               }
             }
           }
         ]
       },
-      "TaskEvent": {
+      "TaskPhaseEvent": {
         "allOf": [
           {
             "$ref": "#/components/schemas/EventMeta"
           },
           {
             "type": "object",
-            "required": ["type"],
-            "additionalProperties": true,
+            "required": [
+              "type",
+              "call_id",
+              "agent_id",
+              "app",
+              "phase",
+              "elapsed_ms",
+              "observed_at_ms"
+            ],
             "properties": {
               "type": {
-                "enum": ["task_started", "task_activity", "task_completed"]
+                "const": "task_phase"
+              },
+              "call_id": {
+                "type": "string"
+              },
+              "agent_id": {
+                "type": "string"
+              },
+              "app": {
+                "type": "string"
+              },
+              "phase": {
+                "type": "string"
+              },
+              "elapsed_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "observed_at_ms": {
+                "type": "integer"
+              }
+            }
+          }
+        ]
+      },
+      "TaskActivityEvent": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EventMeta"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "call_id",
+                  "agent_id",
+                  "child_seq",
+                  "kind",
+                  "tool_name",
+                  "args",
+                  "result_preview"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "task_activity"
+                  },
+                  "call_id": {
+                    "type": "string"
+                  },
+                  "agent_id": {
+                    "type": "string"
+                  },
+                  "child_seq": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "kind": {
+                    "const": "tool_call"
+                  },
+                  "tool_name": {
+                    "type": "string"
+                  },
+                  "args": {},
+                  "result_preview": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/EventMeta"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "type",
+                  "call_id",
+                  "agent_id",
+                  "child_seq",
+                  "kind",
+                  "text"
+                ],
+                "properties": {
+                  "type": {
+                    "const": "task_activity"
+                  },
+                  "call_id": {
+                    "type": "string"
+                  },
+                  "agent_id": {
+                    "type": "string"
+                  },
+                  "child_seq": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "kind": {
+                    "const": "note"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "discriminator": {
+          "propertyName": "kind"
+        }
+      },
+      "TaskCompletedEvent": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/EventMeta"
+          },
+          {
+            "type": "object",
+            "required": [
+              "type",
+              "call_id",
+              "agent_id",
+              "status",
+              "message",
+              "staged_count",
+              "steps",
+              "duration_ms"
+            ],
+            "properties": {
+              "type": {
+                "const": "task_completed"
+              },
+              "call_id": {
+                "type": "string"
+              },
+              "agent_id": {
+                "type": "string"
+              },
+              "status": {
+                "enum": ["completed", "failed", "stalled", "cancelled"]
+              },
+              "message": {
+                "type": "string"
+              },
+              "staged_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "steps": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "duration_ms": {
+                "type": "integer",
+                "minimum": 0
               }
             }
           }
@@ -1564,7 +1871,8 @@
         "oneOf": [
           {
             "type": "object",
-            "required": ["type", "transactions"],
+            "required": ["type", "transactions", "simulation"],
+            "additionalProperties": false,
             "properties": {
               "type": {
                 "const": "execute_evm"
@@ -1575,12 +1883,16 @@
                 "items": {
                   "$ref": "#/components/schemas/AssembledEvmTransaction"
                 }
+              },
+              "simulation": {
+                "$ref": "#/components/schemas/PipelineSimulation"
               }
             }
           },
           {
             "type": "object",
-            "required": ["type", "transactions"],
+            "required": ["type", "transactions", "simulation"],
+            "additionalProperties": false,
             "properties": {
               "type": {
                 "const": "execute_svm"
@@ -1591,6 +1903,9 @@
                 "items": {
                   "$ref": "#/components/schemas/AssembledSvmTransaction"
                 }
+              },
+              "simulation": {
+                "$ref": "#/components/schemas/PipelineSimulation"
               }
             }
           },
@@ -1944,7 +2259,7 @@
           }
         }
       },
-      "UpdateSessionRequest": {
+      "SessionUpdate": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -2040,11 +2355,189 @@
           "provenance": {
             "type": "object"
           },
-          "simulation": {},
+          "simulation": {
+            "$ref": "#/components/schemas/PipelineSimulation"
+          },
           "summary": {},
           "digest": {
             "type": "string",
             "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        }
+      },
+      "PipelineSimulation": {
+        "type": "object",
+        "required": [
+          "status",
+          "balanceChanges",
+          "fees",
+          "warnings",
+          "guards",
+          "gas",
+          "logs"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": ["passed", "failed"]
+          },
+          "balanceChanges": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineBalanceChange"
+            }
+          },
+          "fees": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineFeeEstimate"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "guards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineGuardResult"
+            }
+          },
+          "gas": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PipelineGasEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "logs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineLog"
+            }
+          }
+        }
+      },
+      "PipelineBalanceChange": {
+        "type": "object",
+        "required": ["asset", "amount"],
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": ["string", "null"]
+          },
+          "asset": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "direction": {
+            "enum": ["in", "out", null]
+          },
+          "symbol": {
+            "type": ["string", "null"]
+          },
+          "decimals": {
+            "type": ["integer", "null"]
+          },
+          "chainId": {
+            "type": ["integer", "null"]
+          },
+          "cluster": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "PipelineFeeEstimate": {
+        "type": "object",
+        "required": ["asset", "amount"],
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": ["string", "null"]
+          },
+          "asset": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "string"
+          },
+          "symbol": {
+            "type": ["string", "null"]
+          },
+          "decimals": {
+            "type": ["integer", "null"]
+          },
+          "chainId": {
+            "type": ["integer", "null"]
+          },
+          "cluster": {
+            "type": ["string", "null"]
+          },
+          "kind": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "PipelineGuardResult": {
+        "type": "object",
+        "required": ["name", "status"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "enum": ["passed", "failed", "warning"]
+          },
+          "message": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "PipelineGasEstimate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "units": {
+            "type": ["string", "null"]
+          },
+          "priceWei": {
+            "type": ["string", "null"]
+          },
+          "nativeCost": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "PipelineLog": {
+        "type": "object",
+        "required": ["address", "topics", "data"],
+        "additionalProperties": false,
+        "properties": {
+          "chainId": {
+            "type": ["integer", "null"]
+          },
+          "cluster": {
+            "type": ["string", "null"]
+          },
+          "address": {
+            "type": "string"
+          },
+          "topics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data": {
+            "type": "string"
           }
         }
       }

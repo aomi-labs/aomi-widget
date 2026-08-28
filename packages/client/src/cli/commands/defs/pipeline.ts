@@ -97,14 +97,6 @@ const pipelineSkillDef = defineCommand({
 
 const executionArgs = {
   ...globalArgs,
-  session: {
-    type: "string",
-    description: "Pipeline session id (defaults to the active CLI session)",
-  },
-  skills: {
-    type: "string",
-    description: "Comma-separated Pipeline skill ids to activate",
-  },
   "idempotency-key": {
     type: "string",
     description:
@@ -136,12 +128,10 @@ const pipelineCallDef = defineCommand({
     const config = buildCliConfig(args);
     await pipelineCallCommand(config, {
       toolId: getPositionals(args)[0]!,
-      sessionId: text(args.session),
       arguments: text(args.arguments),
       app: config.app,
       applicationId: config.applicationId,
       platform: config.appPlatform,
-      skills: list(args.skills),
       idempotencyKey: text(args["idempotency-key"])!,
     });
   },

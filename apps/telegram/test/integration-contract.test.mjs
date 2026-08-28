@@ -15,7 +15,7 @@ test("Para login resolves the canonical Aomi account", async () => {
   assert.match(providers, /oAuthMethods: \["GOOGLE", "TELEGRAM"\]/);
   assert.match(canonicalAccount, /createProviderCredentialAdapter/);
   assert.match(canonicalAccount, /paraClient\.issueJwt/);
-  assert.match(canonicalAccount, /createWidgetSessionProvider/);
+  assert.match(canonicalAccount, /createAccountSessionProvider/);
   assert.match(canonicalAccount, /\/api\/aomi\/telegram\/exchange/);
   assert.match(canonicalAccount, /\/api\/aomi\/account/);
 });
@@ -43,7 +43,8 @@ test("the Mini App consumes canonical Actions and submits Action results", async
   ]);
 
   assert.match(actionSession, /new Session/);
-  assert.match(actionSession, /actions\.subscribe/);
+  assert.match(actionSession, /session\.subscribe/);
+  assert.match(actionSession, /session\.getSnapshot/);
   assert.match(actionSession, /fetchCurrentState/);
   assert.match(control, /walletCapabilities/);
   assert.match(control, /EvmWallet/);
@@ -92,7 +93,7 @@ test("signing is gated behind explicit approval of a rendered Action", async () 
   const approveIndex = control.indexOf("const approve = useCallback");
   assert.ok(approveIndex > 0, "approve callback is present");
   assert.ok(
-    control.indexOf("handler\n      .execute", approveIndex) > approveIndex,
+    control.indexOf("handler.execute", approveIndex) > approveIndex,
     "wallet execution is reached through ActionHandler after approval",
   );
 });

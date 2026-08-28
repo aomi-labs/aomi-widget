@@ -71,42 +71,13 @@ export interface PipelineCommitOptions {
   paymentSignature?: string;
 }
 
-export type PipelineSimulationStatus = "passed" | "failed";
-
-export interface PipelineBalanceChange {
-  account?: string;
-  asset: string;
-  amount: string;
-  direction?: "in" | "out";
-  symbol?: string;
-  decimals?: number;
-  chainId?: number;
-  cluster?: string;
-}
-
-export interface PipelineFeeEstimate {
-  asset: string;
-  amount: string;
-  symbol?: string;
-  usdValue?: string;
-  kind?: string;
-}
-
-export interface PipelineGuardResult {
-  name: string;
-  status: "passed" | "failed" | "warning";
-  message?: string;
-}
-
-export interface PipelineSimulation {
-  status: PipelineSimulationStatus;
-  balanceChanges: PipelineBalanceChange[];
-  fees: PipelineFeeEstimate[];
-  warnings: string[];
-  guards?: PipelineGuardResult[];
-  gas?: Record<string, unknown>;
-  logs?: unknown[];
-}
+export type PipelineSimulation = Schemas["PipelineSimulation"];
+export type PipelineSimulationStatus = PipelineSimulation["status"];
+export type PipelineBalanceChange = Schemas["PipelineBalanceChange"];
+export type PipelineFeeEstimate = Schemas["PipelineFeeEstimate"];
+export type PipelineGuardResult = Schemas["PipelineGuardResult"];
+export type PipelineGasEstimate = Schemas["PipelineGasEstimate"];
+export type PipelineLog = Schemas["PipelineLog"];
 
 export interface PipelineActionSummary {
   title?: string;

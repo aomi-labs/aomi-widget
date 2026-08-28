@@ -37,10 +37,9 @@ function evmWallet(wallet: ReturnType<typeof useAomiWalletKit>): EvmWallet {
   if (!address) throw new Error("No EVM wallet is active");
   const sendCalls = wallet.sendTransaction
     ? async ({
-        chainId,
-        calls,
+      chainId,
+      calls,
       }: Parameters<NonNullable<EvmWallet["sendCalls"]>>[0]) => {
-        await switchEvm(wallet, chainId);
         const payload: WalletTxPayload = {
           requestId: "action",
           chainId,
@@ -101,7 +100,6 @@ function svmWallet(wallet: ReturnType<typeof useAomiWalletKit>): SvmWallet {
     switchCluster: (cluster) => switchSvm(wallet, cluster),
     signTransaction: wallet.signSolanaTransaction
       ? async ({ transactionBase64, cluster }) => {
-          await switchSvm(wallet, cluster);
           const result = await wallet.signSolanaTransaction!(
             payload(transactionBase64, cluster),
           );
@@ -113,7 +111,6 @@ function svmWallet(wallet: ReturnType<typeof useAomiWalletKit>): SvmWallet {
       : undefined,
     signAndSendTransaction: canSendSvm(wallet)
       ? async ({ transactionBase64, cluster }) => {
-          await switchSvm(wallet, cluster);
           const result = await sendSvm(
             wallet,
             payload(transactionBase64, cluster),
@@ -126,7 +123,6 @@ function svmWallet(wallet: ReturnType<typeof useAomiWalletKit>): SvmWallet {
       : undefined,
     signMessage: wallet.signSolanaMessage
       ? async ({ messageBase64, cluster }) => {
-          await switchSvm(wallet, cluster);
           return wallet.signSolanaMessage!({
             message: messageBase64,
             cluster,
@@ -166,7 +162,7 @@ async function switchSvm(
       `Reconnect the Solana wallet on ${normalized} before signing`,
     );
   }
-  await wallet.selectNetwork({ family: "solana", networkId: target.id });
+  await wallet.selectNetwork({ family: "svm", networkId: target.id });
 }
 
 function canSendSvm(wallet: ReturnType<typeof useAomiWalletKit>): boolean {

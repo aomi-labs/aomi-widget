@@ -136,34 +136,33 @@ const skillMarkdown = await client.pipeline
   .instructions();
 ```
 
-The old flat `listTools` / `callTool` / `run` methods remain deprecated during
-backend migration so current CLI consumers retain parity. New integrations
-should use filesystem discovery, scoped operations, and chain-specific Builds.
+Integrations use filesystem discovery, scoped operations, and chain-specific Builds.
 The base package does not claim compile-time knowledge of live app or skill
 operations; Catalog-specific generation remains a separate later capability.
 
 ### Session (high-level)
 
-Handles polling, event dispatch, and wallet request management automatically.
+Owns polling, ordered Event reduction, lifecycle, and Action execution.
 
 ```ts
 import { Session } from "@aomi-labs/client";
 
 const session = new Session(
   { baseUrl: "https://api.aomi.dev" },
-  { namespace: "default" },
+  { app: "default", actions: walletCapabilities },
 );
 
 // Blocking send — polls until the agent finishes responding
 const result = await session.send("Swap 1 ETH for USDC on Uniswap");
 console.log(result.messages);
 
-// Listen for wallet signing requests
-session.on("wallet_tx_request", async (req) => {
-  const signed = await mySigner.signTransaction(req.payload);
-  await session.resolve(req.id, { txHash: signed.hash });
+const unsubscribe = session.subscribe(() => {
+  const { actions, turnState } = session.getSnapshot();
+  console.log(turnState, actions);
 });
 
+await session.actions.execute(actionId);
+unsubscribe();
 session.close();
 ```
 
@@ -177,15 +176,15 @@ new Session(clientOptions: AomiClientOptions, sessionOptions?: SessionOptions)
 new Session(client: AomiClient, sessionOptions?: SessionOptions)
 ```
 
-| Option           | Default               | Description                             |
-| ---------------- | --------------------- | --------------------------------------- |
-| `sessionId`      | `crypto.randomUUID()` | Thread/session ID                       |
-| `namespace`      | `"default"`           | Backend namespace                       |
-| `publicKey`      | —                     | Wallet address                          |
-| `apiKey`         | —                     | API key for private namespaces          |
-| `userState`      | —                     | Arbitrary user state sent with requests |
-| `pollIntervalMs` | `500`                 | Polling interval in ms                  |
-| `logger`         | —                     | Pass `console` for debug output         |
+| Option           | Default               | Description                                  |
+| ---------------- | --------------------- | -------------------------------------------- |
+| `sessionId`      | `crypto.randomUUID()` | Agent session ID                             |
+| `app`            | `"default"`           | App selected for new turns                   |
+| `model`          | —                     | Optional model preference                    |
+| `getUserState`   | —                     | Reads canonical UserState when a turn starts |
+| `pollIntervalMs` | `500`                 | Event polling interval                       |
+| `actions`        | `{}`                  | Canonical wallet/action capabilities         |
+| `logger`         | —                     | Pass `console` for debug output              |
 
 #### Methods
 
@@ -193,37 +192,23 @@ new Session(client: AomiClient, sessionOptions?: SessionOptions)
 | ---------------------- | ----------------------------------------------------------------- |
 | `send(message)`        | Send a message, wait for completion, return `{ messages, title }` |
 | `sendAsync(message)`   | Send without waiting — poll in background, listen via events      |
-| `resolve(id, result)`  | Resolve a pending wallet request                                  |
-| `reject(id, reason?)`  | Reject a pending wallet request                                   |
 | `interrupt()`          | Cancel current processing                                         |
-| `close()`              | Stop polling, unsubscribe SSE, clean up                           |
-| `getMessages()`        | Current messages                                                  |
-| `getTitle()`           | Current session title                                             |
-| `getPendingRequests()` | Pending wallet requests                                           |
-| `getIsProcessing()`    | Whether the agent is processing                                   |
+| `sync()`               | Fetch the next ordered EventPage                                  |
+| `fetchCurrentState()`  | Hydrate from the session Event ledger                             |
+| `getSnapshot()`        | Immutable SessionSnapshot                                         |
+| `subscribe(listener)`  | Subscribe for `useSyncExternalStore`                              |
+| `close()`              | Stop polling and release listeners                               |
 
-#### Events
-
-```ts
-session.on("wallet_tx_request", (req) => { ... });
-session.on("wallet_signing_request", (req) => { ... });
-session.on("messages", (msgs) => { ... });
-session.on("processing_start", () => { ... });
-session.on("processing_end", () => { ... });
-session.on("title_changed", ({ title }) => { ... });
-session.on("tool_update", (event) => { ... });
-session.on("tool_complete", (event) => { ... });
-session.on("system_notice", ({ message }) => { ... });
-session.on("system_error", ({ message }) => { ... });
-session.on("error", ({ error }) => { ... });
-session.on("*", ({ type, payload }) => { ... }); // wildcard
-```
-
-`.on()` returns an unsubscribe function:
+#### Snapshot
 
 ```ts
-const unsub = session.on("messages", handler);
-unsub(); // stop listening
+const unsubscribe = session.subscribe(() => {
+  const snapshot = session.getSnapshot();
+  console.log(snapshot.cursor, snapshot.turnState, snapshot.events);
+});
+
+await session.actions.execute(actionId);
+unsubscribe();
 ```
 
 ## CLI

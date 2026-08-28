@@ -62,6 +62,7 @@ describe("ActionHandler", () => {
     expect(respond).toHaveBeenCalledWith(
       expect.objectContaining({ id: "action-1", revision: 1 }),
       submitted,
+      expect.any(String),
     );
     expect(handler.pending()).toEqual([]);
     expect(handler.attempt("action-1")).toBeUndefined();
@@ -93,6 +94,7 @@ describe("ActionHandler", () => {
 
     expect(capability).toHaveBeenCalledOnce();
     expect(respond).toHaveBeenCalledTimes(2);
+    expect(respond.mock.calls[0]?.[2]).toBe(respond.mock.calls[1]?.[2]);
   });
 
   it("models rejection as an explicit response", async () => {
@@ -113,6 +115,7 @@ describe("ActionHandler", () => {
     expect(respond).toHaveBeenCalledWith(
       expect.objectContaining({ id: "action-1", revision: 1 }),
       { status: "rejected", reason: "Declined" },
+      expect.any(String),
     );
   });
 });

@@ -10,7 +10,6 @@ import {
   type AomiPlatformFilter,
 } from "@aomi-labs/client";
 import { ControlContextProvider } from "../contexts/control-context";
-import { EventContextProvider } from "../contexts/event-context";
 import { NotificationContextProvider } from "../contexts/notification-context";
 import {
   ThreadContextProvider,
@@ -163,18 +162,16 @@ function AomiRuntimeInner({
       appPlatforms={appPlatforms}
       applicationId={applicationId}
     >
-      <EventContextProvider>
-        <AomiRuntimeCore
-          aomiClient={aomiClient}
-          applicationId={applicationId}
-          accountSessionAvailable={accountSessionAvailable}
-          actions={actions}
-          restoredThreadId={restoredThreadId}
-          threadPersistenceKey={threadPersistenceKey}
-        >
-          {children}
-        </AomiRuntimeCore>
-      </EventContextProvider>
+      <AomiRuntimeCore
+        aomiClient={aomiClient}
+        applicationId={applicationId}
+        accountSessionAvailable={accountSessionAvailable}
+        actions={actions}
+        restoredThreadId={restoredThreadId}
+        threadPersistenceKey={threadPersistenceKey}
+      >
+        {children}
+      </AomiRuntimeCore>
     </ControlContextProvider>
   );
 }

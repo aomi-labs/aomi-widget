@@ -1,30 +1,19 @@
 import type {
   Event,
   EventPage,
+  MessageEvent,
   StartTurnIntent,
   TurnState,
 } from "../agent/types";
 import { ActionHandler } from "../actions";
 import { AgentApiError } from "../agent/transport";
 import { AomiClient } from "../client";
-import { TypedEventEmitter } from "../event";
-import type { AomiClientOptions, AomiMessage } from "../types";
-import {
-  UserState,
-  type AomiClientType,
-  type UserState as UserStateShape,
-} from "../user-state";
-import { stableUserStateString } from "./json";
-import {
-  addExtValue as addUserStateExtValue,
-  removeExtValue as removeUserStateExtValue,
-  resolveWalletState,
-} from "./state";
+import type { AomiClientOptions } from "../types";
 import type {
   SendResult,
-  SessionEventMap,
   SessionOptions,
   SessionRuntimeOptions,
+  SessionSnapshot,
 } from "./types";
 
 export { aaModeFromExecutionKind } from "../aa/policy";
@@ -32,9 +21,9 @@ export type {
   Event,
   EventPage,
   SendResult,
-  SessionEventMap,
   SessionOptions,
   SessionRuntimeOptions,
+  SessionSnapshot,
   TurnState,
 } from "./types";
 
@@ -43,9 +32,10 @@ const TERMINAL_TURN_STATES = new Set<TurnState>([
   "interrupted",
   "failed",
 ]);
+const TERMINAL_EVENT_DRAIN_MS = 60_000;
 
 /** One Agent session reduced from its single ordered Event stream. */
-export class ClientSession extends TypedEventEmitter<SessionEventMap> {
+export class ClientSession {
   readonly client: AomiClient;
   readonly sessionId: string;
   readonly actions: ActionHandler;
@@ -53,7 +43,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private app: string;
   private model?: string | null;
   private applicationId?: number | string | null;
-  private userState?: UserStateShape;
+  private getUserState?: SessionOptions["getUserState"];
   private clientId: string;
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
@@ -65,17 +55,25 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private pollingActive = false;
   private pollInFlight = false;
   private pollFailureCount = 0;
-  private _isProcessing = false;
-  private _messages: AomiMessage[] = [];
-  private _title?: string;
+  private awaitingResume = false;
+  private terminalDrainUntil?: number;
+  private isSubmitting = false;
+  private events: Event[] = [];
+  private eventIds = new Set<string>();
+  private messages: MessageEvent[] = [];
+  private title?: string;
+  private error?: unknown;
   private closed = false;
   private pendingResolve: ((result: SendResult) => void) | null = null;
+  private listeners = new Set<() => void>();
+  private actionUnsubscribers: Array<() => void> = [];
+  private snapshot: SessionSnapshot;
+  private applyingPage = false;
 
   constructor(
     clientOrOptions: AomiClient | AomiClientOptions,
     sessionOptions?: SessionOptions,
   ) {
-    super();
     this.client =
       clientOrOptions instanceof AomiClient
         ? clientOrOptions
@@ -84,39 +82,49 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.app = sessionOptions?.app ?? "default";
     this.model = sessionOptions?.model;
     this.applicationId = sessionOptions?.applicationId;
-    const initial = UserState.reconcile(undefined, sessionOptions?.userState);
-    this.userState = sessionOptions?.clientType
-      ? UserState.withExt(
-          initial ?? {},
-          "client_type",
-          sessionOptions.clientType,
-        )
-      : initial;
+    this.getUserState = sessionOptions?.getUserState;
     this.clientId = sessionOptions?.clientId ?? crypto.randomUUID();
     this.pollIntervalMs = sessionOptions?.pollIntervalMs ?? 500;
     this.logger = sessionOptions?.logger;
     this.actions = new ActionHandler(
       sessionOptions?.actions ?? {},
-      (action, result) =>
+      (action, result, idempotencyKey) =>
         this.client.agent.respondToAction(
           this.sessionId,
           action.id,
           action.revision,
           result,
+          idempotencyKey,
         ),
     );
-    this.actions.on("resolved", () => {
-      this.beginProcessing();
-      this.startPolling();
-    });
+    this.snapshot = this.buildSnapshot();
+    this.actionUnsubscribers.push(
+      this.actions.subscribe(() => {
+        if (!this.applyingPage) this.publish();
+      }),
+      this.actions.on("resolved", () => {
+        this.awaitingResume = true;
+        this.startPolling();
+      }),
+    );
   }
+
+  getSnapshot = (): SessionSnapshot => this.snapshot;
+
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
 
   async send(message: string): Promise<SendResult> {
     const page = await this.submit(message);
-    if (this.isTerminal()) return this.result();
-    this.beginProcessing();
-    if (this.turnState !== "awaiting_action" || page.has_more)
+    if (this.isTerminal()) {
+      this.drainTerminalPage(page);
+      return this.result();
+    }
+    if (this.turnState !== "awaiting_action" || page.has_more) {
       this.startPolling();
+    }
     return new Promise((resolve) => {
       this.pendingResolve = resolve;
     });
@@ -124,10 +132,12 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   async sendAsync(message: string): Promise<EventPage> {
     const page = await this.submit(message);
-    if (!this.isTerminal()) {
-      this.beginProcessing();
-      if (this.turnState !== "awaiting_action" || page.has_more)
-        this.startPolling();
+    if (this.isTerminal()) {
+      this.drainTerminalPage(page);
+      return page;
+    }
+    if (this.turnState !== "awaiting_action" || page.has_more) {
+      this.startPolling();
     }
     return page;
   }
@@ -138,44 +148,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.applyEventPage(
       await this.client.agent.interrupt(this.sessionId, this.turnId),
     );
-    this.finishProcessing();
-  }
-
-  close(): void {
-    if (this.closed) return;
-    this.closed = true;
-    this.stopPolling();
-    this.resolvePending();
-    this.actions.close();
-    this.removeAllListeners();
-  }
-
-  getMessages(): AomiMessage[] {
-    return [...this._messages];
-  }
-
-  getTitle(): string | undefined {
-    return this._title;
-  }
-
-  getUserState(): UserStateShape | undefined {
-    return this.userState ? { ...this.userState } : undefined;
-  }
-
-  getTurnState(): TurnState | undefined {
-    return this.turnState;
-  }
-
-  getTurnId(): string | undefined {
-    return this.turnId;
-  }
-
-  getIsProcessing(): boolean {
-    return this._isProcessing;
-  }
-
-  getIsPolling(): boolean {
-    return this.pollingActive;
+    if (this.isTerminal()) this.finish();
   }
 
   syncRuntimeOptions(options: SessionRuntimeOptions): void {
@@ -183,42 +156,8 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     this.model = options.model;
     this.applicationId = options.applicationId;
     this.clientId = options.clientId ?? this.clientId;
-    if (options.userState) this.resolveUserState(options.userState);
+    this.getUserState = options.getUserState;
     if (options.actions) this.actions.setCapabilities(options.actions);
-  }
-
-  resolveUserState(
-    userState: UserStateShape,
-    opts?: { skipEmit?: boolean },
-  ): void {
-    const previous = stableUserStateString(this.userState);
-    this.userState = UserState.reconcile(this.userState, userState);
-    if (
-      !opts?.skipEmit &&
-      this.userState &&
-      previous !== stableUserStateString(this.userState)
-    ) {
-      this.emit("user_state_updated", this.userState);
-    }
-  }
-
-  setClientType(clientType: AomiClientType): void {
-    this.resolveUserState(
-      UserState.withExt(this.userState ?? {}, "client_type", clientType),
-    );
-  }
-
-  addExtValue(key: string, value: unknown): void {
-    this.resolveUserState(addUserStateExtValue(this.userState, key, value));
-  }
-
-  removeExtValue(key: string): void {
-    const next = removeUserStateExtValue(this.userState, key);
-    if (next) this.resolveUserState(next);
-  }
-
-  resolveWallet(address: string, chainId?: number): void {
-    this.resolveUserState(resolveWalletState(this.userState, address, chainId));
   }
 
   async sync(): Promise<EventPage> {
@@ -228,11 +167,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
 
   async fetchCurrentState(): Promise<void> {
     const page = await this.sync();
-    if (!this.isTerminal() && this.turnState !== "awaiting_action") {
-      this.beginProcessing();
+    if (this.isTerminal()) this.finish();
+    else if (this.turnState && this.turnState !== "awaiting_action") {
       this.startPolling();
-    } else if (this.isTerminal()) {
-      this.finishProcessing();
     }
     if (page.has_more) this.startPolling();
   }
@@ -247,10 +184,12 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         this.handleVisibilityChange,
       );
     }
+    this.publish();
     this.schedulePoll(0);
   }
 
   stopPolling(): void {
+    if (!this.pollingActive && !this.pollTimer) return;
     this.pollingActive = false;
     if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = null;
@@ -261,6 +200,18 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       );
     }
     this.logger?.debug("[session] polling stopped", this.sessionId);
+    this.publish();
+  }
+
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.stopPolling();
+    this.resolvePending();
+    for (const unsubscribe of this.actionUnsubscribers) unsubscribe();
+    this.actionUnsubscribers = [];
+    this.actions.close();
+    this.listeners.clear();
   }
 
   private async submit(message: string): Promise<EventPage> {
@@ -276,7 +227,13 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
             idempotencyKey: `idem_${crypto.randomUUID().replaceAll("-", "")}`,
           };
     this.startOperation = operation;
+    this.awaitingResume = false;
+    this.terminalDrainUntil = undefined;
+    this.isSubmitting = true;
+    this.error = undefined;
+    this.publish();
     try {
+      const state = this.getUserState?.();
       const page = await this.client.agent.start(
         {
           sessionId: this.sessionId,
@@ -286,11 +243,9 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
             ? { applicationId }
             : { app: this.app }),
           ...(this.model ? { model: this.model } : {}),
-          ...(this.userState
+          ...(state
             ? {
-                userState: UserState.toOwned(
-                  this.userState,
-                ) as StartTurnIntent["userState"],
+                userState: state as StartTurnIntent["userState"],
               }
             : {}),
         },
@@ -300,10 +255,14 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       this.applyEventPage(page);
       return page;
     } catch (error) {
+      this.error = error;
       if (error instanceof AgentApiError && !error.retryable) {
         this.startOperation = undefined;
       }
       throw error;
+    } finally {
+      this.isSubmitting = false;
+      this.publish();
     }
   }
 
@@ -318,7 +277,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     } catch (error) {
       if (
         !(error instanceof AgentApiError) ||
-        error.code !== "cursor_mismatch"
+        error.code !== "invalid_cursor"
       ) {
         throw error;
       }
@@ -333,48 +292,50 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     if (page.session_id !== this.sessionId) {
       throw new TypeError("Agent response session does not match the request");
     }
-    let messagesChanged = false;
-    for (const event of page.events) {
-      let emitEvent = true;
-      switch (event.type) {
-        case "message":
-          this.applyMessage(event);
-          messagesChanged = true;
-          break;
-        case "turn_state_changed":
-          this.turnId = event.turn_id ?? this.turnId;
-          this.turnState = event.state;
-          break;
-        case "title_changed":
-          if (event.title !== undefined) this._title = event.title;
-          break;
-        case "action":
-          this.turnId = event.turn_id ?? this.turnId;
-          emitEvent = this.actions.ingest(event);
-          break;
+    this.applyingPage = true;
+    try {
+      for (const event of page.events) {
+        if (this.eventIds.has(event.event_id)) continue;
+        const previous = this.events.at(-1);
+        if (previous && event.sequence <= previous.sequence) {
+          throw new TypeError("Agent events are not monotonically ordered");
+        }
+        this.eventIds.add(event.event_id);
+        this.events.push(event);
+        this.turnId = event.turn_id ?? this.turnId;
+        switch (event.type) {
+          case "message":
+            this.applyMessage(event);
+            break;
+          case "turn_state_changed":
+            this.turnState = event.state;
+            if (event.state !== "awaiting_action") {
+              this.awaitingResume = false;
+            }
+            break;
+          case "title_changed":
+            this.title = event.title;
+            break;
+          case "action":
+            this.actions.ingest(event);
+            break;
+        }
       }
-      if (emitEvent) {
-        this.emit("event", event);
-        this.emit(event.type as keyof SessionEventMap, event as never);
-      }
+      this.cursor = page.cursor;
+      this.error = undefined;
+    } finally {
+      this.applyingPage = false;
     }
-    this.cursor = page.cursor;
-    if (messagesChanged) this.emit("messages", [...this._messages]);
+    this.publish();
   }
 
-  private applyMessage(event: Extract<Event, { type: "message" }>): void {
-    const id = event.message_key ?? event.event_id;
-    const message: AomiMessage = {
-      id,
-      message_key: event.message_key ?? undefined,
-      sender: event.sender,
-      content: event.content,
-      timestamp: eventTimestamp(event.occurred_at),
-      is_streaming: event.is_streaming ?? false,
-    };
-    const index = this._messages.findIndex((current) => current.id === id);
-    if (index >= 0) this._messages[index] = message;
-    else this._messages.push(message);
+  private applyMessage(event: MessageEvent): void {
+    const key = event.message_key ?? event.event_id;
+    const index = this.messages.findIndex(
+      (message) => (message.message_key ?? message.event_id) === key,
+    );
+    if (index >= 0) this.messages[index] = event;
+    else this.messages.push(event);
   }
 
   private async pollTick(): Promise<void> {
@@ -384,16 +345,19 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     try {
       const page = await this.fetchPage(25_000);
       this.pollFailureCount = 0;
-      if (this.isTerminal()) {
-        this.emit("backend_idle", undefined);
-        this.finishProcessing();
-      } else if (this.turnState === "awaiting_action" && !page.has_more) {
+      if (this.isTerminal()) this.drainTerminalPage(page);
+      else if (
+        this.turnState === "awaiting_action" &&
+        !this.awaitingResume &&
+        !page.has_more
+      ) {
         this.stopPolling();
       }
     } catch (error) {
       this.pollFailureCount += 1;
+      this.error = error;
       this.logger?.debug("[session] poll error", error);
-      this.emit("error", { error });
+      this.publish();
     } finally {
       this.pollInFlight = false;
       if (this.pollingActive) {
@@ -407,33 +371,64 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
   }
 
-  private beginProcessing(): void {
-    if (this._isProcessing) return;
-    this._isProcessing = true;
-    this.emit("processing_start", undefined);
-  }
-
-  private finishProcessing(): void {
+  private finish(): void {
+    this.awaitingResume = false;
+    this.terminalDrainUntil = undefined;
     this.stopPolling();
-    if (this._isProcessing) this.emit("processing_end", undefined);
-    this._isProcessing = false;
     this.resolvePending();
   }
 
-  private isTerminal(): boolean {
-    return (
-      this.turnState !== undefined && TERMINAL_TURN_STATES.has(this.turnState)
+  private drainTerminalPage(page: EventPage): void {
+    this.resolvePending();
+    const hasTitle = page.events.some(
+      (event) => event.type === "title_changed",
     );
+    if (hasTitle || this.title) {
+      this.finish();
+      return;
+    }
+    this.terminalDrainUntil ??= Date.now() + TERMINAL_EVENT_DRAIN_MS;
+    if (page.events.length === 0 && Date.now() >= this.terminalDrainUntil) {
+      this.finish();
+      return;
+    }
+    this.startPolling();
+  }
+
+  private isTerminal(): boolean {
+    return Boolean(this.turnState && TERMINAL_TURN_STATES.has(this.turnState));
   }
 
   private result(): SendResult {
-    return { messages: [...this._messages], title: this._title };
+    return { messages: this.messages, title: this.title };
   }
 
   private resolvePending(): void {
     const resolve = this.pendingResolve;
     this.pendingResolve = null;
     resolve?.(this.result());
+  }
+
+  private buildSnapshot(): SessionSnapshot {
+    return {
+      sessionId: this.sessionId,
+      ...(this.cursor ? { cursor: this.cursor } : {}),
+      ...(this.turnId ? { turnId: this.turnId } : {}),
+      ...(this.turnState ? { turnState: this.turnState } : {}),
+      events: [...this.events],
+      messages: [...this.messages],
+      actions: this.actions.all(),
+      ...(this.title ? { title: this.title } : {}),
+      isPolling: this.pollingActive,
+      isSubmitting: this.isSubmitting,
+      actionAttempts: this.actions.allAttempts(),
+      ...(this.error === undefined ? {} : { error: this.error }),
+    };
+  }
+
+  private publish(): void {
+    this.snapshot = this.buildSnapshot();
+    for (const listener of this.listeners) listener();
   }
 
   private currentPollInterval(): number {
@@ -461,10 +456,4 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private assertOpen(): void {
     if (this.closed) throw new Error("Session is closed");
   }
-}
-
-function eventTimestamp(value: number): string {
-  return new Date(
-    value < 1_000_000_000_000 ? value * 1_000 : value,
-  ).toISOString();
 }

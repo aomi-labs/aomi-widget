@@ -37,9 +37,11 @@ export type {
   PipelineDirectoryEntryKind,
   PipelineFeeEstimate,
   PipelineFilesystemResource,
+  PipelineGasEstimate,
   PipelineGuardResult,
   PipelineInvokeOptions,
   PipelineJsonSchema,
+  PipelineLog,
   PipelineOperationBuildInput,
   PipelineOperationDescriptor,
   PipelineOperationInvocation,
@@ -70,12 +72,15 @@ export type {
   Session as AgentSession,
   SessionPage,
   StartTurnIntent,
-  TaskEvent,
+  TaskActivityEvent,
+  TaskCompletedEvent,
+  TaskPhaseEvent,
+  TaskStartedEvent,
   TitleEvent,
-  ToolEvent,
+  ToolCompleteEvent,
+  ToolUpdateEvent,
   TurnState,
   TurnStateChangedEvent,
-  UserState as AgentUserState,
 } from "./agent/types";
 export { ActionHandler } from "./actions";
 export type {
@@ -172,7 +177,6 @@ export type {
   AomiUsageStats,
   AomiUser,
   GetAccountBearer,
-  AomiMessage,
   AomiWalletFamily,
   AomiClearSecretsResponse,
   AomiAccountResponse,
@@ -182,38 +186,24 @@ export type {
   AomiSecretSlot,
   AomiSimulateFee,
   AomiSimulateResponse,
-  AomiTaskActivityEvent,
-  AomiTaskActivityKind,
-  AomiTaskCompletedEvent,
-  AomiTaskEvent,
-  AomiTaskEventType,
-  AomiTaskStartedEvent,
-  AomiTaskStatus,
   Logger,
 } from "./types";
 export {
   createProviderCredentialAdapter,
-  createSiweWidgetAuthAdapter,
-  WidgetChallengeBindingError,
-  createSiwsWidgetAuthAdapter,
-  createWidgetSessionProvider,
+  createSiweAccountAuthAdapter,
+  AccountChallengeBindingError,
+  createSiwsAccountAuthAdapter,
+  createAccountSessionProvider,
   type ProviderCredential,
-  type SiwsWidgetSessionSigner,
-  type WidgetAuthAdapter,
-  type WidgetAuthSession,
-  type WidgetSession,
-  type WidgetSessionProvider,
-  type WidgetSessionSigner,
+  type SiwsAccountSessionSigner,
+  type AccountAuthAdapter,
+  type AccountAuthSession,
+  type AccountSessionProvider,
+  type AccountSessionSigner,
 } from "./widget-session";
 export { normalizeAppDescriptor, appIdentityKey } from "./app-descriptor";
 export { safeEnv } from "./internal/env";
-export type {
-  AomiClientType,
-  UserStateAAMode,
-  UserStateAuthMethod,
-  UserStateWalletProvider,
-  OwnedUserState,
-} from "./user-state";
+export type { AomiClientType } from "./user-state";
 
 // =============================================================================
 // Type Guards
@@ -224,19 +214,18 @@ export {
   CLIENT_TYPE_TS_CLI,
   CLIENT_TYPE_WEB_UI,
 } from "./user-state";
-export {
-  isAomiTaskEventType,
-  parseAomiTaskEvent,
-  AOMI_TASK_EVENT_TYPES,
-} from "./types";
-
 // =============================================================================
 // Session (high-level orchestrated client)
 // =============================================================================
 
 export { ClientSession as Session, aaModeFromExecutionKind } from "./session";
 
-export type { SessionOptions, SessionEventMap, SendResult } from "./session";
+export type {
+  SessionOptions,
+  SessionRuntimeOptions,
+  SessionSnapshot,
+  SendResult,
+} from "./session";
 
 // =============================================================================
 // Event Utilities

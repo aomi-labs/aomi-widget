@@ -7,7 +7,7 @@ describe("CLI control client", () => {
     vi.unstubAllGlobals();
   });
 
-  it("never sends an account bearer to the public Pipeline resource", async () => {
+  it("uses an explicitly supplied scoped bearer for Pipeline", async () => {
     const request = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ returned: 0, apps: [] }), {
         status: 200,
@@ -23,6 +23,6 @@ describe("CLI control client", () => {
     }).pipeline.apps.list();
 
     const headers = new Headers(request.mock.calls[0]?.[1]?.headers);
-    expect(headers.get("authorization")).toBeNull();
+    expect(headers.get("authorization")).toBe("Bearer explicit-bearer");
   });
 });

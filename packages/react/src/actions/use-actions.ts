@@ -1,17 +1,35 @@
 "use client";
 
 import { useCallback, useMemo, useSyncExternalStore } from "react";
-import type { Action, ActionHandler, ActionResult } from "@aomi-labs/client";
+import type {
+  Action,
+  ActionAttempt,
+  ActionResult,
+  Session as ClientSession,
+} from "@aomi-labs/client";
 
 const NO_ACTIONS: Action[] = [];
+const NO_ATTEMPTS = new Map<string, ActionAttempt>();
 
-export function useActions(handler: ActionHandler | undefined) {
+export function useActions(session: ClientSession | undefined) {
   const subscribe = useCallback(
-    (listener: () => void) => handler?.subscribe(listener) ?? (() => undefined),
-    [handler],
+    (listener: () => void) => session?.subscribe(listener) ?? (() => undefined),
+    [session],
   );
-  const snapshot = useCallback(() => handler?.all() ?? NO_ACTIONS, [handler]);
-  const actions = useSyncExternalStore(subscribe, snapshot, snapshot);
+  const getActions = useCallback(
+    () => session?.getSnapshot().actions ?? NO_ACTIONS,
+    [session],
+  );
+  const actions = useSyncExternalStore(subscribe, getActions, getActions);
+  const getAttempts = useCallback(
+    () => session?.getSnapshot().actionAttempts ?? NO_ATTEMPTS,
+    [session],
+  );
+  const actionAttempts = useSyncExternalStore(
+    subscribe,
+    getAttempts,
+    getAttempts,
+  );
   const pendingActions = useMemo(
     () => actions.filter((action) => action.state === "pending"),
     [actions],
@@ -19,25 +37,28 @@ export function useActions(handler: ActionHandler | undefined) {
 
   return {
     pendingActions,
+    actionAttempts,
     hasBlockingActions:
-      pendingActions.length > 0 || Boolean(handler?.isBlocking()),
+      pendingActions.length > 0 || Boolean(session?.actions.isBlocking()),
     executeAction: (id: string) =>
-      requireHandler(handler)
+      requireSession(session)
+        .actions
         .execute(id)
         .then(() => undefined),
     respondToAction: (id: string, result: ActionResult) =>
-      requireHandler(handler)
+      requireSession(session)
+        .actions
         .submitResult(id, result)
         .then(() => undefined),
     rejectAction: (id: string, reason?: string) =>
-      requireHandler(handler)
+      requireSession(session)
+        .actions
         .reject(id, reason)
         .then(() => undefined),
   };
 }
 
-function requireHandler(handler: ActionHandler | undefined): ActionHandler {
-  if (!handler)
-    throw new Error("No ActionHandler is available for this session");
-  return handler;
+function requireSession(session: ClientSession | undefined): ClientSession {
+  if (!session) throw new Error("No ClientSession is available");
+  return session;
 }

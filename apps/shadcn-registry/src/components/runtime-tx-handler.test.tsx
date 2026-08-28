@@ -10,6 +10,9 @@ import type { Action } from "@aomi-labs/client";
 
 const runtime = vi.hoisted(() => ({
   pendingActions: [] as Action[],
+  actionAttempts: new Map(),
+  events: [] as Action[],
+  turnState: undefined as string | undefined,
   executeAction: vi.fn(),
   rejectAction: vi.fn(),
   showNotification: vi.fn(),
@@ -45,9 +48,26 @@ function action(request: Action["request"]): Action {
   };
 }
 
+function simulation(): Extract<
+  Action["request"],
+  { type: "execute_evm" }
+>["simulation"] {
+  return {
+    status: "passed",
+    balanceChanges: [],
+    fees: [],
+    gas: null,
+    guards: [],
+    logs: [],
+    warnings: [],
+  };
+}
+
 describe("RuntimeTxHandler", () => {
   beforeEach(() => {
     runtime.pendingActions = [];
+    runtime.events = [];
+    runtime.turnState = undefined;
     runtime.executeAction.mockReset().mockResolvedValue(undefined);
     runtime.rejectAction.mockReset().mockResolvedValue(undefined);
     runtime.showNotification.mockReset();
@@ -56,10 +76,11 @@ describe("RuntimeTxHandler", () => {
 
   afterEach(cleanup);
 
-  it("delegates an unattended Action to the session ActionHandler", async () => {
+  it("requires explicit approval before executing an EVM Action", async () => {
     runtime.pendingActions = [
       action({
         type: "execute_evm",
+        simulation: simulation(),
         transactions: [
           {
             chain_id: 1,
@@ -72,9 +93,16 @@ describe("RuntimeTxHandler", () => {
         ],
       }),
     ];
+    runtime.events = runtime.pendingActions;
+    runtime.turnState = "awaiting_action";
 
     render(<RuntimeTxHandler />);
 
+    expect(runtime.executeAction).not.toHaveBeenCalled();
+    expect(screen.getByTestId("action-request-payload")).toHaveTextContent(
+      "0x2222222222222222222222222222222222222222",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await waitFor(() =>
       expect(runtime.executeAction).toHaveBeenCalledWith("action-1"),
     );
@@ -85,6 +113,7 @@ describe("RuntimeTxHandler", () => {
     runtime.pendingActions = [
       action({
         type: "execute_evm",
+        simulation: simulation(),
         transactions: [
           {
             chain_id: 1,
@@ -99,6 +128,8 @@ describe("RuntimeTxHandler", () => {
     ];
 
     render(<RuntimeTxHandler />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
 
     await waitFor(() =>
       expect(runtime.showNotification).toHaveBeenCalledWith(
@@ -125,10 +156,58 @@ describe("RuntimeTxHandler", () => {
     render(<RuntimeTxHandler />);
     expect(runtime.executeAction).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Review & sign" }));
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
 
     await waitFor(() =>
       expect(runtime.executeAction).toHaveBeenCalledWith("action-1"),
+    );
+  });
+
+  it("renders the canonical simulation nested in an Action request", () => {
+    runtime.pendingActions = [
+      action({
+        type: "execute_evm",
+        transactions: [
+          {
+            chain_id: 1,
+            from: "0x1111111111111111111111111111111111111111",
+            to: "0x2222222222222222222222222222222222222222",
+            data: "0x",
+            label: "Transfer",
+            kind: "transfer",
+          },
+        ],
+        simulation: {
+          status: "passed",
+          balanceChanges: [
+            {
+              account: "0x1111111111111111111111111111111111111111",
+              asset: "native",
+              amount: "1",
+              direction: "out",
+              symbol: "ETH",
+            },
+          ],
+          fees: [],
+          gas: { units: "21000", priceWei: null, nativeCost: null },
+          logs: [],
+          warnings: [],
+          guards: [],
+        },
+      }),
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    expect(screen.getByTestId("action-simulation")).toHaveAttribute(
+      "data-status",
+      "passed",
+    );
+    expect(screen.getByTestId("action-simulation")).toHaveTextContent(
+      "Gas units: 21000",
+    );
+    expect(screen.getByTestId("action-simulation")).toHaveTextContent(
+      "out: 1 ETH",
     );
   });
 });

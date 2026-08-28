@@ -1,10 +1,6 @@
 import type { ArgsDef } from "citty";
 import { privateKeyToAccount } from "viem/accounts";
-import type {
-  CliEmbeddedProvider,
-  CliConfig,
-  CliExecutionMode,
-} from "../../types";
+import type { CliConfig, CliExecutionMode } from "../../types";
 import { fatal } from "../../errors";
 import {
   parseChainId,
@@ -16,17 +12,6 @@ import {
 } from "../../validation";
 
 type SvmCluster = NonNullable<CliConfig["svmCluster"]>;
-
-function parseEmbeddedProvider(
-  raw: string | undefined,
-): CliEmbeddedProvider | undefined {
-  if (!raw) return undefined;
-  const normalized = raw.trim().toLowerCase();
-  if (normalized === "para" || normalized === "privy") {
-    return normalized;
-  }
-  fatal(`Unknown --embedded-provider value "${raw}". Use "para" or "privy".`);
-}
 
 /**
  * Normalise the user-facing --cluster value to the CAIP-2 form the backend
@@ -80,15 +65,6 @@ export const globalArgs = {
   "account-bearer": {
     type: "string",
     description: "Aomi account bearer for authenticated REST/SSE requests",
-  },
-  "embedded-provider": {
-    type: "string",
-    description:
-      'Deprecated legacy provider exchange config ("para" or "privy")',
-  },
-  "embedded-provider-token": {
-    type: "string",
-    description: "Deprecated legacy provider token; use --account-bearer",
   },
   app: {
     type: "string",
@@ -205,12 +181,6 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
   const accountBearer =
     str(args["account-bearer"]) ?? process.env.AOMI_ACCOUNT_BEARER;
-  const embeddedProvider = parseEmbeddedProvider(
-    str(args["embedded-provider"]) ?? process.env.AOMI_EMBEDDED_PROVIDER,
-  );
-  const embeddedProviderToken =
-    str(args["embedded-provider-token"]) ??
-    process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
 
   // `--public-key` is an EVM identity. A base58 Solana address here used to be
   // silently rerouted by app-name sniffing; now it is a loud error.
@@ -242,22 +212,6 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   if (execution === "eoa" && (aaProvider || aaMode)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
-  if (accountBearer && (embeddedProvider || embeddedProviderToken)) {
-    fatal(
-      "Choose either `--account-bearer` or the `--embedded-provider` + `--embedded-provider-token` pair.",
-    );
-  }
-  if (embeddedProvider && !embeddedProviderToken) {
-    fatal(
-      "`--embedded-provider-token` is required when `--embedded-provider` is set.",
-    );
-  }
-  if (embeddedProviderToken && !embeddedProvider) {
-    fatal(
-      "`--embedded-provider` is required when `--embedded-provider-token` is set.",
-    );
-  }
-
   const solanaPrivateKey = validateSolanaPrivateKey(
     str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY,
   );
@@ -272,8 +226,6 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     json: args.json === true,
     verbose: args.verbose === true,
     accountBearer,
-    embeddedProvider,
-    embeddedProviderToken,
     app: str(args.app) ?? process.env.AOMI_APP,
     applicationId:
       str(args["application-id"]) ?? process.env.AOMI_APPLICATION_ID,

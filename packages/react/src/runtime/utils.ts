@@ -2,8 +2,11 @@ import type { ThreadMessageLike } from "@assistant-ui/react";
 
 import {
   SUPPORTED_CHAINS as CLIENT_SUPPORTED_CHAINS,
-  type AomiMessage,
   type ChainInfo,
+  type Event,
+  type MessageEvent,
+  type ToolCompleteEvent,
+  type ToolUpdateEvent,
   type UserState,
 } from "@aomi-labs/client";
 
@@ -48,7 +51,7 @@ type MessageContentPart =
     : never;
 
 export function toInboundMessage(
-  msg: AomiMessage,
+  msg: MessageEvent,
   /** Position in the raw list, the id fallback for a notice with no key. */
   rawIndex = 0,
 ): ThreadMessageLike | null {
@@ -86,82 +89,17 @@ export function toInboundMessage(
  * in one thread would render under the same id. The index fallback covers
  * rows with no key; it is still position-stable within a projection.
  */
-function noticeMessageId(msg: AomiMessage, index: number): string {
+function noticeMessageId(msg: MessageEvent, index: number): string {
   return `aomi-notice-${msg.message_key ?? `idx-${index}`}`;
 }
 
-/**
- * UI-only join key attached to a completed `task` tool-call part. The trace uses
- * it to pair the transcript part with the live `TaskRunState` sidecar (see
- * `state/thread-store.ts`). Survives `fromThreadMessageLike` because unknown
- * tool-call properties are spread through unchanged.
- */
-export type AomiTaskPartMetadata = { agentId: string };
-
-const TASK_TOOL_NAME = "task";
-
-/** Read `metadata.custom.aomiTask.agentId` off a tool-call part, if present. */
-export function readTaskPartAgentId(part: unknown): string | undefined {
-  const custom = (
-    part as
-      | { metadata?: { custom?: { aomiTask?: { agentId?: unknown } } } }
-      | undefined
-  )?.metadata?.custom?.aomiTask?.agentId;
-  return typeof custom === "string" && custom.length > 0 ? custom : undefined;
-}
-
-const asPlainObject = (value: unknown): Record<string, unknown> | undefined =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-
-/** The `task` tool returns `{agent_id, status, staged_count}` (public projection). */
-const readTaskAgentId = (result: unknown): string | undefined => {
-  const agentId = asPlainObject(result)?.agent_id;
-  return typeof agentId === "string" && agentId.length > 0
-    ? agentId
-    : undefined;
-};
-
-function buildInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
+function buildInboundMessage(msg: MessageEvent): ThreadMessageLike | null {
   const content: MessageContentPart[] = [];
   const role: ThreadMessageLike["role"] =
     msg.sender === "user" ? "user" : "assistant";
 
   if (msg.content && msg.content.trim().length > 0) {
     content.push({ type: "text" as const, text: msg.content });
-  }
-
-  const [topic, toolContent] = parseToolResult(msg.tool_result) ?? [];
-  // `tool_name` is the tool the backend actually ran; `tool_result[0]` is only
-  // a display topic. Prefer the former when the backend supplies it.
-  const toolName = msg.tool_name?.trim() || topic;
-  if (toolName && toolContent) {
-    const result = (() => {
-      try {
-        return JSON.parse(toolContent);
-      } catch {
-        return { args: toolContent };
-      }
-    })();
-    const agentId =
-      toolName === TASK_TOOL_NAME ? readTaskAgentId(result) : undefined;
-
-    content.push({
-      type: "tool-call" as const,
-      toolCallId: `tool_${Date.now()}`,
-      toolName,
-      args: asPlainObject(msg.tool_arguments),
-      result,
-      // Only `task` calls carry the sidecar join key.
-      ...(agentId
-        ? {
-            metadata: {
-              custom: { aomiTask: { agentId } satisfies AomiTaskPartMetadata },
-            },
-          }
-        : null),
-    } as MessageContentPart);
   }
 
   if (content.length === 0 && role === "assistant" && !msg.is_streaming) {
@@ -171,23 +109,121 @@ function buildInboundMessage(msg: AomiMessage): ThreadMessageLike | null {
   const threadMessage = {
     role,
     content: content as ThreadMessageLike["content"],
-    ...(msg.timestamp && { createdAt: new Date(msg.timestamp) }),
+    createdAt: new Date(parseTimestamp(msg.occurred_at)),
   } satisfies ThreadMessageLike;
 
   return threadMessage;
 }
 
-function parseToolResult(
-  toolResult: AomiMessage["tool_result"],
-): [string, string] | null {
-  if (!toolResult) return null;
+type AssistantProjection = {
+  message: ThreadMessageLike;
+  parts: MessageContentPart[];
+  textParts: Map<string, number>;
+  toolParts: Map<string, number>;
+};
 
-  if (Array.isArray(toolResult) && toolResult.length === 2) {
-    const [topic, content] = toolResult;
-    return [String(topic), String(content ?? "")];
+const toolPart = (
+  event: ToolUpdateEvent | ToolCompleteEvent,
+): MessageContentPart =>
+  ({
+    type: "tool-call",
+    toolCallId: event.call_id ?? event.id,
+    toolName: event.tool_name,
+    args: undefined,
+    result: event.result,
+  }) as MessageContentPart;
+
+/**
+ * Pure Assistant UI projection over the canonical ordered event ledger.
+ * Messages and tool parts are grouped by backend turn identity; no transcript
+ * or lifecycle state is stored outside ClientSession.
+ */
+export function projectAssistantMessages(
+  events: readonly Event[],
+): ThreadMessageLike[] {
+  const output: Array<ThreadMessageLike | AssistantProjection> = [];
+  const assistantTurns = new Map<string, AssistantProjection>();
+  const standaloneMessages = new Map<string, number>();
+
+  const assistantTurn = (event: Event): AssistantProjection => {
+    const key = event.turn_id ?? `event:${event.event_id}`;
+    const existing = assistantTurns.get(key);
+    if (existing) return existing;
+    const projection: AssistantProjection = {
+      message: {
+        id: `turn:${key}`,
+        role: "assistant",
+        content: [],
+        createdAt: new Date(parseTimestamp(event.occurred_at)),
+      },
+      parts: [],
+      textParts: new Map(),
+      toolParts: new Map(),
+    };
+    assistantTurns.set(key, projection);
+    output.push(projection);
+    return projection;
+  };
+
+  for (const event of events) {
+    if (event.type === "message") {
+      if (event.sender === "system") continue;
+      if (event.sender === "agent") {
+        const projection = assistantTurn(event);
+        const key = event.message_key ?? event.event_id;
+        const index = projection.textParts.get(key);
+        const part = { type: "text", text: event.content } as MessageContentPart;
+        if (index === undefined) {
+          projection.textParts.set(key, projection.parts.length);
+          projection.parts.push(part);
+        } else {
+          projection.parts[index] = part;
+        }
+        continue;
+      }
+
+      const projected = toInboundMessage(event, output.length);
+      if (!projected) continue;
+      const key = event.message_key ?? event.event_id;
+      const index = standaloneMessages.get(key);
+      if (index === undefined) {
+        standaloneMessages.set(key, output.length);
+        output.push(projected);
+      } else {
+        output[index] = projected;
+      }
+      continue;
+    }
+
+    if (
+      (event.type === "tool_update" || event.type === "tool_complete") &&
+      event.tool_name !== "task"
+    ) {
+      const projection = assistantTurn(event);
+      const key = event.call_id ?? event.id;
+      const index = projection.toolParts.get(key);
+      const part = toolPart(event);
+      if (index === undefined) {
+        projection.toolParts.set(key, projection.parts.length);
+        projection.parts.push(part);
+      } else {
+        projection.parts[index] = part;
+      }
+    }
   }
 
-  return null;
+  return output
+    .map((entry) => {
+      if (!("parts" in entry)) return entry;
+      return {
+        ...entry.message,
+        content: entry.parts as ThreadMessageLike["content"],
+      };
+    })
+    .filter(
+      (message) =>
+        typeof message.content === "string" || message.content.length > 0,
+    );
 }
 
 // ==================== Wallet Utilities ====================

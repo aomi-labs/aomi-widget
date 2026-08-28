@@ -31,15 +31,7 @@ async function fetchRemoteSessionStats(
 
   try {
     const page = await client.agent.poll(record.sessionId);
-    const messages = page.events
-      .filter((event) => event.type === "message")
-      .map((message) => ({
-        id: message.message_key ?? message.event_id,
-        sender: message.sender,
-        content: message.content,
-        timestamp: new Date(message.occurred_at * 1_000).toISOString(),
-        is_streaming: message.is_streaming,
-      }));
+    const messages = page.events.filter((event) => event.type === "message");
     const title = page.events.findLast(
       (event) => event.type === "title_changed",
     );

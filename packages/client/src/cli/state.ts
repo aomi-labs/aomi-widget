@@ -8,14 +8,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, join } from "node:path";
-import { homedir, tmpdir } from "node:os";
-import {
-  UserState as UserStateHelpers,
-  type UserStateAAMode,
-  type UserState,
-} from "../user-state";
-import { walletSnapshotFromUserState } from "./user-state";
-import type { CliAAProvider, CliEmbeddedProvider } from "./types";
+import { homedir } from "node:os";
+import type { CliAAProvider } from "./types";
 import type { AomiOAuthResource } from "../authorization";
 
 export type CliAuthSession = {
@@ -50,13 +44,6 @@ export type CliSessionState = {
   /** Aomi account bearer for authenticated requests. Persisted so a bearer
    * supplied once (via `--account-bearer`) survives across CLI invocations. */
   accountBearer?: string;
-  /** Legacy persisted session token slot. New logins write BetterAuth bearer
-   * sessions to `auth`; this remains for older local state migration. */
-  sessionCookie?: string;
-  /** Deprecated legacy provider-exchange config. */
-  embeddedProvider?: CliEmbeddedProvider;
-  /** Deprecated legacy provider-exchange config. */
-  embeddedProviderToken?: string;
   publicKey?: string;
   privateKey?: string;
   /** Solana public key (base58), derived from the Solana keypair when provided. */
@@ -69,7 +56,7 @@ export type CliSessionState = {
   svmPrivateKey?: string;
   chainId?: number;
   aaProvider?: CliAAProvider;
-  aaMode?: UserStateAAMode | null;
+  aaMode?: "none" | "4337" | "7702" | null;
   smartAccount?: string | null;
   secretHandles?: Record<string, string>;
   auth?: CliAuthSession;
@@ -95,11 +82,6 @@ const SESSION_FILE_PREFIX = "session-";
 const SESSION_FILE_SUFFIX = ".json";
 const STATE_DIR_MODE = 0o700;
 const STATE_FILE_MODE = 0o600;
-
-const LEGACY_STATE_FILE = join(
-  process.env.XDG_RUNTIME_DIR ?? tmpdir(),
-  "aomi-session.json",
-);
 
 export const STATE_ROOT_DIR =
   process.env.AOMI_STATE_DIR ?? join(homedir(), ".aomi");
@@ -140,9 +122,6 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
     accountBearer: stored.accountBearer,
-    sessionCookie: stored.sessionCookie,
-    embeddedProvider: stored.embeddedProvider,
-    embeddedProviderToken: stored.embeddedProviderToken,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     svmPublicKey: stored.svmPublicKey,
@@ -180,9 +159,6 @@ function readStoredSession(path: string): StoredSessionState | null {
       modelSynced: parsed.modelSynced,
       apiKey: parsed.apiKey,
       accountBearer: parsed.accountBearer,
-      sessionCookie: parsed.sessionCookie,
-      embeddedProvider: parsed.embeddedProvider,
-      embeddedProviderToken: parsed.embeddedProviderToken,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       svmPublicKey: parsed.svmPublicKey,
@@ -333,54 +309,6 @@ function getNextLocalId(sessions: StoredSessionState[]): number {
   return maxLocalId + 1;
 }
 
-let _migrationDone = false;
-
-function migrateLegacyStateIfNeeded(): void {
-  if (_migrationDone) return;
-  _migrationDone = true;
-
-  if (!existsSync(LEGACY_STATE_FILE)) return;
-
-  const existing = readAllStoredSessions();
-  if (existing.length > 0) {
-    // Storage already migrated. Keep legacy file untouched.
-    return;
-  }
-
-  try {
-    const raw = readFileSync(LEGACY_STATE_FILE, "utf-8");
-    const legacy = JSON.parse(raw) as Partial<CliSessionState>;
-    if (!legacy.sessionId || !legacy.baseUrl) {
-      return;
-    }
-
-    const now = Date.now();
-    const migrated: StoredSessionState = {
-      ...legacy,
-      sessionId: legacy.sessionId,
-      baseUrl: legacy.baseUrl,
-      localId: 1,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    ensureStorageDirs();
-    const migratedPath = toSessionFilePath(1);
-    writeFileSync(migratedPath, JSON.stringify(migrated, null, 2), {
-      mode: STATE_FILE_MODE,
-    });
-    try {
-      chmodSync(migratedPath, STATE_FILE_MODE);
-    } catch {
-      // Best-effort hardening only.
-    }
-    writeActiveLocalId(1);
-    rmSync(LEGACY_STATE_FILE);
-  } catch {
-    // Best-effort migration only.
-  }
-}
-
 function resolveStoredSession(
   selector: string,
   sessions: StoredSessionState[],
@@ -413,7 +341,6 @@ function toStoredSessionRecord(
 }
 
 export function getActiveStateFilePath(): string | null {
-  migrateLegacyStateIfNeeded();
   const sessions = readAllStoredSessions();
   const activeLocalId = readActiveLocalId();
   if (activeLocalId === null) return null;
@@ -422,12 +349,10 @@ export function getActiveStateFilePath(): string | null {
 }
 
 export function listStoredSessions(): StoredSessionRecord[] {
-  migrateLegacyStateIfNeeded();
   return readAllStoredSessions().map(toStoredSessionRecord);
 }
 
 export function setActiveSession(selector: string): StoredSessionRecord | null {
-  migrateLegacyStateIfNeeded();
   const sessions = readAllStoredSessions();
   const target = resolveStoredSession(selector, sessions);
   if (!target) return null;
@@ -438,7 +363,6 @@ export function setActiveSession(selector: string): StoredSessionRecord | null {
 export function deleteStoredSession(
   selector: string,
 ): StoredSessionRecord | null {
-  migrateLegacyStateIfNeeded();
   const sessions = readAllStoredSessions();
   const target = resolveStoredSession(selector, sessions);
   if (!target) return null;
@@ -464,7 +388,6 @@ export function deleteStoredSession(
 }
 
 export function readState(): CliSessionState | null {
-  migrateLegacyStateIfNeeded();
 
   const sessions = readAllStoredSessions();
   if (sessions.length === 0) return null;
@@ -485,7 +408,6 @@ export function readState(): CliSessionState | null {
 }
 
 export function writeState(state: CliSessionState): void {
-  migrateLegacyStateIfNeeded();
   ensureStorageDirs();
 
   const sessions = readAllStoredSessions();
@@ -517,32 +439,5 @@ export function writeState(state: CliSessionState): void {
 }
 
 export function clearState(): void {
-  migrateLegacyStateIfNeeded();
   writeActiveLocalId(null);
-}
-
-export function syncWalletFromUserState(
-  state: CliSessionState,
-  userState: UserState | null | undefined,
-): void {
-  const normalizedUserState = UserStateHelpers.normalize(userState);
-  const walletSnapshot = walletSnapshotFromUserState(normalizedUserState);
-  const isConnected = UserStateHelpers.isConnected(normalizedUserState);
-
-  if (walletSnapshot.publicKey !== undefined) {
-    state.publicKey = walletSnapshot.publicKey;
-  } else if (isConnected === false) {
-    state.publicKey = undefined;
-  }
-
-  if (walletSnapshot.chainId !== undefined) {
-    state.chainId = walletSnapshot.chainId;
-  } else if (isConnected === false) {
-    state.chainId = undefined;
-  }
-
-  // AA mode / smart account are backend authority and no longer round-tripped
-  // through user_state; the CLI keeps its own `--aa` preference locally.
-
-  writeState(state);
 }

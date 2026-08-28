@@ -20,10 +20,12 @@ export type ActionHandlerEvents = {
 export type ActionResponder = (
   action: Action,
   result: ActionResult,
+  idempotencyKey: string,
 ) => Promise<Action>;
 
 type Attempt = ActionAttempt & {
   controller: AbortController;
+  idempotencyKey: string;
   result?: ActionResult;
   promise?: Promise<Action>;
 };
@@ -70,6 +72,12 @@ export class ActionHandler extends TypedEventEmitter<ActionHandlerEvents> {
     return this.snapshot;
   }
 
+  allAttempts(): ReadonlyMap<string, ActionAttempt> {
+    return new Map(
+      [...this.attempts].map(([id, attempt]) => [id, publicAttempt(attempt)]),
+    );
+  }
+
   pending(): Action[] {
     return this.all().filter((action) => action.state === "pending");
   }
@@ -85,7 +93,12 @@ export class ActionHandler extends TypedEventEmitter<ActionHandlerEvents> {
   }
 
   subscribe(listener: () => void): () => void {
-    return this.on("changed", listener);
+    const actions = this.on("changed", listener);
+    const attempts = this.on("attempt_changed", listener);
+    return () => {
+      actions();
+      attempts();
+    };
   }
 
   setCapabilities(capabilities: ActionCapabilities): void {
@@ -113,6 +126,7 @@ export class ActionHandler extends TypedEventEmitter<ActionHandlerEvents> {
       revision: action.revision,
       state: "executing",
       controller: new AbortController(),
+      idempotencyKey: crypto.randomUUID(),
     };
     this.attempts.set(id, attempt);
     this.emit("attempt_changed", publicAttempt(attempt));
@@ -144,6 +158,7 @@ export class ActionHandler extends TypedEventEmitter<ActionHandlerEvents> {
         revision: action.revision,
         state: "responding",
         controller: new AbortController(),
+        idempotencyKey: crypto.randomUUID(),
       } satisfies Attempt);
     attempt.result = result;
     this.attempts.set(id, attempt);
@@ -195,7 +210,7 @@ export class ActionHandler extends TypedEventEmitter<ActionHandlerEvents> {
     attempt.error = undefined;
     this.emit("attempt_changed", publicAttempt(attempt));
 
-    return this.respond(action, attempt.result).then((next) => {
+    return this.respond(action, attempt.result, attempt.idempotencyKey).then((next) => {
       this.ingest(next);
       this.emit("resolved", next);
       return next;

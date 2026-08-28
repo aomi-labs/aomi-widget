@@ -1,20 +1,39 @@
-import type { Action, Event, EventPage, TurnState } from "../agent/types";
-import type { ActionCapabilities } from "../actions";
-import type { AomiClientType, UserState } from "../user-state";
-import type { AomiMessage } from "../types";
+import type {
+  Action,
+  Event,
+  EventPage,
+  MessageEvent,
+  TurnState,
+} from "../agent/types";
+import type { ActionAttempt, ActionCapabilities } from "../actions";
+import type { UserState } from "../user-state";
 
 export type SendResult = {
-  messages: AomiMessage[];
+  messages: readonly MessageEvent[];
   title?: string;
 };
+
+export type SessionSnapshot = Readonly<{
+  sessionId: string;
+  cursor?: string;
+  turnId?: string;
+  turnState?: TurnState;
+  events: readonly Event[];
+  messages: readonly MessageEvent[];
+  actions: readonly Action[];
+  title?: string;
+  isPolling: boolean;
+  isSubmitting: boolean;
+  actionAttempts: ReadonlyMap<string, ActionAttempt>;
+  error?: unknown;
+}>;
 
 export type SessionOptions = {
   sessionId?: string;
   app?: string;
   model?: string | null;
   applicationId?: number | string | null;
-  userState?: UserState;
-  clientType?: AomiClientType;
+  getUserState?: () => UserState | undefined;
   clientId?: string;
   pollIntervalMs?: number;
   logger?: { debug: (...args: unknown[]) => void };
@@ -26,39 +45,8 @@ export type SessionRuntimeOptions = {
   model?: string | null;
   applicationId?: number | string | null;
   clientId?: string;
-  userState?: UserState;
+  getUserState?: () => UserState | undefined;
   actions?: ActionCapabilities;
-};
-
-type MessageEvent = Extract<Event, { type: "message" }>;
-type TurnEvent = Extract<Event, { type: "turn_state_changed" }>;
-type ToolEvent = Extract<Event, { type: "tool_update" | "tool_complete" }>;
-type TaskEvent = Extract<
-  Event,
-  { type: "task_started" | "task_activity" | "task_completed" }
->;
-type TitleEvent = Extract<Event, { type: "title_changed" }>;
-type ErrorEvent = Extract<Event, { type: "error" }>;
-
-export type SessionEventMap = {
-  event: Event;
-  action: Action;
-  message: MessageEvent;
-  messages: AomiMessage[];
-  turn_state_changed: TurnEvent;
-  tool_update: ToolEvent;
-  tool_complete: ToolEvent;
-  task_started: TaskEvent;
-  task_activity: TaskEvent;
-  task_completed: TaskEvent;
-  title_changed: TitleEvent;
-  system_error: ErrorEvent;
-  user_state_updated: UserState;
-  processing_start: undefined;
-  processing_end: undefined;
-  backend_idle: undefined;
-  error: { error: unknown };
-  "*": { type: string; payload: unknown };
 };
 
 export type { Action, Event, EventPage, TurnState };

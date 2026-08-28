@@ -21,6 +21,7 @@ export async function statusCommand(config: CliConfig): Promise<void> {
   const session = cli.createClientSession(config);
   try {
     await session.fetchCurrentState();
+    const snapshot = session.getSnapshot();
     console.log(
       JSON.stringify(
         {
@@ -29,10 +30,11 @@ export async function statusCommand(config: CliConfig): Promise<void> {
           app: cli.app,
           model: cli.model ?? null,
           chainId: cli.chainId ?? null,
-          isProcessing: session.getIsProcessing(),
-          messageCount: session.getMessages().length,
-          title: session.getTitle() ?? null,
-          actions: session.actions.all().length,
+          turnState: snapshot.turnState ?? null,
+          isSubmitting: snapshot.isSubmitting,
+          messageCount: snapshot.messages.length,
+          title: snapshot.title ?? null,
+          actions: snapshot.actions.length,
           pendingActions: session.actions.pending().length,
         },
         null,

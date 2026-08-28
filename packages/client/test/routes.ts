@@ -5,6 +5,7 @@ export type AomiAuthClass =
   | "account"
   | "agent_adapter"
   | "app_gate"
+  | "delegated"
   | "service"
   | "admin"
   | "activation";

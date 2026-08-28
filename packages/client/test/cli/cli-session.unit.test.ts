@@ -199,6 +199,29 @@ describe("CLI session lifecycle", () => {
     );
   });
 
+  it("uses an explicit scoped bearer for Agent public API requests", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const cli = CliSession.create({
+      baseUrl: "https://api.aomi.dev",
+      accountBearer: "scoped-agent-bearer",
+      secrets: {},
+    });
+
+    const oauth = cli.createOAuthProvider(fetch);
+    const token = await oauth?.({
+      resource: "https://api.aomi.dev/v1/agent",
+      scopes: ["agent:write"],
+    });
+
+    expect(token).toEqual({
+      accessToken: "scoped-agent-bearer",
+      expiresAt: Number.MAX_SAFE_INTEGER,
+      resource: "https://api.aomi.dev/v1/agent",
+      scopes: ["agent:write"],
+      tokenType: "Bearer",
+    });
+  });
+
   it("persists explicit wallet, chain, and backend settings on the active session", async () => {
     const { setWalletCommand, setChainCommand, setBackendCommand } =
       await import("../../src/cli/commands/preferences");
@@ -363,48 +386,4 @@ describe("CLI session lifecycle", () => {
     expect(readState()?.accountBearer).toBe("bearer-1");
   });
 
-  it("persists legacy account provider credential fields on the active session", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-    const { readState } = await import("../../src/cli/state");
-
-    CliSession.loadOrCreate({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-      embeddedProvider: "privy" as const,
-      embeddedProviderToken: "privy-provider-token",
-    });
-
-    const state = readState();
-    expect(state?.embeddedProvider).toBe("privy");
-    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
-  });
-
-  it("clears a persisted bearer when switching the active session to legacy provider auth", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-    const { readState } = await import("../../src/cli/state");
-
-    CliSession.loadOrCreate({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-      accountBearer: "bearer-1",
-    });
-
-    CliSession.loadOrCreate({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-      embeddedProvider: "privy" as const,
-      embeddedProviderToken: "privy-provider-token",
-    });
-
-    const state = readState();
-    expect(state?.accountBearer).toBeUndefined();
-    expect(state?.embeddedProvider).toBe("privy");
-    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
-  });
 });

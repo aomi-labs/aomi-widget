@@ -188,10 +188,8 @@ describe("aomi account login", () => {
       );
       expect(new Headers(verifyInit.headers).get("Cookie")).toBeNull();
       expect(JSON.parse(verifyInit.body as string)).toEqual({
-        chainId: 1,
         message: expect.stringContaining("Nonce: abc123def456"),
         signature: expect.stringMatching(/^0x/),
-        walletAddress: expect.stringMatching(/^0x/),
       });
       expect(logSpy).toHaveBeenCalledWith(
         expect.stringContaining("Signed in with 0x"),

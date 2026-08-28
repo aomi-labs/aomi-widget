@@ -1,7 +1,7 @@
 import { auth } from "@aomi-labs/account/better-auth";
 import { revokeWidgetSession } from "@aomi-labs/account/widget-auth";
-import { requirePortalPrincipal } from "@portal/lib/widget-auth/principal";
-import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
+import { requirePortalPrincipal } from "@portal/server/widget-auth/principal";
+import { widgetPreflight, widgetRoute } from "@portal/server/widget-auth/response";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

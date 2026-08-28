@@ -16,7 +16,7 @@ vi.mock("@aomi-labs/widget-lib", () => ({
       svmCluster: "solana:devnet",
       svmCapabilities: { canSignMessage: true },
       // Legacy bind is embedded-transport-only (2026-07-17); the hook's
-      // usesLegacyBinding gate short-circuits bind() for external wallets.
+      // requiresBinding gate short-circuits bind() for external wallets.
       svmTransport: "embedded",
     },
     signSolanaMessage,

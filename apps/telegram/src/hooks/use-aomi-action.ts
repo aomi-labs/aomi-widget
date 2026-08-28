@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   Session,
   type Action,
-  type WidgetSessionProvider,
+  type GetAccountBearer,
 } from "@aomi-labs/client";
 
 import { aomiBffUrl } from "@/app/config";
@@ -28,7 +28,7 @@ function chooseAction(
 
 export function useAomiAction(input: {
   enabled: boolean;
-  provider: WidgetSessionProvider | null;
+  provider: GetAccountBearer | null;
   requestId: string | null;
   sessionId: string | null;
 }): AomiActionState {
@@ -53,12 +53,19 @@ export function useAomiAction(input: {
       },
     );
 
-    const sync = (actions = session.actions.pending()) => {
+    const sync = () => {
       if (!active) return;
+      const snapshot = session.getSnapshot();
+      const actions = snapshot.actions.filter((action) => action.state === "pending");
       const action = chooseAction(actions, input.requestId);
       const ambiguous = !input.requestId && actions.length > 1;
       setState({
-        error: ambiguous ? "multiple_actions" : null,
+        error:
+          ambiguous
+            ? "multiple_actions"
+            : snapshot.error instanceof Error
+              ? snapshot.error.message
+              : null,
         action,
         session,
         status: ambiguous ? "error" : action ? "ready" : "waiting",
@@ -70,16 +77,7 @@ export function useAomiAction(input: {
         setState({ error: null, action: null, session, status: "loading" });
       }
     });
-    const stopActions = session.actions.subscribe(() => sync());
-    const stopErrors = session.on("error", ({ error }) => {
-      if (!active) return;
-      setState({
-        error: error instanceof Error ? error.message : "wallet_session_failed",
-        action: null,
-        session,
-        status: "error",
-      });
-    });
+    const stop = session.subscribe(sync);
 
     void session
       .fetchCurrentState()
@@ -97,8 +95,7 @@ export function useAomiAction(input: {
 
     return () => {
       active = false;
-      stopActions();
-      stopErrors();
+      stop();
       session.close();
     };
   }, [input.enabled, input.provider, input.requestId, input.sessionId]);

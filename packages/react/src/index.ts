@@ -9,7 +9,6 @@ export type {
   ActionResult,
   AomiAppDescriptor,
   AomiPlatformFilter,
-  AomiMessage,
   AomiSecretSlot,
   NativeWalletExecutionPolicy,
   NativeWalletSponsorship,
@@ -42,7 +41,6 @@ export {
 // =============================================================================
 export { AomiRuntimeProvider } from "./runtime/aomi-runtime";
 export type { AomiRuntimeProviderProps } from "./runtime/aomi-runtime";
-export { RuntimeUserStateProvider } from "./runtime/user-state-provider";
 
 // =============================================================================
 // Unified Runtime API
@@ -55,32 +53,9 @@ export {
 export type { AomiRuntimeApi } from "./interface";
 
 // =============================================================================
-// Event System (follows RUNTIME-ARCH.md)
-// =============================================================================
-export {
-  useEventContext,
-  EventContextProvider,
-} from "./contexts/event-context";
-export type {
-  EventContext,
-  EventContextProviderProps,
-} from "./contexts/event-context";
-
-export type {
-  InboundEvent,
-  SSEStatus,
-  EventSubscriber,
-} from "./contexts/event-context";
-
-// =============================================================================
 // Handler Hooks
 // =============================================================================
 export { useActions } from "./actions/use-actions";
-export { useNotificationHandler } from "./handlers/notification-handler";
-export type {
-  NotificationHandlerConfig,
-  NotificationApi,
-} from "./handlers/notification-handler";
 
 // =============================================================================
 // User Context (wallet/user state)
@@ -99,10 +74,7 @@ export type { UserConfig } from "./runtime/utils";
 // =============================================================================
 export {
   useThreadContext,
-  useCurrentThreadMessages,
   useCurrentThreadMetadata,
-  useThreadTaskRuns,
-  useTaskRun,
   ThreadContextProvider,
 } from "./contexts/thread-context";
 export type { ThreadContext } from "./contexts/thread-context";
@@ -110,35 +82,20 @@ export type {
   ModelSelectionMode,
   ThreadMetadata,
   ThreadControlState,
-  ThreadTurnPhase,
+} from "./state/thread-store";
+export {
+  EMPTY_TASK_RUNS,
+  selectTaskRuns,
+  useTaskRun,
+  useThreadTaskRuns,
+} from "./runtime/task-runs";
+export type {
   TaskRunState,
   TaskRunStatus,
   TaskRunStep,
   ThreadTaskRuns,
-} from "./state/thread-store";
-export {
-  initThreadControl,
-  reduceTaskRuns,
-  EMPTY_TASK_RUNS,
-} from "./state/thread-store";
-
-// =============================================================================
-// Orchestrator delegation events (re-exported from @aomi-labs/client)
-// =============================================================================
-export type {
-  AomiTaskEvent,
-  AomiTaskEventType,
-  AomiTaskStartedEvent,
-  AomiTaskActivityEvent,
-  AomiTaskActivityKind,
-  AomiTaskCompletedEvent,
-  AomiTaskStatus,
-} from "@aomi-labs/client";
-export {
-  isAomiTaskEventType,
-  parseAomiTaskEvent,
-  AOMI_TASK_EVENT_TYPES,
-} from "@aomi-labs/client";
+} from "./runtime/task-runs";
+export { initThreadControl } from "./state/thread-store";
 
 // =============================================================================
 // Utilities
@@ -148,9 +105,8 @@ export {
   formatAddress,
   getNetworkName,
   getChainInfo,
-  readTaskPartAgentId,
+  projectAssistantMessages,
   SUPPORTED_CHAINS,
-  type AomiTaskPartMetadata,
   type ChainInfo,
 } from "./runtime/utils";
 export { resolveAutoModel } from "./utils/model-selection";

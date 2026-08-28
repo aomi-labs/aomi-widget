@@ -1,4 +1,4 @@
-import type { AomiMessage } from "../types";
+import type { MessageEvent } from "../agent/types";
 import { CYAN, RESET, formatLogContent } from "./output";
 
 export const MAX_TABLE_VALUE_WIDTH = 72;
@@ -12,15 +12,12 @@ export function padRight(value: string, width: number): string {
   return value.padEnd(width, " ");
 }
 
-export function estimateTokenCount(messages: AomiMessage[]): number {
+export function estimateTokenCount(messages: readonly MessageEvent[]): number {
   let totalChars = 0;
   for (const message of messages) {
     const content = formatLogContent(message.content);
     if (content) {
       totalChars += content.length + 1;
-    }
-    if (message.tool_result?.[1]) {
-      totalChars += message.tool_result[1].length;
     }
   }
   return Math.round(totalChars / 4);

@@ -88,7 +88,6 @@ export type ControlContextApi = ApiKeyActions &
   AuthEndpointsActions &
   PerThreadControlActions & {
     state: ControlState;
-    isProcessing: boolean;
     /** Synchronous getter used by the runtime to read the latest state from a
      *  callback that fires outside render. */
     getControlState: () => ControlState;
@@ -167,11 +166,9 @@ export function useAuthEndpoints(): {
 
 export function usePerThreadControl(): {
   actions: PerThreadControlActions;
-  isProcessing: boolean;
 } {
   const ctx = useControl();
   return {
-    isProcessing: ctx.isProcessing,
     actions: {
       getCurrentThreadControl: ctx.getCurrentThreadControl,
       getCurrentThreadApp: ctx.getCurrentThreadApp,
@@ -180,7 +177,6 @@ export function usePerThreadControl(): {
       onModelSelect: ctx.onModelSelect,
       onAppSelect: ctx.onAppSelect,
       markControlSynced: ctx.markControlSynced,
-      syncCurrentThreadControl: ctx.syncCurrentThreadControl,
     },
   };
 }
@@ -326,12 +322,11 @@ export function ControlContextProvider({
   // ---------------------------------------------------------------------------
   const api: ControlContextApi = {
     state: aggregateState,
-    isProcessing: perThread.isProcessing,
     getControlState,
     ...apiKey.actions,
     ...byok.actions,
     ...authEndpoints.actions,
-    ...perThread.actions,
+    ...perThread,
   };
 
   return (
@@ -339,6 +334,4 @@ export function ControlContextProvider({
   );
 }
 
-// Re-export ThreadControlState for backward compat with code that pulled it
-// from this file.
 export type { ThreadControlState };
