@@ -69,6 +69,7 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/catalog/wallet-branding.ts",
       "lib/wallet-kit/catalog/wallet-ids.ts",
       "lib/wallet-kit/config/AomiWalletKitProvider.tsx",
+      "lib/wallet-kit/config/evm-connection-persistence.ts",
       "lib/wallet-kit/config/execution.ts",
       "lib/wallet-kit/config/index.ts",
       "lib/wallet-kit/config/provider-auth.ts",

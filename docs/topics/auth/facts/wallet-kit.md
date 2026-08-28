@@ -21,6 +21,7 @@ The wallet kit layer bridges host-specific wallet or account providers into the 
 - `AomiWalletKitSync` reads the active adapter identity and mirrors it into `useUser()` state from `@aomi-labs/react`.
 - The bridge carries EVM address, optional Solana address, chain id, smart-account mode, and provider labels.
 - Adapter metadata is also copied into `user_state.ext` keys such as `wallet_provider` and `login_method`.
+- External EVM connections persist and silently reconnect after a page reload by default, independently of the Aomi account session. An explicit wallet disconnect remains disconnected. Solana adapters use their native `autoConnect` restoration.
 
 ## Why It Exists
 

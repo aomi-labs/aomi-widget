@@ -147,11 +147,12 @@ const descriptorById: Record<string, Descriptor> = {
   },
   "evm.tx.pending_approval": {
     title: "fixed",
-    fixedTitle: "Await wallet approval",
+    fixedTitle: "Commit transactions",
     icon: SHAPE_ICONS.commit,
     chipPlan: [
       { kind: "chain" },
       { kind: "count", role: "tx" },
+      { kind: "txId" },
       { kind: "status" },
     ],
   },
@@ -224,9 +225,14 @@ const descriptorById: Record<string, Descriptor> = {
   },
   "svm.tx.pending_approval": {
     title: "fixed",
-    fixedTitle: "Await wallet approval",
+    fixedTitle: "Commit transactions",
     icon: SHAPE_ICONS.commit,
-    chipPlan: [{ kind: "count", role: "tx" }, { kind: "status" }],
+    chipPlan: [
+      { kind: "cluster" },
+      { kind: "count", role: "tx" },
+      { kind: "txId" },
+      { kind: "status" },
+    ],
   },
   "svm.tx.simulate_batch": {
     title: "fixed",

@@ -328,10 +328,11 @@ function buildInboundMessage(
         ) {
           const record = parsed as {
             pending_tx_id?: unknown;
+            tx_ids?: unknown;
             pending_solana_id?: unknown;
             unsigned_tx?: unknown;
           };
-          const outcome =
+          const directOutcome =
             typeof record.pending_tx_id === "number"
               ? txOutcomes.evm.get(record.pending_tx_id)
               : typeof record.pending_solana_id === "number"
@@ -339,6 +340,30 @@ function buildInboundMessage(
                 : typeof record.unsigned_tx === "string"
                   ? txOutcomes.svmByTx.get(record.unsigned_tx)
                   : undefined;
+          // `evm_commit_txs` returns the committed ids as a batch, while the
+          // wallet callback reports outcomes per pending id. Keep the commit
+          // row pending until every leg has reported; any failed leg makes the
+          // aggregate fail. This lets the trace itself settle instead of only
+          // updating the earlier staging rows.
+          const batchIds = Array.isArray(record.tx_ids)
+            ? record.tx_ids.filter(
+                (id): id is number =>
+                  typeof id === "number" && Number.isInteger(id),
+              )
+            : [];
+          const batchOutcomes = batchIds.flatMap((id) => {
+            const batchOutcome = txOutcomes.evm.get(id);
+            return batchOutcome ? [batchOutcome] : [];
+          });
+          const failedBatchOutcome = batchOutcomes.find(
+            (batchOutcome) => batchOutcome.status === "failed",
+          );
+          const completeBatchOutcome =
+            batchIds.length > 0 && batchOutcomes.length === batchIds.length
+              ? batchOutcomes[batchOutcomes.length - 1]
+              : undefined;
+          const outcome =
+            directOutcome ?? failedBatchOutcome ?? completeBatchOutcome;
           if (outcome) {
             return { ...record, tx_outcome: outcome };
           }

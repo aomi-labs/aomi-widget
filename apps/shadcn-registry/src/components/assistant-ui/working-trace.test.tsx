@@ -1,13 +1,21 @@
-import { render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { TaskRunState } from "@aomi-labs/react";
 
-vi.mock("@/components/assistant-ui/markdown-text", () => ({
-  MarkdownText: () => null,
-}));
+vi.mock("@/components/assistant-ui/markdown-text", async () => {
+  const { useMessagePartText } = await vi.importActual<
+    typeof import("@assistant-ui/react")
+  >("@assistant-ui/react");
+  return {
+    MarkdownText: () => {
+      const part = useMessagePartText();
+      return <span data-testid="rendered-text">{part.text}</span>;
+    },
+  };
+});
 
-import { WorkingTrace } from "./working-trace";
+import { ProgressiveRenderedText, WorkingTrace } from "./working-trace";
 
 const run = (steps: TaskRunState["steps"]): TaskRunState => ({
   agentId: "task-agent:9f2c1a2b3c4d",
@@ -20,6 +28,30 @@ const run = (steps: TaskRunState["steps"]): TaskRunState => ({
 });
 
 describe("WorkingTrace", () => {
+  it("progressively reveals a buffered final answer", async () => {
+    vi.useFakeTimers();
+    try {
+      const answer = "A buffered final answer should arrive progressively.";
+      const { getByTestId } = render(
+        <ProgressiveRenderedText text={answer} animate />,
+      );
+      const rendered = getByTestId("rendered-text");
+
+      expect(rendered).toHaveTextContent("");
+
+      act(() => vi.advanceTimersByTime(20));
+      expect(rendered.textContent?.length).toBeGreaterThan(0);
+      expect(rendered.textContent?.length).toBeLessThan(answer.length);
+
+      for (let tick = 0; tick < 75; tick += 1) {
+        await act(() => vi.advanceTimersByTimeAsync(20));
+      }
+      expect(rendered).toHaveTextContent(answer);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("uses Working while the orchestrator badge identifies the mode", () => {
     const { container } = render(
       <WorkingTrace running items={[]} revealed={0} orchestrating />,
@@ -28,6 +60,31 @@ describe("WorkingTrace", () => {
     expect(container).toHaveTextContent("Working");
     expect(container).toHaveTextContent("orchestrator");
     expect(container).not.toHaveTextContent("Orchestrating");
+  });
+
+  it("keeps the trace body mounted while animating it open and closed", () => {
+    const { container, getByRole } = render(
+      <WorkingTrace running items={[]} revealed={0} orchestrating={false} />,
+    );
+    const toggle = getByRole("button", { name: /Working/ });
+    const body = container.querySelector<HTMLElement>(
+      ".aui-working-trace > div",
+    )!;
+
+    expect(body).toHaveClass("grid-rows-[1fr]", "opacity-100");
+    expect(body).not.toHaveClass("hidden");
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(body).toHaveClass("grid-rows-[0fr]", "opacity-0");
+    expect(body).not.toHaveClass("hidden");
+    expect(body).toHaveAttribute("aria-hidden", "true");
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(body).toHaveClass("grid-rows-[1fr]", "opacity-100");
   });
 
   it("follows nested subagent steps while the trace is pinned to latest", () => {
