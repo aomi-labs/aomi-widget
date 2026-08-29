@@ -67,6 +67,7 @@ import type {
   WalletsConfig,
 } from "./types";
 import { resolveConfiguredNativeWalletExecutionPolicy } from "./execution";
+import { resolveEvmConnectionPersistence } from "./evm-connection-persistence";
 
 export type { AomiWalletKitProviderInput, AomiWalletKitProviderProps };
 
@@ -420,7 +421,7 @@ function AomiEvmExternalWalletProvider({
 }) {
   const chains = evmWallets?.chains ?? defaultNetworks;
   const routing = useFullTestnet(chains);
-  const persistExternalWallet = !account || account.mode !== "aomi-backend";
+  const persistExternalWallet = resolveEvmConnectionPersistence(evmWallets);
   const evmConfig = useMemo(
     () => ({
       chains: routing.routedChains,

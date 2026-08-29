@@ -65,6 +65,9 @@ describe("buildSvmTransactionMethods", () => {
       preferDirectSend: false,
       rpcHttpUrl: "https://solana.example",
     });
+    const confirmTransaction = vi
+      .spyOn(Connection.prototype, "confirmTransaction")
+      .mockResolvedValue({ context: { slot: 1 }, value: { err: null } });
 
     await execution.sendSolanaTransaction?.({
       unsignedTx: Buffer.from(approved.serialize()).toString("base64"),
@@ -75,5 +78,6 @@ describe("buildSvmTransactionMethods", () => {
     expect((submitted as VersionedTransaction).message.recentBlockhash).toBe(
       approvedBlockhash,
     );
+    expect(confirmTransaction).toHaveBeenCalledWith("signature", "confirmed");
   });
 });

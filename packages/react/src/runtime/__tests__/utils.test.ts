@@ -209,7 +209,10 @@ describe("collectTxOutcomes", () => {
       echoMessage({ txHash: "0xabc", status: "success", pending_tx_ids: [2] }),
     ]);
 
-    expect(outcomes?.evm.get(2)).toEqual({ status: "success", txHash: "0xabc" });
+    expect(outcomes?.evm.get(2)).toEqual({
+      status: "success",
+      txHash: "0xabc",
+    });
   });
 
   it("returns null when the transcript has no callbacks", () => {
@@ -236,7 +239,10 @@ describe("collectTxOutcomes solana callbacks", () => {
       ),
     ]);
 
-    expect(outcomes?.svm.get(1)).toEqual({ status: "success", txHash: "5xSig" });
+    expect(outcomes?.svm.get(1)).toEqual({
+      status: "success",
+      txHash: "5xSig",
+    });
     // Same numeric id must NOT leak into the EVM map — the spaces collide.
     expect(outcomes?.evm.get(1)).toBeUndefined();
   });
@@ -344,6 +350,38 @@ describe("toInboundMessage tx outcome enrichment", () => {
     });
   });
 
+  it("settles an EVM commit result when every committed id completes", () => {
+    const outcomes = collectTxOutcomes([
+      echoMessage({
+        txHash: "0xabc",
+        status: "success",
+        pending_tx_ids: [1, 2],
+      }),
+    ]);
+    const message = toInboundMessage(
+      {
+        sender: "agent",
+        tool_name: "evm_commit_txs",
+        tool_arguments: { tx_ids: [1, 2] },
+        tool_result: [
+          "Commit transactions",
+          JSON.stringify({ status: "pending_approval", tx_ids: [1, 2] }),
+        ],
+        timestamp: "2026-08-26T00:00:00Z",
+        is_streaming: false,
+      } as AomiMessage,
+      outcomes,
+    );
+    const part = (
+      message?.content as Array<{ type: string; result?: unknown }>
+    ).find((entry) => entry.type === "tool-call");
+
+    expect(part?.result).toMatchObject({
+      tx_ids: [1, 2],
+      tx_outcome: { status: "success", txHash: "0xabc" },
+    });
+  });
+
   it("leaves unrelated staged results untouched", () => {
     const outcomes = collectTxOutcomes([
       echoMessage({ txHash: "", status: "failed", pending_tx_ids: [99] }),
@@ -368,8 +406,16 @@ describe("notice projection", () => {
     // Every failure notice carries the same words by design, so a
     // content-derived id would collide and let one failure overwrite — or
     // remount — the other in the transcript.
-    const first = toInboundMessage(notice("turn-failure:turn-a:notice"), null, 0);
-    const second = toInboundMessage(notice("turn-failure:turn-b:notice"), null, 1);
+    const first = toInboundMessage(
+      notice("turn-failure:turn-a:notice"),
+      null,
+      0,
+    );
+    const second = toInboundMessage(
+      notice("turn-failure:turn-b:notice"),
+      null,
+      1,
+    );
 
     expect(first?.id).not.toEqual(second?.id);
   });
