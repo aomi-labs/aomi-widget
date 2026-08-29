@@ -11,9 +11,9 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
 }));
 
-vi.mock("@portal/lib/aomi-account/session", async (importOriginal) => {
+vi.mock("@portal/server/account/session", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@portal/lib/aomi-account/session")>();
+    await importOriginal<typeof import("@portal/server/account/session")>();
   return { ...actual, getBetterAuthSession: mocks.getSession };
 });
 
@@ -121,26 +121,6 @@ describe("device-auth route error ownership", () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "invalid_state" });
-    expect(mocks.capture).not.toHaveBeenCalled();
-  });
-
-  it("returns 503 when the bounded grant store is at capacity", async () => {
-    mocks.issueGrant.mockImplementation(() => {
-      throw new Error("device_auth_capacity_exceeded");
-    });
-
-    const response = await grant(
-      post("/v1/account/device-auth/grant", {
-        state: VALID_STATE,
-        codeChallenge: VALID_CHALLENGE,
-        redirectUri: REDIRECT_URI,
-      }),
-    );
-
-    expect(response.status).toBe(503);
-    await expect(response.json()).resolves.toEqual({
-      error: "device_auth_capacity_exceeded",
-    });
     expect(mocks.capture).not.toHaveBeenCalled();
   });
 

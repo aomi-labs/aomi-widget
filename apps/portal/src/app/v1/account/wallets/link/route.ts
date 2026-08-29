@@ -1,4 +1,4 @@
-import { json } from "@portal/lib/aomi-account/session";
+import { json } from "@portal/server/account/session";
 import {
   createWalletLinkNonce,
   upsertVerifiedWallet,
@@ -13,7 +13,7 @@ import {
   accountResponseForPrincipal,
   requirePortalPrincipal,
 } from "@portal/server/widget-auth/principal";
-import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
+import { widgetPreflight, widgetRoute } from "@portal/server/widget-auth/response";
 import { portalFailures } from "@portal/server/bff/failures";
 
 export const runtime = "nodejs";
@@ -21,9 +21,6 @@ export const dynamic = "force-dynamic";
 
 export const GET = widgetRoute(async (req: Request) => {
   const current = await requirePortalPrincipal(req);
-  if (current.kind === "better_auth" && current.isAnonymous) {
-    return json(401, { error: "guest_must_sign_in" });
-  }
   const url = new URL(req.url);
   const address = url.searchParams.get("address");
   const rawChainId = url.searchParams.get("chainId");
@@ -47,9 +44,6 @@ export const GET = widgetRoute(async (req: Request) => {
 
 export const POST = widgetRoute(async (req: Request) => {
   const current = await requirePortalPrincipal(req);
-  if (current.kind === "better_auth" && current.isAnonymous) {
-    return json(401, { error: "guest_must_sign_in" });
-  }
   const body = (await req.json().catch(() => null)) as {
     family?: WalletFamily;
     address?: string;

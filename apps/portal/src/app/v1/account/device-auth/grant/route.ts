@@ -2,7 +2,7 @@ import {
   issueDeviceAuthGrant,
   type DeviceAuthProvider,
 } from "@portal/lib/device-auth-grants";
-import { getBetterAuthSession, json } from "@portal/lib/aomi-account/session";
+import { getBetterAuthSession, json } from "@portal/server/account/session";
 import { identifyDeviceAuthFailure } from "@portal/server/bff/device-auth-errors";
 import { portalFailures } from "@portal/server/bff/failures";
 

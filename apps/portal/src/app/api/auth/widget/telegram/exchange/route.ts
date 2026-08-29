@@ -8,13 +8,13 @@ import {
   requireWidgetOrigin,
   WidgetAuthError,
 } from "@aomi-labs/account/widget-auth";
-import { verifyWidgetProviderCredential } from "@portal/lib/widget-auth/exchange";
-import { widgetAuthRateLimit } from "@portal/lib/widget-auth/rate-limit";
+import { verifyWidgetProviderCredential } from "@portal/server/widget-auth/exchange";
+import { widgetAuthRateLimit } from "@portal/server/widget-auth/rate-limit";
 import {
   widgetPreflight,
   widgetRoute,
   widgetSessionResponse,
-} from "@portal/lib/widget-auth/response";
+} from "@portal/server/widget-auth/response";
 
 const TELEGRAM_FAILURE_STATUS = {
   malformed: 400,
@@ -31,8 +31,7 @@ type TelegramParaExchange = {
   session_id?: unknown;
 };
 
-const DM_THREAD_ID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const DM_THREAD_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function requiredString(value: unknown, maxLength: number): string | null {
   if (typeof value !== "string") return null;

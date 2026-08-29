@@ -28,11 +28,11 @@ vi.mock("@aomi-labs/account/widget-auth", async (importOriginal) => {
   };
 });
 
-vi.mock("@portal/lib/widget-auth/exchange", () => ({
+vi.mock("@portal/server/widget-auth/exchange", () => ({
   verifyWidgetProviderCredential: mocks.verifyCredential,
 }));
 
-vi.mock("@portal/lib/widget-auth/rate-limit", () => ({
+vi.mock("@portal/server/widget-auth/rate-limit", () => ({
   widgetAuthRateLimit: () => null,
 }));
 
@@ -50,17 +50,14 @@ vi.mock("@portal/server/bff/failures", () => ({
 import { POST } from "./route";
 
 function request(body: unknown): Request {
-  return new Request(
-    "https://portal.aomi.dev/api/auth/widget/telegram/exchange",
-    {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        origin: "https://telegram-mini.aomi.dev",
-      },
-      body: JSON.stringify(body),
+  return new Request("https://portal.aomi.dev/api/auth/widget/telegram/exchange", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      origin: "https://telegram-mini.aomi.dev",
     },
-  );
+    body: JSON.stringify(body),
+  });
 }
 
 const DM_THREAD_ID = "0b9c1f2e-4d3a-4c5b-8e7f-1a2b3c4d5e6f";

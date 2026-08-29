@@ -1,5 +1,5 @@
 import { exchangeDeviceAuthGrant } from "@portal/lib/device-auth-grants";
-import { json } from "@portal/lib/aomi-account/session";
+import { json } from "@portal/server/account/session";
 import { exchangeProviderForExistingSession } from "@aomi-labs/account/account";
 import type { AomiAccountCredential } from "@aomi-labs/account";
 import { identifyDeviceAuthFailure } from "@portal/server/bff/device-auth-errors";
