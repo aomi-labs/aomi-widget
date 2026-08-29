@@ -216,12 +216,9 @@ function OpenAndRender() {
   return <WalletPicker />;
 }
 
-function renderPicker(
-  adapter: AomiWalletKit,
-  hasBlockingWalletRequests = false,
-) {
+function renderPicker(adapter: AomiWalletKit, hasBlockingActions = false) {
   const runtime = {
-    hasBlockingWalletRequests,
+    hasBlockingActions,
     showNotification: vi.fn(),
   };
   return render(
@@ -649,7 +646,7 @@ describe("WalletPicker", () => {
     expect(adapter.disconnect).toHaveBeenCalledWith({ accountId: "mm" });
   });
 
-  it("blocks wallet connection while a wallet request is unresolved", () => {
+  it("blocks wallet connection while an Action is unresolved", () => {
     const adapter = makeAdapter({
       connectEvmWallet: vi.fn(async () => undefined),
       accounts: [

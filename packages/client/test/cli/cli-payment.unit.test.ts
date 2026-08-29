@@ -11,7 +11,7 @@ describe("CLI payment output", () => {
     try {
       printPaymentEvent({
         type: "required",
-        url: "http://unit.test/api/thread/chat",
+        url: "http://unit.test/v1/agent/chat",
         requirement: {
           amount: "25000",
           network: "eip155:84532",
@@ -38,7 +38,7 @@ describe("CLI payment output", () => {
     try {
       printPaymentEvent({
         type: "settled",
-        url: "http://unit.test/api/thread/chat",
+        url: "http://unit.test/v1/agent/chat",
         status: 200,
         receiptId: "0xreceipt",
       });
@@ -57,7 +57,7 @@ describe("CLI payment output", () => {
     try {
       printPaymentEvent({
         type: "rejected",
-        url: "http://unit.test/api/thread/chat",
+        url: "http://unit.test/v1/agent/chat",
         status: 402,
         reason:
           "submitted payment requirements did not match the requested price",

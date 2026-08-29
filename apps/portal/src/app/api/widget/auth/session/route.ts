@@ -1,5 +1,5 @@
 import { revokeWidgetSession } from "@aomi-labs/account/widget-auth";
-import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
+import { widgetPreflight, widgetRoute } from "@portal/server/widget-auth/response";
 
 export const DELETE = widgetRoute(async (request: Request) => {
   const revoked = await revokeWidgetSession({ request });

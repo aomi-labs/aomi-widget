@@ -3,7 +3,7 @@
 // =============================================================================
 //
 // Each chat thread carries its own "control" metadata (model, modelMode, app,
-// isProcessing, controlDirty). This hook owns:
+// controlDirty). This hook owns:
 //   - Reading / writing that per-thread metadata.
 //   - The auto-effect that fills in a missing model from stored preference
 //     OR re-aligns "auto" threads to the latest available default.
@@ -175,9 +175,6 @@ export type PerThreadControlActions = {
   ) => Promise<void>;
   onAppSelect: (app: string, options?: AppSelectionOptions) => void;
   markControlSynced: () => void;
-  syncCurrentThreadControl: (options?: {
-    ignoreProcessing?: boolean;
-  }) => Promise<void>;
 };
 
 type UsePerThreadControlOptions = {
@@ -215,14 +212,7 @@ export function usePerThreadControlImpl({
   appDescriptorsRef,
   defaultAppRef,
   sessionId,
-}: UsePerThreadControlOptions): {
-  actions: PerThreadControlActions;
-  isProcessing: boolean;
-} {
-  // Compute isProcessing for the current thread (read during render — must
-  // not be a useCallback that reads from refs).
-  const currentMeta = getThreadMetadataRef.current(sessionId);
-  const isProcessing = currentMeta?.control?.isProcessing ?? false;
+}: UsePerThreadControlOptions): PerThreadControlActions {
 
   const getCurrentThreadControl = useCallback((): ThreadControlState => {
     const metadata = getThreadMetadataRef.current(sessionIdRef.current);
@@ -279,13 +269,6 @@ export function usePerThreadControlImpl({
       const threadId = sessionIdRef.current;
       const currentControl =
         getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
-      if (currentControl.isProcessing) {
-        console.warn(
-          "[per-thread-control] Cannot switch model while processing",
-        );
-        return;
-      }
-
       const modelMode = options?.mode ?? "manual";
       const selectedApp = resolveAuthorizedApp(
         currentControl.app,
@@ -322,10 +305,6 @@ export function usePerThreadControlImpl({
       const threadId = sessionIdRef.current;
       const currentControl =
         getThreadMetadataRef.current(threadId)?.control ?? initThreadControl();
-      if (currentControl.isProcessing) {
-        console.warn("[per-thread-control] Cannot switch app while processing");
-        return;
-      }
       const descriptor = resolveAuthorizedApp(
         app,
         options?.applicationId ?? null,
@@ -367,22 +346,13 @@ export function usePerThreadControlImpl({
     }
   }, []);
 
-  const syncCurrentThreadControl = useCallback(
-    async (options?: { ignoreProcessing?: boolean }) => {
-      void options;
-      // Retained as a source-compatible local seam. Canonical Agent transport
-      // carries model/app on the next start; there is no separate model RPC.
-    },
-    [],
-  );
-
   // Auto-effect: fill in a missing model from stored preference, or
   // re-align an "auto" thread to the latest available default after the
   // backend model list refreshes.
   useEffect(() => {
     const threadId = sessionIdRef.current;
     const metadata = getThreadMetadataRef.current(threadId);
-    if (!metadata || metadata.control.isProcessing) return;
+    if (!metadata) return;
 
     const currentControl = metadata.control;
     let nextControl: ThreadControlState | null = null;
@@ -427,16 +397,12 @@ export function usePerThreadControlImpl({
   }, [getPreferredThreadControl, sessionId, availableModels, defaultModel]);
 
   return {
-    actions: {
-      getCurrentThreadControl,
-      getCurrentThreadApp,
-      getCurrentThreadApplicationId,
-      getPreferredThreadControl,
-      onModelSelect,
-      onAppSelect,
-      markControlSynced,
-      syncCurrentThreadControl,
-    },
-    isProcessing,
+    getCurrentThreadControl,
+    getCurrentThreadApp,
+    getCurrentThreadApplicationId,
+    getPreferredThreadControl,
+    onModelSelect,
+    onAppSelect,
+    markControlSynced,
   };
 }

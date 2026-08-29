@@ -1,10 +1,11 @@
 import type {
-  AomiMessage,
-  AomiSSEEvent,
-  AomiTaskActivityEvent,
-  AomiTaskCompletedEvent,
-  AomiTaskStartedEvent,
-} from "../types";
+  MessageEvent,
+  TaskActivityEvent,
+  TaskCompletedEvent,
+  TaskStartedEvent,
+  ToolCompleteEvent,
+  ToolUpdateEvent,
+} from "../agent/types";
 import type { CliPaymentEvent } from "./payment";
 import { STATE_ROOT_DIR, getActiveStateFilePath } from "./state";
 
@@ -30,13 +31,9 @@ export function printJson(value: unknown): void {
   console.log(JSON.stringify(value, null, 2));
 }
 
-export function printToolUpdate(event: AomiSSEEvent): void {
-  const name = getToolNameFromEvent(event);
-  const status = (event.status as string | undefined) ?? "running";
-  console.log(`${DIM}🔧 [tool] ${name}: ${status}${RESET}`);
-}
+type ToolEvent = ToolUpdateEvent | ToolCompleteEvent;
 
-export function printToolComplete(event: AomiSSEEvent): void {
+export function printToolComplete(event: ToolEvent): void {
   const name = getToolNameFromEvent(event);
   const result = getToolResultFromEvent(event);
   const line = formatToolResultLine(name, result);
@@ -49,17 +46,17 @@ export function printToolComplete(event: AomiSSEEvent): void {
 
 const TASK_LINE_MAX = 100;
 
-export function printTaskStarted(event: AomiTaskStartedEvent): void {
+export function printTaskStarted(event: TaskStartedEvent): void {
   const label = event.label || event.agent_id;
   console.log(`${CYAN}◆ [agent] ${label} started${RESET}`);
 }
 
-export function printTaskActivity(event: AomiTaskActivityEvent): void {
+export function printTaskActivity(event: TaskActivityEvent): void {
   console.log(`${DIM}  ↳ ${formatTaskActivity(event)}${RESET}`);
 }
 
 export function printTaskCompleted(
-  event: AomiTaskCompletedEvent,
+  event: TaskCompletedEvent,
   label?: string,
 ): void {
   const color = event.status === "completed" ? GREEN : "\x1b[31m";
@@ -70,21 +67,19 @@ export function printTaskCompleted(
 }
 
 /** `tool_call` → tool name, `note` → note text. Truncated for one-line output. */
-export function formatTaskActivity(event: AomiTaskActivityEvent): string {
+export function formatTaskActivity(event: TaskActivityEvent): string {
   const raw =
-    event.kind === "note"
-      ? (event.text ?? "")
-      : (event.tool_name ?? "unknown tool");
+    event.kind === "note" ? event.text : event.tool_name;
   const normalized = raw.replace(/\s+/g, " ").trim();
   if (normalized.length <= TASK_LINE_MAX) return normalized;
   return `${normalized.slice(0, TASK_LINE_MAX)}…`;
 }
 
 export function formatTaskCompletionStats(
-  event: AomiTaskCompletedEvent,
+  event: TaskCompletedEvent,
 ): string {
-  const steps = event.steps ?? 0;
-  const seconds = ((event.duration_ms ?? 0) / 1000).toFixed(1);
+  const steps = event.steps;
+  const seconds = (event.duration_ms / 1000).toFixed(1);
   return `${steps} ${steps === 1 ? "step" : "steps"}, ${seconds}s`;
 }
 
@@ -123,43 +118,20 @@ export function printPaymentEvent(event: CliPaymentEvent): void {
   }
 }
 
-export function getToolNameFromEvent(event: AomiSSEEvent): string {
-  return (
-    (event.tool_name as string | undefined) ??
-    (event.name as string | undefined) ??
-    "unknown"
-  );
+export function getToolNameFromEvent(event: ToolEvent): string {
+  return event.tool_name;
 }
 
 export function getToolResultFromEvent(
-  event: AomiSSEEvent,
+  event: ToolEvent,
 ): string | undefined {
-  return (
-    (event.result as string | undefined) ?? (event.output as string | undefined)
-  );
+  return typeof event.result === "string"
+    ? event.result
+    : JSON.stringify(event.result);
 }
 
 export function toToolResultKey(name: string, result?: string): string {
   return `${name}\n${result ?? ""}`;
-}
-
-export function getMessageToolResults(
-  messages: AomiMessage[],
-  startAt = 0,
-): Array<{ name: string; result: string }> {
-  const results: Array<{ name: string; result: string }> = [];
-  for (let i = startAt; i < messages.length; i++) {
-    const toolResult = messages[i].tool_result;
-    if (!toolResult) {
-      continue;
-    }
-    const [name, result] = toolResult;
-    if (!name || typeof result !== "string") {
-      continue;
-    }
-    results.push({ name, result });
-  }
-  return results;
 }
 
 export function isAlwaysVisibleTool(name: string): boolean {
@@ -179,12 +151,10 @@ export function isAlwaysVisibleTool(name: string): boolean {
 }
 
 export function printNewAgentMessages(
-  messages: AomiMessage[],
+  messages: readonly MessageEvent[],
   lastPrintedCount: number,
 ): number {
-  const agentMessages = messages.filter(
-    (message) => message.sender === "agent" || message.sender === "assistant",
-  );
+  const agentMessages = messages.filter((message) => message.sender === "agent");
 
   let handled = lastPrintedCount;
   for (let i = lastPrintedCount; i < agentMessages.length; i++) {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FC } from "react";
 import { ChevronDownIcon, CheckIcon } from "lucide-react";
-import { useControl, cn } from "@aomi-labs/react";
+import { useAomiRuntime, useControl, cn } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -40,8 +40,8 @@ export const ModelSelect: FC<ModelSelectProps> = ({
     getAvailableModels,
     getCurrentThreadControl,
     onModelSelect,
-    isProcessing,
   } = useControl();
+  const { isRunning } = useAomiRuntime();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -82,7 +82,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
   const triggerLabel = isAuto ? AUTO_MODE_LABEL : selectedModel || placeholder;
 
   const handleSelect = (model: string) => {
-    if (isProcessing) return;
+    if (isRunning) return;
     setOpen(false);
     void onModelSelect(model, { mode: "manual" }).catch((err) => {
       console.error("[ModelSelect] onModelSelect failed:", err);
@@ -90,7 +90,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
   };
 
   const handleAutoSelect = () => {
-    if (!autoBackendModel || isProcessing) return;
+    if (!autoBackendModel || isRunning) return;
     setOpen(false);
     void onModelSelect(autoBackendModel, { mode: "auto" }).catch((err) => {
       console.error("[ModelSelect] auto onModelSelect failed:", err);
@@ -104,11 +104,11 @@ export const ModelSelect: FC<ModelSelectProps> = ({
           variant="ghost"
           role="combobox"
           aria-expanded={open}
-          disabled={isProcessing}
+          disabled={isRunning}
           className={cn(
             "h-8 w-auto min-w-0 justify-between rounded-full px-0.5 text-xs md:min-w-[100px] md:px-3",
             "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-            isProcessing && "cursor-not-allowed opacity-50",
+            isRunning && "cursor-not-allowed opacity-50",
             className,
           )}
         >
@@ -149,7 +149,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
             <CommandGroup>
               <CommandItem
                 value="auto"
-                disabled={isProcessing}
+                disabled={isRunning}
                 onSelect={handleAutoSelect}
                 className="flex items-center justify-between gap-2"
               >
@@ -187,7 +187,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
                     <CommandItem
                       key={model}
                       value={model}
-                      disabled={isProcessing}
+                      disabled={isRunning}
                       onSelect={() => handleSelect(model)}
                       className="flex items-center justify-between gap-2"
                     >

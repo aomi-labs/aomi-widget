@@ -2,7 +2,7 @@
 
 import { useState, useEffect, type FC } from "react";
 import { BotIcon, ChevronDownIcon, CheckIcon } from "lucide-react";
-import { useControl, cn } from "@aomi-labs/react";
+import { useAomiRuntime, useControl, cn } from "@aomi-labs/react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -47,8 +47,8 @@ export const AppSelect: FC<AppSelectProps> = ({
     getCurrentThreadApp,
     getCurrentThreadApplicationId,
     onAppSelect,
-    isProcessing,
   } = useControl();
+  const { isRunning } = useAomiRuntime();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -56,7 +56,7 @@ export const AppSelect: FC<AppSelectProps> = ({
   }, [getAuthorizedApps]);
 
   const selectApp = (id: string, applicationId?: string | number | null) => {
-    if (isProcessing) return;
+    if (isRunning) return;
     onAppSelect(id, { applicationId });
     setOpen(false);
   };
@@ -106,11 +106,11 @@ export const AppSelect: FC<AppSelectProps> = ({
           variant="ghost"
           role="combobox"
           aria-expanded={open}
-          disabled={isProcessing}
+          disabled={isRunning}
           className={cn(
             "h-8 w-auto min-w-0 justify-between gap-px rounded-full px-0.5 text-xs md:min-w-[80px] md:gap-1.5 md:px-3",
             "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-            isProcessing && "cursor-not-allowed opacity-50",
+            isRunning && "cursor-not-allowed opacity-50",
             className,
           )}
         >
@@ -144,7 +144,7 @@ export const AppSelect: FC<AppSelectProps> = ({
                   {hasAllApps && (
                     <CommandItem
                       value="basic default no app"
-                      disabled={isProcessing}
+                      disabled={isRunning}
                       onSelect={() => selectApp(ALL_APPS_ID)}
                       className="flex items-center justify-between gap-2"
                     >
@@ -172,7 +172,7 @@ export const AppSelect: FC<AppSelectProps> = ({
                   {hasOrchestrator && (
                     <CommandItem
                       value="orchestrator modes agents delegate"
-                      disabled={isProcessing}
+                      disabled={isRunning}
                       onSelect={() =>
                         selectApp(ORCHESTRATOR_ID, orchestratorApplicationId)
                       }
@@ -220,7 +220,7 @@ export const AppSelect: FC<AppSelectProps> = ({
                     <CommandItem
                       key={`${app.id}:${app.applicationId ?? "unscoped"}`}
                       value={`${app.displayName} ${app.category.label} ${app.id}`}
-                      disabled={isProcessing}
+                      disabled={isRunning}
                       onSelect={() => selectApp(app.id, app.applicationId)}
                       className="flex items-center justify-between gap-2"
                     >

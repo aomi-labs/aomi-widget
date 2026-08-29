@@ -1,10 +1,10 @@
 import { createWidgetSiweChallenge } from "@aomi-labs/account/widget-auth";
-import { widgetAuthRateLimit } from "@portal/lib/widget-auth/rate-limit";
+import { widgetAuthRateLimit } from "@portal/server/widget-auth/rate-limit";
 import {
   widgetChallengeResponse,
   widgetPreflight,
   widgetRoute,
-} from "@portal/lib/widget-auth/response";
+} from "@portal/server/widget-auth/response";
 import { z } from "zod";
 
 const requestSchema = z.object({

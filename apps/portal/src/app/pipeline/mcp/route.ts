@@ -1,7 +1,7 @@
 import { auth } from "@aomi-labs/account/better-auth";
 import { requireMcpAuth } from "@better-auth/mcp";
 
-import { handlePipelineMcp } from "@portal/server/pipeline-mcp-route";
+import { proxyAgentApi } from "@portal/server/agent-api-proxy";
 import {
   apiAuthError,
   principalFromOAuthClaims,
@@ -24,7 +24,16 @@ const authenticatedPost = requireMcpAuth(
         await principalFromOAuthClaims(claims, resource),
         "pipeline",
       );
-      return handlePipelineMcp(request, principal);
+      const url = new URL(request.url);
+      url.pathname = "/v1/pipeline/mcp";
+      return proxyAgentApi(
+        new Request(url, {
+          method: request.method,
+          headers: request.headers,
+          body: await request.arrayBuffer(),
+        }),
+        principal,
+      );
     } catch (error) {
       return apiAuthError(error, resource);
     }

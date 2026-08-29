@@ -11,7 +11,7 @@ export {
   resolveWidgetSession,
   revokeWidgetSession,
   WIDGET_SESSION_TTL_SECONDS,
-  type WidgetSession,
+  type AccountSession,
 } from "./session";
 export {
   createWidgetSiweChallenge,
