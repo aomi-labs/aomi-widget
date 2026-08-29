@@ -5,7 +5,6 @@ const mocks = vi.hoisted(() => ({
     | ((request: Request, claims: Record<string, unknown>) => Promise<Response>)
     | undefined,
   options: undefined as Record<string, unknown> | undefined,
-  narrow: vi.fn(),
   principal: vi.fn(),
   proxy: vi.fn(),
 }));
@@ -29,15 +28,22 @@ vi.mock("@better-auth/mcp", () => ({
 }));
 vi.mock("@portal/server/oauth/resources", () => ({
   aomiOAuthResources: () => ({
-    pipelineMcp: "https://chat.aomi.dev/pipeline/mcp",
+    pipelineMcp: "https://chat.aomi.dev/v1/pipeline/mcp",
+  }),
+  aomiOAuthResourcePolicy: () => ({
+    allowedScopes: [
+      "mcp:pipeline",
+      "pipeline:catalog",
+      "pipeline:execute",
+      "payments:submit",
+      "custody:delegate",
+    ],
   }),
 }));
 vi.mock("@portal/server/oauth/principal", () => ({
+  ApiPrincipalError: class ApiPrincipalError extends Error {},
   apiAuthError: vi.fn(() => new Response(null, { status: 403 })),
   principalFromOAuthClaims: mocks.principal,
-}));
-vi.mock("@portal/server/oauth/mcp-scopes", () => ({
-  narrowMcpPrincipal: mocks.narrow,
 }));
 vi.mock("@portal/server/agent-api-proxy", () => ({
   proxyAgentApi: mocks.proxy,
@@ -47,7 +53,7 @@ import { POST } from "./route";
 
 const principal = {
   canonicalUserId: "aomi-user-1",
-  resource: "https://chat.aomi.dev/pipeline/mcp",
+  resource: "https://chat.aomi.dev/v1/pipeline/mcp",
   authSource: "oauth",
   principalClass: "user",
   scopes: ["mcp:pipeline", "pipeline:catalog"],
@@ -56,20 +62,19 @@ const principal = {
 describe("canonical Pipeline MCP route", () => {
   beforeEach(() => {
     mocks.principal.mockResolvedValue(principal);
-    mocks.narrow.mockResolvedValue(principal);
     mocks.proxy.mockResolvedValue(Response.json({ ok: true }));
   });
 
   it("configures exact-resource OAuth for every MCP protocol method", async () => {
     expect(mocks.options).toMatchObject({
-      resource: "https://chat.aomi.dev/pipeline/mcp",
+      resource: "https://chat.aomi.dev/v1/pipeline/mcp",
       requiredScopes: ["mcp:pipeline"],
       challengeScopes: ["mcp:pipeline", "pipeline:catalog"],
       dpop: { signingAlgorithms: ["ES256", "EdDSA"] },
     });
     for (const method of ["initialize", "tools/list", "tools/call"]) {
       const response = await POST(
-        new Request("https://chat.aomi.dev/pipeline/mcp", {
+        new Request("https://chat.aomi.dev/v1/pipeline/mcp", {
           method: "POST",
           body: JSON.stringify({ jsonrpc: "2.0", id: 1, method }),
         }),
@@ -78,25 +83,34 @@ describe("canonical Pipeline MCP route", () => {
     }
   });
 
-  it("preserves the narrowed principal and delegates only to the Rust presenter", async () => {
-    const request = new Request("https://chat.aomi.dev/pipeline/mcp", {
+  it.each([
+    "aomi_get_agent_context",
+    "aomi_list_apps",
+    "aomi_list_namespaces",
+    "aomi_list_tools",
+  ])("delegates %s to Rust without a Portal tool classifier", async (name) => {
+    const request = new Request("https://chat.aomi.dev/v1/pipeline/mcp", {
       method: "POST",
       headers: { authorization: "Bearer exact-resource-token" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name, arguments: {} },
+      }),
     });
 
     expect((await POST(request)).status).toBe(200);
     expect(mocks.principal).toHaveBeenCalledWith(
       { sub: "user-1" },
-      "https://chat.aomi.dev/pipeline/mcp",
+      "https://chat.aomi.dev/v1/pipeline/mcp",
     );
-    expect(mocks.narrow).toHaveBeenCalledWith(request, principal, "pipeline");
-    const [proxied, delegated] = mocks.proxy.mock.calls[0] as [
+    const [proxied, delegated] = mocks.proxy.mock.calls.at(-1) as [
       Request,
       typeof principal,
     ];
     expect(new URL(proxied.url).pathname).toBe("/v1/pipeline/mcp");
-    expect(await proxied.text()).toContain("tools/list");
-    expect(delegated).toBe(principal);
+    expect(await proxied.text()).toContain(name);
+    expect(delegated).toMatchObject({ scopes: principal.scopes });
   });
 });

@@ -10,6 +10,7 @@ export {
   AOMI_SCOPES,
   AGENT_SCOPES,
   PIPELINE_SCOPES,
+  aomiOAuthResourcePolicy,
   aomiOAuthResources,
 } from "./oauth-policy";
 export { readAccountAuthEnv, type AccountAuthEnv } from "./env";

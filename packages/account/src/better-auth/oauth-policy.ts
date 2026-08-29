@@ -41,9 +41,34 @@ export function aomiOAuthResources() {
   const origin = new URL(readAccountAuthEnv().betterAuthUrl).origin;
   return {
     issuer: origin,
-    agentMcp: `${origin}/agent/mcp`,
-    pipelineMcp: `${origin}/pipeline/mcp`,
+    agentMcp: `${origin}/v1/agent/mcp`,
+    pipelineMcp: `${origin}/v1/pipeline/mcp`,
     agentRest: `${origin}/v1/agent`,
     pipelineRest: `${origin}/v1/pipeline`,
   } as const;
+}
+
+export function aomiOAuthResourcePolicy(resource: string) {
+  const resources = aomiOAuthResources();
+  if (resource === resources.agentMcp) {
+    return { identifier: resource, allowedScopes: AGENT_SCOPES } as const;
+  }
+  if (resource === resources.pipelineMcp) {
+    return { identifier: resource, allowedScopes: PIPELINE_SCOPES } as const;
+  }
+  if (resource === resources.agentRest) {
+    return {
+      identifier: resource,
+      allowedScopes: AGENT_SCOPES.filter((scope) => scope !== "mcp:agent"),
+    } as const;
+  }
+  if (resource === resources.pipelineRest) {
+    return {
+      identifier: resource,
+      allowedScopes: PIPELINE_SCOPES.filter(
+        (scope) => scope !== "mcp:pipeline",
+      ),
+    } as const;
+  }
+  return null;
 }

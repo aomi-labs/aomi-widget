@@ -7,7 +7,7 @@ import {
   principalFromOAuthClaims,
 } from "@portal/server/oauth/principal";
 import { aomiOAuthResources } from "@portal/server/oauth/resources";
-import { narrowMcpPrincipal } from "@portal/server/oauth/mcp-scopes";
+import { downscopeMcpPrincipal } from "@portal/server/oauth/mcp-principal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,10 +19,11 @@ const authenticatedPost = requireMcpAuth(
   auth,
   async (request, claims) => {
     try {
-      const principal = await narrowMcpPrincipal(
+      const principal = downscopeMcpPrincipal(
         request,
         await principalFromOAuthClaims(claims, resource),
-        "agent",
+        resource,
+        "mcp:agent",
       );
       const url = new URL(request.url);
       url.pathname = "/v1/agent/mcp";
