@@ -144,6 +144,7 @@ const publicEventTypes = new Set([
   "tool_complete",
   "task_started",
   "task_activity",
+  "task_phase",
   "task_completed",
   "title_changed",
   "error",
