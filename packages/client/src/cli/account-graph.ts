@@ -94,7 +94,7 @@ export class AccountGraphClient {
   }
 
   getAccount(): Promise<AccountGraphResponse> {
-    return this.request<AccountGraphResponse>("/api/aomi/account", {
+    return this.request<AccountGraphResponse>("/v1/account", {
       method: "GET",
     });
   }
@@ -103,7 +103,7 @@ export class AccountGraphClient {
     displayName?: string | null;
     avatarUrl?: string | null;
   }): Promise<AccountGraphResponse> {
-    return this.request<AccountGraphResponse>("/api/aomi/account", {
+    return this.request<AccountGraphResponse>("/v1/account", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -111,13 +111,13 @@ export class AccountGraphClient {
   }
 
   deleteAccount(): Promise<AccountGraphDeleteResponse> {
-    return this.request<AccountGraphDeleteResponse>("/api/aomi/account", {
+    return this.request<AccountGraphDeleteResponse>("/v1/account", {
       method: "DELETE",
     });
   }
 
   signOut(): Promise<unknown> {
-    return this.request("/api/aomi/sign-out", { method: "POST" });
+    return this.request("/api/auth/sign-out", { method: "POST" });
   }
 
   async getWalletLinkNonce(input: {
@@ -128,7 +128,7 @@ export class AccountGraphClient {
       address: input.address,
       chainId: String(input.chainId),
     });
-    return this.request(`/api/aomi/wallets/link?${params.toString()}`, {
+    return this.request(`/v1/account/wallets/link?${params.toString()}`, {
       method: "GET",
     });
   }
@@ -143,7 +143,7 @@ export class AccountGraphClient {
     label?: string | null;
   }): Promise<AccountGraphLinkWalletResponse> {
     return this.request<AccountGraphLinkWalletResponse>(
-      "/api/aomi/wallets/link",
+      "/v1/account/wallets/link",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -156,7 +156,7 @@ export class AccountGraphClient {
     credential: unknown,
   ): Promise<AccountGraphProviderExchangeResponse> {
     return this.request<AccountGraphProviderExchangeResponse>(
-      "/api/aomi/provider/exchange",
+      "/v1/account/provider/exchange",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -170,7 +170,7 @@ export class AccountGraphClient {
     body: { displayLabel?: string | null },
   ): Promise<AccountGraphResponse> {
     return this.request<AccountGraphResponse>(
-      `/api/aomi/identities/${encodeURIComponent(identityId)}`,
+      `/v1/account/identities/${encodeURIComponent(identityId)}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -181,7 +181,7 @@ export class AccountGraphClient {
 
   unlinkIdentity(identityId: string): Promise<unknown> {
     return this.request(
-      `/api/aomi/identities/${encodeURIComponent(identityId)}`,
+      `/v1/account/identities/${encodeURIComponent(identityId)}`,
       {
         method: "DELETE",
       },
@@ -193,7 +193,7 @@ export class AccountGraphClient {
     body: { label?: string | null },
   ): Promise<AccountGraphResponse> {
     return this.request<AccountGraphResponse>(
-      `/api/aomi/wallets/${encodeURIComponent(walletId)}`,
+      `/v1/account/wallets/${encodeURIComponent(walletId)}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -203,7 +203,7 @@ export class AccountGraphClient {
   }
 
   unlinkWallet(walletId: string): Promise<unknown> {
-    return this.request(`/api/aomi/wallets/${encodeURIComponent(walletId)}`, {
+    return this.request(`/v1/account/wallets/${encodeURIComponent(walletId)}`, {
       method: "DELETE",
     });
   }

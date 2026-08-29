@@ -7,6 +7,10 @@ describe("createAomiBackendAccountClient", () => {
     const client = createAomiBackendAccountClient({ fetch: fetchImpl });
 
     await expect(client.signOut()).resolves.toBeUndefined();
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "/api/auth/sign-out",
+      expect.objectContaining({ method: "POST", credentials: "include" }),
+    );
   });
 
   it("accepts an empty 200 sign-out response", async () => {
