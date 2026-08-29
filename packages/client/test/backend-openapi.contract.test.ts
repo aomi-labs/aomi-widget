@@ -137,6 +137,7 @@ function isAomiAuthClass(value: unknown): value is AomiAuthClass {
     value === "account" ||
     value === "agent_adapter" ||
     value === "app_gate" ||
+    value === "delegated" ||
     value === "service" ||
     value === "admin" ||
     value === "activation"

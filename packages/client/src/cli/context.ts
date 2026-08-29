@@ -1,4 +1,5 @@
 import { AomiClient, wrapFetchWithPublicApiAuthorization } from "../client";
+import type { AomiOAuthTokenProvider } from "../authorization";
 import type { AomiIngestSecretsResponse } from "../types";
 import type { ClientSession } from "../session";
 import type { CliConfig } from "./types";
@@ -17,7 +18,15 @@ export function createControlClient(
 ): AomiClient {
   const cli = CliSession.load();
   const baseUrl = config.baseUrl ?? DEFAULT_CLI_BASE_URL;
-  const oauth = cli?.createOAuthProvider(fetch);
+  const oauth: AomiOAuthTokenProvider | undefined = config.accountBearer
+    ? async ({ resource, scopes }) => ({
+        accessToken: config.accountBearer!,
+        expiresAt: Number.MAX_SAFE_INTEGER,
+        resource,
+        scopes,
+        tokenType: "Bearer",
+      })
+    : cli?.createOAuthProvider(fetch);
   const authorizedFetch = oauth
     ? wrapFetchWithPublicApiAuthorization({ fetch, baseUrl, oauth })
     : fetch;

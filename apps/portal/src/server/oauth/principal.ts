@@ -9,7 +9,8 @@ import { getOrCreateAomiUserForBetterAuthSession } from "@aomi-labs/account/acco
 import { oauthProviderResourceClient } from "@better-auth/oauth-provider/resource-client";
 import type { JWTPayload } from "jose";
 
-import { getBetterAuthSession } from "@portal/lib/aomi-account/session";
+import { getBetterAuthSession } from "@portal/server/account/session";
+import { resolveE2ECanonicalUserId } from "@portal/server/e2e-wallet";
 import { isGuestRestEnabled } from "./features";
 import { aomiOAuthResources, type AomiPublicResource } from "./resources";
 
@@ -51,6 +52,18 @@ export async function resolveApiPrincipal(input: {
   requiredScopes: readonly string[];
   sessionScopes: readonly string[];
 }): Promise<ApiPrincipal> {
+  const e2eCanonicalUserId = resolveE2ECanonicalUserId(input.request);
+  if (e2eCanonicalUserId) {
+    enforceCookieCsrf(input.request);
+    return {
+      canonicalUserId: e2eCanonicalUserId,
+      scopes: [...input.sessionScopes],
+      resource: input.resource,
+      authSource: "session",
+      principalClass: "user",
+      sid: "e2e-session",
+    };
+  }
   if (isOAuthCredential(input.request)) {
     let claims: JWTPayload;
     try {

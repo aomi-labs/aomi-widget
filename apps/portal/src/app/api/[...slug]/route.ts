@@ -2,7 +2,7 @@ import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
 import { resolveCanonicalUserId } from "@portal/server/canonical-session";
 import { launchConfig } from "@portal/server/bff/launch/config";
 import { portalFailures } from "@portal/server/bff/failures";
-import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
+import { widgetPreflight, widgetRoute } from "@portal/server/widget-auth/response";
 
 export const ALLOWED_ROUTES: AllowedRoute[] = [
   {

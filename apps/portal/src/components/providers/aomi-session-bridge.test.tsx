@@ -21,7 +21,7 @@ const adapterState = vi.hoisted(() => ({
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
-  useAomiAuthAdapter: () => adapterState.current,
+  useAomiWalletKit: () => adapterState.current,
 }));
 
 function SessionProbe() {

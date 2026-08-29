@@ -36,14 +36,15 @@ function App() {
 }
 
 function Chat() {
-  const { sendMessage, isRunning, getMessages } = useAomiRuntime();
+  const { sendMessage, isSubmitting, turnState, events } = useAomiRuntime();
 
   return (
     <div>
       <button onClick={() => sendMessage("What's the price of ETH?")}>
         Ask
       </button>
-      {isRunning && <p>Thinking...</p>}
+      {(isSubmitting || turnState === "processing") && <p>Thinking...</p>}
+      <p>{events.length} ordered events</p>
     </div>
   );
 }
@@ -53,7 +54,9 @@ function Chat() {
 
 ### `<AomiRuntimeProvider>`
 
-Root provider that composes thread, user, event, notification, and control contexts.
+Root provider that composes thread selection, notifications, the client-owned
+`UserState` source, controls, and the runtime core. Each active thread owns one
+`ClientSession` external store; React only selects and projects its snapshot.
 
 | Prop         | Default                   | Description      |
 | ------------ | ------------------------- | ---------------- |
@@ -74,7 +77,7 @@ Returns an `AomiRuntimeApi` object with:
 | ----------------------- | ------------------------------------------------ |
 | `user`                  | Current user state (wallet address, chain, etc.) |
 | `setUser(data)`         | Update user state (partial merge)                |
-| `onUserStateChange(cb)` | Subscribe to user state changes                  |
+| `getUserState()`        | Read the current canonical UserState             |
 
 **Thread API**
 
@@ -87,29 +90,27 @@ Returns an `AomiRuntimeApi` object with:
 | `renameThread(id, title)` | Rename a thread            |
 | `selectThread(id)`        | Switch to a thread         |
 
-**Chat API**
+**Agent API**
 
 | Property                 | Description                     |
 | ------------------------ | ------------------------------- |
-| `isRunning`              | Whether the agent is generating |
-| `getMessages(threadId?)` | Get messages for a thread       |
-| `sendMessage(text)`      | Send a message                  |
-| `cancelGeneration()`     | Cancel current generation       |
+| `isSubmitting`           | Before the first backend Event exists          |
+| `isRunning`              | Derived from authoritative `TurnState`         |
+| `events`                 | Ordered canonical Events for the active session|
+| `turnState`              | Backend-owned lifecycle                        |
+| `getMessages(threadId?)` | Assistant UI projection of `MessageEvent`s     |
+| `sendMessage(text)`      | Submit a typed StartTurn Intent                 |
+| `cancelGeneration()`     | Submit a typed Interrupt Intent                |
 
-**Wallet API**
+**Action API**
 
 | Property                           | Description               |
 | ---------------------------------- | ------------------------- |
-| `pendingWalletRequests`            | Queued wallet requests    |
-| `resolveWalletRequest(id, result)` | Complete a wallet request |
-| `rejectWalletRequest(id, error?)`  | Reject a wallet request   |
-
-**Event API**
-
-| Property              | Description                      |
-| --------------------- | -------------------------------- |
-| `subscribe(type, cb)` | Subscribe to backend events      |
-| `sseStatus`           | Agent activity connection status |
+| `pendingActions`              | Durable Actions awaiting a response |
+| `actionAttempts`              | Execution attempts from ClientSession |
+| `executeAction(id)`           | Execute through canonical capabilities |
+| `respondToAction(id, result)` | Submit a typed ActionResult Intent |
+| `rejectAction(id, reason?)`   | Reject a pending Action |
 
 ### Other Hooks
 
@@ -119,9 +120,7 @@ Returns an `AomiRuntimeApi` object with:
 | `useThreadContext()`       | Thread management context                                 |
 | `useControl()`             | Model/namespace/API key state                             |
 | `useNotification()`        | Toast notification context                                |
-| `useEventContext()`        | Raw event system access                                   |
-| `useWalletHandler()`       | Wallet request handler for custom adapter implementations |
-| `useNotificationHandler()` | Notification event handler                                |
+| `useActions(session)`      | Thin Action/attempt selector over a ClientSession snapshot |
 
 ## Utilities
 
@@ -141,5 +140,5 @@ import {
 
 ```ts
 import { AomiClient } from "@aomi-labs/react";
-import type { AomiMessage, AomiChatResponse } from "@aomi-labs/react";
+import type { Event, MessageEvent, Action, TurnState } from "@aomi-labs/react";
 ```

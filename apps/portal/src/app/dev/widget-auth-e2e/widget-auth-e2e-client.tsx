@@ -91,10 +91,7 @@ function WidgetAuthE2EPanel() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({
-        walletAddress: testWalletOne.address,
-        chainId: testChainId,
-      }),
+      body: JSON.stringify({}),
     });
     const { nonce } = await readJsonOrThrow<{ nonce: string }>(
       nonceResponse,
@@ -113,8 +110,6 @@ function WidgetAuthE2EPanel() {
       body: JSON.stringify({
         message,
         signature,
-        walletAddress: testWalletOne.address,
-        chainId: testChainId,
       }),
     });
     if (!verifyResponse.ok) {

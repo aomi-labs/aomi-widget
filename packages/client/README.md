@@ -8,7 +8,7 @@ Agent REST uses the exact OAuth resource `https://<portal>/v1/agent`; Pipeline
 REST uses `https://<portal>/v1/pipeline`. Supply an `oauth` token provider to
 use resource-bound developer grants. If no explicit credential is configured,
 the SDK creates and reuses one Better Auth anonymous/Bearer session for the
-guest-safe REST surface. Set `guestAuth: false` to disable that bootstrap.
+guest-safe REST surface. Set `guest: false` to disable that bootstrap.
 
 The public MCP resources are the unversioned `https://<portal>/agent/mcp` and
 `https://<portal>/pipeline/mcp`. The removed `/api/mcp` and `/api/mcp/direct`
@@ -47,70 +47,122 @@ const response = await client.sendMessage(threadId, "What's the price of ETH?");
 console.log(response.messages);
 ```
 
-### Pipeline API
+### High-level SDK
 
-`client.pipeline` is the shared typed transport used by browser and CLI
-consumers. Discovery and execution use the public `/v1/pipeline/*` contract;
-the client never calls legacy backend resource or execution routes directly.
+`Aomi` is the product-oriented facade. Pipeline is a stateless Build flow;
+Agent owns its thread and turn lifecycle. Supply wallet adapters once and both
+surfaces use the same wallet controller.
 
 ```ts
-const apps = await client.pipeline.listApps({ limit: 20 });
-const tools = await client.pipeline.searchTools({
-  q: "balance",
-  app: "svm-read-only",
-  limit: 5,
-});
-const tool = await client.pipeline.getTool("svm_get_balance", {
-  app: "svm-read-only",
+import { Aomi } from "@aomi-labs/client";
+
+const aomi = new Aomi({
+  baseUrl: "https://api.aomi.dev",
+  wallet: {
+    evm: {
+      address,
+      chainId: 1,
+      sendCalls: ({ chainId, calls }) => wallet.sendCalls({ chainId, calls }),
+      signMessage: ({ message }) => wallet.signMessage({ message }),
+      signTypedData: ({ typedData }) => wallet.signTypedData(typedData),
+      switchChain: (chainId) => wallet.switchChain({ chainId }),
+    },
+  },
 });
 
-const result = await client.pipeline.callTool(
-  {
-    sessionId: crypto.randomUUID(),
-    app: "svm-read-only",
-    toolId: "svm_get_balance",
-    arguments: { address: "..." },
-  },
-  {
-    // Persist and reuse this key if the same logical operation is retried.
-    idempotencyKey: "pipeline-operation-01J...",
-  },
-);
+const build = await aomi.pipeline
+  .app("aave")
+  .build("supply", { asset: "USDC", amount: "100" });
+
+renderPreview(build.summary, build.actions, build.simulation);
+await build.commit(); // commit is always explicit
+
+const agentResult = await aomi.agent.run("Supply 100 USDC to Aave");
+console.log(agentResult.messages);
+
+// The wire-close client is always available without a second instance.
+await aomi.raw.pipeline.evm.stage({ actions: [] });
 ```
 
-The Rust backend remains authoritative for app visibility, policy/guards,
-payment, wallet/secrets context, and custody. The client keeps no tool or app
-allowlist. Calls and runs require a caller-owned `Idempotency-Key` and are never
-retried automatically; reuse the same key only for the same request body.
-Gate F discovery and execution expose builtin public apps only. Hosted identity
-support is deferred; execution with `applicationId` returns `501` until the
-identity-aware Phase 10 boundary.
-Execution responses expose typed canonical `actions`; resolve them through the
-existing canonical `client.agent.resolveAction(sessionId, actionId, result)`
-path rather than a second Pipeline custody endpoint.
+For event-driven Agent integrations, retain the run object:
+
+```ts
+const run = aomi.agent.run("Swap half my USDC and supply the rest");
+run.on("action", renderAction);
+run.on("simulation", renderPreview);
+run.on("wallet_request", showWalletState);
+run.on("completed", console.log);
+const result = await run.result();
+```
+
+### Low-level Pipeline API
+
+`AomiClient` stays close to the stateless public protocol. Stable EVM and SVM
+primitives have distinct DTOs and lifecycle transitions; TypeScript rejects a
+commit of a merely staged Build.
+
+```ts
+const staged = await client.pipeline.evm.stage({
+  actions: [
+    {
+      chainId: 1,
+      calls: [{ to: "0x...", data: "0x", value: 0n }],
+    },
+  ],
+});
+const simulated = await client.pipeline.evm.simulate(staged);
+const receipt = await client.pipeline.evm.commit(simulated);
+
+const svmStaged = await client.pipeline.svm.stage({
+  kind: "instructions",
+  instructions,
+});
+```
+
+The Catalog is filesystem-like and arbitrary live operations deliberately stay
+runtime-schema-driven:
+
+```ts
+const root = await client.pipeline.root();
+const operation = await client.pipeline.app("aave").operation("supply");
+
+const result = await client.pipeline.app("aave").invoke("supply", {
+  asset: "USDC",
+  amount: "100",
+}); // arguments are checked against operation.inputSchema before POST
+
+const skillMarkdown = await client.pipeline
+  .skill("leveraged-lending")
+  .instructions();
+```
+
+Integrations use filesystem discovery, scoped operations, and chain-specific Builds.
+The base package does not claim compile-time knowledge of live app or skill
+operations; Catalog-specific generation remains a separate later capability.
 
 ### Session (high-level)
 
-Handles polling, event dispatch, and wallet request management automatically.
+Owns polling, ordered Event reduction, lifecycle, and Action execution.
 
 ```ts
 import { Session } from "@aomi-labs/client";
 
 const session = new Session(
   { baseUrl: "https://api.aomi.dev" },
-  { namespace: "default" },
+  { app: "default", actions: walletCapabilities },
 );
 
 // Blocking send — polls until the agent finishes responding
 const result = await session.send("Swap 1 ETH for USDC on Uniswap");
 console.log(result.messages);
 
-// Listen for wallet signing requests
-session.on("wallet_tx_request", async (req) => {
-  const signed = await mySigner.signTransaction(req.payload);
-  await session.resolve(req.id, { txHash: signed.hash });
+const unsubscribe = session.subscribe(() => {
+  const { actions, turnState } = session.getSnapshot();
+  console.log(turnState, actions);
 });
 
+await session.actions.execute(actionId);
+unsubscribe();
 session.close();
 ```
 
@@ -124,15 +176,15 @@ new Session(clientOptions: AomiClientOptions, sessionOptions?: SessionOptions)
 new Session(client: AomiClient, sessionOptions?: SessionOptions)
 ```
 
-| Option           | Default               | Description                             |
-| ---------------- | --------------------- | --------------------------------------- |
-| `sessionId`      | `crypto.randomUUID()` | Thread/session ID                       |
-| `namespace`      | `"default"`           | Backend namespace                       |
-| `publicKey`      | —                     | Wallet address                          |
-| `apiKey`         | —                     | API key for private namespaces          |
-| `userState`      | —                     | Arbitrary user state sent with requests |
-| `pollIntervalMs` | `500`                 | Polling interval in ms                  |
-| `logger`         | —                     | Pass `console` for debug output         |
+| Option           | Default               | Description                                  |
+| ---------------- | --------------------- | -------------------------------------------- |
+| `sessionId`      | `crypto.randomUUID()` | Agent session ID                             |
+| `app`            | `"default"`           | App selected for new turns                   |
+| `model`          | —                     | Optional model preference                    |
+| `getUserState`   | —                     | Reads canonical UserState when a turn starts |
+| `pollIntervalMs` | `500`                 | Event polling interval                       |
+| `actions`        | `{}`                  | Canonical wallet/action capabilities         |
+| `logger`         | —                     | Pass `console` for debug output              |
 
 #### Methods
 
@@ -140,37 +192,23 @@ new Session(client: AomiClient, sessionOptions?: SessionOptions)
 | ---------------------- | ----------------------------------------------------------------- |
 | `send(message)`        | Send a message, wait for completion, return `{ messages, title }` |
 | `sendAsync(message)`   | Send without waiting — poll in background, listen via events      |
-| `resolve(id, result)`  | Resolve a pending wallet request                                  |
-| `reject(id, reason?)`  | Reject a pending wallet request                                   |
 | `interrupt()`          | Cancel current processing                                         |
-| `close()`              | Stop polling, unsubscribe SSE, clean up                           |
-| `getMessages()`        | Current messages                                                  |
-| `getTitle()`           | Current session title                                             |
-| `getPendingRequests()` | Pending wallet requests                                           |
-| `getIsProcessing()`    | Whether the agent is processing                                   |
+| `sync()`               | Fetch the next ordered EventPage                                  |
+| `fetchCurrentState()`  | Hydrate from the session Event ledger                             |
+| `getSnapshot()`        | Immutable SessionSnapshot                                         |
+| `subscribe(listener)`  | Subscribe for `useSyncExternalStore`                              |
+| `close()`              | Stop polling and release listeners                               |
 
-#### Events
-
-```ts
-session.on("wallet_tx_request", (req) => { ... });
-session.on("wallet_signing_request", (req) => { ... });
-session.on("messages", (msgs) => { ... });
-session.on("processing_start", () => { ... });
-session.on("processing_end", () => { ... });
-session.on("title_changed", ({ title }) => { ... });
-session.on("tool_update", (event) => { ... });
-session.on("tool_complete", (event) => { ... });
-session.on("system_notice", ({ message }) => { ... });
-session.on("system_error", ({ message }) => { ... });
-session.on("error", ({ error }) => { ... });
-session.on("*", ({ type, payload }) => { ... }); // wildcard
-```
-
-`.on()` returns an unsubscribe function:
+#### Snapshot
 
 ```ts
-const unsub = session.on("messages", handler);
-unsub(); // stop listening
+const unsubscribe = session.subscribe(() => {
+  const snapshot = session.getSnapshot();
+  console.log(snapshot.cursor, snapshot.turnState, snapshot.events);
+});
+
+await session.actions.execute(actionId);
+unsubscribe();
 ```
 
 ## CLI

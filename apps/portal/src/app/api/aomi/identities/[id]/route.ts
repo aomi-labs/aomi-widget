@@ -2,12 +2,12 @@ import {
   renameAuthIdentity,
   unlinkAuthIdentity,
 } from "@aomi-labs/account/account";
-import { json } from "@portal/lib/aomi-account/session";
+import { json } from "@portal/server/account/session";
 import {
   accountResponseForPrincipal,
   requirePortalPrincipal,
-} from "@portal/lib/widget-auth/principal";
-import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
+} from "@portal/server/widget-auth/principal";
+import { widgetPreflight, widgetRoute } from "@portal/server/widget-auth/response";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

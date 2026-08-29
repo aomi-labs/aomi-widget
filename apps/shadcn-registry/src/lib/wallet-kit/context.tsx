@@ -48,10 +48,17 @@ function AomiWalletKitSync({ walletKit }: { walletKit: AomiWalletKit }) {
     // payloads, never forwarded from identity into user_state. Only FE-owned
     // connection facts (owner, chain, provider, auth) are synced here.
     setUser({
-      address: identity.address ?? undefined,
-      walletKind: identity.walletKind ?? undefined,
-      chainId: identity.chainId ?? undefined,
-      isConnected: identity.isConnected,
+      connection: {
+        is_connected: identity.isConnected,
+        provider: identity.isConnected
+          ? (identity.sessionProvider ?? identity.embeddedProvider ?? null)
+          : null,
+        auth_method: identity.isConnected ? (identity.authMethod ?? null) : null,
+      },
+      evm: {
+        address: identity.address ?? null,
+        chain_id: identity.chainId ?? null,
+      },
       svm: {
         address: identity.svmAddress ?? null,
         cluster: identity.svmCluster ?? undefined,
@@ -59,29 +66,12 @@ function AomiWalletKitSync({ walletKit }: { walletKit: AomiWalletKit }) {
         transport: identity.svmTransport ?? null,
         capabilities: toSvmCapabilities(identity.svmCapabilities) ?? [],
       },
-      walletProvider: identity.isConnected
-        ? (identity.sessionProvider ??
-          identity.embeddedProvider ??
-          identity.walletProvider ??
-          null)
-        : null,
-      walletProviderSubject: identity.isConnected
-        ? (identity.walletProviderSubject ?? null)
-        : null,
-      authMethod: identity.isConnected ? (identity.authMethod ?? null) : null,
-      authValue: identity.isConnected ? (identity.authValue ?? null) : null,
-      authVerifiedAt: identity.isConnected
-        ? (identity.authVerifiedAt ?? null)
-        : null,
     });
   }, [
     identity.address,
     identity.authMethod,
-    identity.authValue,
-    identity.authVerifiedAt,
     identity.chainId,
     identity.isConnected,
-    identity.walletKind,
     identity.svmCapabilities,
     identity.svmCluster,
     identity.svmTransport,
@@ -89,8 +79,6 @@ function AomiWalletKitSync({ walletKit }: { walletKit: AomiWalletKit }) {
     identity.svmAddress,
     identity.embeddedProvider,
     identity.sessionProvider,
-    identity.walletProvider,
-    identity.walletProviderSubject,
     setUser,
   ]);
 

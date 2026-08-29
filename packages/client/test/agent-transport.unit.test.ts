@@ -6,13 +6,10 @@ describe("AgentTransport", () => {
   it("uses canonical routes, cursor long poll, and mutation keys", async () => {
     const fetch = vi.fn().mockImplementation(async () =>
       Response.json({
-        sessionId: "session-1",
-        status: "processing",
+        session_id: "session-1",
         cursor: "cursor-1",
-        messages: [],
-        activity: [],
-        actions: [],
-        hasMore: false,
+        events: [],
+        has_more: false,
       }),
     );
     const agent = new AomiClient({
@@ -25,7 +22,7 @@ describe("AgentTransport", () => {
       { sessionId: "session-1", message: "hello", app: "default" },
       { idempotencyKey: "idem-fixed", paymentSignature: "payment" },
     );
-    await agent.check("session-1", { cursor: "cursor-1", waitMs: 40_000 });
+    await agent.poll("session-1", { cursor: "cursor-1", waitMs: 40_000 });
 
     expect(fetch.mock.calls[0][0]).toBe("https://portal.example/v1/agent/chat");
     const startHeaders = new Headers(fetch.mock.calls[0][1].headers);
@@ -45,15 +42,14 @@ describe("AgentTransport", () => {
             error: {
               code: "busy",
               message: "Turn is active",
-              requestId: "request-1",
             },
           },
-          { status: 409 },
+          { status: 409, headers: { "x-request-id": "request-1" } },
         ),
       ),
       guest: false,
     });
-    const error = await client.agent.check("session-1").catch((value) => value);
+    const error = await client.agent.poll("session-1").catch((value) => value);
     expect(error).toBeInstanceOf(AgentApiError);
     expect(error).toMatchObject({
       code: "busy",

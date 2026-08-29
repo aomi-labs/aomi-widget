@@ -18,10 +18,9 @@ function MyComponent() {
   const aomi = useAomiRuntime();
 
   // User API
-  aomi.user;                  // { address?, chainId?, isConnected, ensName? }
+  aomi.user;                  // canonical nested UserState
   aomi.setUser({ ... });
   aomi.getUserState();
-  aomi.onUserStateChange((user) => { ... });
 
   // Thread API
   aomi.currentThreadId;       // string
@@ -34,8 +33,11 @@ function MyComponent() {
   await aomi.archiveThread(id);
   aomi.selectThread(id);
 
-  // Chat API
-  aomi.isRunning;              // boolean
+  // Agent API
+  aomi.isSubmitting;           // before the first Event
+  aomi.isRunning;              // derived from TurnState
+  aomi.events;                 // readonly Event[]
+  aomi.turnState;              // backend-owned lifecycle
   aomi.getMessages(threadId?); // ThreadMessageLike[]
   await aomi.sendMessage("Hello!");
   aomi.cancelGeneration();
@@ -46,15 +48,11 @@ function MyComponent() {
   aomi.dismissNotification(id);
   aomi.clearAllNotifications();
 
-  // Wallet API
-  aomi.pendingWalletRequests;  // WalletRequest[]
-  aomi.startWalletRequest(id);
-  aomi.resolveWalletRequest(id, { txHash });
-  aomi.rejectWalletRequest(id, "reason");
-
-  // Event API
-  aomi.subscribe("event_type", callback);  // returns unsubscribe fn
-  aomi.sseStatus;              // "connected" | "connecting" | "disconnected"
+  // Action API
+  aomi.pendingActions;         // Action[]
+  aomi.actionAttempts;         // ReadonlyMap<string, ActionAttempt>
+  await aomi.executeAction(id);
+  await aomi.rejectAction(id, "reason");
 }
 ```
 
@@ -66,7 +64,6 @@ type AomiRuntimeApi = {
   user: UserState;
   getUserState: () => UserState;
   setUser: (data: Partial<UserState>) => void;
-  onUserStateChange: (cb: (user: UserState) => void) => () => void;
 
   // Thread
   currentThreadId: string;
@@ -79,8 +76,11 @@ type AomiRuntimeApi = {
   archiveThread: (id: string) => Promise<void>;
   selectThread: (id: string) => void;
 
-  // Chat
+  // Agent
+  isSubmitting: boolean;
   isRunning: boolean;
+  events: readonly Event[];
+  turnState?: TurnState;
   getMessages: (threadId?: string) => ThreadMessageLike[];
   sendMessage: (text: string) => Promise<void>;
   cancelGeneration: () => void;
@@ -91,15 +91,12 @@ type AomiRuntimeApi = {
   dismissNotification: (id: string) => void;
   clearAllNotifications: () => void;
 
-  // Wallet
-  pendingWalletRequests: WalletRequest[];
-  startWalletRequest: (id: string) => void;
-  resolveWalletRequest: (id: string, result: WalletRequestResult) => void;
-  rejectWalletRequest: (id: string, error?: string) => void;
-
-  // Events
-  subscribe: (type: string, cb: EventSubscriber) => () => void;
-  sseStatus: SSEStatus;
+  // Actions
+  pendingActions: Action[];
+  actionAttempts: ReadonlyMap<string, ActionAttempt>;
+  executeAction: (id: string) => Promise<void>;
+  respondToAction: (id: string, result: ActionResult) => Promise<void>;
+  rejectAction: (id: string, reason?: string) => Promise<void>;
 };
 ```
 
@@ -113,24 +110,22 @@ Wallet and user state management.
 import { useUser } from "@aomi-labs/react";
 
 function WalletStatus() {
-  const { user, setUser, getUserState, onUserStateChange } = useUser();
+  const { user, setUser, getUserState } = useUser();
 
   // Read state
-  user.address; // "0xABC..." | undefined
-  user.chainId; // 1 | undefined
-  user.isConnected; // boolean
-  user.ensName; // "vitalik.eth" | undefined
+  user.evm?.address; // "0xABC..." | undefined
+  user.evm?.chain_id; // 1 | undefined
+  user.connection?.is_connected; // boolean
+  user.evm?.ens_name; // "vitalik.eth" | undefined
 
   // Update state (partial merge)
-  setUser({ address: "0x...", chainId: 1, isConnected: true });
+  setUser({
+    connection: { is_connected: true, provider: "para" },
+    evm: { address: "0x...", chain_id: 1 },
+  });
 
   // Synchronous getter (for callbacks)
   const current = getUserState();
-
-  // Subscribe to changes
-  const unsubscribe = onUserStateChange((newUser) => {
-    console.log("User changed:", newUser);
-  });
 }
 ```
 
@@ -138,10 +133,16 @@ function WalletStatus() {
 
 ```typescript
 type UserState = {
-  address?: string;
-  chainId?: number;
-  isConnected: boolean;
-  ensName?: string;
+  connection?: {
+    is_connected: boolean;
+    provider?: string | null;
+    provider_label?: string | null;
+    auth_method?: string | null;
+  };
+  evm?: { address?: string | null; chain_id?: number | null; ens_name?: string | null };
+  svm?: { address?: string | null; cluster?: string | null };
+  preferences?: Record<string, unknown>;
+  ext?: Record<string, unknown>;
 };
 ```
 
@@ -286,75 +287,37 @@ type Notification = {
 
 ---
 
-## useEventContext
+## Events and Actions
 
-Agent activity subscription.
-
-```tsx
-import { useEventContext } from "@aomi-labs/react";
-
-function EventListener() {
-  const { subscribe, sseStatus } = useEventContext();
-
-  // Subscribe to inbound events by type
-  useEffect(() => {
-    const unsubscribe = subscribe("wallet_tx_request", (event) => {
-      console.log("Wallet request received:", event.payload);
-    });
-    return unsubscribe;
-  }, [subscribe]);
-}
-```
-
----
-
-## useWalletHandler
-
-Handles wallet transaction requests and EIP-712 signing requests from the AI backend.
+There is no React event bus. Read the active session's canonical Event snapshot
+through `useAomiRuntime`; Actions are Events whose nested request requires a
+client response.
 
 ```tsx
-import { useWalletHandler } from "@aomi-labs/react";
+import { useAomiRuntime } from "@aomi-labs/react";
 
-function WalletHandler() {
+function AgentState() {
   const {
-    pendingRequests, // WalletRequest[]
-    startProcessing, // (id) => void
-    resolveRequest, // (id, result) => void
-    rejectRequest, // (id, error?) => void
-  } = useWalletHandler({
-    sessionId: currentThreadId,
-    onRequestComplete: () => {
-      // Called after resolve/reject sends the outbound event
-    },
-  });
+    events,
+    turnState,
+    pendingActions,
+    actionAttempts,
+    executeAction,
+    rejectAction,
+  } = useAomiRuntime();
 
-  // Process a transaction request
-  for (const req of pendingRequests) {
-    if (req.kind === "transaction") {
-      // req.payload: WalletTxPayload
-      startProcessing(req.id);
-      // ... execute transaction with wagmi ...
-      resolveRequest(req.id, { txHash: "0x..." });
-    }
-
-    if (req.kind === "eip712_sign") {
-      // req.payload: WalletEip712Payload
-      startProcessing(req.id);
-      // ... sign typed data ...
-      resolveRequest(req.id, { signature: "0x..." });
-    }
-  }
+  return pendingActions.map((action) => (
+    <section key={`${action.id}:${action.revision}`}>
+      <pre>{JSON.stringify(action.request, null, 2)}</pre>
+      <button onClick={() => executeAction(action.id)}>Continue</button>
+      <button onClick={() => rejectAction(action.id, "Rejected by user")}>
+        Reject
+      </button>
+      <small>{actionAttempts.get(action.id)?.status ?? turnState}</small>
+    </section>
+  ));
 }
 ```
 
-### WalletRequest Type
-
-```typescript
-type WalletRequest = {
-  id: string;
-  kind: "transaction" | "eip712_sign";
-  status: "pending" | "processing";
-  payload: WalletTxPayload | WalletEip712Payload;
-  timestamp: number;
-};
-```
+Tool and task updates remain separate concrete Events. Present them as
+Assistant UI parts; do not convert them into synthetic transcript messages.

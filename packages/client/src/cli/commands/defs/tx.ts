@@ -2,7 +2,7 @@ import { defineCommand } from "citty";
 import { globalArgs, buildCliConfig, getPositionals } from "./shared";
 
 const txListDef = defineCommand({
-  meta: { name: "list", description: "List pending and signed transactions" },
+  meta: { name: "list", description: "List session Actions" },
   args: { ...globalArgs },
   async run({ args }) {
     const { txCommand } = await import("../wallet");
@@ -13,13 +13,13 @@ const txListDef = defineCommand({
 const txSimulateDef = defineCommand({
   meta: {
     name: "simulate",
-    description: "Simulate a batch of pending transactions",
+    description: "Simulate EVM execution Actions",
   },
   args: {
     ...globalArgs,
     txIds: {
       type: "positional",
-      description: "Transaction IDs to simulate",
+      description: "Action IDs to simulate",
       required: false,
     },
   },
@@ -31,7 +31,7 @@ const txSimulateDef = defineCommand({
 });
 
 const txSignDef = defineCommand({
-  meta: { name: "sign", description: "Sign and submit pending transactions" },
+  meta: { name: "sign", description: "Execute pending Actions" },
   args: {
     ...globalArgs,
     eoa: {
@@ -55,7 +55,7 @@ const txSignDef = defineCommand({
     },
     txIds: {
       type: "positional",
-      description: "Transaction IDs to sign",
+      description: "Action IDs to execute",
       required: false,
     },
   },

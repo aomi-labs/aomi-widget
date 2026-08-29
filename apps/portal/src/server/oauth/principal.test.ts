@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   verifyAccessTokenRequest: vi.fn(),
   getBetterAuthSession: vi.fn(),
   canonicalAccount: vi.fn(),
+  e2eCanonicalUserId: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/account/better-auth", () => ({
@@ -21,8 +22,11 @@ vi.mock("@better-auth/oauth-provider/resource-client", () => ({
 vi.mock("@aomi-labs/account/account", () => ({
   getOrCreateAomiUserForBetterAuthSession: mocks.canonicalAccount,
 }));
-vi.mock("@portal/lib/aomi-account/session", () => ({
+vi.mock("@portal/server/account/session", () => ({
   getBetterAuthSession: mocks.getBetterAuthSession,
+}));
+vi.mock("@portal/server/e2e-wallet", () => ({
+  resolveE2ECanonicalUserId: mocks.e2eCanonicalUserId,
 }));
 vi.mock("./features", () => ({
   isGuestRestEnabled: () => true,
@@ -52,6 +56,7 @@ describe("public OAuth and session principal resolution", () => {
   beforeEach(() => {
     mocks.verifyAccessTokenRequest.mockReset();
     mocks.getBetterAuthSession.mockReset().mockResolvedValue(null);
+    mocks.e2eCanonicalUserId.mockReset().mockReturnValue(null);
     mocks.canonicalAccount
       .mockReset()
       .mockResolvedValue({ id: "canonical-user" });
@@ -186,5 +191,28 @@ describe("public OAuth and session principal resolution", () => {
         sessionScopes: ["agent:write"],
       }),
     ).resolves.toMatchObject({ authSource: "session" });
+  });
+
+  it("resolves the signed local E2E session at the principal boundary", async () => {
+    mocks.e2eCanonicalUserId.mockReturnValue("e2e-user");
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          method: "POST",
+          headers: { origin: "https://portal.example" },
+        }),
+        resource,
+        requiredScopes: ["agent:write"],
+        sessionScopes: ["agent:read", "agent:write"],
+      }),
+    ).resolves.toEqual({
+      canonicalUserId: "e2e-user",
+      scopes: ["agent:read", "agent:write"],
+      resource,
+      authSource: "session",
+      principalClass: "user",
+      sid: "e2e-session",
+    });
+    expect(mocks.getBetterAuthSession).not.toHaveBeenCalled();
   });
 });
