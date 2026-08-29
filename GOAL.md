@@ -1,5 +1,14 @@
 # Canonical Landing
 
+Current session goal: **HOMEPAGE PRIORITY COPY AND LINK AUDIT VERIFIED
+2026-08-29** — applied the approved homepage language updates from the latest
+`main`, routed the primary conversation CTA and team CTA to Contact, and removed
+link treatment from homepage references that do not yet have supporting pages.
+Desktop and 390px browser checks confirm the updated copy, working Contact
+navigation, the plural Resources label, no false `#` links, and no horizontal
+overflow. Landing TypeScript, ESLint, production build, and `git diff --check`
+pass.
+
 Current session goal: **NON-HOMEPAGE GTM COPY ALIGNMENT VERIFIED 2026-08-26**
 — updated the approved language across About, Human Interface, Agent Toolings,
 REST APIs, Plugin SDK, Trading, DeFi, Fintech, Wallets, and Contact while
