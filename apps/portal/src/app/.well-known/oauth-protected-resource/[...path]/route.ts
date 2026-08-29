@@ -1,7 +1,10 @@
 import { auth } from "@aomi-labs/account/better-auth";
 import { oauthProviderResourceClient } from "@better-auth/oauth-provider/resource-client";
 
-import { aomiOAuthResources } from "@portal/server/oauth/resources";
+import {
+  aomiOAuthResourcePolicy,
+  aomiOAuthResources,
+} from "@portal/server/oauth/resources";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,70 +17,23 @@ export async function GET(
 ) {
   const path = `/${(await context.params).path.join("/")}`;
   const resources = aomiOAuthResources();
-  const policies = new Map<string, { resource: string; scopes: string[] }>([
-    [
-      "/agent/mcp",
-      {
-        resource: resources.agentMcp,
-        scopes: [
-          "mcp:agent",
-          "agent:read",
-          "agent:write",
-          "agent:actions:resolve",
-          "payments:submit",
-          "custody:delegate",
-        ],
-      },
-    ],
-    [
-      "/pipeline/mcp",
-      {
-        resource: resources.pipelineMcp,
-        scopes: [
-          "mcp:pipeline",
-          "pipeline:catalog",
-          "pipeline:execute",
-          "payments:submit",
-          "custody:delegate",
-        ],
-      },
-    ],
-    [
-      "/v1/agent",
-      {
-        resource: resources.agentRest,
-        scopes: [
-          "agent:read",
-          "agent:write",
-          "agent:actions:resolve",
-          "payments:submit",
-          "custody:delegate",
-        ],
-      },
-    ],
-    [
-      "/v1/pipeline",
-      {
-        resource: resources.pipelineRest,
-        scopes: [
-          "pipeline:catalog",
-          "pipeline:execute",
-          "payments:submit",
-          "custody:delegate",
-        ],
-      },
-    ],
-  ]);
-  const policy = policies.get(path);
+  const resource = [
+    resources.agentMcp,
+    resources.pipelineMcp,
+    resources.agentRest,
+    resources.pipelineRest,
+  ].find((candidate) => new URL(candidate).pathname === path);
+  const policy = resource && aomiOAuthResourcePolicy(resource);
   if (!policy) return Response.json({ error: "not_found" }, { status: 404 });
+  const scopes = [...policy.allowedScopes];
   return Response.json(
     await client.getProtectedResourceMetadata(
       {
-        resource: policy.resource,
+        resource: policy.identifier,
         authorization_servers: [resources.issuer],
-        scopes_supported: policy.scopes,
+        scopes_supported: scopes,
       },
-      { externalScopes: policy.scopes },
+      { externalScopes: scopes },
     ),
   );
 }
