@@ -23,7 +23,7 @@ import { PortalPrincipalError } from "./principal";
 import { widgetRoute } from "./response";
 
 function widgetRequest(): Request {
-  return new Request("http://localhost:3002/api/widget/auth/exchange", {
+  return new Request("http://localhost:3002/api/auth/widget/exchange", {
     method: "POST",
     headers: { Origin: "http://localhost:3000" },
   });
@@ -98,7 +98,7 @@ describe("widgetRoute error handling", () => {
       error: failure,
       response: { status: 500, error: "widget_auth_failed" },
       context: {
-        routeFamily: "/api/widget/auth/exchange",
+        routeFamily: "/api/auth/widget/exchange",
         operation: "widget.test",
         method: "POST",
       },

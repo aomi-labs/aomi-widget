@@ -153,7 +153,7 @@ async function signIn(jar) {
     "SIWE response did not confirm a user",
   );
   const graph = await json(
-    await jar.fetch("/api/aomi/account"),
+    await jar.fetch("/v1/account"),
     "canonical account graph",
   );
   const canonicalUserId = graph?.user?.id ?? graph?.user?.user_id;

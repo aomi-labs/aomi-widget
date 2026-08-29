@@ -177,7 +177,7 @@ function DeviceAuthProviderPanel({
         if (cancelled) return;
         if (mode === "link") {
           const grantResponse = await fetch(
-            "/api/aomi/device-auth/link-grant",
+            "/v1/account/device-auth/link-grant",
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -226,7 +226,7 @@ function DeviceAuthProviderPanel({
             `Provider exchange failed: HTTP ${exchangeResponse.status}`,
           );
         }
-        const grantResponse = await fetch("/api/aomi/device-auth/grant", {
+        const grantResponse = await fetch("/v1/account/device-auth/grant", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",

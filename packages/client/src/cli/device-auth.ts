@@ -82,7 +82,7 @@ export async function signInWithDeviceProvider({
     const { code } = await callback;
     const exchange = await requestJson<ExchangeResponse>(
       fetchImpl,
-      joinUrl(portalUrl, "/api/aomi/device-auth/exchange"),
+      joinUrl(portalUrl, "/v1/account/device-auth/exchange"),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -158,7 +158,7 @@ export async function getDeviceProviderCredential({
   try {
     const intent = await requestJson<LinkIntentResponse>(
       fetchImpl,
-      joinUrl(portalUrl, "/api/aomi/device-auth/link-intent"),
+      joinUrl(portalUrl, "/v1/account/device-auth/link-intent"),
       {
         method: "POST",
         headers: {
@@ -198,7 +198,7 @@ export async function getDeviceProviderCredential({
     const { code } = await callback;
     const exchange = await requestJson<DeviceProviderCredentialResult>(
       fetchImpl,
-      joinUrl(portalUrl, "/api/aomi/device-auth/exchange"),
+      joinUrl(portalUrl, "/v1/account/device-auth/exchange"),
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

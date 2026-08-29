@@ -3,8 +3,8 @@ import type { AomiClient } from "./client";
 export type AomiOAuthResource =
   | `${string}/v1/agent`
   | `${string}/v1/pipeline`
-  | `${string}/agent/mcp`
-  | `${string}/pipeline/mcp`;
+  | `${string}/v1/agent/mcp`
+  | `${string}/v1/pipeline/mcp`;
 
 export type AomiOAuthTokenSet = {
   accessToken: string;

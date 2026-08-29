@@ -33,6 +33,9 @@ if (firstLine !== `// Rust Agent contract SHA256: ${expected}`) {
 
 const forbiddenSources = [
   ["retired chat route", /\/api\/thread\/(?:chat|state|interrupt)/],
+  ["retired account route", /\/api\/aomi(?:\/|\b)/],
+  ["retired widget auth route", /\/api\/widget\/auth(?:\/|\b)/],
+  ["unversioned MCP resource", /(?<!\/v1)\/(?:agent|pipeline)\/mcp\b/],
   ["legacy Agent delta/activity type", /\bAgent(?:Delta|Activity)\b/],
   ["synthetic message type", /\bAomiMessage\b/],
   ["React event relay", /\bEventContext\b/],
