@@ -131,9 +131,10 @@ const useStaggeredReveal = (target: number, running: boolean): number => {
  */
 const WorkingStep: FC<{
   tool: ToolCallMessagePart;
+  relatedResults?: unknown[];
   active: boolean;
   animate: boolean;
-}> = ({ tool, active, animate }) => {
+}> = ({ tool, relatedResults, active, animate }) => {
   const done = tool.result !== undefined;
   const argsText =
     tool.argsText && tool.argsText !== "undefined" ? tool.argsText : undefined;
@@ -144,6 +145,7 @@ const WorkingStep: FC<{
         toolName: tool.toolName,
         argsText,
         result: tool.result,
+        relatedResults,
       })}
       argsText={argsText}
       detailText={done ? toDetailString(tool.result) : undefined}
@@ -370,15 +372,13 @@ export const WorkingTrace: FC<{
   );
 
   return (
-    // Open: a full-width bordered card (header + step rows). Closed: the card
-    // shrinks to a compact inline chip — a finished trace must not sit in the
-    // column as a full-width gray stripe.
+    // Keep one stable column in both states so the body has a real 0fr ⇄ 1fr
+    // path to animate through. The closed shell is transparent and only its
+    // compact header chip remains visible.
     <div
       className={cn(
-        "aui-working-trace mb-3",
-        open
-          ? "border-aomi-border flex flex-col overflow-hidden rounded-xl border"
-          : "flex",
+        "aui-working-trace mb-3 flex w-full flex-col overflow-hidden rounded-xl border transition-colors duration-300 motion-reduce:transition-none",
+        open ? "border-aomi-border" : "border-transparent",
       )}
     >
       <button
@@ -386,10 +386,10 @@ export const WorkingTrace: FC<{
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         className={cn(
-          "aui-working-trace-header flex items-center gap-2 text-left text-sm",
+          "aui-working-trace-header flex items-center gap-2 border text-left text-sm transition-[padding,border-radius,border-color,background-color] duration-300 ease-out motion-reduce:transition-none",
           open
-            ? "bg-aomi-surface w-full px-3.5 py-[11px]"
-            : "border-aomi-border bg-aomi-surface hover:border-aomi-muted/40 rounded-full border px-3 py-[7px] transition-colors",
+            ? "bg-aomi-surface w-full self-stretch rounded-[11px] border-transparent px-3.5 py-[11px]"
+            : "border-aomi-border bg-aomi-surface hover:border-aomi-muted/40 w-fit self-start rounded-full px-3 py-[7px]",
         )}
       >
         {!running && (
@@ -407,7 +407,7 @@ export const WorkingTrace: FC<{
         {open && <span className="flex-1" />}
         <ChevronDownIcon
           className={cn(
-            "text-aomi-muted size-3.5 shrink-0 transition-transform",
+            "text-aomi-muted size-3.5 shrink-0 transition-transform duration-300 ease-out motion-reduce:transition-none",
             open && "rotate-180",
           )}
         />
@@ -416,11 +416,11 @@ export const WorkingTrace: FC<{
       {/* Collapse animates the grid row from 1fr→0fr (plus a fade) instead of
           snapping shut. The body stays mounted so items never remount. */}
       <div
+        aria-hidden={!open}
+        inert={!open}
         className={cn(
-          "grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
-          open
-            ? "grid-rows-[1fr] opacity-100"
-            : "hidden grid-rows-[0fr] opacity-0",
+          "grid w-full transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none",
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
         )}
       >
         <div className="min-h-0 overflow-hidden">
@@ -468,6 +468,13 @@ export const WorkingTrace: FC<{
                       <WorkingStep
                         key={item.key}
                         tool={item.tool}
+                        relatedResults={visibleItems
+                          .slice(0, i)
+                          .flatMap((previous) =>
+                            previous.kind === "tool"
+                              ? [previous.tool.result]
+                              : [],
+                          )}
                         active={i === activeIndex}
                         animate={animate}
                       />
@@ -537,11 +544,82 @@ const collectText = (parts: TextMessagePart[]): string =>
     .join("\n\n")
     .trim();
 
+/**
+ * The final answer is deliberately buffered while tools are running because a
+ * text part is provisional until the last tool call lands. Once the turn has
+ * settled, reveal that buffered answer with a lightweight synthetic stream so
+ * it hands off naturally from the trace instead of appearing in one paint.
+ *
+ * The cadence scales with answer length and tops out at a few seconds: short
+ * answers still feel typed, while long reports do not make the reader wait.
+ */
+const ANSWER_STREAM_TICK_MS = 20;
+const ANSWER_STREAM_MS_PER_CHARACTER = 5.5;
+const ANSWER_STREAM_MIN_MS = 180;
+const ANSWER_STREAM_MAX_MS = 1400;
+
+const answerStreamChunkSize = (length: number): number => {
+  const duration = Math.min(
+    ANSWER_STREAM_MAX_MS,
+    Math.max(ANSWER_STREAM_MIN_MS, length * ANSWER_STREAM_MS_PER_CHARACTER),
+  );
+  return Math.max(1, Math.ceil(length / (duration / ANSWER_STREAM_TICK_MS)));
+};
+
+const useProgressiveAnswer = (
+  text: string,
+  animate: boolean,
+): { text: string; streaming: boolean } => {
+  const reduced = prefersReducedMotion();
+  const shouldAnimate = animate && !reduced;
+  const [visibleLength, setVisibleLength] = useState(() =>
+    shouldAnimate ? 0 : text.length,
+  );
+
+  useEffect(() => {
+    if (!shouldAnimate) {
+      setVisibleLength(text.length);
+      return;
+    }
+    // Content is append-only in normal operation. The clamp also handles a
+    // reconciliation replacing it with a shorter canonical answer.
+    setVisibleLength((current) => Math.min(current, text.length));
+  }, [shouldAnimate, text.length]);
+
+  useEffect(() => {
+    if (!shouldAnimate || visibleLength >= text.length) return;
+    const chunk = answerStreamChunkSize(text.length);
+    const timer = setTimeout(
+      () =>
+        setVisibleLength((current) => Math.min(text.length, current + chunk)),
+      ANSWER_STREAM_TICK_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [shouldAnimate, text.length, visibleLength]);
+
+  return {
+    text: text.slice(0, visibleLength),
+    streaming: shouldAnimate && visibleLength < text.length,
+  };
+};
+
 const RenderedText: FC<{ text: string }> = ({ text }) => {
   return (
     <TextMessagePartProvider text={text}>
       <MarkdownText />
     </TextMessagePartProvider>
+  );
+};
+
+export const ProgressiveRenderedText: FC<{
+  text: string;
+  animate: boolean;
+}> = ({ text, animate }) => {
+  const progressive = useProgressiveAnswer(text, animate);
+  return (
+    <div aria-busy={progressive.streaming || undefined}>
+      <RenderedText text={progressive.text} />
+    </div>
   );
 };
 
@@ -567,6 +645,10 @@ export const AssistantTurnParts: FC = () => {
   const isLast = useMessage((s) => s.isLast);
   const runtime = useOptionalAomiRuntime();
   const taskRuns = useThreadTaskRuns();
+  // Only animate a turn observed live in this component. Completed messages
+  // restored from history render immediately instead of replaying the effect.
+  const witnessedRunning = useRef(running);
+  if (running) witnessedRunning.current = true;
 
   const lastToolIndex = content.reduce(
     (last, part, i) => (part.type === "tool-call" ? i : last),
@@ -689,7 +771,12 @@ export const AssistantTurnParts: FC = () => {
       ) : null;
     }
 
-    return answerText.length > 0 ? <RenderedText text={answerText} /> : null;
+    return answerText.length > 0 ? (
+      <ProgressiveRenderedText
+        text={answerText}
+        animate={witnessedRunning.current}
+      />
+    ) : null;
   }
 
   const answerText = collectText(
@@ -713,7 +800,10 @@ export const AssistantTurnParts: FC = () => {
       />
       {answerReady && answerText.length > 0 && (
         <div className="aui-working-answer">
-          <RenderedText text={answerText} />
+          <ProgressiveRenderedText
+            text={answerText}
+            animate={witnessedRunning.current}
+          />
         </div>
       )}
     </>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { X as Close, Filter, Loader2, Search } from "lucide-react";
 import { ModalBackdrop } from "@/components/ui/modal-backdrop";
+import { useAomiWalletKit } from "@aomi-labs/widget-lib";
 import {
   seedAccountOverview,
   useAccountOverview,
@@ -22,6 +23,7 @@ interface PackagesModalProps {
 }
 
 export function PackagesModal({ onClose }: PackagesModalProps) {
+  const activeChainId = useAomiWalletKit().identity.chainId;
   const account = useAccountOverview();
   const { catalog, error: catalogError, retry } = usePackageCatalog();
   const [activeView, setActiveView] = useState<PackageVisibility>("public");
@@ -336,6 +338,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
                       installed={installedIds.has(app.id)}
                       busy={busyId === app.id}
                       disabled={!installedReady || busyId !== null}
+                      activeChainId={activeChainId}
                       onInstall={() => install(app.id)}
                       onUninstall={() => uninstall(app.id)}
                     />
@@ -373,6 +376,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
                           installed={installedIds.has(app.id)}
                           busy={busyId === app.id}
                           disabled={!installedReady || busyId !== null}
+                          activeChainId={activeChainId}
                           onInstall={() => install(app.id)}
                           onUninstall={() => uninstall(app.id)}
                         />

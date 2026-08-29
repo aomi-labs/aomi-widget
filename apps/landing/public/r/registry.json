@@ -123,6 +123,10 @@
         },
         {
           "type": "registry:component",
+          "path": "lib/wallet-kit/config/evm-connection-persistence.ts"
+        },
+        {
+          "type": "registry:component",
           "path": "lib/wallet-kit/config/execution.ts"
         },
         {

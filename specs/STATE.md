@@ -17,6 +17,160 @@
   canonical identity are untouched. Downstream `codex/unified-auth-*` and
   release branches carry the merge.
 
+2026-08-26 — Two Privy bugs reported from #builders (Waves): the automatic-
+signing toggle always answered "Open a chat thread before enabling automatic
+signing." with a chat open, and a swap's approve never popped a Privy prompt.
+
+Bug 1 was structural. SettingsModal/PackagesModal were siblings of
+`AomiFrame.Root`, which is what mounts `AomiRuntimeApiProvider`, so
+`useOptionalAomiRuntime()` in `use-account-acl.ts` was ALWAYS null and the
+thread guard could never pass from settings. They now render inside
+`AomiFrame.Root` and reach `<body>` through the new
+`apps/portal/src/components/shell/overlay-portal.tsx`, which keeps the React
+context and moves only the DOM so one backdrop still covers sidebar + chat.
+The portal container needs its own `zIndex: 60`: `position: fixed` makes it a
+stacking context, so the modals' own z-60 counts only inside it and the
+sidebar's z-10 painted over the left edge (caught in the browser, fixed,
+re-verified). Deliberately NOT fixed by feeding it the synthetic settings
+session id from `settings-api.ts` — that would bind the delegation grant to an
+unrelated "settings thread". The portal-aomi-frame test mock now renders Root's
+children (it did not before, which is what hid this) and asserts the nesting.
+
+Bug 2: the portal runs Privy through the plugin lane (`privyPlugin.wrap` ->
+plain `PrivyProvider`, no `@privy-io/wagmi`), so the embedded EOA is a
+synthetic session, not a wagmi connector. `PrivyPluginProvider` gave it
+`signMessage`/`signTypedData` but no send path — `sendTransaction` existed only
+when a client smart wallet did — so sends fell through to a wagmi connector
+that was never connected, threw, and `RuntimeTxHandler` rejected them into the
+console. New `privy-embedded-execution.ts` sends via
+`switchChain` + fresh `getEthereumProvider()` + `eth_sendTransaction`, wired in
+as `sendTransactionAsync`/`switchChainAsync` overrides so the shared executor
+keeps owning batching, nonce ordering and partial-batch reporting.
+Signer choice is now one decision (`embeddedSigner` / `smartWalletSigner`):
+external wagmi wallet wins, then the embedded EOA — which is the identity the
+backend quotes against — and the client smart account only when there is no
+embedded EOA, so a swap priced for the EOA can no longer be sent from the smart
+account. `RuntimeTxHandler` now also surfaces failures as an error
+notification instead of console-only.
+UNVERIFIED end to end: no Privy credentials or backend in this worktree, so the
+delegation call and a real embedded-EOA broadcast were not exercised. Covered
+by unit tests (`privy-embedded-execution.test.ts`, incl. one through
+`buildEvmExecutionRuntime`) and the overlay was browser-verified against the
+portal dev server.
+
+2026-08-25 — Payment rails split out of /pricing (Cecilia). The x402 deferred
+credit gate explainer from aomi-design
+`communication/info/x402-deferred-credit-gate.html` now lives at
+/pricing/payment-rails rather than going onto /pricing, because the pricing
+page was deliberately built as audience-first and not a technical explainer
+(her instruction, 2026-08-24). New files under (marketing)/pricing/payment-rails:
+page.tsx, payment-rails.module.css, payment-rails-charts.tsx. Both figures are
+a FAITHFUL PORT, not a redesign: the original drew them imperatively into empty
+<svg> nodes on load, and that geometry is transcribed into JSX so they
+server-render. Chart color literals are kept as-is so the output matches; the
+surrounding chrome uses v3 tokens. Nav: "Pricing" was a plain link and is now a
+navGroups dropdown (`pricingLinks` in site.ts) with Pricing and Payment rails,
+so the standalone Pricing links were removed from both desktop and mobile in
+nav.tsx and MARKETING_ROOT became unused there. /pricing gained an "Explore
+payment rails" link in the FAQ intro, which already name-dropped payment rails.
+Also .navPopoverItem radius 12px -> 18px, concentric with .navPopover (30px
+radius minus 12px padding) so inner and outer curves stay parallel.
+NOTE: the dev server in this worktree was crashing and cold-recompiling
+repeatedly during this work; the radius was verified against compiled CSS
+rather than a screenshot, though the page itself is screenshot-verified.
+
+2026-08-25 — /solutions/wallets: replaced the "Two ways to consume" lane
+cards with a new signer-topology section (Cecilia). New component
+`solutions/[slug]/wallet-topology.tsx` renders the login / wallet / chain /
+queue / signer graph as one inline SVG on a 1280x640 viewBox, using v3 tokens
+throughout so it themes with the page. The only new colors are a local
+--topo-amber pair for chain nodes and the sync edge, with an
+html[data-theme="dark"] override, since v3 has no amber token. Under 900px the
+SVG and legend hide and a four-step stacked list takes over, carrying the same
+information. The two lane cards were NOT deleted outright: they collapsed into
+the single laneBand that was already there, now one sentence covering both
+APIs plus a link to /products/rest-apis, which preserves the
+bring-your-own-agent pitch while removing content duplicated from that page.
+Bot and Waypoints imports dropped from wallets-page.tsx as a result.
+CAVEAT: the diagram copy was transcribed from a Cecilia-supplied image. No
+source doc for it exists in this repo, so the queue-per-public-key and
+sync-versus-async resolution claims are UNVERIFIED against actual ACL
+behavior and should be fact-checked before this page goes public.
+eslint clean; desktop and narrow both screenshot-verified.
+
+2026-08-25 — /solutions/defi rebroadened from vault operations to DeFi
+generally (Cecilia). Copy pass only: no component, CSS, or structural change,
+since every vault/NAV string was inline in defi-page.tsx and
+execution-architecture.tsx. New headline is hers verbatim apart from DeFi
+capitalization: "DeFi with controlled agent action. AI-driven liquidity
+management with security." Hero fixture keeps the same three-row marketList
+component but now shows a venue comparison with policy verdicts, where Morpho
+at 4.47% is BLOCKED for exceeding risk band A while Aave at 4.11% is SELECTED.
+That reuses the existing data-outcome colors (drift = pink, reconstructed =
+blue, reported = neutral). The two path cards became agent-decides versus
+bring-your-own-model, which mirrors the Agent/Pipeline API split used on
+/products/rest-apis. NAV Sentinel and Vault ChangeSet loops became Liquidity
+Router and Yield Manager. The only surviving vault reference is deliberate:
+Settlement Copilot still mentions shadow NAV for managed vaults, so the
+GTM-study wedge is not lost. eslint clean; screenshot-verified.
+
+2026-08-25 — Landing (marketing) polish in worktree
+`.codex/worktrees/5bf7/aomi-widget`, working tree only. (1) Nav: added
+`.root button { appearance: none }` in marketing.module.css. Safari was
+painting the native macOS push-button bezel on hover over nav triggers such as
+Products, because nothing reset the native control appearance. (2) Copy:
+"wherever your agents work" became "where your agents work" in
+_v3-shared/products/cli-mcp/page.tsx, which renders at
+/products/agentic-toolings. (3) Grid backgrounds removed from the fintech hero
+(dropped the .sectorHeroGrid overlay div plus the gradient layers) and the
+plugin-sdk hero. Trading, wallets, and NFT heroes still carry the 54px grid.
+(4) rest-apis "One Action" showcase: the confirm sheet had picked up
+`aspect-ratio: 1.24 / 1` plus `margin-top: auto` on its buttons, which
+stretched the card and left a dead band. Both removed so the sheet hugs its
+content, matching the Aomi x Para artifact
+(claude.ai/code/artifact/41e1aa60-292f-439b-94a4-6a931bb65ecb). (5) Same
+showcase: the type panel no longer sits inert while the tabs slide. The
+interface text is deliberately identical across tabs, since "one contract,
+three sources" is the section's claim, but each example now lights only the
+fields it fills and dims the rest, with a matching chip legend under the code.
+Agent lights warnings, Pipeline dims both warnings and expiresAt, Safe lights
+expiresAt. (6) Same showcase: added a full-width raw HTTP request panel above
+the type-and-sheet pair, which is the part that genuinely differs per source.
+Agent shows one POST /v1/agent/chat with headers and body. Pipeline shows the
+stage, stage, commit sequence from the Developer API artifact
+(claude.ai/code/artifact/ef3ef8f4-31a6-47aa-a6ed-30345a60932b), since a
+two-leg batch is not a single build call. Safe shows the cursor GET plus a
+deferred result POST. Highlighting uses a small local tokenizer, not the
+ClientExample one. eslint clean; all three tabs screenshot-verified.
+NOTE: this worktree's landing dev server runs on port 3001, not 3000.
+
+2026-08-24 — CI PROGRESS BAR ON THE DEPLOYMENTS TAB (branch
+  `feat/deploy-ci-progress-bar`). Importing/redeploying an app from a linked
+  repository showed one static line ("Building… (building)") for the whole
+  2–4 minute CI build: no bar, no elapsed clock, no link to the run. The
+  onboarding deploy step already drew a bar from `deploymentProgress`; the
+  project deployments tab never used it.
+  - New `deploy-flow-progress.ts` maps CI state onto a whole-pipeline percent
+    (deploy 4% → CI 12–78% → activate 96% → live 100%), monotonic across a
+    transient `no_ci`/`failed` poll, and carries `ci.url` forward.
+  - `DeployFlowState` variants now carry an optional `progress`; the hook also
+    exposes `deployStartedAt`. `redeploySource` sets progress at every stage,
+    including both activation-failure branches and the catch.
+  - The CI url is captured at the poll callback, not in `onProgress`:
+    `waitForDeploymentReady` throws on a terminal `failed`/`no_ci` status
+    before reporting progress, so a build that fails on its first poll would
+    otherwise reach the catch with `ciUrl: null` and lose the run link exactly
+    when it matters. Pinned by a hook test.
+  - New `ui/deploy-progress-bar.tsx` renders the message, percent, mm:ss
+    elapsed, a "CI run" link, and an accessible `role="progressbar"`; error
+    turns the bar red and drops the percent. Replaces the old text-only line.
+  - Verification: 120 deployments tests + 12 hook tests pass, `pnpm type-check`
+    clean, `pnpm lint` clean (3 pre-existing warnings). NOT visually verified in
+    a browser — the bar only renders during a live deploy against a real
+    backend, which is not reproducible locally.
+  Untouched: the diverged `apps/portal` copy of the deployments tab, and the
+  onboarding deploy step's own bar.
+
 2026-08-22 — WALLET/USER-STATE CONTRACT DESLOP (branch
   `claude/multi-wallet-cli-366238`, working tree only, not committed). The FE
   now speaks the backend canon: wire key `svm` is canonical (`solana` stays an

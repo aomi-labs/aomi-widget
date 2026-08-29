@@ -2,9 +2,11 @@ import { EVM_SELECTOR_REGISTRY } from "@/components/assistant-ui/tool-registry";
 
 import {
   asNumber,
+  asRecord,
   asString,
   chainFact,
   chainFactFromRecord,
+  chainFactFromText,
   humanize,
   selectorFact,
   statusFact,
@@ -115,29 +117,60 @@ export const matchEvmSimulation: ToolMatcher = ({ rawLabel, resultRecord }) => {
 
 export const matchEvmPendingApproval: ToolMatcher = ({
   rawLabel,
+  parsedArgs,
   resultRecord,
+  relatedResultRecords,
 }) => {
-  if (!resultRecord || resultRecord.status !== "pending_approval") {
+  if (
+    !resultRecord ||
+    resultRecord.status !== "pending_approval" ||
+    resultRecord.chain_kind === "svm" ||
+    Array.isArray(resultRecord.svm_ix_ids)
+  ) {
     return null;
   }
 
-  const chain = chainFactFromRecord(resultRecord);
-  if (!chain) return null;
-
-  const txCount = Array.isArray(resultRecord.tx_ids)
-    ? resultRecord.tx_ids.length
-    : undefined;
+  const args = asRecord(parsedArgs);
+  const txIds = Array.isArray(resultRecord.tx_ids)
+    ? resultRecord.tx_ids
+    : Array.isArray(args?.tx_ids)
+      ? args.tx_ids
+      : [];
+  const stagedIds = new Set(
+    txIds.filter(
+      (value): value is number =>
+        typeof value === "number" && Number.isInteger(value),
+    ),
+  );
+  const relatedChain = [...relatedResultRecords].reverse().find((record) => {
+    const pendingId = asNumber(record.pending_tx_id);
+    return pendingId != null && stagedIds.has(pendingId);
+  });
+  const chain =
+    chainFactFromRecord(resultRecord) ??
+    chainFactFromRecord(args, "args") ??
+    chainFactFromRecord(relatedChain) ??
+    chainFactFromText(rawLabel);
+  const outcome = asRecord(resultRecord.tx_outcome);
+  const txHash = asString(outcome?.txHash);
 
   return op("evm.tx.pending_approval", rawLabel, [
     chain,
-    txCount != null
+    txIds.length > 0
       ? {
           kind: "count",
           role: "tx",
-          value: String(txCount),
+          value: String(txIds.length),
           source: "result",
         }
       : null,
-    statusFact("pending_approval"),
+    txHash
+      ? {
+          kind: "txId",
+          value: txHash,
+          source: "result",
+        }
+      : null,
+    statusFact(txOutcomeStatus(resultRecord) ?? resultRecord.status),
   ]);
 };

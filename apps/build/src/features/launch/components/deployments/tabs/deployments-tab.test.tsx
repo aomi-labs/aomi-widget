@@ -37,6 +37,7 @@ function makeDetail(
     checkSdkUpgradeStatus?: ReturnType<typeof vi.fn>;
     history?: Detail["history"];
     recordsByApp?: Detail["recordsByApp"];
+    deployFlow?: Detail["deployFlow"];
   } = {},
 ) {
   const sdkVersion = overrides.sdkVersion ?? "3.0.1";
@@ -86,7 +87,8 @@ function makeDetail(
           merged: false,
         },
       })),
-    deployFlow: { phase: "idle" },
+    deployFlow: overrides.deployFlow ?? { phase: "idle" },
+    deployStartedAt: null,
     recordsByApp:
       overrides.recordsByApp ??
       ({
@@ -508,5 +510,29 @@ describe("DeploymentsTab", () => {
       screen.getByText(/project is live, but no deployment records/i),
     ).toBeInTheDocument();
     expect(screen.queryByText("No deployments yet")).not.toBeInTheDocument();
+  });
+
+  it("shows a CI progress bar while a redeploy builds", async () => {
+    renderTab(
+      <DeploymentsTab
+        detail={makeDetail({
+          deployFlow: {
+            phase: "building",
+            message: "Building… (building)",
+            progress: {
+              percent: 30,
+              label: "Building CI",
+              ciUrl: "https://github.com/a/b/actions/runs/1",
+            },
+          },
+        })}
+      />,
+    );
+    const bar = await screen.findByRole("progressbar", {
+      name: "Deployment progress",
+    });
+    expect(bar).toHaveAttribute("aria-valuenow", "30");
+    expect(screen.getByText("Building… (building)")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /CI run/i })).toBeInTheDocument();
   });
 });

@@ -59,6 +59,9 @@ describe("executeWalletKitTransaction native execution", () => {
         sendTransactionAsync,
         switchChainAsync,
         chainsById: { [mainnet.id]: mainnet },
+        waitForTransactionReceipt: vi
+          .fn()
+          .mockResolvedValue({ status: "success" }),
       },
     });
 
@@ -79,6 +82,9 @@ describe("executeWalletKitTransaction native execution", () => {
         sendTransactionAsync: vi.fn().mockResolvedValue("0x111"),
         switchChainAsync,
         chainsById: { [mainnet.id]: mainnet },
+        waitForTransactionReceipt: vi
+          .fn()
+          .mockResolvedValue({ status: "success" }),
       },
     });
 
@@ -113,6 +119,10 @@ describe("executeWalletKitTransaction native execution", () => {
       chainId: 1,
       hash: "0x111",
     });
+    expect(waitForTransactionReceipt).toHaveBeenCalledWith({
+      chainId: 1,
+      hash: "0x222",
+    });
     expect(result).toMatchObject({
       txHash: "0x222",
       aaRequestedMode: "7702",
@@ -136,10 +146,12 @@ describe("executeWalletKitTransaction native execution", () => {
         events.push("send:second");
         return "0x222";
       });
-    const waitForTransactionReceipt = vi.fn().mockImplementation(async () => {
-      events.push("wait:first");
-      return { status: "success" };
-    });
+    const waitForTransactionReceipt = vi
+      .fn()
+      .mockImplementation(async ({ hash }: { hash: string }) => {
+        events.push(hash === "0x111" ? "wait:first" : "wait:second");
+        return { status: "success" };
+      });
 
     await executeWalletKitTransaction({
       payload: optionalFeeBatchPayload(),
@@ -153,7 +165,12 @@ describe("executeWalletKitTransaction native execution", () => {
       },
     });
 
-    expect(events).toEqual(["send:first", "wait:first", "send:second"]);
+    expect(events).toEqual([
+      "send:first",
+      "wait:first",
+      "send:second",
+      "wait:second",
+    ]);
   });
 
   it("reports a confirmed prefix when a later sequential send fails", async () => {
@@ -249,6 +266,9 @@ describe("executeWalletKitTransaction native execution", () => {
         sendTransactionAsync,
         switchChainAsync: vi.fn(),
         chainsById: { [mainnet.id]: mainnet },
+        waitForTransactionReceipt: vi
+          .fn()
+          .mockResolvedValue({ status: "success" }),
       },
     });
 
