@@ -52,7 +52,9 @@ describe("CLI device provider auth", () => {
         if (target.startsWith("http://127.0.0.1:")) {
           return originalFetch(url, init);
         }
-        if (target === "https://chat.aomi.dev/api/aomi/device-auth/exchange") {
+        if (
+          target === "https://chat.aomi.dev/v1/account/device-auth/exchange"
+        ) {
           const body = JSON.parse(String(init?.body));
           expect(body.code).toBe("grant-code");
           expect(body.state).toMatch(/^[A-Za-z0-9_-]+$/);
@@ -67,7 +69,7 @@ describe("CLI device provider auth", () => {
             provider: "para",
           });
         }
-        if (target === "https://chat.aomi.dev/api/aomi/account") {
+        if (target === "https://chat.aomi.dev/v1/account") {
           expect(new Headers(init?.headers).get("Authorization")).toBe(
             "Bearer better-auth-session",
           );
@@ -123,7 +125,7 @@ describe("CLI device provider auth", () => {
           return originalFetch(url, init);
         }
         if (
-          target === "https://chat.aomi.dev/api/aomi/device-auth/link-intent"
+          target === "https://chat.aomi.dev/v1/account/device-auth/link-intent"
         ) {
           const body = JSON.parse(String(init?.body));
           expect(new Headers(init?.headers).get("Authorization")).toBe(
@@ -142,7 +144,9 @@ describe("CLI device provider auth", () => {
             provider: "privy",
           });
         }
-        if (target === "https://chat.aomi.dev/api/aomi/device-auth/exchange") {
+        if (
+          target === "https://chat.aomi.dev/v1/account/device-auth/exchange"
+        ) {
           const body = JSON.parse(String(init?.body));
           expect(body.code).toBe("link-grant-code");
           expect(body.state).toMatch(/^[A-Za-z0-9_-]+$/);

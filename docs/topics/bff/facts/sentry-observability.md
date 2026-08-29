@@ -531,12 +531,12 @@ Instrument these ownership boundaries:
 - `apps/portal/src/server/bff/failures.ts`
 - `apps/portal/src/server/bff/launch/routes.ts`
 - `apps/portal/src/app/api/[...slug]/route.ts`
-- `apps/portal/src/app/api/aomi/account-bearer/route.ts`
+- `apps/portal/src/app/v1/account/bearer/route.ts`
 - `apps/portal/src/app/api/bff/auth/github/callback/route.ts`
 - `apps/portal/src/app/api/auth/[...all]/route.ts`
 - `apps/portal/src/server/mcp/oauth-redirect.ts`
-- the four `apps/portal/src/app/api/aomi/device-auth/*` routes
-- canonical `/agent/mcp` and `/pipeline/mcp` route boundaries
+- the four `apps/portal/src/app/v1/account/device-auth/*` routes
+- canonical `/v1/agent/mcp` and `/v1/pipeline/mcp` route boundaries
 
 The widget wrapper should capture unknown exceptions centrally while leaving
 its typed validation, credential, and conflict errors ignored.

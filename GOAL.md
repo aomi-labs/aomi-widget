@@ -637,7 +637,7 @@ through the canonical Session contract.
 
 Current session goal: **UNIFIED AUTH IMPLEMENTED AND LOCALLY VERIFIED
 2026-08-24** — the Agent and Pipeline MCP surfaces now use one Better Auth 1.7
-issuer at the canonical unversioned `/agent/mcp` and `/pipeline/mcp` resources.
+issuer at the canonical versioned `/v1/agent/mcp` and `/v1/pipeline/mcp` resources.
 The former `/api/mcp` and `/api/mcp/direct` paths are absent. The same issuer,
 WalletKit-capable login/consent UI, exact resource policy, anonymous identity,
 refresh/revocation, and device authorization also serve developer and guest
@@ -1228,7 +1228,7 @@ USDC` for the canonical mainnet mint, or just the visible UI amount with the
 
 - Removed runtime `/api/bff/auth/siwe/*`, `/api/bff/auth/exchange`, and
   `/api/bff/auth/token` mounts from portal, base, and landing.
-- Added `/api/aomi/account-bearer` for direct AccountBearer minting from an
+- Added `/v1/account/bearer` for direct AccountBearer minting from an
   existing BetterAuth session.
 - Inverted `@aomi-labs/account` so portal supplies the BetterAuth-backed
   canonical-user resolver.

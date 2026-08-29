@@ -65,7 +65,7 @@ describe("CLI BetterAuth SIWE auth", () => {
             },
           );
         }
-        if (url.endsWith("/api/aomi/account")) {
+        if (url.endsWith("/v1/account")) {
           const headers = new Headers(init?.headers);
           expect(headers.get("Authorization")).toBe(
             "Bearer better-auth-session-token",
@@ -160,7 +160,7 @@ describe("CLI BetterAuth SIWE auth", () => {
             { headers: { "set-auth-token": "siws-session-token" } },
           );
         }
-        if (url.endsWith("/api/aomi/account")) {
+        if (url.endsWith("/v1/account")) {
           expect(new Headers(init?.headers).get("Authorization")).toBe(
             "Bearer siws-session-token",
           );
@@ -209,7 +209,7 @@ describe("CLI BetterAuth SIWE auth", () => {
             { headers: { "set-auth-token": "better-auth-session-token" } },
           );
         }
-        if (url.endsWith("/api/aomi/account")) {
+        if (url.endsWith("/v1/account")) {
           return Response.json({ session: null });
         }
         throw new Error(`Unexpected URL ${url}`);

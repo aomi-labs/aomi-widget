@@ -44,7 +44,7 @@ function telegramParaAdapter(input: {
         throw new Error("telegram_para_credential_unavailable");
       }
       const response = await fetchImpl(
-        new URL("/api/aomi/telegram/exchange", baseUrl),
+        new URL("/api/auth/widget/telegram/exchange", baseUrl),
         {
           method: "POST",
           credentials: "omit",
@@ -129,7 +129,7 @@ export function useCanonicalAccount(
     });
     void provider()
       .then(async (accessToken) => {
-        const response = await fetch(`${aomiBffUrl}/api/aomi/account`, {
+        const response = await fetch(`${aomiBffUrl}/v1/account`, {
           credentials: "omit",
           headers: {
             Accept: "application/json",

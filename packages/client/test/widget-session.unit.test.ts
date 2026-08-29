@@ -33,7 +33,7 @@ describe("createAccountSessionProvider", () => {
 
     await expect(provider()).resolves.toBe("provider-wst");
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://portal.example/api/widget/auth/exchange",
+      "https://portal.example/api/auth/widget/exchange",
       expect.objectContaining({
         method: "POST",
         credentials: "omit",
@@ -117,7 +117,7 @@ describe("createAccountSessionProvider", () => {
     await expect(provider()).resolves.toBe("second");
     expect(adapter.exchange).toHaveBeenCalledTimes(2);
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://portal.example/api/widget/auth/session",
+      "https://portal.example/api/auth/widget/session",
       expect.objectContaining({ method: "DELETE", credentials: "omit" }),
     );
   });
@@ -234,7 +234,7 @@ describe("createAccountSessionProvider", () => {
     await expect(inflight).rejects.toThrow("superseded");
     expect(listener).toHaveBeenCalledTimes(1);
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://portal.example/api/widget/auth/session",
+      "https://portal.example/api/auth/widget/session",
       expect.objectContaining({
         method: "DELETE",
         headers: { Authorization: "Bearer post-signout" },
@@ -288,7 +288,7 @@ describe("createAccountSessionProvider", () => {
     dA.resolve({ accessToken: "token-A", expiresAt: T / 1000 + 120 });
     await expect(pA).rejects.toThrow("superseded");
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://portal.example/api/widget/auth/session",
+      "https://portal.example/api/auth/widget/session",
       expect.objectContaining({
         method: "DELETE",
         headers: { Authorization: "Bearer token-A" },
@@ -349,7 +349,7 @@ describe("createAccountSessionProvider", () => {
     await provider.revoke();
     expect(listener).toHaveBeenCalledTimes(2);
     expect(fetchImpl).toHaveBeenCalledWith(
-      "https://portal.example/api/widget/auth/session",
+      "https://portal.example/api/auth/widget/session",
       expect.objectContaining({
         method: "DELETE",
         headers: { Authorization: "Bearer tok" },

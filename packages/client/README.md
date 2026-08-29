@@ -10,8 +10,8 @@ use resource-bound developer grants. If no explicit credential is configured,
 the SDK creates and reuses one Better Auth anonymous/Bearer session for the
 guest-safe REST surface. Set `guest: false` to disable that bootstrap.
 
-The public MCP resources are the unversioned `https://<portal>/agent/mcp` and
-`https://<portal>/pipeline/mcp`. The removed `/api/mcp` and `/api/mcp/direct`
+The public MCP resources are `https://<portal>/v1/agent/mcp` and
+`https://<portal>/v1/pipeline/mcp`. The removed `/api/mcp` and `/api/mcp/direct`
 paths are not aliases. MCP always uses Better Auth OAuth with PKCE and an exact
 resource audience; anonymous MCP users still complete the normal login,
 consent, and token flow.
