@@ -107,10 +107,6 @@ function printRootHelp(): void {
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");
-  console.log("");
-  console.log(
-    "Deprecated compatibility flags: --embedded-provider, --embedded-provider-token",
-  );
 }
 
 export async function runCli(argv: string[] = process.argv): Promise<void> {
