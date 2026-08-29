@@ -37,7 +37,6 @@ export type AuthRuntime = {
   authValue?: string;
   sessionProvider?: AomiSessionIdentity["sessionProvider"];
   embeddedProvider?: AomiSessionIdentity["embeddedProvider"];
-  legacyWalletProvider?: AomiSessionIdentity["walletProvider"];
   providerLabel?: string;
   methods: readonly AomiWalletOption[];
   canOpenModal: boolean;

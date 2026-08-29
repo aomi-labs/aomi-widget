@@ -1,9 +1,11 @@
 import "server-only";
 
 import { mintAgentApiBearer } from "@aomi-labs/account";
+import type { ApiPrincipal } from "@portal/server/oauth/principal";
 
 const REQUEST_HEADERS = new Set([
   "accept",
+  "aomi-app-key",
   "content-type",
   "idempotency-key",
   "mcp-protocol-version",
@@ -16,6 +18,7 @@ const RESPONSE_HEADERS = new Set([
   "content-type",
   "mcp-protocol-version",
   "payment-required",
+  "payment-receipt",
   "payment-response",
   "retry-after",
   "x-request-id",
@@ -40,7 +43,7 @@ export function configuredAgentApiUrl(): string {
  */
 export async function proxyAgentApi(
   request: Request,
-  canonicalUserId: string,
+  principal: ApiPrincipal,
   fetchImpl: typeof fetch = fetch,
 ): Promise<Response> {
   const incoming = new URL(request.url);
@@ -57,7 +60,17 @@ export async function proxyAgentApi(
     `${incoming.pathname}${incoming.search}`,
     configuredAgentApiUrl(),
   );
-  const { bearer } = await mintAgentApiBearer(canonicalUserId);
+  const { bearer } = await mintAgentApiBearer(principal.canonicalUserId, {
+    scope: principal.scopes.join(" "),
+    resource: principal.resource,
+    client_id: principal.clientId,
+    auth_source: principal.authSource,
+    principal_class: principal.principalClass,
+    grant_id: principal.grantId,
+    // A raw Better Auth session token must never be copied into an internal
+    // assertion. Use a non-secret bounded correlation marker instead.
+    sid: principal.sid ? "session-bound" : undefined,
+  });
   const headers = allowlisted(request.headers, REQUEST_HEADERS);
   headers.set("authorization", `Bearer ${bearer}`);
   const response = await fetchImpl(upstream, {

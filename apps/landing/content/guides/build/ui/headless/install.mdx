@@ -23,7 +23,7 @@ npm install @aomi-labs/react
 | `ThreadContextProvider` | Thread state management (messages, metadata, thread switching) |
 | `ExtUserProvider` | Wallet/user state (address, chain, connection status) |
 | `NotificationContextProvider` | Toast notification state |
-| `EventContextProvider` | SSE subscription and system event dispatch |
+| `ClientSession` | Ordered Event reduction and polling |
 | `ControlContextProvider` | Model/app/API key selection state |
 
 ### Hooks
@@ -37,8 +37,8 @@ npm install @aomi-labs/react
 | `useCurrentThreadMetadata` | Metadata (title, status) for the active thread |
 | `useControl` | Model/app/API key state and selection |
 | `useNotification` | Show, dismiss, and list notifications |
-| `useEventContext` | SSE subscription and outbound event dispatch |
-| `useWalletHandler` | Handle wallet transaction and signing requests |
+| `useAomiRuntime` | Ordered Events, lifecycle, and Actions |
+| `useActions` | Select canonical Actions and execution attempts |
 | `useNotificationHandler` | Process notification events from the backend |
 
 ### API Client
@@ -62,19 +62,17 @@ npm install @aomi-labs/react
 ```ts
 import type {
   AomiRuntimeApi,
-  AomiMessage,
+  MessageEvent,
   ThreadMetadata,
   ThreadControlState,
   UserState,
   ControlState,
   Notification,
   NotificationType,
-  WalletRequest,
-  WalletTxPayload,
-  WalletEip712Payload,
-  InboundEvent,
-  OutboundEvent,
-  SSEStatus,
+  Action,
+  ActionResult,
+  Event,
+  TurnState,
 } from "@aomi-labs/react";
 ```
 
@@ -104,7 +102,9 @@ function App() {
 }
 ```
 
-`AomiRuntimeProvider` internally sets up all nested providers (ThreadContext, UserContext, NotificationContext, EventContext, ControlContext), so you get the full runtime with a single wrapper.
+`AomiRuntimeProvider` sets up thread selection, notifications, the canonical
+UserState source, preferences, and the runtime core. Event reduction belongs to
+`ClientSession`, not to a React context.
 
 ## When to Use Headless vs Widget
 

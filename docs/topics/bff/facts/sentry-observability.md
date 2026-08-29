@@ -536,7 +536,7 @@ Instrument these ownership boundaries:
 - `apps/portal/src/app/api/auth/[...all]/route.ts`
 - `apps/portal/src/server/mcp/oauth-redirect.ts`
 - the four `apps/portal/src/app/api/aomi/device-auth/*` routes
-- `apps/portal/src/app/api/mcp/route.ts` and its backend boundary
+- canonical `/agent/mcp` and `/pipeline/mcp` route boundaries
 
 The widget wrapper should capture unknown exceptions centrally while leaving
 its typed validation, credential, and conflict errors ignored.

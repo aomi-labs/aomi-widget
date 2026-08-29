@@ -97,16 +97,19 @@ const pipelineSkillDef = defineCommand({
 
 const executionArgs = {
   ...globalArgs,
-  session: {
+  "idempotency-key": {
     type: "string",
-    description: "Pipeline session id (defaults to the active CLI session)",
+    description:
+      "Stable key for this logical execution; reuse it for a manual retry",
+    required: true,
   },
 } as const;
 
 const pipelineCallDef = defineCommand({
   meta: {
     name: "call",
-    description: "Call a Gate-F-approved safe read-only Pipeline tool",
+    description:
+      "Call a builtin public Pipeline tool through backend policy gates",
   },
   args: {
     ...executionArgs,
@@ -125,31 +128,11 @@ const pipelineCallDef = defineCommand({
     const config = buildCliConfig(args);
     await pipelineCallCommand(config, {
       toolId: getPositionals(args)[0]!,
-      sessionId: text(args.session),
       arguments: text(args.arguments),
-    });
-  },
-});
-
-const pipelineRunDef = defineCommand({
-  meta: {
-    name: "run",
-    description: "Run a Gate-F-approved safe read-only Pipeline program",
-  },
-  args: {
-    ...executionArgs,
-    program: {
-      type: "string",
-      description: "Pipeline program in the MCP aomi_run grammar",
-      required: true,
-    },
-  },
-  async run({ args }) {
-    const { pipelineRunCommand } = await import("../pipeline");
-    const config = buildCliConfig(args);
-    await pipelineRunCommand(config, {
-      sessionId: text(args.session),
-      program: text(args.program)!,
+      app: config.app,
+      applicationId: config.applicationId,
+      platform: config.appPlatform,
+      idempotencyKey: text(args["idempotency-key"])!,
     });
   },
 });
@@ -157,7 +140,7 @@ const pipelineRunDef = defineCommand({
 export const pipelineDef = defineCommand({
   meta: {
     name: "pipeline",
-    description: "Pipeline discovery and safe read-only execution",
+    description: "Pipeline discovery and builtin policy-gated execution",
   },
   subCommands: {
     apps: pipelineAppsDef,
@@ -167,7 +150,6 @@ export const pipelineDef = defineCommand({
     skills: pipelineSkillsDef,
     skill: pipelineSkillDef,
     call: pipelineCallDef,
-    run: pipelineRunDef,
   },
 });
 
@@ -178,4 +160,14 @@ function text(value: unknown): string | undefined {
 function limit(value: unknown): number | undefined {
   const parsed = Number(text(value));
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function list(value: unknown): string[] | undefined {
+  const raw = text(value);
+  if (!raw) return undefined;
+  const values = raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return values.length ? values : undefined;
 }

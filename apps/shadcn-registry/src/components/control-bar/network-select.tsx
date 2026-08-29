@@ -157,7 +157,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
   const activeEvmChain = evmChains.find(
     (chain) => chain.id === activeEvmChainId,
   );
-  const liveSolanaCluster = identity.svmCluster ?? identity.solanaCluster;
+  const liveSolanaCluster = identity.svmCluster;
   const liveSolanaNetwork = solanaConnected
     ? solanaNetworks.find((network) => network.cluster === liveSolanaCluster)
     : undefined;
@@ -273,7 +273,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
 
   const handleTargetSelect = async (target: AomiNetworkTarget) => {
     if (
-      (target.family === "svm" || target.family === "solana") &&
+      target.family === "svm" &&
       adapter.solanaNetworkSwitchRequiresReconnect &&
       activeSolanaNetwork &&
       activeSolanaNetwork.id !== target.networkId

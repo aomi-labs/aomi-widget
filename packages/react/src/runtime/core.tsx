@@ -8,29 +8,22 @@ import {
   type AppendMessage,
 } from "@assistant-ui/react";
 
-import type { AomiClient } from "@aomi-labs/client";
+import type { ActionCapabilities, AomiClient } from "@aomi-labs/client";
 import { useControl } from "../contexts/control-context";
-import { useEventContext } from "../contexts/event-context";
 import { useUser } from "../contexts/ext-user-context";
 import { useThreadContext } from "../contexts/thread-context";
 import { useNotification } from "../contexts/notification-context";
-import {
-  appendNoticeMessage,
-  buildTurnErrorMessage,
-  useRuntimeOrchestrator,
-} from "./orchestrator";
+import { useRuntimeOrchestrator } from "./orchestrator";
 import { buildThreadListAdapter } from "./threadlist-adapter";
 import { AomiRuntimeApiProvider, type AomiRuntimeApi } from "../interface";
-import { useWalletHandler } from "../handlers/wallet-handler";
-import {
-  RuntimeUserStateProvider,
-  useRuntimeUserStateEffects,
-} from "./user-state-provider";
+import { useActions } from "../actions/use-actions";
+import { useThreadListSync } from "./thread-list-sync";
 import { getHttpStatus } from "./http-status";
 import {
   clearPersistedThreadId,
   writePersistedThreadId,
 } from "./thread-persistence";
+import { projectAssistantMessages } from "./utils";
 
 /** Deduplicate in-flight async work keyed by thread id. */
 async function runSingleFlight(
@@ -70,6 +63,7 @@ export type AomiRuntimeCoreProps = {
   children: ReactNode;
   aomiClient: AomiClient;
   applicationId?: number | string | null;
+  actions?: ActionCapabilities;
   accountSessionAvailable?: boolean;
   restoredThreadId?: string;
   threadPersistenceKey?: string | null;
@@ -83,12 +77,12 @@ export function AomiRuntimeCore({
   children,
   aomiClient,
   applicationId,
+  actions: actionCapabilities,
   accountSessionAvailable = false,
   restoredThreadId,
   threadPersistenceKey,
 }: Readonly<AomiRuntimeCoreProps>) {
   const threadContext = useThreadContext();
-  const eventContext = useEventContext();
   const notificationContext = useNotification();
   const { getUserState } = useUser();
   const {
@@ -101,31 +95,17 @@ export function AomiRuntimeCore({
   } = useControl();
 
   // ---------------------------------------------------------------------------
-  // Wallet handler (receives requests from orchestrator)
-  // ---------------------------------------------------------------------------
-  const sessionManagerRef = useRef<
-    ReturnType<typeof useRuntimeOrchestrator>["sessionManager"] | null
-  >(null);
-
-  const walletHandler = useWalletHandler({
-    getSession: () =>
-      sessionManagerRef.current?.get(threadContext.currentThreadId),
-  });
-
-  // ---------------------------------------------------------------------------
   // Orchestrator (manages ClientSession per thread)
   // ---------------------------------------------------------------------------
   const {
     sessionManager,
+    currentSession,
+    snapshot,
     getSession,
-    isRunning,
-    setIsRunning,
     ensureInitialState,
     sendMessage: orchestratorSendMessage,
-    regenerateMessage: orchestratorRegenerateMessage,
     cancelGeneration: orchestratorCancel,
     closeSession,
-    closeIdleSessionsExcept,
     closeAllSessions,
     aomiClientRef,
   } = useRuntimeOrchestrator(aomiClient, {
@@ -133,11 +113,8 @@ export function AomiRuntimeCore({
     getApp: getCurrentThreadApp,
     getModel: () => getCurrentThreadControl().model,
     getApplicationId: () => getCurrentThreadApplicationId() ?? applicationId,
-    getApiKey: () => getControlState().apiKey,
     getClientId: () => getControlState().clientId ?? undefined,
-    prepareThreadForSend: async (threadId) => {
-      await prepareBackendThread(threadId);
-    },
+    getActions: () => actionCapabilities,
     onSendSuccess: (threadId) => {
       const wasRemote = remoteThreadIdsRef.current.has(threadId);
       remoteThreadIdsRef.current.add(threadId);
@@ -167,11 +144,10 @@ export function AomiRuntimeCore({
       // keeps the same thread so payment setup can retry without another
       // create/model round trip.
     },
-    onPendingRequestsChange: walletHandler.setRequests,
-    onEvent: (event) => eventContext.dispatch(event),
   });
 
-  sessionManagerRef.current = sessionManager;
+  const actions = useActions(currentSession);
+  const isRunning = snapshot.isSubmitting || snapshot.turnState === "processing";
 
   // ---------------------------------------------------------------------------
   // Refs for stable access
@@ -181,64 +157,22 @@ export function AomiRuntimeCore({
   const remoteThreadIdsRef = useRef(new Set<string>());
   const warmedThreadIdsRef = useRef(new Set<string>());
   const warmPromisesRef = useRef(new Map<string, Promise<void>>());
-  const preparePromisesRef = useRef(new Map<string, Promise<void>>());
   const [isThreadLoading, setIsThreadLoading] = useState(false);
 
-  const warmThread = useCallback(
-    async (threadId: string) => {
-      if (
-        !remoteThreadIdsRef.current.has(threadId) ||
-        warmedThreadIdsRef.current.has(threadId)
-      ) {
-        return;
-      }
+  const warmThread = useCallback(async (threadId: string) => {
+    if (
+      !remoteThreadIdsRef.current.has(threadId) ||
+      warmedThreadIdsRef.current.has(threadId)
+    ) {
+      return;
+    }
 
-      await runSingleFlight(warmPromisesRef.current, threadId, async () => {
-        await aomiClientRef.current.createThread(threadId);
-        warmedThreadIdsRef.current.add(threadId);
-      });
-    },
-    [aomiClientRef],
-  );
-
-  // ---------------------------------------------------------------------------
-  // Ensure backend thread exists (lazy creation on first message send)
-  // ---------------------------------------------------------------------------
-  const ensureBackendThread = useCallback(
-    async (threadId: string) => {
-      if (remoteThreadIdsRef.current.has(threadId)) return;
-
-      await runSingleFlight(warmPromisesRef.current, threadId, async () => {
-        // This is a local prewarm seam. The first canonical Agent start creates
-        // the remote session and carries model/app in that same request.
-        const control =
-          threadContextRef.current.getThreadMetadata(threadId)?.control;
-        await aomiClientRef.current.createThread(threadId, {
-          rig: control?.model ?? undefined,
-          app: control?.app ?? undefined,
-          applicationId: control?.applicationId ?? undefined,
-          clientId: getControlState().clientId ?? undefined,
-        });
-        remoteThreadIdsRef.current.add(threadId);
-        warmedThreadIdsRef.current.add(threadId);
-      });
-    },
-    [aomiClientRef, getControlState],
-  );
-
-  const prepareBackendThread = useCallback(
-    async (threadId: string) => {
-      await runSingleFlight(preparePromisesRef.current, threadId, async () => {
-        await ensureBackendThread(threadId);
-      });
-    },
-    [ensureBackendThread],
-  );
+    warmedThreadIdsRef.current.add(threadId);
+  }, []);
 
   const getRuntimeSession = useCallback(
-    (threadId: string) =>
-      sessionManagerRef.current?.get(threadId) ?? getSession(threadId),
-    [getSession],
+    (threadId: string) => sessionManager.get(threadId) ?? getSession(threadId),
+    [getSession, sessionManager],
   );
 
   const threadPersistence = useMemo(
@@ -253,11 +187,10 @@ export function AomiRuntimeCore({
     [restoredThreadId, threadPersistenceKey],
   );
 
-  const { isThreadListLoading, threadListError } = useRuntimeUserStateEffects({
+  const { isThreadListLoading, threadListError } = useThreadListSync({
     sessions: {
       aomiClientRef,
       sessionManager,
-      getSession: getRuntimeSession,
       closeAllSessions,
       ensureInitialState,
       setIsThreadLoading,
@@ -271,62 +204,11 @@ export function AomiRuntimeCore({
     accountSessionAvailable,
     threadPersistence,
   });
-  const activeThreadControl = threadContext.getThreadMetadata(
-    threadContext.currentThreadId,
-  )?.control;
-
-  // Materialize the active empty draft as soon as account/thread hydration has
-  // settled. Send awaits this same promise, so a fast submit never duplicates
-  // create/model work. A failed speculative warm remains retryable on send.
-  useEffect(() => {
-    if (isThreadListLoading) return;
-    const threadId = threadContext.currentThreadId;
-    if (
-      remoteThreadIdsRef.current.has(threadId) &&
-      !activeThreadControl?.controlDirty
-    ) {
-      return;
-    }
-    if (
-      accountSessionAvailable &&
-      threadListError &&
-      restoredThreadId === threadId
-    ) {
-      // Never recreate an unverified persisted id after account-list failure;
-      // that could cross an authenticated identity boundary.
-      return;
-    }
-
-    let cancelled = false;
-    void prepareBackendThread(threadId).catch((error) => {
-      if (!cancelled) {
-        console.debug("Thread prewarm deferred until send:", error);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    accountSessionAvailable,
-    activeThreadControl?.app,
-    activeThreadControl?.applicationId,
-    activeThreadControl?.controlDirty,
-    activeThreadControl?.model,
-    isThreadListLoading,
-    prepareBackendThread,
-    restoredThreadId,
-    threadContext.currentThreadId,
-    threadListError,
-  ]);
-
   // ---------------------------------------------------------------------------
   // Initial state fetch on thread change (skip for local-only threads)
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const threadId = threadContext.currentThreadId;
-    closeIdleSessionsExcept(threadId);
-
     if (!remoteThreadIdsRef.current.has(threadId)) {
       setIsThreadLoading(false);
       return;
@@ -352,36 +234,14 @@ export function AomiRuntimeCore({
       cancelled = true;
     };
   }, [
-    closeIdleSessionsExcept,
     ensureInitialState,
     threadContext.currentThreadId,
     warmThread,
   ]);
 
-  // Sync isRunning to thread metadata for control context
-  useEffect(() => {
-    const threadId = threadContext.currentThreadId;
-    const currentMeta = threadContext.getThreadMetadata(threadId);
-    const nextTurnPhase = isRunning
-      ? (currentMeta?.control.turnPhase ?? "working")
-      : "idle";
-    if (
-      currentMeta &&
-      (currentMeta.control.isProcessing !== isRunning ||
-        currentMeta.control.turnPhase !== nextTurnPhase)
-    ) {
-      threadContext.updateThreadMetadata(threadId, {
-        control: {
-          ...currentMeta.control,
-          isProcessing: isRunning,
-          turnPhase: nextTurnPhase,
-        },
-      });
-    }
-  }, [isRunning, threadContext]);
-
-  const currentMessages = threadContext.getThreadMessages(
-    threadContext.currentThreadId,
+  const currentMessages = useMemo(
+    () => projectAssistantMessages(snapshot.events),
+    [snapshot.events],
   );
 
   useEffect(() => {
@@ -405,7 +265,6 @@ export function AomiRuntimeCore({
       buildThreadListAdapter({
         aomiClientRef,
         threadContext,
-        setIsRunning,
         isLoading: isThreadListLoading,
         getInitialControl: getPreferredThreadControl,
         isRemoteThread: (threadId) => remoteThreadIdsRef.current.has(threadId),
@@ -414,7 +273,6 @@ export function AomiRuntimeCore({
       aomiClientRef,
       getPreferredThreadControl,
       isThreadListLoading,
-      setIsRunning,
       threadContext,
       threadContext.currentThreadId,
       threadContext.allThreadsMetadata,
@@ -422,75 +280,12 @@ export function AomiRuntimeCore({
     ],
   );
 
-  // Tool update/complete SSE events intentionally raise NO toasts: the Working
-  // trace renders tool activity inline, so raw "Tool complete: <tool>" toasts
-  // were just noise (notably on tx signing, e.g. `evm_commit_txs`). The events
-  // are still emitted on the bus for any other consumer.
-
-  // ---------------------------------------------------------------------------
-  // Show live system events as side notifications. Persisted system messages
-  // take the separate `SystemMessage` rendering path in the chat surface.
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    const getMessage = (payload: unknown) => {
-      if (!payload || typeof payload !== "object") return null;
-      const message = (payload as { message?: unknown }).message;
-      return typeof message === "string" && message.trim()
-        ? message.trim()
-        : null;
-    };
-
-    const unsubscribeNotice = eventContext.subscribe(
-      "system_notice",
-      (event) => {
-        const message = getMessage(event.payload);
-        if (!message) return;
-        notificationContext.showNotification({
-          type: "notice",
-          title: "System notice",
-          message,
-        });
-      },
-    );
-    const unsubscribeError = eventContext.subscribe("system_error", (event) => {
-      const message = getMessage(event.payload);
-      if (!message) return;
-      notificationContext.showNotification({
-        type: "error",
-        title: "Error",
-        message,
-      });
-      // The toast alone is the wrong lifetime for a turn that produced
-      // nothing: it auto-dismisses, and the backend drains `system_events`, so
-      // the reason for the silence disappears. Backends that persist a
-      // `notice` message deliver the durable copy through the projection; this
-      // covers the window before it arrives, and older backends entirely.
-      // `appendNoticeMessage` dedupes on notice kind, so the two never stack.
-      //
-      // Keyed to the event's own session: an error can arrive from a warmed or
-      // background session, and attaching it to whatever thread is on screen
-      // would file it against the wrong conversation.
-      appendNoticeMessage(
-        threadContextRef.current,
-        event.sessionId,
-        buildTurnErrorMessage(),
-      );
-    });
-
-    return () => {
-      unsubscribeNotice();
-      unsubscribeError();
-    };
-  }, [eventContext, notificationContext.showNotification]);
-
   // ---------------------------------------------------------------------------
   // External store runtime
   // ---------------------------------------------------------------------------
   const runtime = useExternalStoreRuntime({
     messages: currentMessages,
     isLoading: isThreadLoading,
-    setMessages: (msgs) =>
-      threadContext.setThreadMessages(threadContext.currentThreadId, [...msgs]),
     isRunning,
     onNew: async (message: AppendMessage) => {
       const text = appendMessageText(message);
@@ -500,27 +295,6 @@ export function AomiRuntimeCore({
         } catch (error) {
           console.error("Failed to send message:", error);
         }
-      }
-    },
-    onEdit: async (message: AppendMessage) => {
-      try {
-        await orchestratorRegenerateMessage(
-          threadContext.currentThreadId,
-          message.sourceId ?? message.parentId,
-          appendMessageText(message),
-        );
-      } catch (error) {
-        console.error("Failed to edit message:", error);
-      }
-    },
-    onReload: async (parentId) => {
-      try {
-        await orchestratorRegenerateMessage(
-          threadContext.currentThreadId,
-          parentId,
-        );
-      } catch (error) {
-        console.error("Failed to reload message:", error);
       }
     },
     onCancel: async () => {
@@ -536,7 +310,6 @@ export function AomiRuntimeCore({
   useEffect(() => {
     return () => {
       warmPromisesRef.current.clear();
-      preparePromisesRef.current.clear();
       closeAllSessions();
     };
   }, [closeAllSessions]);
@@ -560,7 +333,9 @@ export function AomiRuntimeCore({
   const getMessages = useCallback(
     (threadId?: string) => {
       const id = threadId ?? threadContext.currentThreadId;
-      return threadContext.getThreadMessages(id);
+      const session = sessionManager.get(id);
+      if (!session) return [];
+      return projectAssistantMessages(session.getSnapshot().events);
     },
     [threadContext],
   );
@@ -627,7 +402,6 @@ export function AomiRuntimeCore({
       setUser: userContext.setUser,
       addExtValue: userContext.addExtValue,
       removeExtValue: userContext.removeExtValue,
-      onUserStateChange: userContext.onUserStateChange,
 
       // Thread API
       currentThreadId: threadContext.currentThreadId,
@@ -644,6 +418,7 @@ export function AomiRuntimeCore({
 
       // Chat API
       isRunning,
+      isSubmitting: snapshot.isSubmitting,
       getMessages,
       sendMessage,
       cancelGeneration,
@@ -654,25 +429,17 @@ export function AomiRuntimeCore({
       dismissNotification: notificationContext.dismissNotification,
       clearAllNotifications: notificationContext.clearAll,
 
-      // Wallet API
-      pendingWalletRequests: walletHandler.pendingRequests,
-      hasBlockingWalletRequests: walletHandler.hasBlockingWalletRequests,
-      startWalletRequest: walletHandler.startRequest,
-      dismissWalletRequest: walletHandler.dismissRequest,
-      resolveWalletRequest: walletHandler.resolveRequest,
-      rejectWalletRequest: walletHandler.rejectRequest,
+      // Action API
+      pendingActions: actions.pendingActions,
+      actionAttempts: actions.actionAttempts,
+      hasBlockingActions: actions.hasBlockingActions,
+      executeAction: actions.executeAction,
+      respondToAction: actions.respondToAction,
+      rejectAction: actions.rejectAction,
       simulateBatchTransactions,
 
-      // Event API
-      subscribe: eventContext.subscribe,
-      sendSystemCommand: eventContext.sendOutboundSystem,
-      recordUiInteraction: (payload) =>
-        eventContext.sendOutboundSystem({
-          type: "ui_interaction",
-          sessionId: threadContext.currentThreadId,
-          payload,
-        }),
-      sseStatus: eventContext.sseStatus,
+      events: snapshot.events,
+      turnState: snapshot.turnState,
     }),
     [
       userContext,
@@ -686,28 +453,23 @@ export function AomiRuntimeCore({
       threadListAdapter,
       selectThread,
       isRunning,
+      snapshot.isSubmitting,
       getMessages,
       sendMessage,
       cancelGeneration,
       notificationContext,
-      walletHandler,
+      actions,
       simulateBatchTransactions,
-      eventContext,
+      snapshot.events,
+      snapshot.turnState,
     ],
   );
 
   return (
     <AomiRuntimeApiProvider value={aomiRuntimeApi}>
-      <RuntimeUserStateProvider
-        sessionManager={sessionManager}
-        getUserState={userContext.getUserState}
-        setUser={userContext.setUser}
-        onUserStateChange={userContext.onUserStateChange}
-      >
-        <AssistantRuntimeProvider runtime={runtime}>
-          {children}
-        </AssistantRuntimeProvider>
-      </RuntimeUserStateProvider>
+      <AssistantRuntimeProvider runtime={runtime}>
+        {children}
+      </AssistantRuntimeProvider>
     </AomiRuntimeApiProvider>
   );
 }
