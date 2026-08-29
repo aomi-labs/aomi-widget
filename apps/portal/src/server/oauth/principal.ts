@@ -6,13 +6,23 @@ import {
   AOMI_PRINCIPAL_CLASS_CLAIM,
 } from "@aomi-labs/account/better-auth";
 import { getOrCreateAomiUserForBetterAuthSession } from "@aomi-labs/account/account";
+import {
+  hasWidgetSessionBearer,
+  resolveWidgetSession,
+} from "@aomi-labs/account/widget-auth";
 import { oauthProviderResourceClient } from "@better-auth/oauth-provider/resource-client";
 import type { JWTPayload } from "jose";
 
 import { getBetterAuthSession } from "@portal/server/account/session";
 import { resolveE2ECanonicalUserId } from "@portal/server/e2e-wallet";
+import { isManagedWidgetClientOrigin } from "./cors";
 import { isGuestRestEnabled } from "./features";
-import { aomiOAuthResources, type AomiPublicResource } from "./resources";
+import {
+  aomiOAuthResourcePolicy,
+  aomiOAuthResources,
+  guestScopesForAomiResource,
+  type AomiPublicResource,
+} from "./resources";
 
 export type ApiPrincipal = {
   canonicalUserId: string;
@@ -23,6 +33,7 @@ export type ApiPrincipal = {
   principalClass: "user" | "guest";
   grantId?: string;
   sid?: string;
+  widgetOrigin?: string;
 };
 
 export class ApiPrincipalError extends Error {
@@ -30,6 +41,7 @@ export class ApiPrincipalError extends Error {
     readonly status: 401 | 403,
     readonly code: "invalid_token" | "insufficient_scope" | "csrf_failed",
     readonly requiredScopes: readonly string[] = [],
+    readonly challengeHeaders: Headers = new Headers(),
   ) {
     super(code);
   }
@@ -64,11 +76,77 @@ export async function resolveApiPrincipal(input: {
       sid: "e2e-session",
     };
   }
+  if (hasWidgetSessionBearer(input.request)) {
+    const widget = await resolveWidgetSession({ request: input.request });
+    if (!widget) throw new ApiPrincipalError(401, "invalid_token");
+    const isAnonymousWidget = widget.authMethod === "anonymous";
+    const allowedSessionScopes = isAnonymousWidget
+      ? guestScopes(input.resource, input.sessionScopes)
+      : input.sessionScopes;
+    for (const required of input.requiredScopes) {
+      if (!allowedSessionScopes.includes(required)) {
+        throw new ApiPrincipalError(
+          403,
+          "insufficient_scope",
+          input.requiredScopes,
+        );
+      }
+    }
+    const scopes = [...new Set(input.requiredScopes)];
+    // An authenticated widget that can create an agent turn also needs to
+    // resolve that turn's staged action. Keep the grant narrow: anonymous
+    // widgets cannot resolve actions and no custody/MCP OAuth scopes are
+    // inherited.
+    if (
+      !isAnonymousWidget &&
+      input.requiredScopes.includes("agent:write") &&
+      input.sessionScopes.includes("agent:actions:resolve")
+    ) {
+      scopes.push("agent:actions:resolve");
+    }
+    return {
+      canonicalUserId: widget.userId,
+      // A widget session authorizes only the operation currently being
+      // requested. It never inherits elevated OAuth scopes such as delegated
+      // custody merely because the canonical account has those capabilities.
+      scopes,
+      resource: input.resource,
+      authSource: "session",
+      // Widget requests are delegated through the BFF as user-class thread
+      // credentials so the backend can select the configured guest-safe
+      // model. The original widget auth method still applies the guest scope
+      // ceiling above, including denial of action resolution.
+      principalClass: "user",
+      sid: "widget-session",
+      widgetOrigin: widget.origin,
+    };
+  }
   if (isOAuthCredential(input.request)) {
+    const policy = aomiOAuthResourcePolicy(input.resource);
+    if (
+      policy?.dpopBoundAccessTokensRequired &&
+      !hasDpopPresentation(input.request)
+    ) {
+      throw new ApiPrincipalError(
+        401,
+        "invalid_token",
+        input.requiredScopes,
+        new Headers({
+          "www-authenticate": `DPoP error="invalid_token", resource_metadata="${protectedMetadataUrl(input.resource)}"`,
+        }),
+      );
+    }
     let claims: JWTPayload;
     try {
       claims = await resourceClient.verifyAccessTokenRequest(input.request, {
-        verifyOptions: { audience: input.resource },
+        // Pass both values explicitly. The resource-client helper otherwise
+        // reconstructs the JWKS URL from Better Auth's base URL/base path;
+        // separately published 1.7 peer contexts can apply that path twice.
+        jwksUrl: `${aomiOAuthResources().authorizationServerIssuer}/jwks`,
+        verifyOptions: {
+          audience: input.resource,
+          issuer: aomiOAuthResources().authorizationServerIssuer,
+        },
         requiredScopes: input.requiredScopes,
         dpop: { signingAlgorithms: ["ES256", "EdDSA"] },
       });
@@ -81,6 +159,7 @@ export async function resolveApiPrincipal(input: {
         status === 403 ? 403 : 401,
         status === 403 ? "insufficient_scope" : "invalid_token",
         input.requiredScopes,
+        challengeHeaders(error),
       );
     }
     const principal = await principalFromOAuthClaims(claims, input.resource);
@@ -103,7 +182,24 @@ export async function resolveApiPrincipal(input: {
         input.requiredScopes,
       );
     }
+    const origin = input.request.headers.get("origin");
+    if (
+      origin &&
+      origin !== aomiOAuthResources().portalOrigin &&
+      !(await isManagedWidgetClientOrigin(origin, principal.clientId))
+    ) {
+      throw new ApiPrincipalError(401, "invalid_token");
+    }
     return principal;
+  }
+
+  const origin = input.request.headers.get("origin");
+  if (
+    !input.request.headers.has("authorization") &&
+    origin &&
+    origin !== aomiOAuthResources().portalOrigin
+  ) {
+    throw new ApiPrincipalError(401, "invalid_token");
   }
 
   // A non-JWT bearer is a Better Auth session token: the bearer plugin lets
@@ -155,6 +251,14 @@ export async function resolveApiPrincipal(input: {
       sid: session.session ? "session" : undefined,
     };
   }
+  // Better Auth's bearer plugin deliberately accepts opaque session tokens
+  // for headless clients such as the CLI. JWT-shaped OAuth credentials and
+  // WSTs have already failed closed in their dedicated branches above, so an
+  // unresolved Authorization header here is invalid rather than a cookie
+  // fallback candidate.
+  if (input.request.headers.has("authorization")) {
+    throw new ApiPrincipalError(401, "invalid_token");
+  }
   throw new ApiPrincipalError(401, "invalid_token");
 }
 
@@ -166,6 +270,9 @@ export async function principalFromOAuthClaims(
   const principalClassClaim = claims[AOMI_PRINCIPAL_CLASS_CLAIM];
   if (
     typeof claims.sub !== "string" ||
+    claims.iss !== aomiOAuthResources().authorizationServerIssuer ||
+    Array.isArray(claims.aud) ||
+    claims.aud !== resource ||
     typeof canonicalClaim !== "string" ||
     !["user", "guest"].includes(String(principalClassClaim))
   ) {
@@ -202,18 +309,7 @@ export async function principalFromOAuthClaims(
 }
 
 function guestScopes(resource: AomiPublicResource, scopes: readonly string[]) {
-  const path = new URL(resource).pathname;
-  const ceiling = path.includes("agent")
-    ? new Set(["agent:read", "agent:write", "mcp:agent", "offline_access"])
-    : new Set([
-        "pipeline:catalog",
-        "mcp:pipeline",
-        "offline_access",
-        ...(process.env.AOMI_GUEST_PIPELINE_EXECUTION_ENABLED === "true"
-          ? ["pipeline:execute"]
-          : []),
-      ]);
-  return scopes.filter((scope) => ceiling.has(scope));
+  return guestScopesForAomiResource(resource, scopes);
 }
 
 function enforceCookieCsrf(request: Request) {
@@ -222,7 +318,7 @@ function enforceCookieCsrf(request: Request) {
   const origin = request.headers.get("origin");
   const expected = new Set([
     new URL(request.url).origin,
-    aomiOAuthResources().issuer,
+    aomiOAuthResources().portalOrigin,
   ]);
   const forwardedHost = request.headers
     .get("x-forwarded-host")
@@ -232,7 +328,23 @@ function enforceCookieCsrf(request: Request) {
     request.headers.get("x-forwarded-proto")?.split(",", 1)[0]?.trim() ??
     "https";
   if (forwardedHost) expected.add(`${forwardedProto}://${forwardedHost}`);
-  if (!origin || !expected.has(origin)) {
+  if (origin) {
+    if (!expected.has(origin)) {
+      throw new ApiPrincipalError(403, "csrf_failed");
+    }
+    return;
+  }
+
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite === "cross-site") {
+    throw new ApiPrincipalError(403, "csrf_failed");
+  }
+  if (request.headers.get("x-aomi-csrf") === "1") return;
+
+  // Some browsers omit Origin for same-origin fetches. Fetch Metadata is set
+  // by the browser and cannot be forged by a cross-site page, so it is a safe
+  // fallback while requests without either signal remain denied.
+  if (fetchSite !== "same-origin") {
     throw new ApiPrincipalError(403, "csrf_failed");
   }
 }
@@ -249,19 +361,54 @@ export function apiAuthError(
     error instanceof ApiPrincipalError
       ? error
       : new ApiPrincipalError(401, "invalid_token");
-  const metadata = `/.well-known/oauth-protected-resource${new URL(resource).pathname}`;
+  const metadata = protectedMetadataUrl(resource);
   const params = [
-    `resource_metadata="${new URL(metadata, resource)}"`,
+    `resource_metadata="${metadata}"`,
     `error="${principalError.code}"`,
     principalError.requiredScopes.length
       ? `scope="${principalError.requiredScopes.join(" ")}"`
       : null,
   ].filter(Boolean);
+  const headers = new Headers(principalError.challengeHeaders);
+  if (!headers.has("www-authenticate")) {
+    headers.set("www-authenticate", `Bearer ${params.join(", ")}`);
+  }
   return Response.json(
     { error: { code: principalError.code, message: "Authorization failed" } },
     {
       status: principalError.status,
-      headers: { "www-authenticate": `Bearer ${params.join(", ")}` },
+      headers,
     },
   );
+}
+
+function hasDpopPresentation(request: Request): boolean {
+  return (
+    request.headers
+      .get("authorization")
+      ?.trim()
+      .toLowerCase()
+      .startsWith("dpop ") === true && request.headers.has("dpop")
+  );
+}
+
+function protectedMetadataUrl(resource: AomiPublicResource): string {
+  return new URL(
+    `/.well-known/oauth-protected-resource${new URL(resource).pathname}`,
+    resource,
+  ).toString();
+}
+
+function challengeHeaders(error: unknown): Headers {
+  if (!error || typeof error !== "object" || !("headers" in error)) {
+    return new Headers();
+  }
+  const value = error.headers;
+  try {
+    return value instanceof Headers
+      ? new Headers(value)
+      : new Headers(value as HeadersInit);
+  } catch {
+    return new Headers();
+  }
 }

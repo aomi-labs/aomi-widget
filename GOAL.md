@@ -286,6 +286,19 @@ toggle persistence, route continuity, contrast, and console errors pass.
 
 # Auth BFF BetterAuth Cleanup Goal
 
+## Managed OAuth and canonical wallet salvage
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-30** — retain
+the useful SDK/auth work from the retired cumulative release stack on top of
+the canonical Agent/Event architecture. `Aomi` now owns lazy, refreshable,
+resource-specific OAuth through `aomi.auth`; `new Aomi({ wallet })` exposes
+the primitive wallet facade while the existing `ActionHandler` remains the
+only Action lifecycle owner. Cross-origin guests receive origin-bound widget
+sessions, managed widgets use a one-time WST/PKCE-bound OAuth bootstrap, and
+the runnable examples exercise the canonical Agent, Pipeline, OAuth, and
+Action APIs. No legacy wallet controller, auth route alias, compatibility
+projection, or tracked generated distribution was restored.
+
 ## TypeScript SDK and developer surfaces
 
 Current session goal: **IMPLEMENTED AND CI VERIFIED 2026-08-25** — ship the

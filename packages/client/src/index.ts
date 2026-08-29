@@ -100,7 +100,10 @@ export {
   ensureSvmWalletBoundVia,
   isUnboundWalletError,
   posterFromClient,
+  createAomiOAuthGrantManager,
+  createMemoryOAuthGrantStore,
   createOAuthTokenProvider,
+  AomiOAuthError,
 } from "./authorization";
 export type {
   AomiAuthorizationChallenge,
@@ -109,10 +112,27 @@ export type {
   AomiEnsureBoundResult,
   AuthorizationPoster,
   AomiOAuthResource,
+  AomiOAuthGrant,
+  AomiOAuthGrantManager,
+  AomiOAuthGrantStore,
   AomiOAuthTokenProvider,
   AomiOAuthTokenRequest,
   AomiOAuthTokenSet,
 } from "./authorization";
+export {
+  acquireAomiBrowserGrant,
+  acquireAomiDeviceGrant,
+  createAomiBrowserGrantManager,
+  createAomiDeviceGrantManager,
+  discoverAomiAuthorizationServer,
+  refreshAomiOAuthGrant,
+  revokeAomiOAuthGrant,
+} from "./oauth";
+export type {
+  AomiAuthorizationServerMetadata,
+  AomiBrowserGrantOptions,
+  AomiDeviceVerification,
+} from "./oauth";
 export { createGuestSessionProvider } from "./guest-auth";
 export type { GuestSessionProvider } from "./guest-auth";
 export {
@@ -126,6 +146,18 @@ export {
 
 export { Aomi } from "./sdk/aomi";
 export type { AomiOptions } from "./sdk/aomi";
+export { oauth } from "./sdk/auth";
+export type {
+  AomiAuthController,
+  AomiAuthLoginOptions,
+  AomiAuthMode,
+  AomiAuthStatus,
+  AomiAuthStrategy,
+  AomiAuthTarget,
+  AomiBrowserOAuthOptions,
+  AomiDeviceOAuthOptions,
+  AomiOAuthStrategy,
+} from "./sdk/auth";
 export { AomiAgent, AgentRun } from "./sdk/agent";
 export type {
   AgentRunEventMap,

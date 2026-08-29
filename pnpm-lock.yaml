@@ -369,6 +369,28 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.6.0)(jiti@2.6.1)(jsdom@26.1.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.32.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
 
+  apps/examples/headless-client:
+    dependencies:
+      '@aomi-labs/client':
+        specifier: workspace:*
+        version: link:../../../packages/client
+      viem:
+        specifier: 2.47.11
+        version: 2.47.11(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^24
+        version: 24.10.4
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@24.10.4)(jiti@2.6.1)(jsdom@26.1.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(lightningcss@1.32.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.9.0)
+
   apps/landing:
     dependencies:
       '@aomi-labs/account':
@@ -1029,6 +1051,9 @@ importers:
       citty:
         specifier: ^0.2.2
         version: 0.2.2
+      jose:
+        specifier: ^6.2.3
+        version: 6.2.3
       tweetnacl:
         specifier: ^1.0.3
         version: 1.0.3

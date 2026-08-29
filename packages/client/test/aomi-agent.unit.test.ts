@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { Aomi, AgentRun, walletCapabilities, walletUserState } from "../src";
+import { Aomi, AgentRun } from "../src";
 import type { Action, EventPage } from "../src";
 
 const occurredAt = Date.parse("2026-08-25T00:00:00Z");
@@ -215,12 +215,12 @@ describe("high-level Aomi Agent", () => {
       baseUrl: "https://api.example",
       fetch: fetch as typeof globalThis.fetch,
       guest: false,
-      actions: walletCapabilities(wallets),
+      wallet: wallets,
     });
+    expect(aomi.wallet).toBe(wallets);
     const run = aomi.agent.run("Execute", {
       sessionId: "agent-wallet",
       pollIntervalMs: 1,
-      userState: walletUserState(wallets),
     });
     const actions = vi.fn();
     run.on("action", (action) => {
@@ -259,6 +259,14 @@ describe("high-level Aomi Agent", () => {
             transactionId: "0xagenttx",
           },
         ],
+      },
+    });
+    const start = JSON.parse(fetch.mock.calls[0]?.[1]?.body as string);
+    expect(start.userState).toEqual({
+      connection: { is_connected: true },
+      evm: {
+        address: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        chain_id: 8453,
       },
     });
   });

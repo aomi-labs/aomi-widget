@@ -4,7 +4,7 @@
     "lib": ["ES2022", "DOM"],
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "baseUrl": "../..",
+    "baseUrl": "../../..",
     "paths": {
       "@aomi-labs/client": ["packages/client/src/index.ts"]
     },

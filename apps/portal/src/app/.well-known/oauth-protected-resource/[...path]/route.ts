@@ -1,8 +1,9 @@
 import { auth } from "@aomi-labs/account/better-auth";
 import { oauthProviderResourceClient } from "@better-auth/oauth-provider/resource-client";
 
+import { publicDiscoveryResponse } from "@portal/server/oauth/cors";
 import {
-  aomiOAuthResourcePolicy,
+  aomiOAuthResourcePolicies,
   aomiOAuthResources,
 } from "@portal/server/oauth/resources";
 
@@ -17,23 +18,34 @@ export async function GET(
 ) {
   const path = `/${(await context.params).path.join("/")}`;
   const resources = aomiOAuthResources();
-  const resource = [
-    resources.agentMcp,
-    resources.pipelineMcp,
-    resources.agentRest,
-    resources.pipelineRest,
-  ].find((candidate) => new URL(candidate).pathname === path);
-  const policy = resource && aomiOAuthResourcePolicy(resource);
+  const policy = aomiOAuthResourcePolicies().find(
+    (candidate) => new URL(candidate.identifier).pathname === path,
+  );
   if (!policy) return Response.json({ error: "not_found" }, { status: 404 });
-  const scopes = [...policy.allowedScopes];
-  return Response.json(
-    await client.getProtectedResourceMetadata(
-      {
+  return publicDiscoveryResponse(
+    Response.json(
+      await client.getProtectedResourceMetadata({
         resource: policy.identifier,
-        authorization_servers: [resources.issuer],
-        scopes_supported: scopes,
-      },
-      { externalScopes: scopes },
+        authorization_servers: [resources.authorizationServerIssuer],
+        scopes_supported: [...policy.allowedScopes],
+        dpop_bound_access_tokens_required: policy.dpopBoundAccessTokensRequired,
+        dpop_signing_alg_values_supported: ["ES256", "EdDSA"],
+      }),
     ),
   );
+}
+
+export async function HEAD(
+  request: Request,
+  context: { params: Promise<{ path: string[] }> },
+) {
+  const response = await GET(request, context);
+  return new Response(null, {
+    status: response.status,
+    headers: response.headers,
+  });
+}
+
+export function OPTIONS() {
+  return publicDiscoveryResponse(new Response(null, { status: 204 }));
 }

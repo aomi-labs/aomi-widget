@@ -26,8 +26,15 @@ export function createGuestSessionProvider(input: {
 }
 
 async function signInAnonymous(fetchImpl: typeof fetch, baseUrl: string) {
+  const normalizedBase = baseUrl.replace(/\/+$/, "");
+  const authEndpoint = `${normalizedBase}/api/auth/sign-in/anonymous`;
+  const crossOriginBrowser =
+    typeof location !== "undefined" &&
+    new URL(authEndpoint, location.origin).origin !== location.origin;
   const response = await fetchImpl(
-    `${baseUrl.replace(/\/+$/, "")}/api/auth/sign-in/anonymous`,
+    crossOriginBrowser
+      ? `${normalizedBase}/api/auth/widget/guest`
+      : authEndpoint,
     {
       method: "POST",
       headers: {
@@ -35,16 +42,26 @@ async function signInAnonymous(fetchImpl: typeof fetch, baseUrl: string) {
         "content-type": "application/json",
       },
       body: "{}",
-      credentials: "include",
+      credentials: crossOriginBrowser ? "omit" : "include",
     },
   );
   if (!response.ok) {
     throw new Error(`Aomi guest sign-in failed with HTTP ${response.status}`);
   }
-  const token =
-    response.headers.get("set-auth-token") ??
-    response.headers.get("x-auth-token") ??
-    response.headers.get("auth-token");
+  const token = crossOriginBrowser
+    ? await response
+        .json()
+        .then((body: unknown) =>
+          body &&
+          typeof body === "object" &&
+          "access_token" in body &&
+          typeof body.access_token === "string"
+            ? body.access_token
+            : null,
+        )
+    : (response.headers.get("set-auth-token") ??
+      response.headers.get("x-auth-token") ??
+      response.headers.get("auth-token"));
   if (!token) throw new Error("Aomi guest sign-in returned no bearer session");
   return token;
 }

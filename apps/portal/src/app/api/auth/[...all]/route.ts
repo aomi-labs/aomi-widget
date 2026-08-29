@@ -1,27 +1,42 @@
 import { auth } from "@aomi-labs/account/better-auth";
+import {
+  aomiOAuthResources,
+  guestScopesForAomiResource,
+} from "@aomi-labs/account/better-auth";
+
+import {
+  applyManagedWidgetCors,
+  isManagedWidgetClientOrigin,
+  managedWidgetPreflight,
+  oauthBodyClientId,
+  publicDiscoveryResponse,
+} from "@portal/server/oauth/cors";
+import { enforceAomiOAuthRequestPolicy } from "@portal/server/oauth/request-policy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 async function handleAuth(request: Request) {
   const path = new URL(request.url).pathname;
-  if (request.method === "POST" && path.endsWith("/oauth2/register")) {
-    const metadata = await request
-      .clone()
-      .json()
-      .catch(() => ({}));
-    const method = String(metadata?.token_endpoint_auth_method ?? "none");
-    if (method !== "none") {
-      return Response.json(
-        {
-          error: "invalid_client_metadata",
-          error_description:
-            "Unauthenticated dynamic registration is limited to public clients",
-        },
-        { status: 400 },
-      );
-    }
+  const isBrowserGrantEndpoint = ["/oauth2/token", "/oauth2/revoke"].some(
+    (suffix) => path.endsWith(suffix),
+  );
+  const origin = request.headers.get("origin");
+  const crossOrigin =
+    origin !== null && origin !== aomiOAuthResources().portalOrigin;
+  const browserClientId =
+    isBrowserGrantEndpoint && crossOrigin
+      ? await oauthBodyClientId(request)
+      : undefined;
+  if (
+    isBrowserGrantEndpoint &&
+    crossOrigin &&
+    !(await isManagedWidgetClientOrigin(origin, browserClientId))
+  ) {
+    return Response.json({ error: "origin_not_allowed" }, { status: 403 });
   }
+  const policyFailure = await enforceAomiOAuthRequestPolicy(request);
+  if (policyFailure) return policyFailure;
   if (request.method === "POST" && path.endsWith("/oauth2/consent")) {
     const session = await auth.api.getSession({ headers: request.headers });
     if (session?.user.isAnonymous === true) {
@@ -42,33 +57,58 @@ async function handleAuth(request: Request) {
           { status: 400 },
         );
       }
-      const allowed = new Set([
-        "agent:read",
-        "agent:write",
-        "pipeline:catalog",
-        "mcp:agent",
-        "mcp:pipeline",
-        "offline_access",
-        ...(process.env.AOMI_GUEST_PIPELINE_EXECUTION_ENABLED === "true"
-          ? ["pipeline:execute"]
-          : []),
-      ]);
-      const bounded = requested.filter((scope) => allowed.has(scope));
-      if (bounded.length === 0) {
-        return Response.json(
-          {
-            error: "invalid_scope",
-            error_description: "No guest-safe scope selected",
-          },
-          { status: 400 },
+      const oauthQuery =
+        typeof body.oauth_query === "string"
+          ? new URLSearchParams(body.oauth_query)
+          : null;
+      const consentResources = oauthQuery?.getAll("resource") ?? [];
+      const oidcOnly =
+        consentResources.length === 0 &&
+        requested.includes("openid") &&
+        requested.every((scope) =>
+          ["openid", "profile", "email", "offline_access"].includes(scope),
         );
+      if (oidcOnly) {
+        // Identity-only consent is intentionally separate from Aomi resource
+        // grants and remains governed by Better Auth's signed OAuth query.
+      } else {
+        if (consentResources.length !== 1) {
+          return Response.json(
+            {
+              error: "invalid_target",
+              error_description: "Guest consent requires one signed resource",
+            },
+            { status: 400 },
+          );
+        }
+        const resource = consentResources[0];
+        const bounded = guestScopesForAomiResource(resource, requested);
+        if (bounded.length === 0) {
+          return Response.json(
+            {
+              error: "invalid_scope",
+              error_description: "No guest-safe scope selected",
+            },
+            { status: 400 },
+          );
+        }
+        request = new Request(request, {
+          body: JSON.stringify({ ...body, scope: bounded.join(" ") }),
+        });
       }
-      request = new Request(request, {
-        body: JSON.stringify({ ...body, scope: bounded.join(" ") }),
-      });
     }
   }
-  const response = await auth.handler(request);
+  let response = await auth.handler(request);
+  if (request.method === "GET" && path.endsWith("/jwks")) {
+    response = publicDiscoveryResponse(response);
+  }
+  if (isBrowserGrantEndpoint && crossOrigin) {
+    response = await applyManagedWidgetCors({
+      request,
+      response,
+      clientId: browserClientId,
+    });
+  }
   if (isObservedOAuthPath(path)) {
     console.info("better_auth_oauth_endpoint", {
       endpoint: path.slice(path.lastIndexOf("/api/auth") + "/api/auth".length),
@@ -94,3 +134,16 @@ export const POST = handleAuth;
 export const PUT = handleAuth;
 export const PATCH = handleAuth;
 export const DELETE = handleAuth;
+
+export async function OPTIONS(request: Request) {
+  const path = new URL(request.url).pathname;
+  if (
+    ["/oauth2/token", "/oauth2/revoke"].some((suffix) => path.endsWith(suffix))
+  ) {
+    return managedWidgetPreflight(request, ["POST", "OPTIONS"]);
+  }
+  if (path.endsWith("/jwks")) {
+    return publicDiscoveryResponse(new Response(null, { status: 204 }));
+  }
+  return new Response(null, { status: 204 });
+}

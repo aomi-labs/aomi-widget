@@ -112,6 +112,8 @@ export class AomiAgent {
     readonly raw: AomiClient["agent"],
     private readonly client: AomiClient,
     private readonly actions: ActionCapabilities = {},
+    private readonly defaultUserState: () => UserStateShape | undefined = () =>
+      undefined,
   ) {}
 
   run(prompt: string, options?: AgentRunOptions): AgentRun {
@@ -121,7 +123,10 @@ export class AomiAgent {
       this.client,
       normalized,
       options?.actions ?? this.actions,
-      options,
+      {
+        ...options,
+        userState: options?.userState ?? this.defaultUserState(),
+      },
     );
   }
 }

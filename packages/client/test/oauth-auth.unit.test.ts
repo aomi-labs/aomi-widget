@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { wrapFetchWithPublicApiAuthorization } from "../src/client";
 import { createGuestSessionProvider } from "../src/guest-auth";
 import type { AomiOAuthTokenRequest } from "../src/authorization";
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("public API OAuth transport", () => {
   it("requests the exact Agent resource and route scope", async () => {
@@ -109,7 +111,27 @@ describe("public API OAuth transport", () => {
 });
 
 describe("Better Auth guest bootstrap", () => {
+  it("uses the origin-bound widget guest route without credentialed CORS", async () => {
+    vi.stubGlobal("location", { origin: "https://widget.example" });
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({ access_token: "aomi_wst_widget_guest" }),
+      );
+    const guest = createGuestSessionProvider({
+      baseUrl: "https://portal.example",
+      fetch: fetchImpl as typeof fetch,
+    });
+
+    await expect(guest()).resolves.toBe("aomi_wst_widget_guest");
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://portal.example/api/auth/widget/guest",
+      expect.objectContaining({ credentials: "omit" }),
+    );
+  });
+
   it("reuses one official anonymous bearer until explicitly refreshed", async () => {
+    vi.stubGlobal("location", { origin: "https://chat.aomi.dev" });
     const fetchImpl = vi
       .fn()
       .mockResolvedValueOnce(
