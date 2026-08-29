@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { useAomiWalletKit } from "@aomi-labs/widget-lib";
 import {
   seedAccountOverview,
   type AccountOverview,
@@ -27,7 +27,7 @@ export function useAomiSession(): {
   status: AomiSessionStatus;
   retry: () => void;
 } {
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const adapterStatus = adapter.identity.status;
   const accountStatus = adapter.accountStatus;
   const accountUserId = adapter.accountUser?.id;

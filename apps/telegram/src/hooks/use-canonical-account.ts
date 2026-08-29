@@ -4,10 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useAccount, useClient } from "@getpara/react-sdk-lite";
 import {
   createProviderCredentialAdapter,
-  createWidgetSessionProvider,
-  type WidgetAuthAdapter,
-  type WidgetAuthSession,
-  type WidgetSessionProvider,
+  createAccountSessionProvider,
+  type AccountAuthAdapter,
+  type AccountAuthSession,
+  type AccountSessionProvider,
 } from "@aomi-labs/client";
 
 import { aomiBffUrl, paraEnvironment } from "@/app/config";
@@ -15,7 +15,7 @@ import type { LaunchContext } from "@/lib/telegram";
 
 type CanonicalAccountState = {
   error: string | null;
-  provider: WidgetSessionProvider | null;
+  provider: AccountSessionProvider | null;
   status: "disconnected" | "loading" | "ready" | "error";
   userId: string | null;
 };
@@ -32,7 +32,7 @@ function telegramParaAdapter(input: {
   } | null>;
   launch: LaunchContext;
   paraSubject: string | null;
-}): WidgetAuthAdapter {
+}): AccountAuthAdapter {
   return {
     getFingerprint: () =>
       input.paraSubject
@@ -75,7 +75,7 @@ function telegramParaAdapter(input: {
       return {
         accessToken: body.access_token,
         expiresAt: body.expires_at,
-      } satisfies WidgetAuthSession;
+      } satisfies AccountAuthSession;
     },
   };
 }
@@ -117,7 +117,7 @@ export function useCanonicalAccount(
             },
             getSubject: () => paraSubject,
           });
-    return createWidgetSessionProvider({ baseUrl: aomiBffUrl, adapter });
+    return createAccountSessionProvider({ baseUrl: aomiBffUrl, adapter });
   }, [account.embedded.isConnected, launch, paraClient, paraSubject]);
 
   useEffect(() => {

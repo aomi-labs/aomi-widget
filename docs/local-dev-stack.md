@@ -98,6 +98,23 @@ the backend. The backend verifies only; it does not mint this bearer.
 The removed local handoff's HS256 `aomi_session`, `/api/auth/token`, and local
 BetterAuth JWT/JWKS path are no longer part of this stack.
 
+Unified API/MCP development uses Better Auth 1.7 OAuth Provider JWT/JWKS for
+public credentials, but retains the internal Aomi EdDSA trust boundary:
+
+```text
+OAuth/session client -> portal -> aud=aomi-api-server -> aud=aomi-backend
+```
+
+Set `AOMI_AGENT_API_URL` to the local api-server and use the canonical
+`/v1/agent`, `/v1/pipeline`, `/agent/mcp`, and `/pipeline/mcp` resources. The
+new surfaces default on outside production. Production-like local runs can
+exercise independent rollback with `AOMI_OAUTH_ISSUANCE_ENABLED`,
+`AOMI_REST_OAUTH_ENABLED`, `AOMI_AGENT_MCP_OAUTH_ENABLED`,
+`AOMI_PIPELINE_MCP_OAUTH_ENABLED`, `AOMI_LEGACY_SESSION_AUTH_ENABLED`,
+`AOMI_GUEST_AGENT_REST_ENABLED`, and `AOMI_GUEST_PIPELINE_REST_ENABLED`.
+Pipeline guest execution has a separate
+`AOMI_GUEST_PIPELINE_EXECUTION_ENABLED` switch and backend allowlists.
+
 ## Product-Mono Notes
 
 The sibling backend needs the same service public key that matches this repo's

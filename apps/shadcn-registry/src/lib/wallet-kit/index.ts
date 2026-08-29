@@ -59,4 +59,5 @@ export {
   useFullTestnet,
 } from "./full-testnet-wallet-routing";
 export { useWalletActivationGuard } from "./use-wallet-activation-guard";
+export { useActionCapabilities } from "./use-action-capabilities";
 export { signOutAndDisconnect } from "./account/sign-out";

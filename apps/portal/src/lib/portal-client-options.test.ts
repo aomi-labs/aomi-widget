@@ -106,11 +106,11 @@ describe("applyLockedAppScope", () => {
     expect(await applyLockedAppScope(request, "my-app", null)).toBe(request);
     expect(
       await applyLockedAppScope(
-        "http://localhost:3000/api/thread/chat",
+        "http://localhost:3000/api/v1/agent/chat",
         null,
         null,
       ),
-    ).toBe("http://localhost:3000/api/thread/chat");
+    ).toBe("http://localhost:3000/api/v1/agent/chat");
   });
 });
 

@@ -25,14 +25,17 @@ The durable walkthrough for this workspace lives in [../docs/topics/frontend-e2e
 ## Setup And Development
 
 1. **Install dependencies**:
+
    ```bash
    pnpm install --frozen-lockfile
    ```
 
 2. **Start development server**:
+
    ```bash
    pnpm dev
    ```
+
    Local development defaults to `http://127.0.0.1:8080`. Vercel production defaults to `https://api.aomi.dev`; previews default to `https://api-staging.aomi.dev`. For local full-stack startup use [../scripts/dev.sh](../scripts/dev.sh).
 
 3. **Open in browser**:
@@ -46,11 +49,12 @@ The durable walkthrough for this workspace lives in [../docs/topics/frontend-e2e
 - `Thread` renders the assistant UI.
 - `WalletTxHandler` consumes `pendingWalletRequests`, switches chains when needed, then resolves or rejects requests back into the runtime.
 - Settings pages use `sessionScopedFetch()`, which always sends `X-Session-Id` and conditionally sends `X-API-Key`.
-- Agent chat and MCP routes use the same-origin BFF. Set the server-only
+- Agent and Pipeline REST/MCP routes use the same-origin BFF. Set the server-only
   `AOMI_AGENT_API_URL` to the Rust api-server origin (`http://127.0.0.1:8082`
   locally, `https://agent-staging-tunnel.aomi.dev` for staging, and
   `https://agent-tunnel.aomi.dev` for production). Hosted builds fail closed
-  when this value is absent.
+  when this value is absent. Portal authenticates and delegates these routes;
+  the Rust api-server is their only protocol presenter.
 
 ## Local E2E
 

@@ -9,12 +9,7 @@ import {
   type StoredSessionRecord,
 } from "../state";
 import { createCliAuthTokenProvider } from "../auth";
-import { pendingTxsFromBackendUserState } from "../user-state";
-import {
-  estimateTokenCount,
-  printKeyValueTable,
-  printTransactionTable,
-} from "../tables";
+import { estimateTokenCount, printKeyValueTable } from "../tables";
 import type { CliConfig } from "../types";
 
 type RemoteSessionStats = {
@@ -22,7 +17,7 @@ type RemoteSessionStats = {
   messageCount: number;
   tokenCountEstimate: number;
   toolCalls: number;
-  pendingTxs: ReturnType<typeof pendingTxsFromBackendUserState>;
+  pendingActions: number;
 };
 
 async function fetchRemoteSessionStats(
@@ -35,20 +30,23 @@ async function fetchRemoteSessionStats(
   });
 
   try {
-    const delta = await client.agent.check(record.sessionId);
-    const messages = delta.messages.map((message) => ({
-      id: message.id,
-      sender: message.role,
-      content: message.content,
-      timestamp: message.createdAt,
-      is_streaming: message.streaming,
-    }));
+    const page = await client.agent.poll(record.sessionId);
+    const messages = page.events.filter((event) => event.type === "message");
+    const title = page.events.findLast(
+      (event) => event.type === "title_changed",
+    );
     return {
-      topic: delta.title ?? "Untitled Session",
+      topic:
+        title?.type === "title_changed"
+          ? (title.title ?? "Untitled Session")
+          : "Untitled Session",
       messageCount: messages.length,
       tokenCountEstimate: estimateTokenCount(messages),
-      toolCalls: messages.filter((msg) => Boolean(msg.tool_result)).length,
-      pendingTxs: record.state.pendingTxs ?? [],
+      toolCalls: page.events.filter((event) => event.type === "tool_complete")
+        .length,
+      pendingActions: page.events.filter(
+        (event) => event.type === "action" && event.state === "pending",
+      ).length,
     };
   } catch {
     return null;
@@ -60,8 +58,6 @@ function printSessionSummary(
   stats: RemoteSessionStats | null,
   isActive: boolean,
 ): void {
-  const pendingTxs = stats?.pendingTxs ?? record.state.pendingTxs ?? [];
-  const signedTxs = record.state.signedTxs ?? [];
   const header = isActive
     ? `🧵 Session id: ${record.sessionId} (session-${record.localId}, active)`
     : `🧵 Session id: ${record.sessionId} (session-${record.localId})`;
@@ -75,15 +71,8 @@ function printSessionSummary(
       stats ? `${stats.tokenCountEstimate} (estimated)` : "n/a",
     ],
     ["🛠 tool calls", stats ? String(stats.toolCalls) : "n/a"],
-    [
-      "💸 transactions",
-      `${pendingTxs.length + signedTxs.length} (${pendingTxs.length} pending, ${signedTxs.length} signed)`,
-    ],
+    ["⚡ pending actions", stats ? String(stats.pendingActions) : "n/a"],
   ]);
-
-  console.log();
-  console.log(`${YELLOW}💾 Transactions metadata (JSON):${RESET}`);
-  printTransactionTable(pendingTxs, signedTxs);
 }
 
 export async function sessionsCommand(_config: CliConfig): Promise<void> {

@@ -1,10 +1,6 @@
 import type { ArgsDef } from "citty";
 import { privateKeyToAccount } from "viem/accounts";
-import type {
-  CliEmbeddedProvider,
-  CliConfig,
-  CliExecutionMode,
-} from "../../types";
+import type { CliConfig, CliExecutionMode } from "../../types";
 import { fatal } from "../../errors";
 import {
   parseChainId,
@@ -17,23 +13,14 @@ import {
 
 type SvmCluster = NonNullable<CliConfig["svmCluster"]>;
 
-function parseEmbeddedProvider(
-  raw: string | undefined,
-): CliEmbeddedProvider | undefined {
-  if (!raw) return undefined;
-  const normalized = raw.trim().toLowerCase();
-  if (normalized === "para" || normalized === "privy") {
-    return normalized;
-  }
-  fatal(`Unknown --embedded-provider value "${raw}". Use "para" or "privy".`);
-}
-
 /**
  * Normalise the user-facing --cluster value to the CAIP-2 form the backend
  * expects.  Accepts both the friendly short form ("mainnet-beta", "devnet",
  * "testnet") and the canonical CAIP-2 form ("solana:mainnet", etc.).
  */
-export function parseSvmCluster(raw: string | undefined): SvmCluster | undefined {
+export function parseSvmCluster(
+  raw: string | undefined,
+): SvmCluster | undefined {
   if (!raw) return undefined;
   const lower = raw.trim().toLowerCase();
   switch (lower) {
@@ -79,22 +66,19 @@ export const globalArgs = {
     type: "string",
     description: "Aomi account bearer for authenticated REST/SSE requests",
   },
-  "embedded-provider": {
-    type: "string",
-    description:
-      'Deprecated legacy provider exchange config ("para" or "privy")',
-  },
-  "embedded-provider-token": {
-    type: "string",
-    description: "Deprecated legacy provider token; use --account-bearer",
-  },
   app: {
     type: "string",
     description: 'App (default: "default")',
   },
   "application-id": {
     type: "string",
-    description: "Concrete backend application id for dynamic apps",
+    description:
+      "Hosted app identity for discovery; execution returns 501 until Phase 10",
+  },
+  platform: {
+    type: "string",
+    description:
+      "Hosted app platform for discovery; execution returns 501 until Phase 10",
   },
   model: {
     type: "string",
@@ -133,7 +117,8 @@ export const globalArgs = {
   },
   "payment-method": {
     type: "string",
-    description: 'Payment method for paid chat turns, e.g. "coinbase"',
+    description:
+      'Payment method for paid Agent/Pipeline calls, e.g. "coinbase"',
   },
 } satisfies ArgsDef;
 
@@ -196,12 +181,6 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   const derivedPublicKey = derivePublicKeyFromPrivateKey(privateKey);
   const accountBearer =
     str(args["account-bearer"]) ?? process.env.AOMI_ACCOUNT_BEARER;
-  const embeddedProvider = parseEmbeddedProvider(
-    str(args["embedded-provider"]) ?? process.env.AOMI_EMBEDDED_PROVIDER,
-  );
-  const embeddedProviderToken =
-    str(args["embedded-provider-token"]) ??
-    process.env.AOMI_EMBEDDED_PROVIDER_TOKEN;
 
   // `--public-key` is an EVM identity. A base58 Solana address here used to be
   // silently rerouted by app-name sniffing; now it is a loud error.
@@ -233,22 +212,6 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
   if (execution === "eoa" && (aaProvider || aaMode)) {
     fatal("`--aa-provider` and `--aa-mode` cannot be used with `--eoa`.");
   }
-  if (accountBearer && (embeddedProvider || embeddedProviderToken)) {
-    fatal(
-      "Choose either `--account-bearer` or the `--embedded-provider` + `--embedded-provider-token` pair.",
-    );
-  }
-  if (embeddedProvider && !embeddedProviderToken) {
-    fatal(
-      "`--embedded-provider-token` is required when `--embedded-provider` is set.",
-    );
-  }
-  if (embeddedProviderToken && !embeddedProvider) {
-    fatal(
-      "`--embedded-provider` is required when `--embedded-provider-token` is set.",
-    );
-  }
-
   const solanaPrivateKey = validateSolanaPrivateKey(
     str(args["solana-private-key"]) ?? process.env.SOLANA_PRIVATE_KEY,
   );
@@ -263,11 +226,10 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     json: args.json === true,
     verbose: args.verbose === true,
     accountBearer,
-    embeddedProvider,
-    embeddedProviderToken,
     app: str(args.app) ?? process.env.AOMI_APP,
     applicationId:
       str(args["application-id"]) ?? process.env.AOMI_APPLICATION_ID,
+    appPlatform: str(args.platform) ?? process.env.AOMI_APP_PLATFORM,
     model: str(args.model) ?? process.env.AOMI_MODEL,
     freshSession: args["new-session"] === true,
     publicKey: configuredPublicKey ?? derivedPublicKey,

@@ -144,8 +144,7 @@ export function useAccountAcl(): AccountAcl {
 
   const evmAddress = adapter.identity.address;
   const svmAddress = adapter.identity.svmAddress;
-  const svmCluster =
-    adapter.identity.svmCluster ?? adapter.identity.solanaCluster;
+  const svmCluster = adapter.identity.svmCluster;
   const signTypedData = adapter.signTypedData;
   const signSolanaMessage = adapter.signSolanaMessage;
   const openAccountUI = adapter.openAccountUI;
