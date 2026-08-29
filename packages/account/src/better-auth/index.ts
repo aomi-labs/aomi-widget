@@ -4,6 +4,14 @@ export {
   type BetterAuthFailure,
   type ObserveBetterAuthFailure,
 } from "./failure-observer";
+export {
+  AOMI_CANONICAL_USER_CLAIM,
+  AOMI_PRINCIPAL_CLASS_CLAIM,
+  AOMI_SCOPES,
+  AGENT_SCOPES,
+  PIPELINE_SCOPES,
+  aomiOAuthResources,
+} from "./oauth-policy";
 export { readAccountAuthEnv, type AccountAuthEnv } from "./env";
 export { verifySiweMessage } from "./siwe";
 export {

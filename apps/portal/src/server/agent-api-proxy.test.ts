@@ -8,6 +8,15 @@ vi.mock("@aomi-labs/account", () => ({
 
 import { configuredAgentApiUrl, proxyAgentApi } from "./agent-api-proxy";
 
+const principal = {
+  canonicalUserId: "canonical-user",
+  scopes: ["agent:write", "payments:submit"],
+  resource: "https://portal.example/v1/agent",
+  authSource: "oauth" as const,
+  principalClass: "user" as const,
+  clientId: "client-1",
+};
+
 describe("Agent API proxy", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
@@ -45,11 +54,19 @@ describe("Agent API proxy", () => {
         },
         body: "{}",
       }),
-      "canonical-user",
+      principal,
       upstream,
     );
 
-    expect(mocks.mintAgentApiBearer).toHaveBeenCalledWith("canonical-user");
+    expect(mocks.mintAgentApiBearer).toHaveBeenCalledWith("canonical-user", {
+      scope: "agent:write payments:submit",
+      resource: "https://portal.example/v1/agent",
+      client_id: "client-1",
+      auth_source: "oauth",
+      principal_class: "user",
+      grant_id: undefined,
+      sid: undefined,
+    });
     const [url, init] = upstream.mock.calls[0] as [URL, RequestInit];
     expect(url.toString()).toBe("http://api-server:8082/v1/agent/chat?wait=1");
     const headers = new Headers(init.headers);
@@ -86,7 +103,11 @@ describe("Agent API proxy", () => {
           body: "{}",
         },
       ),
-      "canonical-user",
+      {
+        ...principal,
+        scopes: ["pipeline:execute", "payments:submit"],
+        resource: "https://portal.example/v1/pipeline",
+      },
       upstream,
     );
     const [url, init] = upstream.mock.calls[0] as [URL, RequestInit];
@@ -102,7 +123,7 @@ describe("Agent API proxy", () => {
     const upstream = vi.fn();
     const response = await proxyAgentApi(
       new Request("https://portal.example/v1/admin/secrets"),
-      "canonical-user",
+      principal,
       upstream,
     );
     expect(response.status).toBe(404);

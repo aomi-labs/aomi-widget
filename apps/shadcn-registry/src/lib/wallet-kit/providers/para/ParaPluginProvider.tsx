@@ -26,6 +26,7 @@ import { walletDebug } from "../../wallet-debug";
 import { buildEvmExecutionRuntime } from "../../execution/execution-runtime";
 import type { AomiAccount, SvmNetworkOption } from "../../types";
 import { PARA_BRAND_KEY, PARA_SESSION_UID } from "./para-brand";
+import { shouldConnectParaEvmSession } from "./para-evm-session";
 import {
   DEFAULT_SVM_ENDPOINT,
   useSafeSvmWallet,
@@ -70,25 +71,6 @@ export type AomiParaPluginProviderProps = {
 };
 
 const PARA_EVM_CONNECT_RETRY_COOLDOWN_MS = 30_000;
-
-/**
- * Para auth publishes a synthetic session row before any wagmi connector
- * exists, so an authenticated user can still have no signer. Connect only
- * while every Para row is that synthetic one.
- */
-export function shouldConnectParaEvmSession(
-  authenticated: boolean,
-  connections: ReadonlyArray<{ uid: string; stableId: string }>,
-): boolean {
-  return (
-    authenticated &&
-    !connections.some(
-      (connection) =>
-        connection.stableId === PARA_BRAND_KEY &&
-        connection.uid !== PARA_SESSION_UID,
-    )
-  );
-}
 
 export function AomiParaPluginProvider({
   children,
@@ -292,7 +274,6 @@ export function AomiParaPluginProvider({
       provider: "para",
       sessionProvider: "para",
       embeddedProvider: "para",
-      legacyWalletProvider: "para",
       providerLabel: "Para",
       subject: paraSubject,
       status: paraAccount.isLoading

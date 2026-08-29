@@ -3,15 +3,20 @@
 import { createContext, useContext } from "react";
 import type { ThreadMessageLike } from "@assistant-ui/react";
 
-import type { AomiSimulateResponse, UserState } from "@aomi-labs/client";
+import type {
+  Action,
+  ActionAttempt,
+  ActionResult,
+  AomiSimulateResponse,
+  Event,
+  TurnState,
+  UserState,
+} from "@aomi-labs/client";
 import type { ThreadMetadata } from "./state/thread-store";
-import type { EventSubscriber, SSEStatus } from "./contexts/event-context";
 import type {
   Notification,
   NotificationData,
 } from "./contexts/notification-context";
-import type { WalletRequest } from "./handlers/wallet-handler";
-import type { WalletRequestResult } from "@aomi-labs/client";
 
 // =============================================================================
 // AomiRuntimeApi Type
@@ -31,8 +36,6 @@ export type AomiRuntimeApi = {
   addExtValue: (key: string, value: unknown) => void;
   /** Remove a value from user_state.ext */
   removeExtValue: (key: string) => void;
-  /** Subscribe to user state changes. Returns unsubscribe function. */
-  onUserStateChange: (callback: (user: UserState) => void) => () => void;
 
   // -------------------------------------------------------------------------
   // THREAD API
@@ -63,6 +66,8 @@ export type AomiRuntimeApi = {
   // -------------------------------------------------------------------------
   /** Whether the assistant is currently generating a response */
   isRunning: boolean;
+  /** True only before the first backend event for a submitted turn. */
+  isSubmitting: boolean;
   /** Get messages for a thread (defaults to currentThreadId) */
   getMessages: (threadId?: string) => ThreadMessageLike[];
   /** Send a message to the current thread */
@@ -83,23 +88,16 @@ export type AomiRuntimeApi = {
   clearAllNotifications: () => void;
 
   // -------------------------------------------------------------------------
-  // WALLET API
+  // ACTION API
   // -------------------------------------------------------------------------
-  /** All queued wallet requests (broadcast transactions + generic signing) */
-  pendingWalletRequests: WalletRequest[];
-  /** True while switching wallets or networks could lose an unresolved request. */
-  hasBlockingWalletRequests: boolean;
-  /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
-  startWalletRequest: (id: string) => void;
-  /** Locally dismiss an externally acknowledged request. */
-  dismissWalletRequest: (id: string) => void;
-  /** Complete a wallet request after the backend acknowledges the response */
-  resolveWalletRequest: (
-    id: string,
-    result: WalletRequestResult,
-  ) => Promise<void>;
-  /** Fail a wallet request after the backend acknowledges the error */
-  rejectWalletRequest: (id: string, error?: string) => Promise<void>;
+  /** Canonical runtime Actions awaiting a client response. */
+  pendingActions: Action[];
+  actionAttempts: ReadonlyMap<string, ActionAttempt>;
+  /** True while an Action is visible or awaiting backend acknowledgement. */
+  hasBlockingActions: boolean;
+  executeAction: (id: string) => Promise<void>;
+  respondToAction: (id: string, result: ActionResult) => Promise<void>;
+  rejectAction: (id: string, reason?: string) => Promise<void>;
   /** Simulate a batch against the current thread session context. */
   simulateBatchTransactions: (
     transactions: Array<{
@@ -114,20 +112,12 @@ export type AomiRuntimeApi = {
   ) => Promise<AomiSimulateResponse["result"]>;
 
   // -------------------------------------------------------------------------
-  // EVENT API
+  // EVENT STATE
   // -------------------------------------------------------------------------
-  /** Subscribe to inbound events by type. Returns unsubscribe function. */
-  subscribe: (type: string, callback: EventSubscriber) => () => void;
-  /** Send a system command to the backend */
-  sendSystemCommand: (event: {
-    type: string;
-    sessionId: string;
-    payload: unknown;
-  }) => Promise<void>;
-  /** Record ephemeral UI context for the next model turn on the active thread. */
-  recordUiInteraction: (payload: unknown) => Promise<void>;
-  /** Current SSE connection status */
-  sseStatus: SSEStatus;
+  /** Canonical ordered events for the active session. */
+  events: readonly Event[];
+  /** Backend-owned lifecycle for the active turn. */
+  turnState?: TurnState;
 };
 
 // =============================================================================
@@ -165,8 +155,8 @@ export const AomiRuntimeApiProvider = AomiRuntimeContext.Provider;
  *   // Notification API
  *   const { showNotification } = aomi;
  *
- *   // Event API
- *   const { subscribe, sendSystemCommand, recordUiInteraction } = aomi;
+ *   // Event state
+ *   const { events, turnState } = aomi;
  * }
  * ```
  */

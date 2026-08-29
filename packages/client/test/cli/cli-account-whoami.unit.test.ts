@@ -105,32 +105,4 @@ describe("aomi account whoami", () => {
     );
   });
 
-  it("treats legacy provider exchange config as unavailable account auth", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-    const { whoamiCommand } = await import("../../src/cli/commands/account");
-
-    CliSession.loadOrCreate({
-      ...baseConfig,
-      embeddedProvider: "privy",
-      embeddedProviderToken: "bad-provider-token",
-    });
-
-    const profileResponse = {
-      ok: false,
-      status: 400,
-      statusText: "Bad Request",
-      json: vi.fn(async () => ({})),
-    } as unknown as Response;
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => profileResponse),
-    );
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-    await whoamiCommand(baseConfig);
-
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("--account-bearer"),
-    );
-  });
 });

@@ -1,26 +1,47 @@
-import { resolveCanonicalUserId } from "@portal/server/canonical-session";
 import { proxyAgentApi } from "@portal/server/agent-api-proxy";
+import {
+  apiAuthError,
+  resolveApiPrincipal,
+} from "@portal/server/oauth/principal";
+import {
+  AGENT_SCOPES,
+  aomiOAuthResources,
+} from "@portal/server/oauth/resources";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 async function handle(request: Request): Promise<Response> {
-  const canonicalUserId = await resolveCanonicalUserId(request);
-  if (!canonicalUserId) {
-    return Response.json(
-      {
-        error: {
-          code: "authentication_required",
-          message: "Authentication required",
-        },
-      },
-      { status: 401 },
-    );
-  }
+  const resource = aomiOAuthResources().agentRest;
   try {
-    return await proxyAgentApi(request, canonicalUserId);
-  } catch {
+    const requiredScopes = agentRouteScopes(request);
+    const principal = await resolveApiPrincipal({
+      request,
+      resource,
+      requiredScopes,
+      sessionScopes: AGENT_SCOPES.filter((scope) => scope !== "mcp:agent"),
+    });
+    const delegatedScopes = [...requiredScopes];
+    if (
+      requiredScopes.includes("agent:write") &&
+      principal.scopes.includes("custody:delegate")
+    ) {
+      delegatedScopes.push("custody:delegate");
+    }
+    return await proxyAgentApi(request, {
+      ...principal,
+      scopes: delegatedScopes,
+    });
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      ["invalid_token", "insufficient_scope", "csrf_failed"].includes(
+        error.message,
+      )
+    ) {
+      return apiAuthError(error, resource);
+    }
     return Response.json(
       {
         error: {
@@ -31,6 +52,16 @@ async function handle(request: Request): Promise<Response> {
       { status: 502 },
     );
   }
+}
+
+function agentRouteScopes(request: Request): string[] {
+  if (request.method === "GET") return ["agent:read"];
+  if (/\/actions\/[^/]+\/result$/.test(new URL(request.url).pathname)) {
+    return ["agent:actions:resolve"];
+  }
+  const scopes = ["agent:write"];
+  if (request.headers.has("payment-signature")) scopes.push("payments:submit");
+  return scopes;
 }
 
 export const GET = handle;

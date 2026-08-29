@@ -10,7 +10,7 @@ import {
 export const WIDGET_SESSION_TTL_SECONDS = 30 * 60;
 const WIDGET_TOKEN_PREFIX = "aomi_wst_";
 
-export type WidgetSession = {
+export type AccountSession = {
   token: string;
   tokenType: "Bearer";
   expiresAt: number;
@@ -25,7 +25,7 @@ export async function issueWidgetSession(input: {
   now?: Date;
   ttlSeconds?: number;
   store?: WidgetAuthStore;
-}): Promise<WidgetSession> {
+}): Promise<AccountSession> {
   const now = input.now ?? new Date();
   const expiresAt = new Date(
     now.getTime() + (input.ttlSeconds ?? WIDGET_SESSION_TTL_SECONDS) * 1000,

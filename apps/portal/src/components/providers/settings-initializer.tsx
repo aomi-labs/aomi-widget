@@ -1,7 +1,7 @@
 "use client";
 
 import { useLayoutEffect, useRef } from "react";
-import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { useAomiWalletKit } from "@aomi-labs/widget-lib";
 import {
   scopeAccountOverviewToUser,
   seedAccountOverview,
@@ -18,7 +18,7 @@ export function SettingsInitializer({
   children: React.ReactNode;
 }) {
   useSettings();
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
   const accountUserId = adapter.accountUser?.id;
   const previousAccountUserId = useRef(accountUserId);
 

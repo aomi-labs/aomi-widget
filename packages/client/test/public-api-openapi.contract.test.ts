@@ -3,124 +3,107 @@ import { describe, expect, it } from "vitest";
 import publicApi from "../../../apps/portal/openapi/aomi-agent-v1.json";
 
 describe("public Agent and Pipeline OpenAPI snapshot", () => {
-  it("freezes the exact Rust route manifest including Pipeline MCP", () => {
-    expect(publicApi["x-aomi-route-manifest"]).toHaveLength(23);
+  it("freezes the Rust route manifest and excludes deleted chat controllers", () => {
+    expect(publicApi["x-aomi-route-manifest"]).toHaveLength(45);
     expect(
       publicApi["x-aomi-route-manifest"].filter((route) =>
-        route.includes("/v1/pipeline/"),
+        route.includes("/v1/agent/"),
       ),
     ).toEqual([
-      "GET /v1/pipeline/apps",
-      "GET /v1/pipeline/apps/{app}",
-      "GET /v1/pipeline/search/apps",
-      "GET /v1/pipeline/search/tools",
-      "GET /v1/pipeline/skills",
-      "GET /v1/pipeline/skills/{skillId}",
-      "GET /v1/pipeline/tools",
-      "GET /v1/pipeline/tools/{toolId}",
-      "POST /v1/pipeline/mcp",
-      "POST /v1/pipeline/runs",
-      "POST /v1/pipeline/tool-calls",
+      "DELETE /v1/agent/sessions/{sessionId}",
+      "GET /v1/agent/chat/{sessionId}",
+      "GET /v1/agent/sessions",
+      "GET /v1/agent/sessions/{sessionId}",
+      "PATCH /v1/agent/sessions/{sessionId}",
+      "POST /v1/agent/chat",
+      "POST /v1/agent/chat/{sessionId}/actions/{actionId}/result",
+      "POST /v1/agent/chat/{sessionId}/interrupt",
+      "POST /v1/agent/mcp",
     ]);
+    for (const removed of ["chat", "state", "interrupt"].map(
+      (route) => `/api/thread/${route}`,
+    )) {
+      expect(publicApi.paths).not.toHaveProperty(removed);
+    }
     expect(publicApi.paths["/v1/pipeline/mcp"].post.operationId).toBe(
       "pipelineMcp",
     );
   });
 
-  it("freezes Gate F public execution and custody authority", () => {
+  it("defines one concrete Event stream with Action as an Event", () => {
     const schemas = publicApi.components.schemas;
-    expect(publicApi.info.description).toContain(
-      "Gate F Pipeline execution supports builtin public apps",
+    expect(publicApi.info.description).toBe(
+      "Intent enters the runtime; one ordered stream of concrete Events leaves it. Actions are durable Events whose nested ActionRequest requires a client response.",
     );
-    for (const path of [
-      "/v1/pipeline/tool-calls",
-      "/v1/pipeline/runs",
-      "/v1/pipeline/mcp",
-    ] as const) {
-      expect(publicApi.paths[path].post.description).toContain("builtin");
-      expect(publicApi.paths[path].post.description).toContain("Phase 10");
-    }
-    expect(
-      publicApi.paths["/v1/pipeline/tool-calls"].post.description,
-    ).toContain("returns 501");
-    expect(publicApi.paths["/v1/pipeline/runs"].post.description).toContain(
-      "returns 501",
-    );
-    for (const request of [
-      schemas.PipelineToolCallRequest,
-      schemas.PipelineRunRequest,
-    ]) {
-      expect(request.properties.app).toMatchObject({
-        type: "string",
-        minLength: 1,
-      });
-      expect(request.properties.applicationId).toMatchObject({
-        type: ["integer", "null"],
-        minimum: 1,
-      });
-      expect(request.properties.platform).toMatchObject({
-        type: ["string", "null"],
-      });
-      expect(request.properties.skills).not.toHaveProperty("maxItems");
-    }
-    expect(
-      publicApi.paths["/v1/pipeline/tool-calls"].post.parameters,
-    ).toContainEqual(
-      expect.objectContaining({
-        name: "Idempotency-Key",
-        in: "header",
-        required: true,
-      }),
-    );
-    expect(publicApi.paths["/v1/pipeline/runs"].post.parameters).toContainEqual(
-      expect.objectContaining({
-        name: "Idempotency-Key",
-        in: "header",
-        required: true,
-      }),
-    );
-    expect(schemas.PipelineToolCallResponse.properties.actions).toEqual({
-      type: "array",
-      items: { $ref: "#/components/schemas/PipelineAction" },
+    expect(schemas.ConcreteEvent).toMatchObject({
+      discriminator: { propertyName: "type" },
+      oneOf: expect.arrayContaining([
+        { $ref: "#/components/schemas/MessageEvent" },
+        { $ref: "#/components/schemas/TurnStateChangedEvent" },
+        { $ref: "#/components/schemas/Action" },
+      ]),
     });
-    expect(schemas.PipelineRunResponse.properties.actions).toEqual({
-      type: "array",
-      items: { $ref: "#/components/schemas/PipelineAction" },
-    });
-    expect(publicApi.paths["/v1/pipeline/mcp"].post.responses).toHaveProperty(
-      "402",
+    expect(schemas.ConcreteEvent.discriminator.mapping.action).toBe(
+      "#/components/schemas/Action",
     );
+    expect(schemas.EventPage).toMatchObject({
+      required: ["session_id", "cursor", "events", "has_more"],
+      additionalProperties: false,
+      properties: {
+        events: {
+          type: "array",
+          items: { $ref: "#/components/schemas/ConcreteEvent" },
+        },
+      },
+    });
+    expect(schemas.Action.allOf).toContainEqual({
+      $ref: "#/components/schemas/EventMeta",
+    });
   });
 
-  it("carries stable public app identity through every discovery projection", () => {
+  it("keeps transaction types nested in ActionRequest and out of Event vocabulary", () => {
     const schemas = publicApi.components.schemas;
-    for (const schema of [
-      schemas.PipelineAppCard,
-      schemas.PipelineAppDescription,
-      schemas.PipelineToolList,
-      schemas.PipelineToolDescription,
-      schemas.PipelineSearchResults,
+    const requestTypes = schemas.ActionRequest.oneOf.map((variant) =>
+      "properties" in variant
+        ? variant.properties.type.const
+        : variant.allOf[1].properties.type.const,
+    );
+    expect(requestTypes).toEqual(["execute_evm", "execute_svm", "sign"]);
+    expect(schemas.AssembledEvmTransaction.required).toEqual([
+      "chain_id",
+      "from",
+      "to",
+      "data",
+      "label",
+      "kind",
+    ]);
+    expect(schemas.AssembledEvmTransaction.properties).not.toHaveProperty(
+      "status",
+    );
+    for (const deleted of [
+      "Activity",
+      "AgentActivity",
+      "AgentAction",
+      "AgentDelta",
+      "TxApproval",
+      "WalletRequest",
+      "SigPending",
+      "ChatStateResponse",
     ]) {
-      expect(schema.properties.application_id).toMatchObject({
-        type: ["integer", "null"],
-        minimum: 1,
-      });
-      expect(schema.properties.platform).toMatchObject({
-        type: ["string", "null"],
-      });
+      expect(schemas).not.toHaveProperty(deleted);
     }
-    for (const schema of [
-      schemas.PipelineAppCard,
-      schemas.PipelineAppDescription,
-      schemas.PipelineToolList,
-      schemas.PipelineSearchResults,
-    ]) {
-      expect(schema.properties.app_release_tag).toEqual({
-        type: ["string", "null"],
-      });
-      expect(schema.properties.artifact_ready).toEqual({
-        type: ["boolean", "null"],
-      });
-    }
+  });
+
+  it("limits client UserState to connection, wallets, preferences, and extensions", () => {
+    expect(publicApi.components.schemas.UserState.properties).toEqual({
+      connection: { $ref: "#/components/schemas/UserStateConnection" },
+      evm: { $ref: "#/components/schemas/UserStateEvm" },
+      svm: { $ref: "#/components/schemas/UserStateSvm" },
+      preferences: { type: "object", additionalProperties: true },
+      ext: { type: "object", additionalProperties: true },
+    });
+    expect(publicApi.components.schemas.UserStateConnection.additionalProperties).toBe(false);
+    expect(publicApi.components.schemas.UserStateEvm.additionalProperties).toBe(false);
+    expect(publicApi.components.schemas.UserStateSvm.additionalProperties).toBe(false);
   });
 });

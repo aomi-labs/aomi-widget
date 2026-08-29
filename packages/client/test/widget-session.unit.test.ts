@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createProviderCredentialAdapter,
-  createWidgetSessionProvider,
-  type WidgetAuthAdapter,
+  createAccountSessionProvider,
+  type AccountAuthAdapter,
 } from "../src/widget-session";
 
-describe("createWidgetSessionProvider", () => {
+describe("createAccountSessionProvider", () => {
   it("exchanges any provider credential without cookies or provider-specific code", async () => {
     const fetchImpl = vi.fn(async (_url, init) =>
       Response.json({
@@ -24,7 +24,7 @@ describe("createWidgetSessionProvider", () => {
         keyId: "key-1",
       }),
     });
-    const provider = createWidgetSessionProvider({
+    const provider = createAccountSessionProvider({
       baseUrl: "https://portal.example",
       adapter,
       fetch: fetchImpl,
@@ -72,7 +72,7 @@ describe("createWidgetSessionProvider", () => {
       getSubject: () => null,
       getCredential,
     });
-    const provider = createWidgetSessionProvider({
+    const provider = createAccountSessionProvider({
       baseUrl: "https://portal.example",
       adapter,
       fetch: fetchImpl,
@@ -87,7 +87,7 @@ describe("createWidgetSessionProvider", () => {
 
   it("deduplicates concurrent exchange and refreshes before expiry", async () => {
     let now = 1_900_000_000_000;
-    const adapter: WidgetAuthAdapter = {
+    const adapter: AccountAuthAdapter = {
       getFingerprint: () => "subject-1",
       exchange: vi
         .fn()
@@ -101,7 +101,7 @@ describe("createWidgetSessionProvider", () => {
         }),
     };
     const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }));
-    const provider = createWidgetSessionProvider({
+    const provider = createAccountSessionProvider({
       baseUrl: "https://portal.example",
       adapter,
       fetch: fetchImpl,
@@ -124,7 +124,7 @@ describe("createWidgetSessionProvider", () => {
 
   it("allows only one forced renewal per fresh token generation", async () => {
     const now = 1_900_000_000_000;
-    const adapter: WidgetAuthAdapter = {
+    const adapter: AccountAuthAdapter = {
       getFingerprint: () => "wallet-1",
       exchange: vi
         .fn()
@@ -137,7 +137,7 @@ describe("createWidgetSessionProvider", () => {
           expiresAt: now / 1000 + 1_800,
         }),
     };
-    const provider = createWidgetSessionProvider({
+    const provider = createAccountSessionProvider({
       baseUrl: "https://portal.example",
       adapter,
       now: () => now,
@@ -153,7 +153,7 @@ describe("createWidgetSessionProvider", () => {
 
   it("does not repeat a failed forced renewal while the cached token is fresh", async () => {
     const now = 1_900_000_000_000;
-    const adapter: WidgetAuthAdapter = {
+    const adapter: AccountAuthAdapter = {
       getFingerprint: () => "wallet-1",
       exchange: vi
         .fn()
@@ -163,7 +163,7 @@ describe("createWidgetSessionProvider", () => {
         })
         .mockRejectedValueOnce(new Error("wallet rejected")),
     };
-    const provider = createWidgetSessionProvider({
+    const provider = createAccountSessionProvider({
       baseUrl: "https://portal.example",
       adapter,
       now: () => now,
@@ -180,7 +180,7 @@ describe("createWidgetSessionProvider", () => {
   });
 
   it("clears failed exchanges so a retry can succeed without an unhandled branch", async () => {
-    const adapter: WidgetAuthAdapter = {
+    const adapter: AccountAuthAdapter = {
       getFingerprint: () => "subject-1",
       exchange: vi
         .fn()
@@ -190,7 +190,7 @@ describe("createWidgetSessionProvider", () => {
           expiresAt: 2_000_000_000,
         }),
     };
-    const provider = createWidgetSessionProvider({
+    const provider = createAccountSessionProvider({
       baseUrl: "https://portal.example",
       adapter,
       now: () => 1_900_000_000_000,
@@ -203,13 +203,13 @@ describe("createWidgetSessionProvider", () => {
   it("discards an exchange that resolves after signOut so the session does not survive sign-out", async () => {
     const T = 1_900_000_000_000;
     const gate = deferred<{ accessToken: string; expiresAt: number }>();
-    const adapter: WidgetAuthAdapter = {
+    const adapter: AccountAuthAdapter = {
       getFingerprint: () => "subject-1",
       exchange: vi.fn(() => gate.promise),
       signOut: vi.fn(async () => undefined),
     };
     const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }));
-    const provider = createWidgetSessionProvider({
+    const provider = createAccountSessionProvider({
       baseUrl: "https://portal.example",
       adapter,
       fetch: fetchImpl,
@@ -262,12 +262,12 @@ describe("createWidgetSessionProvider", () => {
       .fn()
       .mockImplementationOnce(() => dA.promise)
       .mockImplementationOnce(() => dB.promise);
-    const adapter: WidgetAuthAdapter = {
+    const adapter: AccountAuthAdapter = {
       getFingerprint: () => fingerprint,
       exchange,
     };
     const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }));
-    const provider = createWidgetSessionProvider({
+    const provider = createAccountSessionProvider({
       baseUrl: "https://portal.example",
       adapter,
       fetch: fetchImpl,
@@ -302,14 +302,14 @@ describe("createWidgetSessionProvider", () => {
   });
 
   it("throws after dispose and notifies subscribers on every teardown", async () => {
-    const adapter: WidgetAuthAdapter = {
+    const adapter: AccountAuthAdapter = {
       getFingerprint: () => "subject-1",
       exchange: vi.fn(async () => ({
         accessToken: "tok",
         expiresAt: 2_000_000_000,
       })),
     };
-    const provider = createWidgetSessionProvider({
+    const provider = createAccountSessionProvider({
       baseUrl: "https://portal.example",
       adapter,
       now: () => 1_900_000_000_000,
@@ -329,14 +329,14 @@ describe("createWidgetSessionProvider", () => {
   it("notifies subscribers and revokes the cached session on revoke", async () => {
     const T = 1_900_000_000_000;
     const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }));
-    const adapter: WidgetAuthAdapter = {
+    const adapter: AccountAuthAdapter = {
       getFingerprint: () => "subject-1",
       exchange: vi.fn(async () => ({
         accessToken: "tok",
         expiresAt: T / 1000 + 120,
       })),
     };
-    const provider = createWidgetSessionProvider({
+    const provider = createAccountSessionProvider({
       baseUrl: "https://portal.example",
       adapter,
       fetch: fetchImpl,
@@ -358,14 +358,14 @@ describe("createWidgetSessionProvider", () => {
   });
 
   it("exposes `required` as an enumerable property that survives spreading", async () => {
-    const adapter: WidgetAuthAdapter = {
+    const adapter: AccountAuthAdapter = {
       getFingerprint: () => "subject-1",
       exchange: vi.fn(async () => ({
         accessToken: "tok",
         expiresAt: 2_000_000_000,
       })),
     };
-    const provider = createWidgetSessionProvider({
+    const provider = createAccountSessionProvider({
       baseUrl: "https://portal.example",
       adapter,
       now: () => 1,
@@ -387,7 +387,7 @@ describe("createWidgetSessionProvider", () => {
         providerToken: "signed-token",
       }),
     });
-    const provider = createWidgetSessionProvider({
+    const provider = createAccountSessionProvider({
       baseUrl: "https://portal.example",
       adapter,
       fetch: fetchImpl,

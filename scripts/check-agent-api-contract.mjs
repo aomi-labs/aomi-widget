@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "..");
@@ -29,6 +29,47 @@ if (firstLine !== `// Rust Agent contract SHA256: ${expected}`) {
     "Generated Agent API types are stale. Run `pnpm generate:agent-api`.",
   );
   process.exit(1);
+}
+
+const forbiddenSources = [
+  ["retired chat route", /\/api\/thread\/(?:chat|state|interrupt)/],
+  ["legacy Agent delta/activity type", /\bAgent(?:Delta|Activity)\b/],
+  ["synthetic message type", /\bAomiMessage\b/],
+  ["React event relay", /\bEventContext\b/],
+  ["runtime UserState mirror", /\bRuntimeUserStateProvider\b/],
+  ["legacy widget session type", /\bWidgetSession\b/],
+  ["legacy wallet provider facade", /\bAomiWalletProvider\b/],
+  ["legacy wallet adapter alias", /\bAomiAuthAdapter\b/],
+  ["UserState reconciliation event", /\buser_state_updated\b/],
+];
+const sourceRoots = [
+  "packages/client/src",
+  "packages/react/src",
+  "apps/portal/src",
+  "apps/telegram/src",
+  "apps/shadcn-registry/src",
+];
+for (const relative of sourceRoots) {
+  for (const file of sourceFiles(join(root, relative))) {
+    const contents = readFileSync(file, "utf8");
+    for (const [label, pattern] of forbiddenSources) {
+      if (pattern.test(contents)) {
+        console.error(`${label} remains in ${file.slice(root.length + 1)}`);
+        process.exit(1);
+      }
+    }
+  }
+}
+
+function* sourceFiles(directory) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      yield* sourceFiles(path);
+    } else if (/\.(?:ts|tsx)$/.test(entry.name)) {
+      yield path;
+    }
+  }
 }
 
 function printRustOpenApi() {

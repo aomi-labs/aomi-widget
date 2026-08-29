@@ -29,7 +29,8 @@ describe("CLI session lifecycle", () => {
 
   it("creates a fresh active session instead of reusing the current one", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
-    const { readState } = await import("../../src/cli/state");
+    const { listStoredSessions, readState } =
+      await import("../../src/cli/state");
 
     const config = {
       baseUrl: "https://api.aomi.dev",
@@ -55,71 +56,10 @@ describe("CLI session lifecycle", () => {
     expect(fresh.clientId).not.toBe(first.clientId);
     expect(readState()?.sessionId).toBe(fresh.sessionId);
     expect(readState()?.clientId).toBe(fresh.clientId);
-  });
-
-  it("qualifies colliding EVM and SVM pending ids without breaking legacy selectors", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-    const cli = CliSession.create({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      secrets: {},
-    });
-    cli.addPendingTx({
-      kind: "transaction",
-      txId: 1,
-      to: "0x1111111111111111111111111111111111111111",
-      timestamp: 1,
-      payload: {},
-    });
-    cli.addPendingSolTx({
-      solanaId: 1,
-      requestKind: "solana_sign",
-      unsignedTx: "AQID",
-      timestamp: 1,
-      payload: {},
-    });
-
-    expect(cli.pendingSelectors()).toEqual(["evm:tx-1", "svm:tx-1"]);
-    expect(cli.findPendingTx("evm:tx-1")?.txId).toBe(1);
-    expect(cli.findPendingSolTx("svm:tx-1")?.solanaId).toBe(1);
-    expect(cli.findPendingTx("svm:tx-1")).toBeUndefined();
-    expect(cli.findPendingSolTx("evm:tx-1")).toBeUndefined();
-  });
-
-  it("journals a confirmed staged id once and removes its local pending entry", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-    const cli = CliSession.create({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      secrets: {},
-    });
-    cli.addPendingTx({
-      kind: "transaction",
-      txId: 7,
-      to: "0x1111111111111111111111111111111111111111",
-      timestamp: 1,
-      payload: {},
-    });
-    const confirmed = {
-      id: "tx-7",
-      kind: "transaction" as const,
-      pendingTxId: 7,
-      txHash: "0xconfirmed",
-      txHashes: ["0xconfirmed"],
-      executionKind: "eoa",
-      backendNotified: false,
-      timestamp: 2,
-    };
-
-    cli.addSignedTx(confirmed);
-    cli.addSignedTx(confirmed);
-
-    expect(cli.pendingTxs).toEqual([]);
-    expect(cli.signedTxs).toHaveLength(1);
-    expect(cli.findSignedTransaction("tx-7")).toMatchObject(confirmed);
-
-    cli.markSignedTxBackendNotified(7);
-    expect(cli.findSignedTransaction("tx-7")?.backendNotified).toBe(true);
+    expect(listStoredSessions().map((session) => session.sessionId)).toEqual([
+      first.sessionId,
+      fresh.sessionId,
+    ]);
   });
 
   it("supports newSessionCommand as an explicit fresh-session command", async () => {
@@ -206,15 +146,37 @@ describe("CLI session lifecycle", () => {
   it("interrupts the active session through the shared Agent transport", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const { AgentTransport } = await import("../../src/agent/transport");
+    vi.spyOn(AgentTransport.prototype, "poll").mockResolvedValue({
+      session_id: "cli-interrupt-session",
+      cursor: "cursor-1",
+      events: [
+        {
+          type: "turn_state_changed",
+          event_id: "event-processing",
+          sequence: 1,
+          turn_id: "turn-1",
+          occurred_at: 1,
+          state: "processing",
+        },
+      ],
+      has_more: false,
+    });
     const interrupt = vi
       .spyOn(AgentTransport.prototype, "interrupt")
       .mockResolvedValue({
-        sessionId: "cli-interrupt-session",
-        status: "interrupted",
+        session_id: "cli-interrupt-session",
         cursor: "cursor-1",
-        messages: [],
-        activity: [],
-        actions: [],
+        events: [
+          {
+            type: "turn_state_changed",
+            event_id: "event-interrupted",
+            sequence: 2,
+            turn_id: "turn-1",
+            occurred_at: 2,
+            state: "interrupted",
+          },
+        ],
+        has_more: false,
       });
     const { CliSession } = await import("../../src/cli/cli-session");
     const { interruptCommand } = await import("../../src/cli/commands/control");
@@ -231,10 +193,33 @@ describe("CLI session lifecycle", () => {
 
     await interruptCommand({ secrets: {} });
 
-    expect(interrupt).toHaveBeenCalledWith("cli-interrupt-session");
+    expect(interrupt).toHaveBeenCalledWith("cli-interrupt-session", "turn-1");
     expect(logSpy).toHaveBeenCalledWith(
       "Interrupted session cli-interrupt-session.",
     );
+  });
+
+  it("uses an explicit scoped bearer for Agent public API requests", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const cli = CliSession.create({
+      baseUrl: "https://api.aomi.dev",
+      accountBearer: "scoped-agent-bearer",
+      secrets: {},
+    });
+
+    const oauth = cli.createOAuthProvider(fetch);
+    const token = await oauth?.({
+      resource: "https://api.aomi.dev/v1/agent",
+      scopes: ["agent:write"],
+    });
+
+    expect(token).toEqual({
+      accessToken: "scoped-agent-bearer",
+      expiresAt: Number.MAX_SAFE_INTEGER,
+      resource: "https://api.aomi.dev/v1/agent",
+      scopes: ["agent:write"],
+      tokenType: "Bearer",
+    });
   });
 
   it("persists explicit wallet, chain, and backend settings on the active session", async () => {
@@ -364,43 +349,6 @@ describe("CLI session lifecycle", () => {
     );
   });
 
-  it("keeps distinct backend-staged transactions even when calldata matches", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-
-    const cli = CliSession.loadOrCreate({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-    });
-
-    const first = cli.addPendingTx({
-      kind: "transaction",
-      txId: 7,
-      to: "0x1111111111111111111111111111111111111111",
-      value: "0",
-      data: "0xdeadbeef",
-      chainId: 1,
-      timestamp: 1,
-      payload: { txId: 7 },
-    });
-    const second = cli.addPendingTx({
-      kind: "transaction",
-      txId: 8,
-      to: "0x1111111111111111111111111111111111111111",
-      value: "0",
-      data: "0xdeadbeef",
-      chainId: 1,
-      timestamp: 2,
-      payload: { txId: 8 },
-    });
-
-    expect(first?.id).toBe("tx-7");
-    expect(second?.id).toBe("tx-8");
-    expect(cli.pendingTxs).toHaveLength(2);
-    expect(cli.pendingTxs.map((tx) => tx.txId)).toEqual([7, 8]);
-  });
-
   it("stamps solana:mainnet onto legacy state files with an SVM wallet but no cluster", async () => {
     const { SESSIONS_DIR, readState } = await import("../../src/cli/state");
     const { CliSession } = await import("../../src/cli/cli-session");
@@ -423,232 +371,6 @@ describe("CLI session lifecycle", () => {
     expect(readState()?.svmCluster).toBe("solana:mainnet");
   });
 
-  it("normalizes legacy signedTx AAAddress fields on load", async () => {
-    const { SESSIONS_DIR, readState } = await import("../../src/cli/state");
-
-    mkdirSync(SESSIONS_DIR, { recursive: true });
-    writeFileSync(
-      join(SESSIONS_DIR, "session-1.json"),
-      JSON.stringify(
-        {
-          sessionId: "session-1",
-          baseUrl: "https://api.aomi.dev",
-          signedTxs: [
-            {
-              id: "tx-1",
-              kind: "transaction",
-              txHash: "0xhash",
-              AAAddress: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-              timestamp: 1,
-            },
-          ],
-          localId: 1,
-          createdAt: 1,
-          updatedAt: 1,
-        },
-        null,
-        2,
-      ),
-    );
-    writeFileSync(join(stateDir, "active-session.txt"), "1");
-
-    const state = readState();
-
-    expect(state?.signedTxs).toEqual([
-      expect.objectContaining({
-        id: "tx-1",
-        kind: "transaction",
-        txHash: "0xhash",
-        smartAccount4337: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      }),
-    ]);
-    expect(state?.signedTxs?.[0]).not.toHaveProperty("AAAddress");
-  });
-
-  it("dedupes replayed backend-staged requests by backend id", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-
-    const cli = CliSession.loadOrCreate({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-    });
-
-    const first = cli.addPendingTx({
-      kind: "transaction",
-      txId: 7,
-      to: "0x1111111111111111111111111111111111111111",
-      value: "0",
-      data: "0xdeadbeef",
-      chainId: 1,
-      timestamp: 1,
-      payload: { txId: 7 },
-    });
-    const replay = cli.addPendingTx({
-      kind: "transaction",
-      txId: 7,
-      to: "0x1111111111111111111111111111111111111111",
-      value: "0",
-      data: "0xdeadbeef",
-      chainId: 1,
-      timestamp: 2,
-      payload: { txId: 7 },
-    });
-
-    expect(first?.id).toBe("tx-7");
-    expect(replay).toBeNull();
-    expect(cli.pendingTxs).toHaveLength(1);
-  });
-
-  it("does not collapse distinct backend-staged eip712 requests", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-
-    const cli = CliSession.loadOrCreate({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-    });
-
-    const first = cli.addPendingTx({
-      kind: "eip712_sign",
-      eip712Id: 11,
-      description: "Permit2 signature",
-      timestamp: 1,
-      payload: {
-        description: "Permit2 signature",
-        typed_data: { primaryType: "Permit", message: { nonce: "1" } },
-      },
-    });
-    const second = cli.addPendingTx({
-      kind: "eip712_sign",
-      eip712Id: 12,
-      description: "Permit2 signature",
-      timestamp: 2,
-      payload: {
-        description: "Permit2 signature",
-        typed_data: { primaryType: "Permit", message: { nonce: "1" } },
-      },
-    });
-
-    expect(first?.id).toBe("tx-11");
-    expect(second?.id).toBe("tx-12");
-    expect(cli.pendingTxs).toHaveLength(2);
-    expect(cli.pendingTxs.map((tx) => tx.eip712Id)).toEqual([11, 12]);
-  });
-
-  it("does not dedupe requests that are missing backend staging ids", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-
-    const cli = CliSession.loadOrCreate({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-    });
-
-    const first = cli.addPendingTx({
-      kind: "transaction",
-      to: "0x1111111111111111111111111111111111111111",
-      value: "0",
-      data: "0xdeadbeef",
-      chainId: 1,
-      timestamp: 1,
-      payload: {},
-    });
-    const replay = cli.addPendingTx({
-      kind: "transaction",
-      to: "0x1111111111111111111111111111111111111111",
-      value: "0",
-      data: "0xdeadbeef",
-      chainId: 1,
-      timestamp: 2,
-      payload: {},
-    });
-
-    expect(first?.id).toBe("tx-1");
-    expect(replay?.id).toBe("tx-2");
-    expect(cli.pendingTxs).toHaveLength(2);
-  });
-
-  it("replaces local pending state from authoritative backend user_state", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-
-    const cli = CliSession.loadOrCreate({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-    });
-
-    cli.addPendingTx({
-      kind: "transaction",
-      txId: 99,
-      to: "0x1111111111111111111111111111111111111111",
-      value: "0",
-      data: "0xdeadbeef",
-      chainId: 1,
-      timestamp: 1,
-      payload: { txId: 99 },
-    });
-
-    const synced = cli.syncPendingFromUserState({
-      address: "0xabc",
-      chain_id: 8453,
-      is_connected: true,
-      pending_txs: {
-        "7": {
-          chain_id: 8453,
-          from: "0xabc",
-          to: "0x1111111111111111111111111111111111111111",
-          value: "0",
-          gas: null,
-          data: "0x",
-          label: "Approve",
-          kind: "erc20_approve",
-          batch_status: "Batch [7] pending",
-        },
-      },
-      pending_eip712s: {
-        "8": {
-          chain_id: 8453,
-          signer: "0xabc",
-          description: "Permit2 signature",
-          typed_data: {
-            domain: { chainId: 8453, name: "Permit2" },
-            types: { Permit: [{ name: "owner", type: "address" }] },
-            primaryType: "Permit",
-            message: { owner: "0xabc" },
-          },
-        },
-        "9": {
-          chain_id: 1,
-          signer: "0xabc",
-          description: "SIWE login",
-          non_typed_data: "Sign in with Ethereum",
-        },
-      },
-    });
-
-    expect(cli.publicKey).toBe("0xabc");
-    expect(cli.chainId).toBe(8453);
-    expect(synced.pendingTxs.map((tx) => tx.id)).toEqual([
-      "tx-7",
-      "tx-8",
-      "tx-9",
-    ]);
-    expect(synced.pendingTxs.map((tx) => tx.kind)).toEqual([
-      "transaction",
-      "eip712_sign",
-      "eip712_sign",
-    ]);
-    expect(synced.pendingTxs[2]?.payload).toMatchObject({
-      non_typed_data: "Sign in with Ethereum",
-    });
-    expect(synced.pendingSolTxs).toEqual([]);
-  });
-
   it("persists the account bearer on the active session", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { readState } = await import("../../src/cli/state");
@@ -664,150 +386,4 @@ describe("CLI session lifecycle", () => {
     expect(readState()?.accountBearer).toBe("bearer-1");
   });
 
-  it("persists legacy account provider credential fields on the active session", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-    const { readState } = await import("../../src/cli/state");
-
-    CliSession.loadOrCreate({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-      embeddedProvider: "privy" as const,
-      embeddedProviderToken: "privy-provider-token",
-    });
-
-    const state = readState();
-    expect(state?.embeddedProvider).toBe("privy");
-    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
-  });
-
-  it("clears a persisted bearer when switching the active session to legacy provider auth", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-    const { readState } = await import("../../src/cli/state");
-
-    CliSession.loadOrCreate({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-      accountBearer: "bearer-1",
-    });
-
-    CliSession.loadOrCreate({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-      embeddedProvider: "privy" as const,
-      embeddedProviderToken: "privy-provider-token",
-    });
-
-    const state = readState();
-    expect(state?.accountBearer).toBeUndefined();
-    expect(state?.embeddedProvider).toBe("privy");
-    expect(state?.embeddedProviderToken).toBe("privy-provider-token");
-  });
-
-  it("reuses the persisted account bearer when building a client without re-supplying it", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-
-    // First invocation supplies the bearer (e.g. `aomi --account-bearer ...`).
-    CliSession.loadOrCreate({
-      baseUrl: "http://unit.test",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-      accountBearer: "bearer-1",
-    });
-
-    // Later invocation: the bearer is NOT passed again on the command line.
-    const reused = CliSession.load();
-    expect(reused).not.toBeNull();
-
-    const stateResponse = {
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: vi.fn(async () => ({ is_processing: false, messages: [] })),
-    } as unknown as Response;
-    const nativeFetch = vi.fn(async () => stateResponse);
-    const originalFetch = globalThis.fetch;
-    vi.stubGlobal("fetch", nativeFetch);
-
-    try {
-      const session = reused!.createClientSession();
-      await session.client.fetchState(reused!.sessionId);
-
-      const headers = new Headers(
-        (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
-      );
-      expect(headers.get("Authorization")).toBe("Bearer bearer-1");
-    } finally {
-      vi.stubGlobal("fetch", originalFetch);
-    }
-  });
-
-  it("does not exchange provider credentials or replace a persisted bearer", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-
-    CliSession.loadOrCreate({
-      baseUrl: "http://unit.test",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-      accountBearer: "legacy-bearer",
-    });
-
-    const cli = CliSession.load();
-    expect(cli).not.toBeNull();
-
-    const stateResponse = {
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      json: vi.fn(async () => ({ is_processing: false, messages: [] })),
-    } as unknown as Response;
-    const nativeFetch = vi.fn(async () => stateResponse);
-    const originalFetch = globalThis.fetch;
-    vi.stubGlobal("fetch", nativeFetch);
-
-    try {
-      const session = cli!.createClientSession({
-        embeddedProvider: "privy",
-        embeddedProviderToken: "privy-provider-token",
-      });
-      await session.client.fetchState(cli!.sessionId);
-
-      const headers = new Headers(
-        (nativeFetch.mock.calls[0]?.[1] as RequestInit).headers,
-      );
-      expect(headers.get("Authorization")).toBe("Bearer legacy-bearer");
-    } finally {
-      vi.stubGlobal("fetch", originalFetch);
-    }
-  });
-
-  it("does not wipe local chain when backend user_state omits chain_id", async () => {
-    const { CliSession } = await import("../../src/cli/cli-session");
-
-    const cli = CliSession.loadOrCreate({
-      baseUrl: "https://api.aomi.dev",
-      app: "default",
-      execution: "eoa" as const,
-      secrets: {},
-      publicKey: "0xabc",
-      chain: 8453,
-    });
-
-    cli.syncPendingFromUserState({
-      address: "0xabc",
-      is_connected: true,
-      pending_txs: {},
-      pending_eip712s: {},
-    });
-
-    expect(cli.publicKey).toBe("0xabc");
-    expect(cli.chainId).toBe(8453);
-  });
 });
