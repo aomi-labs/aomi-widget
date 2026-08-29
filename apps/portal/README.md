@@ -53,9 +53,8 @@ The durable walkthrough for this workspace lives in [../docs/topics/frontend-e2e
   `AOMI_AGENT_API_URL` to the Rust api-server origin (`http://127.0.0.1:8082`
   locally, `https://agent-staging-tunnel.aomi.dev` for staging, and
   `https://agent-tunnel.aomi.dev` for production). Hosted builds fail closed
-  when this value is absent. `AOMI_AGENT_ROLLBACK_MODE=legacy` and
-  `AOMI_PIPELINE_ROLLBACK_MODE=legacy` independently restore the retained
-  TypeScript MCP presenters without a browser, CLI, or MCP client release.
+  when this value is absent. Portal authenticates and delegates these routes;
+  the Rust api-server is their only protocol presenter.
 
 ## Local E2E
 

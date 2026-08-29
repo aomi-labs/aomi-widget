@@ -11,9 +11,9 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
 }));
 
-vi.mock("@portal/lib/aomi-account/session", async (importOriginal) => {
+vi.mock("@portal/server/account/session", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@portal/lib/aomi-account/session")>();
+    await importOriginal<typeof import("@portal/server/account/session")>();
   return { ...actual, getBetterAuthSession: mocks.getSession };
 });
 

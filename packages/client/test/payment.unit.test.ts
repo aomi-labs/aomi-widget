@@ -2,6 +2,8 @@ import type { x402Client } from "@x402/core/client";
 import { describe, expect, it, vi } from "vitest";
 
 import { wrapFetchWithPaymentChallenges } from "../src/payment";
+import { wrapFetchWithPublicApiAuthorization } from "../src/client";
+import type { AomiOAuthTokenRequest } from "../src/authorization";
 
 const PAID_URL = "https://unit.test/paid";
 
@@ -39,6 +41,44 @@ function paymentClient(
 }
 
 describe("wrapFetchWithPaymentChallenges", () => {
+  it("reauthorizes signed retries with payments:submit", async () => {
+    const scopes: string[][] = [];
+    const upstream = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init);
+        return request.headers.has("payment-signature")
+          ? Response.json({ ok: true })
+          : challenge();
+      },
+    );
+    const oauth = vi.fn(async (request: AomiOAuthTokenRequest) => {
+      scopes.push([...request.scopes]);
+      return {
+        accessToken: request.scopes.join("+"),
+        expiresAt: Date.now() + 60_000,
+        resource: request.resource,
+        scopes: request.scopes,
+      };
+    });
+    const authorized = wrapFetchWithPublicApiAuthorization({
+      fetch: upstream as typeof fetch,
+      baseUrl: "https://unit.test",
+      oauth,
+    });
+    const { client } = paymentClient();
+
+    const response = await wrapFetchWithPaymentChallenges(authorized, client)(
+      "https://unit.test/v1/pipeline/tool-calls",
+      { method: "POST" },
+    );
+
+    expect(response.status).toBe(200);
+    expect(scopes).toEqual([
+      ["pipeline:execute"],
+      ["pipeline:execute", "payments:submit"],
+    ]);
+  });
+
   it("settles partner and platform challenges without an unsigned replay", async () => {
     const responses = [
       challenge(),

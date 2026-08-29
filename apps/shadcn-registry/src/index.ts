@@ -66,31 +66,18 @@ export {
 } from "@aomi-labs/client";
 export type {
   AomiWalletKit,
-  AomiWalletKit as AomiAuthAdapter,
   AomiSessionIdentity,
-  AomiSessionIdentity as AomiAuthIdentity,
   AomiSessionStatus,
-  AomiSessionStatus as AomiAuthStatus,
 } from "./lib/wallet-kit";
 export {
-  AOMI_SESSION_BOOTING_IDENTITY as AOMI_AUTH_BOOTING_IDENTITY,
-  AOMI_SESSION_DISCONNECTED_IDENTITY as AOMI_AUTH_DISCONNECTED_IDENTITY,
-  AomiWalletKitContextProvider as AomiAuthAdapterProvider,
   AomiWalletKitContextProvider,
   AomiWalletKitProvider,
-  useAomiWalletKit as useAomiAuthAdapter,
   useAomiWalletKit,
 } from "./lib/wallet-kit";
-export { AomiWalletProvider } from "./lib/wallet-kit/providers";
 export {
   usePrivyDelegation,
   type PrivyDelegationContextValue,
 } from "./lib/wallet-kit/providers/privy/privy-delegation-context";
-export {
-  AomiBaseAccountProvider,
-  type AomiBaseAccountProviderProps,
-  type BaseAccountSponsorshipOptions,
-} from "./lib/wallet-kit/providers/base-account";
 export {
   AOMI_SESSION_BOOTING_IDENTITY,
   AOMI_SESSION_DISCONNECTED_IDENTITY,

@@ -264,10 +264,6 @@ describe("ControlContextProvider", () => {
       });
     });
 
-    await act(async () => {
-      await getControl().syncCurrentThreadControl();
-    });
-
     expect(setModel).not.toHaveBeenCalled();
     expect(threadMetadata.get("session-1")?.control).toMatchObject({
       model: "gpt-4o-mini",
@@ -297,10 +293,6 @@ describe("ControlContextProvider", () => {
       model: null,
       modelMode: "auto",
       controlDirty: false,
-    });
-
-    await act(async () => {
-      await getControl().syncCurrentThreadControl();
     });
 
     expect(setModel).not.toHaveBeenCalled();
@@ -423,70 +415,4 @@ describe("ControlContextProvider", () => {
     });
   });
 
-  it("keeps pending thread control dirty when the compatibility sync seam runs", async () => {
-    const threadMetadata = createThreadMetadata();
-    threadMetadata.set("session-1", {
-      ...threadMetadata.get("session-1")!,
-      control: {
-        ...initThreadControl(),
-        model: "gpt-5",
-        modelMode: "manual",
-        controlDirty: true,
-      },
-    });
-
-    const setModel = vi.fn(async () => ({}));
-    const { getControl } = renderControlContext(
-      {
-        getApps: vi.fn(async () => [{ name: "default" }, { name: "docs" }]),
-        getModels: vi.fn(async () => ["gpt-4o-mini", "gpt-5"]),
-        setModel,
-      },
-      threadMetadata,
-    );
-
-    await waitFor(() => {
-      expect(getControl().state.authorizedApps).toContain("docs");
-    });
-
-    await act(async () => {
-      await getControl().syncCurrentThreadControl();
-    });
-
-    expect(setModel).not.toHaveBeenCalled();
-
-    await act(async () => {
-      getControl().onAppSelect("docs");
-    });
-
-    expect(threadMetadata.get("session-1")?.control).toMatchObject({
-      model: "gpt-5",
-      app: "docs",
-      controlDirty: true,
-    });
-  });
-
-  it("does not update controls while the current thread is processing", async () => {
-    const threadMetadata = createThreadMetadata();
-    threadMetadata.set("session-1", {
-      ...threadMetadata.get("session-1")!,
-      control: {
-        ...initThreadControl(),
-        isProcessing: true,
-      },
-    });
-    const setModel = vi.fn(async () => ({}));
-    const { getControl } = renderControlContext({ setModel }, threadMetadata);
-
-    await act(async () => {
-      await getControl().onModelSelect("gpt-5", { mode: "manual" });
-    });
-
-    expect(setModel).not.toHaveBeenCalled();
-    expect(threadMetadata.get("session-1")?.control).toMatchObject({
-      model: null,
-      modelMode: "auto",
-      isProcessing: true,
-    });
-  });
 });

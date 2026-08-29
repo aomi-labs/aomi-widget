@@ -282,10 +282,9 @@ export default function SolanaSmokePage() {
         <section className="text-xs text-stone-500 leading-relaxed">
           <p>
             <strong className="text-stone-400">Next ladders:</strong> when the
-            backend is ready, the same adapter swaps into{" "}
-            <code>AomiParaProvider</code> and{" "}
-            <code>RuntimeTxHandler</code> picks up real{" "}
-            <code>wallet::solana_sign_request</code> events from the SDK queue.
+            backend is ready, the same adapter is configured through{" "}
+            <code>AomiWalletKitProvider</code> and the canonical Action handler
+            consumes signing Actions from the Agent event ledger.
             For real signature validation, switch to Phantom mode and decode
             the resulting <code>signedTx</code> with{" "}
             <code>VersionedTransaction.deserialize</code> in DevTools.

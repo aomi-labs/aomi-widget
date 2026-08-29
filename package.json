@@ -41,6 +41,7 @@
     "smoke:auth-stack": "node ./scripts/smoke-auth-stack.mjs",
     "dev:telegram": "pnpm --filter telegram dev",
     "dev:telegram:webpack": "pnpm --filter telegram dev:webpack",
+    "example:headless-client": "tsx --tsconfig examples/headless-client/tsconfig.json examples/headless-client/src/index.ts",
     "build:lib": "pnpm run build:client && tsup",
     "build:client": "pnpm --filter @aomi-labs/client build",
     "build:deploy": "pnpm --filter @aomi-labs/deploy build",

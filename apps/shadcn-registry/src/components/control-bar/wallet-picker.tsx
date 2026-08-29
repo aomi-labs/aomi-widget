@@ -241,8 +241,8 @@ function isExpectedWalletCancellation(error: unknown): boolean {
   return false;
 }
 
-function toPublicFamily(family: WalletFamily): WalletFamily | "solana" {
-  return family === "svm" ? "solana" : family;
+function toPublicFamily(family: WalletFamily): WalletFamily {
+  return family;
 }
 
 export function WalletPicker() {
@@ -401,7 +401,7 @@ export function WalletPicker() {
                 await adapter.connectSolanaWallet(row.id);
                 return;
               }
-              await adapter.connect({ family: "solana" });
+              await adapter.connect({ family: "svm" });
               return;
             }
             if (adapter.connectEvmWallet) {
@@ -499,15 +499,17 @@ export function WalletPicker() {
       ),
     [walletActions],
   );
+  const sessionProvider =
+    identity.sessionProvider ?? identity.embeddedProvider;
   const providerSignInOptions = useMemo(
-    () => filterQuickSignInOptions(socialLoginOptions, identity.walletProvider),
-    [identity.walletProvider, socialLoginOptions],
+    () => filterQuickSignInOptions(socialLoginOptions, sessionProvider),
+    [sessionProvider, socialLoginOptions],
   );
   const providerSubtitle =
-    identity.secondaryLabel ?? formatAuthMethod(identity.authProvider);
+    identity.secondaryLabel ?? formatAuthMethod(identity.authMethod);
   // Social sign-in goes through the account provider, so the row reads as that
   // provider brand with the method beneath.
-  const providerBrandLabel = formatWalletProvider(identity.walletProvider);
+  const providerBrandLabel = formatWalletProvider(sessionProvider);
   const hasConnectedWallets = connectedAccounts.length > 0;
   // The provider sign-in row shows whenever the provider itself is not signed
   // in, even alongside external wallets, and hides once that account exists.
@@ -627,7 +629,7 @@ export function WalletPicker() {
           adapter.disconnect!({
             ...(account.family === "evm"
               ? { accountId: account.id }
-              : { family: "solana" as const }),
+              : { family: "svm" as const }),
           }),
         true,
       );
@@ -678,9 +680,7 @@ export function WalletPicker() {
         : provider !== null
           ? provider
           : account.manageable
-            ? (identity.embeddedProvider ??
-              identity.sessionProvider ??
-              identity.walletProvider)
+            ? (identity.embeddedProvider ?? identity.sessionProvider)
             : undefined;
 
     return (

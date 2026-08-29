@@ -1,12 +1,12 @@
 import type { AomiHttpMethod, AomiRequestOptions } from "../types";
 import type {
-  AgentAction,
-  AgentActionResult,
-  AgentDelta,
-  AgentErrorBody,
-  AgentSessionPage,
-  AgentSessionRecord,
-  AgentStartRequest,
+  Action,
+  ActionResult,
+  ErrorBody,
+  EventPage,
+  Session,
+  SessionPage,
+  StartTurnIntent,
 } from "./types";
 
 type RequestResponse = (
@@ -29,7 +29,6 @@ export class AgentApiError extends Error {
   }
 }
 
-/** The single typed transport for every first-party Agent consumer. */
 export class AgentTransport {
   readonly sessions: AgentSessionsTransport;
 
@@ -38,19 +37,19 @@ export class AgentTransport {
   }
 
   start(
-    request: AgentStartRequest,
+    intent: StartTurnIntent,
     options: { idempotencyKey?: string; paymentSignature?: string } = {},
-  ): Promise<AgentDelta> {
+  ): Promise<EventPage> {
     return this.json("POST", "/v1/agent/chat", {
       headers: mutationHeaders(options),
-      body: request,
+      body: intent,
     });
   }
 
-  check(
+  poll(
     sessionId: string,
     options: { cursor?: string; waitMs?: number } = {},
-  ): Promise<AgentDelta> {
+  ): Promise<EventPage> {
     return this.json("GET", `/v1/agent/chat/${encodeURIComponent(sessionId)}`, {
       query: {
         cursor: options.cursor,
@@ -59,24 +58,35 @@ export class AgentTransport {
     });
   }
 
-  interrupt(sessionId: string): Promise<AgentDelta> {
+  interrupt(
+    sessionId: string,
+    turnId: string,
+    idempotencyKey = randomIdempotencyKey(),
+  ): Promise<EventPage> {
     return this.json(
       "POST",
       `/v1/agent/chat/${encodeURIComponent(sessionId)}/interrupt`,
-      { headers: mutationHeaders() },
+      {
+        headers: { "idempotency-key": idempotencyKey },
+        body: { turnId },
+      },
     );
   }
 
-  async resolveAction(
+  async respondToAction(
     sessionId: string,
     actionId: string,
-    result: AgentActionResult,
+    revision: number,
+    result: ActionResult,
     idempotencyKey = randomIdempotencyKey(),
-  ): Promise<AgentAction> {
-    const response = await this.json<{ action: AgentAction }>(
+  ): Promise<Action> {
+    const response = await this.json<{ action: Action }>(
       "POST",
       `/v1/agent/chat/${encodeURIComponent(sessionId)}/actions/${encodeURIComponent(actionId)}/result`,
-      { headers: { "idempotency-key": idempotencyKey }, body: result },
+      {
+        headers: { "idempotency-key": idempotencyKey },
+        body: { revision, result },
+      },
     );
     return response.action;
   }
@@ -95,33 +105,35 @@ export class AgentTransport {
 export class AgentSessionsTransport {
   constructor(private readonly requestResponse: RequestResponse) {}
 
-  async list(
-    options: { cursor?: string; limit?: number } = {},
-  ): Promise<AgentSessionPage> {
+  list(options: { cursor?: string; limit?: number } = {}): Promise<SessionPage> {
     return this.json("GET", "/v1/agent/sessions", {
       query: { cursor: options.cursor, limit: options.limit },
     });
   }
 
-  get(sessionId: string): Promise<AgentSessionRecord> {
-    return this.json(
-      "GET",
-      `/v1/agent/sessions/${encodeURIComponent(sessionId)}`,
-    );
+  async all(): Promise<Session[]> {
+    const sessions: Session[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await this.list({ cursor, limit: 100 });
+      sessions.push(...page.sessions);
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    return sessions;
+  }
+
+  get(sessionId: string): Promise<Session> {
+    return this.json("GET", `/v1/agent/sessions/${encodeURIComponent(sessionId)}`);
   }
 
   update(
     sessionId: string,
     patch: { title?: string; archived?: boolean },
-  ): Promise<AgentSessionRecord> {
-    return this.json(
-      "PATCH",
-      `/v1/agent/sessions/${encodeURIComponent(sessionId)}`,
-      {
-        headers: mutationHeaders(),
-        body: patch,
-      },
-    );
+  ): Promise<Session> {
+    return this.json("PATCH", `/v1/agent/sessions/${encodeURIComponent(sessionId)}`, {
+      headers: mutationHeaders(),
+      body: patch,
+    });
   }
 
   async delete(sessionId: string): Promise<void> {
@@ -139,36 +151,13 @@ export class AgentSessionsTransport {
     path: string,
     options?: AomiRequestOptions,
   ): Promise<T> {
-    return parseAgentResponse<T>(
-      await this.requestResponse(method, path, options),
-    );
+    return parseAgentResponse<T>(await this.requestResponse(method, path, options));
   }
-}
-
-async function parseAgentResponse<T>(response: Response): Promise<T> {
-  if (response.ok) {
-    if (response.status === 204) return undefined as T;
-    return (await response.json()) as T;
-  }
-  const body = (await response
-    .json()
-    .catch(() => null)) as AgentErrorBody | null;
-  const code = body?.error?.code ?? "agent_request_failed";
-  throw new AgentApiError(
-    response.status,
-    code,
-    body?.error?.message ?? `Agent request failed with HTTP ${response.status}`,
-    response.status === 408 ||
-      response.status === 429 ||
-      response.status >= 500,
-    body?.error?.requestId ?? response.headers.get("x-request-id") ?? undefined,
-    body?.error?.details,
-  );
 }
 
 function mutationHeaders(
   options: { idempotencyKey?: string; paymentSignature?: string } = {},
-): HeadersInit {
+): Record<string, string> {
   return {
     "idempotency-key": options.idempotencyKey ?? randomIdempotencyKey(),
     ...(options.paymentSignature
@@ -178,5 +167,36 @@ function mutationHeaders(
 }
 
 function randomIdempotencyKey(): string {
-  return `idem_${globalThis.crypto.randomUUID().replaceAll("-", "")}`;
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `agent_${Date.now()}_${Math.random().toString(16).slice(2)}`
+  );
+}
+
+async function parseAgentResponse<T>(response: Response): Promise<T> {
+  if (response.ok) {
+    if (response.status === 204) return undefined as T;
+    return (await response.json()) as T;
+  }
+  let body: ErrorBody | undefined;
+  try {
+    body = (await response.json()) as ErrorBody;
+  } catch {
+    // The status remains authoritative when an intermediary returned HTML.
+  }
+  const raw = body?.error;
+  const code =
+    typeof raw === "string"
+      ? raw
+      : typeof raw === "object" && raw !== null && "code" in raw
+        ? String((raw as { code: unknown }).code)
+        : "agent_request_failed";
+  throw new AgentApiError(
+    response.status,
+    code,
+    code.replaceAll("_", " "),
+    response.status === 408 || response.status === 429 || response.status >= 500,
+    response.headers.get("x-request-id") ?? undefined,
+    raw,
+  );
 }

@@ -3,7 +3,6 @@ import { CliSession } from "../cli-session";
 import { createCliClient } from "../client-factory";
 import { fatal } from "../errors";
 import { printDataFileLocation } from "../output";
-import { fetchLegacyAgentState } from "../legacy-agent-rollback";
 
 const SUPPORTED_PROVIDERS = new Set(["openai", "anthropic", "openrouter"]);
 
@@ -33,10 +32,6 @@ async function createByokKeyClient(
     baseUrl: cli.baseUrl,
     apiKey: cli.apiKey,
   });
-
-  // Bind the active session to the stable client id in the backend vault so
-  // BYOK-key endpoints can resolve the right SecretVault namespace.
-  await fetchLegacyAgentState(client, cli.sessionId, cli.ensureClientId());
 
   return { cli, client };
 }

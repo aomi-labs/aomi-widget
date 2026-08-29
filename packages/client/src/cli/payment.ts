@@ -115,14 +115,17 @@ function hasPaymentSignature(request: Request): boolean {
   );
 }
 
-function createTracedFetch(onPayment?: CliPaymentListener): typeof fetch {
+function createTracedFetch(
+  fetchImpl: typeof fetch,
+  onPayment?: CliPaymentListener,
+): typeof fetch {
   return async (input, init) => {
     const request = new Request(input, init);
     const isPaymentRetry = hasPaymentSignature(request);
     if (isPaymentRetry) {
       onPayment?.({ type: "submitting", url: request.url });
     }
-    const response = await globalThis.fetch(request);
+    const response = await fetchImpl(request);
 
     if (!onPayment) return response;
 
@@ -158,6 +161,7 @@ function createTracedFetch(onPayment?: CliPaymentListener): typeof fetch {
 export function createCliPaymentFetch(
   config?: Partial<CliConfig>,
   onPayment?: CliPaymentListener,
+  fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
 ): typeof fetch | undefined {
   if (!config?.paymentMethod) {
     return undefined;
@@ -178,7 +182,7 @@ export function createCliPaymentFetch(
   paymentClient.register("eip155:*", new ExactEvmScheme(account as never));
 
   return wrapFetchWithPaymentChallenges(
-    createTracedFetch(onPayment),
+    createTracedFetch(fetchImpl, onPayment),
     paymentClient,
   );
 }
