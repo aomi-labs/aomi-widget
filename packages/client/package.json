@@ -29,6 +29,7 @@
   "scripts": {
     "build": "tsup",
     "clean:dist": "rm -rf dist",
+    "prepack": "pnpm run build",
     "typecheck": "tsc --project tsconfig.typecheck.json"
   },
   "devDependencies": {
