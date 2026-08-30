@@ -1,5 +1,11 @@
 # Canonical Landing
 
+Current session goal: **PRIVY LOGIN POLICY DRIFT FIXED 2026-08-30** — the
+portal no longer hard-codes login methods into Privy's modal. The Privy app
+configuration is now the single authority, so disabled providers such as
+Google cannot be advertised and fail with `disallowed_login_method`. The
+portal suite, typecheck, lint, and a focused provider-config regression pass.
+
 Current session goal: **FULL-BLEED FOOTER BOUNDARY VERIFIED 2026-08-30** — the
 blue footer now stays flush with every viewport edge and the decorative
 atmosphere layer ends at the real landing-content boundary instead of extending

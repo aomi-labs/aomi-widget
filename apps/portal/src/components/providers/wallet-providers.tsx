@@ -142,10 +142,7 @@ export function WalletProviders({ children, e2eWallet }: Props) {
       ? (["metamask", "rabby", "coinbase", "walletconnect"] as const)
       : (["metamask", "rabby", "coinbase"] as const);
   const auth = privyAppId
-    ? ({
-        provider: "privy",
-        methods: ["email", "google"],
-      } as const)
+    ? ({ provider: "privy" } as const)
     : paraApiKey.length > 0
       ? ({
           provider: "para",
