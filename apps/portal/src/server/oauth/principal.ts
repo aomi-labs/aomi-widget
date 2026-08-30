@@ -106,13 +106,18 @@ export async function resolveApiPrincipal(input: {
     return principal;
   }
 
-  if (input.request.headers.has("authorization")) {
-    throw new ApiPrincipalError(401, "invalid_token");
-  }
-
+  // A non-JWT bearer is a Better Auth session token: the bearer plugin lets
+  // getSession resolve it, which is how guest/SDK clients (no cookie
+  // cross-origin) carry their session. An unresolvable credential still lands
+  // on the trailing 401.
   const session = await getBetterAuthSession(input.request);
   if (session?.user?.id) {
-    enforceCookieCsrf(input.request);
+    // Cookie-carried sessions are browser-ambient and need CSRF proof; a
+    // request bearing an Authorization header cannot be forged cross-site
+    // (custom headers force a CORS preflight), so it passes without one.
+    if (!input.request.headers.has("authorization")) {
+      enforceCookieCsrf(input.request);
+    }
     const canonical = await getOrCreateAomiUserForBetterAuthSession({
       betterAuthUserId: session.user.id,
       email: session.user.email,
