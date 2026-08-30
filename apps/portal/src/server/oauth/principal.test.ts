@@ -126,7 +126,13 @@ describe("public OAuth and session principal resolution", () => {
     expect(mocks.getBetterAuthSession).not.toHaveBeenCalled();
   });
 
-  it("rejects opaque legacy bearer sessions", async () => {
+  it("resolves opaque bearer session tokens through Better Auth, rejecting unknowns", async () => {
+    // The guest/SDK flow carries the Better Auth session token as a Bearer
+    // (no cookie cross-origin); the bearer plugin resolves it via getSession.
+    mocks.getBetterAuthSession.mockResolvedValueOnce({
+      user: { id: "ba-guest", isAnonymous: true },
+      session: {},
+    });
     await expect(
       resolveApiPrincipal({
         request: new Request(resource, {
@@ -136,8 +142,20 @@ describe("public OAuth and session principal resolution", () => {
         requiredScopes: ["agent:read"],
         sessionScopes: ["agent:read"],
       }),
+    ).resolves.toMatchObject({ principalClass: "guest" });
+
+    // A bearer no session resolves to is still rejected.
+    mocks.getBetterAuthSession.mockResolvedValueOnce(null);
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          headers: { authorization: "Bearer unknown-token" },
+        }),
+        resource,
+        requiredScopes: ["agent:read"],
+        sessionScopes: ["agent:read"],
+      }),
     ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
-    expect(mocks.getBetterAuthSession).not.toHaveBeenCalled();
   });
 
   it("rejects canonical identity disagreement and elevated guest scopes", async () => {
