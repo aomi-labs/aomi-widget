@@ -2,8 +2,9 @@ import { Aomi } from "@aomi-labs/client";
 
 const baseUrl = process.env.AOMI_BASE_URL?.trim() || "http://localhost:3000";
 
-// Guest mode can inspect the guest-safe Pipeline catalog without an OAuth
-// client. Executing protected operations requires the appropriate authority.
+// Guest mode can inspect and execute self-custodial Pipeline operations
+// without an OAuth client. Payments and delegated custody still require an
+// authenticated account grant.
 const aomi = new Aomi({ baseUrl });
 const [apps, skills] = await Promise.all([
   aomi.raw.pipeline.apps.list(),

@@ -141,6 +141,43 @@ describe("public API OAuth transport", () => {
 });
 
 describe("Better Auth guest bootstrap", () => {
+  it("uses the opaque Better Auth session as a bearer in server runtimes", async () => {
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("location", undefined);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(Response.json({ token: "server-guest-session" }));
+    const guest = createGuestSessionProvider({
+      baseUrl: "https://portal.example",
+      fetch: fetchImpl as typeof fetch,
+    });
+
+    await expect(guest()).resolves.toBe("server-guest-session");
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://portal.example/api/auth/sign-in/anonymous",
+      expect.objectContaining({ credentials: "omit" }),
+    );
+  });
+
+  it("accepts Better Auth's session response header in server runtimes", async () => {
+    vi.stubGlobal("window", undefined);
+    vi.stubGlobal("location", undefined);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json(
+          { user: { id: "guest" } },
+          { headers: { "set-auth-token": "header-guest-session" } },
+        ),
+      );
+    const guest = createGuestSessionProvider({
+      baseUrl: "https://portal.example",
+      fetch: fetchImpl as typeof fetch,
+    });
+
+    await expect(guest()).resolves.toBe("header-guest-session");
+  });
+
   it("uses the origin-bound widget guest route without credentialed CORS", async () => {
     vi.stubGlobal("location", { origin: "https://widget.example" });
     const fetchImpl = vi

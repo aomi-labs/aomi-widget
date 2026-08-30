@@ -54,11 +54,18 @@ describe("widget guest bootstrap", () => {
     const response = await POST(
       new Request("https://portal.example/api/auth/widget/guest", {
         method: "POST",
-        headers: { origin: "https://partner.example" },
+        headers: {
+          origin: "https://partner.example",
+          referer: "https://partner.example/app",
+        },
       }),
     );
 
     expect(response.status).toBe(200);
+    const authHeaders = mocks.signInAnonymous.mock.calls[0]?.[0]
+      ?.headers as Headers;
+    expect(authHeaders.get("origin")).toBeNull();
+    expect(authHeaders.get("referer")).toBeNull();
     expect(mocks.issueWidgetSession).toHaveBeenCalledWith({
       userId: "user-1",
       origin: "https://partner.example",

@@ -2,8 +2,8 @@ import { Aomi } from "@aomi-labs/client";
 
 const baseUrl = process.env.AOMI_BASE_URL?.trim() || "http://localhost:3000";
 
-// Guest mode is the SDK default. The first request creates an anonymous
-// session; the client then keeps and reuses its official session cookie.
+// Guest mode is the SDK default. In Node, the first request creates an
+// anonymous Better Auth session and reuses its opaque bearer credential.
 const aomi = new Aomi({ baseUrl });
 const sessionId = crypto.randomUUID();
 

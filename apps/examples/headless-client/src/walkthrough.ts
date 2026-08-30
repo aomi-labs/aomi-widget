@@ -12,9 +12,9 @@ const baseUrl = process.env.AOMI_BASE_URL?.trim() || "http://localhost:3000";
 // 1. Create one SDK facade.
 //
 // With only `baseUrl`, guest mode is on by default. The client creates one
-// Better Auth anonymous session on the first request, keeps its official
-// session cookie in memory in Node, and reuses it. There is no API key setup
-// step. Public `/v1` account login is a separate OAuth or first-party session
+// Better Auth anonymous session on the first request, keeps its opaque session
+// bearer in memory in Node, and reuses it. There is no API key setup step.
+// Public `/v1` account login is a separate OAuth or first-party session
 // concern; this walkthrough intentionally demonstrates the working guest path.
 const aomi = new Aomi({ baseUrl });
 
