@@ -1,5 +1,12 @@
 # Canonical Landing
 
+Current session goal: **FULL-BLEED FOOTER BOUNDARY VERIFIED 2026-08-30** — the
+blue footer now stays flush with every viewport edge and the decorative
+atmosphere layer ends at the real landing-content boundary instead of extending
+the document below the footer. Playwright checks at 390px, 1440px, 2048px, and
+3090px confirm zero visible bottom or side gaps, no horizontal overflow, clean
+console output, and retained animated canvases.
+
 Current session goal: **HOMEPAGE PRIORITY COPY AND LINK AUDIT VERIFIED
 2026-08-29** — applied the approved homepage language updates from the latest
 `main`, routed the primary conversation CTA and team CTA to Contact, and removed
