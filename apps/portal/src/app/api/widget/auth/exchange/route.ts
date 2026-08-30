@@ -3,13 +3,13 @@ import {
   issueWidgetSession,
   requireWidgetOrigin,
 } from "@aomi-labs/account/widget-auth";
-import { verifyWidgetProviderCredential } from "@portal/lib/widget-auth/exchange";
-import { widgetAuthRateLimit } from "@portal/lib/widget-auth/rate-limit";
+import { verifyWidgetProviderCredential } from "@portal/server/widget-auth/exchange";
+import { widgetAuthRateLimit } from "@portal/server/widget-auth/rate-limit";
 import {
   widgetPreflight,
   widgetRoute,
   widgetSessionResponse,
-} from "@portal/lib/widget-auth/response";
+} from "@portal/server/widget-auth/response";
 
 export const POST = widgetRoute(async (request: Request) => {
   const limited = widgetAuthRateLimit(request);

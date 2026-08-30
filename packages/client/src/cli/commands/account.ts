@@ -13,7 +13,7 @@ import {
   signInWithDeviceProvider,
   type DeviceAuthProvider,
 } from "../device-auth";
-import { DEFAULT_CLI_BASE_URL } from "../client-factory";
+import { signInWithOAuthDevice } from "../oauth-device-auth";
 import {
   buildSignedWalletLink,
   requireAccountGraphClient,
@@ -26,7 +26,6 @@ import {
 import { resumeSessionCommand, sessionsCommand } from "./sessions";
 
 const DEFAULT_CHAIN_ID = 1;
-const LEGACY_RAW_BACKEND_URL = "https://api.aomi.dev";
 
 export type AccountLoginOptions = {
   provider?: string;
@@ -55,14 +54,6 @@ export async function accountLoginCommand(
   options: AccountLoginOptions = {},
 ): Promise<void> {
   const cli = CliSession.loadOrCreate(config);
-  let rewroteLegacyBackend = false;
-  if (!config.baseUrl && cli.baseUrl === LEGACY_RAW_BACKEND_URL) {
-    cli.setBaseUrl(DEFAULT_CLI_BASE_URL);
-    rewroteLegacyBackend = true;
-  }
-  if (rewroteLegacyBackend && !config.json) {
-    console.log(`Backend updated to ${DEFAULT_CLI_BASE_URL}`);
-  }
   if (options.solana && (options.wallet || options.provider)) {
     fatal("Choose only one of `--solana`, `--wallet`, or `--provider`.");
   }
@@ -83,6 +74,39 @@ export async function accountLoginCommand(
     fatal('Unknown --provider value. Use "privy" or "para".');
   }
 
+  if (!options.provider) {
+    const origin = new URL(cli.baseUrl).origin;
+    const grants = [
+      {
+        resource: `${origin}/v1/agent` as const,
+        scopes: ["agent:read", "agent:write", "offline_access"],
+      },
+      {
+        resource: `${origin}/v1/pipeline` as const,
+        scopes: ["pipeline:catalog", "offline_access"],
+      },
+    ];
+    for (const request of grants) {
+      const grant = await signInWithOAuthDevice({
+        baseUrl: cli.baseUrl,
+        resource: request.resource,
+        scopes: request.scopes,
+      });
+      cli.setOAuthGrant(grant);
+    }
+    if (config.json) {
+      printJson({
+        status: "signed_in",
+        method: "oauth_device",
+        resources: grants.map((grant) => grant.resource),
+      });
+    } else {
+      console.log("Signed in with OAuth device authorization");
+      printDataFileLocation({ verbose: config.verbose });
+    }
+    return;
+  }
+
   const provider = options.provider as DeviceAuthProvider | undefined;
   const result = await signInWithDeviceProvider({
     baseUrl: cli.baseUrl,
@@ -95,7 +119,6 @@ export async function accountLoginCommand(
       status: "signed_in",
       provider: result.provider ?? null,
       baseUrl: cli.baseUrl,
-      migratedLegacyBackend: rewroteLegacyBackend,
       expiresAt: new Date(result.auth.expiresAt).toISOString(),
     });
     return;
@@ -490,7 +513,11 @@ export function accountSwitchCommand(selector: string): void {
 function hasAccountCredential(
   state: ReturnType<CliSession["toState"]>,
 ): boolean {
-  return Boolean(state.auth?.sessionToken || state.accountBearer);
+  return Boolean(
+    state.auth?.sessionToken ||
+    state.accountBearer ||
+    Object.keys(state.oauthGrants ?? {}).length,
+  );
 }
 
 function formatWalletChainType(chainType: string): string {
@@ -519,12 +546,21 @@ export async function logoutCommand(config: CliConfig): Promise<void> {
 
   const token = cli.auth?.sessionToken;
   try {
+    for (const grant of Object.values(cli.oauthGrants)) {
+      const token = grant.refreshToken ?? grant.accessToken;
+      await fetch(`${cli.baseUrl}/api/auth/oauth2/revoke`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ token, client_id: grant.clientId }),
+      }).catch(() => undefined);
+    }
     await signOutCliSession({
       baseUrl: cli.baseUrl,
       sessionToken: token,
     });
   } finally {
     cli.clearAuthSession();
+    cli.clearOAuthGrants();
     cli.clearSigningKeys();
   }
 

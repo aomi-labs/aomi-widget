@@ -57,7 +57,8 @@ function printRootHelp(): void {
   );
   console.log("  --verbose                    Show extra diagnostics");
   console.log("  --app <name>                 Active app");
-  console.log("  --application-id <id>        Dynamic app row id");
+  console.log("  --application-id <id>        Hosted app discovery identity");
+  console.log("  --platform <name>            Hosted app discovery platform");
   console.log("  --model <rig>                Active model");
   console.log("  --new-session                Create a fresh active session");
   console.log(
@@ -66,7 +67,7 @@ function printRootHelp(): void {
   console.log("  --public-key <address>       Wallet address for chat context");
   console.log("  --private-key <hex>          Signing key for EVM tx sign");
   console.log(
-    "  --payment-method <method>    Paid chat rail, e.g. coinbase/x402",
+    "  --payment-method <method>    Paid Agent/Pipeline rail, e.g. coinbase/x402",
   );
   console.log(
     "  --solana-private-key <key>   Solana keypair (base58 or JSON byte array)",
@@ -100,6 +101,9 @@ function printRootHelp(): void {
   console.log("  secret                       Secret management");
   console.log(
     "  deploy                       Deploy your app (also: deploy status, deploy activate)",
+  );
+  console.log(
+    "  pipeline                     Pipeline discovery and policy-gated execution",
   );
   console.log("");
   console.log("Use aomi <command> --help for command-specific details.");

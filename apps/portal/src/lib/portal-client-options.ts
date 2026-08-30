@@ -177,15 +177,7 @@ export async function applyLockedAppScope(
     return input;
   }
   const url = parseUrl(input);
-  if (
-    !url ||
-    ![
-      "/api/thread/chat",
-      "/api/system",
-      "/api/thread/model",
-      "/api/session/model",
-    ].includes(url.pathname)
-  ) {
+  if (!url || !["/v1/agent/chat", "/api/thread/model"].includes(url.pathname)) {
     return input;
   }
   url.searchParams.set("app", lockedApp);

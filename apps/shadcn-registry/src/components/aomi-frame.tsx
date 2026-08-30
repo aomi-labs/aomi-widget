@@ -27,6 +27,7 @@ import {
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
 import type { WalletAccountMenuOptions } from "@/components/control-bar/account-menu-types";
 import { safeEnv } from "../lib/wallet-kit/env";
+import { useActionCapabilities } from "../lib/wallet-kit";
 
 // =============================================================================
 // Composer Control Context - signals Thread to show inline controls
@@ -143,10 +144,12 @@ const Root: FC<RootProps> = ({
     safeEnv(() => process.env.NEXT_PUBLIC_BACKEND_URL) ??
     "http://127.0.0.1:8080";
   const frameStyle: CSSProperties = { width, height, ...style };
+  const actions = useActionCapabilities();
 
   return (
     <AomiRuntimeProvider
       backendUrl={resolvedBackendUrl}
+      actions={actions}
       applicationId={applicationId}
       clientOptions={clientOptions}
       accountSessionAvailable={accountSessionAvailable}

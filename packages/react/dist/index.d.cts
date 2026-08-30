@@ -1,5 +1,5 @@
-import { AomiPlatformFilter, AomiClientOptions, AomiClient, SessionOptions, Session, UserState, AomiTaskEvent, WalletRequest, WalletRequestResult, AomiSimulateResponse, ChainInfo, AomiAppDescriptor, ApplicationId } from '@aomi-labs/client';
-export { AOMI_TASK_EVENT_TYPES, AomiAppDescriptor, AomiChatResponse, AomiClient, AomiClientOptions, AomiCreateThreadResponse, AomiInterruptResponse, AomiMessage, AomiPlatformFilter, AomiSSEEvent, AomiSecretSlot, AomiStateResponse, AomiSystemEvent, AomiSystemResponse, AomiTaskActivityEvent, AomiTaskActivityKind, AomiTaskCompletedEvent, AomiTaskEvent, AomiTaskEventType, AomiTaskStartedEvent, AomiTaskStatus, AomiThread, ChainInfo, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletCapabilities, WalletEip712Payload, WalletRequest, WalletRequestKind, WalletRequestResult, WalletSignablePayload, WalletSigningPayload, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, hydrateTxPayloadFromUserState, isAomiTaskEventType, normalizeAppDescriptor, normalizeSimulatedFee, parseAomiTaskEvent, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
+import { AomiPlatformFilter, AomiClientOptions, ActionCapabilities, UserState, Action, ActionAttempt, ActionResult, AomiSimulateResponse, Event, TurnState, Session, ChainInfo, AomiAppDescriptor, ApplicationId, AomiClient } from '@aomi-labs/client';
+export { Action, ActionRequest, ActionResult, AomiAppDescriptor, AomiClient, AomiClientOptions, AomiPlatformFilter, AomiSecretSlot, ChainInfo, MAX_AUTO_FEE_WEI, NativeWalletExecutionPolicy, NativeWalletSponsorship, SponsorshipPaymasterServiceContext, UserState, ViemSignMessageArgs, WalletCapabilities, WalletEip712Payload, WalletSolanaSignMessagePayload, WalletSolanaSignPayload, WalletTxPayload, aaModeFromExecutionKind, appIdentityKey, appendFeeCallToPayload, buildFeeAAWalletCall, executeWalletCalls, normalizeAppDescriptor, normalizeSimulatedFee, parseChainId, toAAWalletCall, toAAWalletCalls, toViemSignMessageArgs, toViemSignTypedDataArgs } from '@aomi-labs/client';
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import * as react from 'react';
 import { ReactNode, SetStateAction } from 'react';
@@ -12,6 +12,7 @@ type AomiRuntimeProviderProps = {
     applicationId?: number | string | null;
     appPlatforms?: AomiPlatformFilter;
     clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+    actions?: ActionCapabilities;
     /** Whether a canonical account session can load threads without a wallet. */
     accountSessionAvailable?: boolean;
     /** Optional explicit initial thread. Takes precedence over stored state. */
@@ -23,50 +24,19 @@ type AomiRuntimeProviderProps = {
     /** Extra key segment for tenant/user/app scoping without owning the full key. */
     threadPersistenceScope?: string | null;
 };
-declare function AomiRuntimeProvider({ children, backendUrl, applicationId, appPlatforms, clientOptions, accountSessionAvailable, initialThreadId, persistThread, threadPersistenceKey, threadPersistenceScope, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
-
-declare class SessionManager {
-    private readonly clientFactory;
-    private sessions;
-    constructor(clientFactory: () => AomiClient);
-    getOrCreate(threadId: string, opts: Omit<SessionOptions, "sessionId">): Session;
-    get(threadId: string): Session | undefined;
-    get size(): number;
-    forEach(callback: (session: Session, threadId: string) => void): void;
-    close(threadId: string): void;
-    closeIdleExcept(activeThreadId: string, onBeforeClose?: (threadId: string) => void): string[];
-    closeAll(): void;
-}
-
-type RuntimeUserStateProviderProps = {
-    children: ReactNode;
-    sessionManager: SessionManager;
-    getUserState: () => UserState;
-    setUser: (data: Partial<UserState>) => void;
-    onUserStateChange: (callback: (user: UserState) => void) => () => void;
-};
-declare function RuntimeUserStateProvider({ children, sessionManager, getUserState, setUser, onUserStateChange, }: RuntimeUserStateProviderProps): react_jsx_runtime.JSX.Element;
+declare function AomiRuntimeProvider({ children, backendUrl, applicationId, appPlatforms, clientOptions, actions, accountSessionAvailable, initialThreadId, persistThread, threadPersistenceKey, threadPersistenceScope, }: Readonly<AomiRuntimeProviderProps>): react_jsx_runtime.JSX.Element;
 
 type ThreadContext = {
     currentThreadId: string;
     setCurrentThreadId: (id: string) => void;
     threadViewKey: number;
     bumpThreadViewKey: () => void;
-    allThreads: Map<string, ThreadMessageLike[]>;
-    setThreads: (updater: SetStateAction<Map<string, ThreadMessageLike[]>>) => void;
     allThreadsMetadata: Map<string, ThreadMetadata>;
     setThreadMetadata: (updater: SetStateAction<Map<string, ThreadMetadata>>) => void;
     threadCnt: number;
     setThreadCnt: (updater: SetStateAction<number>) => void;
-    getThreadMessages: (threadId: string) => ThreadMessageLike[];
-    setThreadMessages: (threadId: string, messages: ThreadMessageLike[]) => void;
     getThreadMetadata: (threadId: string) => ThreadMetadata | undefined;
     updateThreadMetadata: (threadId: string, updates: Partial<ThreadMetadata>) => void;
-    /** Orchestrator delegation sidecar: threadId → (agentId → TaskRunState). */
-    allThreadTaskRuns: Map<string, ThreadTaskRuns>;
-    getThreadTaskRuns: (threadId: string) => ThreadTaskRuns;
-    applyTaskEvent: (threadId: string, event: AomiTaskEvent) => void;
-    clearThreadTaskRuns: (threadId: string) => void;
     resetToDefault: () => string;
 };
 type ThreadContextProviderProps = {
@@ -75,145 +45,27 @@ type ThreadContextProviderProps = {
 };
 declare function useThreadContext(): ThreadContext;
 declare function ThreadContextProvider({ children, initialThreadId, }: ThreadContextProviderProps): react_jsx_runtime.JSX.Element;
-declare function useCurrentThreadMessages(): ThreadMessageLike[];
 declare function useCurrentThreadMetadata(): ThreadMetadata | undefined;
-/**
- * Live delegation state for a thread, keyed by agent id. Defaults to the
- * current thread. Joined to the transcript through
- * `metadata.custom.aomiTask.agentId` on the `task` tool-call part.
- */
-declare function useThreadTaskRuns(threadId?: string): ThreadTaskRuns;
-/** A single agent's run, or `undefined` when no sidecar exists (e.g. reload). */
-declare function useTaskRun(agentId: string | undefined, threadId?: string): TaskRunState | undefined;
 
-/**
- * A child step observed while a delegated `task` call is running.
- * `childSeq` is the backend's monotonic per-agent counter — it orders the list
- * and dedupes SSE replay after a reconnect.
- */
-type TaskRunStep = {
-    kind: "tool_call";
-    toolName: string;
-    args?: unknown;
-    resultPreview?: string;
-    childSeq: number;
-} | {
-    kind: "note";
-    text: string;
-    childSeq: number;
-};
-type TaskRunStatus = "running" | "completed" | "failed" | "stalled" | "cancelled";
-/**
- * Live state for one delegated child agent.
- *
- * Reconciliation contract: while `status === "running"` there is **no**
- * transcript part for this run — the mother's `task` tool message only lands
- * once the child finishes. The UI renders a synthetic row from this state, and
- * once the transcript part carrying the same `agentId` (see
- * `metadata.custom.aomiTask` in `runtime/utils.ts`) arrives it joins the two:
- * the transcript part renders the row, this state supplies steps and summary.
- * On reload there is no sidecar for older runs, so the row degrades to whatever
- * the transcript part alone carries (label + staged count, no steps).
- */
-type TaskRunState = {
-    agentId: string;
-    callId: string;
-    label: string;
-    app: string | null;
-    status: TaskRunStatus;
-    /** Client clock at `task_started` (backend sends no start timestamp). */
-    startedAt: number;
-    /** Ordered by `childSeq`, deduped. */
-    steps: TaskRunStep[];
-    message?: string;
-    stagedCount?: number;
-    durationMs?: number;
-    /**
-     * Step count reported by `task_completed`. May exceed `steps.length` when
-     * activity events were dropped (e.g. the tab was backgrounded mid-run).
-     */
-    stepCount?: number;
-};
-/** All live/finished task runs for one thread, keyed by agent id. */
-type ThreadTaskRuns = Record<string, TaskRunState>;
-declare const EMPTY_TASK_RUNS: ThreadTaskRuns;
-/**
- * Fold one delegation event into a thread's task runs.
- *
- * Pure and idempotent: replaying the same SSE window (which the backend does
- * after a reconnect via `Last-Event-ID`) returns the identical object, so React
- * consumers do not re-render. Events may also arrive out of order — an activity
- * or completion before `task_started` creates a placeholder run that the later
- * `task_started` fills in without discarding collected steps.
- */
-declare function reduceTaskRuns(runs: ThreadTaskRuns, event: AomiTaskEvent, now?: number): ThreadTaskRuns;
 type ThreadStatus = "regular" | "archived";
 type ModelSelectionMode = "auto" | "manual";
-type ThreadTurnPhase = "idle" | "submitting" | "working";
 type ThreadControlState = {
-    /** Selected model for this thread (human-readable label) */
     model: string | null;
-    /** Whether the selected model should be displayed as auto or explicit */
     modelMode?: ModelSelectionMode;
-    /** Selected app for this thread */
     app: string | null;
-    /** Concrete backend application row for hosted/platform apps */
     applicationId: number | string | null;
-    /** Whether control state has changed but chat hasn't started yet */
     controlDirty: boolean;
-    /** Whether this thread is currently processing (assistant generating) */
-    isProcessing: boolean;
-    /** Fine-grained turn phase for rendering pending/working assistant states */
-    turnPhase: ThreadTurnPhase;
 };
 type ThreadMetadata = {
     title: string;
     status: ThreadStatus;
     lastActiveAt?: string | number;
-    /** Per-thread control state (model, app selection) */
     control: ThreadControlState;
 };
-/** Create default control state for a new thread */
 declare function initThreadControl(): ThreadControlState;
 
-type InboundEvent = {
-    type: string;
-    sessionId: string;
-    payload?: unknown;
-};
-type SSEStatus = "connected" | "connecting" | "disconnected";
-type EventSubscriber = (event: InboundEvent) => void;
-type EventContext = {
-    /** Subscribe to events by type. Returns unsubscribe function. */
-    subscribe: (type: string, callback: EventSubscriber) => () => void;
-    /** Dispatch an event to all matching subscribers (used by orchestrator) */
-    dispatch: (event: InboundEvent) => void;
-    /** Send an outbound system message to backend */
-    sendOutboundSystem: (event: {
-        type: string;
-        sessionId: string;
-        payload: unknown;
-    }) => Promise<void>;
-    /** Current SSE connection status */
-    sseStatus: SSEStatus;
-};
-declare function useEventContext(): EventContext;
-type EventContextProviderProps = {
-    children: ReactNode;
-    aomiClient: AomiClient;
-    sessionId: string;
-};
-/**
- * Simplified EventContext — a pure pub/sub relay.
- *
- * SSE subscription and system event unwrapping are now handled by ClientSession
- * in the orchestrator. This provider just maintains the subscriber registry
- * and sendOutboundSystem for direct system messages.
- */
-declare function EventContextProvider({ children, aomiClient, sessionId, }: EventContextProviderProps): react_jsx_runtime.JSX.Element;
-
 type NotificationType = "notice" | "success" | "error" | "wallet";
-type Notification$1 = {
+type Notification = {
     id: string;
     type: NotificationType;
     /**
@@ -230,10 +82,10 @@ type Notification$1 = {
     duration?: number;
     timestamp: number;
 };
-type NotificationData = Omit<Notification$1, "id" | "timestamp">;
+type NotificationData = Omit<Notification, "id" | "timestamp">;
 type NotificationContextApi = {
     /** All active notifications */
-    notifications: Notification$1[];
+    notifications: Notification[];
     /** Show a new notification */
     showNotification: (params: NotificationData) => string;
     /** Dismiss a notification by ID */
@@ -247,41 +99,6 @@ type NotificationContextProviderProps = {
 };
 declare function NotificationContextProvider({ children, }: NotificationContextProviderProps): react_jsx_runtime.JSX.Element;
 
-type WalletRequestStatus = "pending" | "processing";
-type WalletHandlerConfig = {
-    /** Get the ClientSession for the current thread. */
-    getSession: () => Session | undefined;
-};
-type WalletHandlerApi = {
-    /**
-     * All queued wallet requests across every supported kind: EVM txs
-     * (`kind: "transaction"`), opaque sign-only handoffs (`kind: "signing"`),
-     * and Solana send requests. Consumers should narrow on
-     * `request.kind` before reading `request.payload` — the discriminated
-     * union auto-narrows the payload type.
-     */
-    pendingRequests: WalletRequest[];
-    /** True while a visible or callback-in-flight wallet request still exists. */
-    hasBlockingWalletRequests: boolean;
-    /** Replace pending requests with the session's authoritative snapshot. */
-    setRequests: (requests: WalletRequest[]) => void;
-    /** Mark a request as in-flight so it is not replayed while awaiting backend ack. */
-    startRequest: (id: string) => void;
-    /** Remove a request after an operation-specific API acknowledged it. */
-    dismissRequest: (id: string) => void;
-    /**
-     * Complete a request successfully — sends the response wire event to
-     * the backend via ClientSession. The `result.kind` discriminator must
-     * match the originating request's kind (e.g. `{ kind: "signing",
-     * signatures: ["..."] }` for a sign-only request); ClientSession runtime-checks
-     * this and throws on mismatch.
-     */
-    resolveRequest: (id: string, result: WalletRequestResult) => Promise<void>;
-    /** Fail a request — sends error to backend via ClientSession */
-    rejectRequest: (id: string, error?: string) => Promise<void>;
-};
-declare function useWalletHandler({ getSession, }: WalletHandlerConfig): WalletHandlerApi;
-
 type AomiRuntimeApi = {
     /** Current user state (wallet connection, address, chain, etc.) */
     user: UserState;
@@ -293,8 +110,6 @@ type AomiRuntimeApi = {
     addExtValue: (key: string, value: unknown) => void;
     /** Remove a value from user_state.ext */
     removeExtValue: (key: string) => void;
-    /** Subscribe to user state changes. Returns unsubscribe function. */
-    onUserStateChange: (callback: (user: UserState) => void) => () => void;
     /** ID of the currently active thread */
     currentThreadId: string;
     /** Key that changes when thread view should remount (use for React key prop) */
@@ -317,6 +132,8 @@ type AomiRuntimeApi = {
     selectThread: (threadId: string) => void;
     /** Whether the assistant is currently generating a response */
     isRunning: boolean;
+    /** True only before the first backend event for a submitted turn. */
+    isSubmitting: boolean;
     /** Get messages for a thread (defaults to currentThreadId) */
     getMessages: (threadId?: string) => ThreadMessageLike[];
     /** Send a message to the current thread */
@@ -324,25 +141,21 @@ type AomiRuntimeApi = {
     /** Cancel the current generation */
     cancelGeneration: () => void;
     /** All active notifications */
-    notifications: Notification$1[];
+    notifications: Notification[];
     /** Show a notification. Returns the notification ID. */
     showNotification: (params: NotificationData) => string;
     /** Dismiss a notification by ID */
     dismissNotification: (id: string) => void;
     /** Clear all notifications */
     clearAllNotifications: () => void;
-    /** All queued wallet requests (broadcast transactions + generic signing) */
-    pendingWalletRequests: WalletRequest[];
-    /** True while switching wallets or networks could lose an unresolved request. */
-    hasBlockingWalletRequests: boolean;
-    /** Mark a wallet request as in-flight — suppresses it from the pending list until acked */
-    startWalletRequest: (id: string) => void;
-    /** Locally dismiss an externally acknowledged request. */
-    dismissWalletRequest: (id: string) => void;
-    /** Complete a wallet request after the backend acknowledges the response */
-    resolveWalletRequest: (id: string, result: WalletRequestResult) => Promise<void>;
-    /** Fail a wallet request after the backend acknowledges the error */
-    rejectWalletRequest: (id: string, error?: string) => Promise<void>;
+    /** Canonical runtime Actions awaiting a client response. */
+    pendingActions: Action[];
+    actionAttempts: ReadonlyMap<string, ActionAttempt>;
+    /** True while an Action is visible or awaiting backend acknowledgement. */
+    hasBlockingActions: boolean;
+    executeAction: (id: string) => Promise<void>;
+    respondToAction: (id: string, result: ActionResult) => Promise<void>;
+    rejectAction: (id: string, reason?: string) => Promise<void>;
     /** Simulate a batch against the current thread session context. */
     simulateBatchTransactions: (transactions: Array<{
         to: string;
@@ -355,18 +168,10 @@ type AomiRuntimeApi = {
         from?: string;
         chainId?: number;
     }) => Promise<AomiSimulateResponse["result"]>;
-    /** Subscribe to inbound events by type. Returns unsubscribe function. */
-    subscribe: (type: string, callback: EventSubscriber) => () => void;
-    /** Send a system command to the backend */
-    sendSystemCommand: (event: {
-        type: string;
-        sessionId: string;
-        payload: unknown;
-    }) => Promise<void>;
-    /** Record ephemeral UI context for the next model turn on the active thread. */
-    recordUiInteraction: (payload: unknown) => Promise<void>;
-    /** Current SSE connection status */
-    sseStatus: SSEStatus;
+    /** Canonical ordered events for the active session. */
+    events: readonly Event[];
+    /** Backend-owned lifecycle for the active turn. */
+    turnState?: TurnState;
 };
 declare const AomiRuntimeApiProvider: react.Provider<AomiRuntimeApi | null>;
 /**
@@ -392,8 +197,8 @@ declare const AomiRuntimeApiProvider: react.Provider<AomiRuntimeApi | null>;
  *   // Notification API
  *   const { showNotification } = aomi;
  *
- *   // Event API
- *   const { subscribe, sendSystemCommand, recordUiInteraction } = aomi;
+ *   // Event state
+ *   const { events, turnState } = aomi;
  * }
  * ```
  */
@@ -401,43 +206,230 @@ declare function useAomiRuntime(): AomiRuntimeApi;
 /** Returns the runtime when mounted, allowing standalone registry previews. */
 declare function useOptionalAomiRuntime(): AomiRuntimeApi | null;
 
-type Notification = {
-    id: string;
-    type: string;
-    title: string;
-    body?: unknown;
-    handled: boolean;
-    timestamp: number;
-    sessionId: string;
+declare function useActions(session: Session | undefined): {
+    pendingActions: ({
+        event_id: string;
+        sequence: number;
+        turn_id: string | null;
+        occurred_at: number;
+        type: string;
+    } & {
+        type: "action";
+        id: string;
+        revision: number;
+        state: "pending" | "submitted" | "completed" | "rejected" | "expired" | "failed";
+        request: {
+            type: "execute_evm";
+            transactions: {
+                chain_id: number;
+                from: string;
+                to: string;
+                value?: string;
+                gas?: string;
+                data: string;
+                label: string;
+                kind: string;
+                protocol?: string;
+            }[];
+            simulation: {
+                status: "passed" | "failed";
+                balanceChanges: {
+                    account?: string | null;
+                    asset: string;
+                    amount: string;
+                    direction?: "in" | "out" | null;
+                    symbol?: string | null;
+                    decimals?: number | null;
+                    chainId?: number | null;
+                    cluster?: string | null;
+                }[];
+                fees: {
+                    account?: string | null;
+                    asset: string;
+                    amount: string;
+                    symbol?: string | null;
+                    decimals?: number | null;
+                    chainId?: number | null;
+                    cluster?: string | null;
+                    kind?: string | null;
+                }[];
+                warnings: string[];
+                guards: {
+                    name: string;
+                    status: "passed" | "failed" | "warning";
+                    message?: string | null;
+                }[];
+                gas: {
+                    units?: string | null;
+                    priceWei?: string | null;
+                    nativeCost?: string | null;
+                } | null;
+                logs: {
+                    chainId?: number | null;
+                    cluster?: string | null;
+                    address: string;
+                    topics: string[];
+                    data: string;
+                }[];
+            };
+        } | {
+            type: "execute_svm";
+            transactions: {
+                payer: string;
+                cluster: string;
+                version: string;
+                instructions: Record<string, never>[];
+                address_lookup_tables?: string[];
+                recent_blockhash?: string;
+                last_valid_block_height?: number;
+                preserve_blockhash?: boolean;
+                unsigned_transaction_base64?: string;
+                description: string;
+                kind: string;
+            }[];
+            simulation: {
+                status: "passed" | "failed";
+                balanceChanges: {
+                    account?: string | null;
+                    asset: string;
+                    amount: string;
+                    direction?: "in" | "out" | null;
+                    symbol?: string | null;
+                    decimals?: number | null;
+                    chainId?: number | null;
+                    cluster?: string | null;
+                }[];
+                fees: {
+                    account?: string | null;
+                    asset: string;
+                    amount: string;
+                    symbol?: string | null;
+                    decimals?: number | null;
+                    chainId?: number | null;
+                    cluster?: string | null;
+                    kind?: string | null;
+                }[];
+                warnings: string[];
+                guards: {
+                    name: string;
+                    status: "passed" | "failed" | "warning";
+                    message?: string | null;
+                }[];
+                gas: {
+                    units?: string | null;
+                    priceWei?: string | null;
+                    nativeCost?: string | null;
+                } | null;
+                logs: {
+                    chainId?: number | null;
+                    cluster?: string | null;
+                    address: string;
+                    topics: string[];
+                    data: string;
+                }[];
+            };
+        } | ({
+            requestId: string;
+            chainFamily: "evm" | "svm";
+            executionKind: string;
+            signer: string;
+            chainId?: number;
+            cluster?: string;
+            description: string;
+            payloads: ({
+                kind: "evm_personal";
+                message: string;
+            } | {
+                kind: "evm_typed_data";
+                typed_data: Record<string, never>;
+            } | {
+                kind: "svm_message";
+                message_base64: string;
+            } | {
+                kind: "svm_transaction";
+                transaction_base64: string;
+            })[];
+            broadcaster?: string;
+            operationId?: string;
+            executor?: string;
+            expiresAt?: string;
+            callsDigest?: string;
+            calls?: Record<string, never>[];
+            fees?: Record<string, never>[];
+            sponsorship?: string;
+        } & {
+            type: "sign";
+        });
+        result?: ({
+            status: "submitted";
+            legs: {
+                id: string;
+                status: "submitted" | "rejected" | "failed" | "skipped";
+                transactionId?: string;
+                signedTransactionBase64?: string;
+                reason?: string;
+            }[];
+        } | {
+            status: "signed";
+            outputs: {
+                id: string;
+                signature?: string;
+                signedTransactionBase64?: string;
+            }[];
+        } | {
+            status: "rejected";
+            reason: string;
+        }) | null;
+        created_at: number;
+        expires_at: number | null;
+    } & {
+        type: "action";
+    })[];
+    actionAttempts: ReadonlyMap<string, ActionAttempt>;
+    hasBlockingActions: boolean;
+    executeAction: (id: string) => Promise<undefined>;
+    respondToAction: (id: string, result: ActionResult) => Promise<undefined>;
+    rejectAction: (id: string, reason?: string) => Promise<undefined>;
 };
-type NotificationHandlerConfig = {
-    /** Callback when new notification arrives */
-    onNotification?: (notification: Notification) => void;
-};
-type NotificationApi = {
-    /** All notifications */
-    notifications: Notification[];
-    /** Unhandled count */
-    unhandledCount: number;
-    /** Mark notification as handled */
-    markDone: (id: string) => void;
-};
-declare function useNotificationHandler({ onNotification, }?: NotificationHandlerConfig): NotificationApi;
 
 declare function useUser(): {
-    user: UserState;
+    user: {
+        connection?: {
+            is_connected?: boolean;
+            provider?: string | null;
+            provider_label?: string | null;
+            auth_method?: string | null;
+        };
+        evm?: {
+            address?: string | null;
+            chain_id?: number | null;
+            ens_name?: string | null;
+        };
+        svm?: {
+            address?: string | null;
+            cluster?: string | null;
+            wallet_name?: string | null;
+            transport?: string | null;
+            capabilities?: string[];
+        };
+        preferences?: {
+            [key: string]: unknown;
+        };
+        ext?: {
+            [key: string]: unknown;
+        };
+    };
     setUser: (data: Partial<UserState>) => void;
     addExtValue: (key: string, value: unknown) => void;
     removeExtValue: (key: string) => void;
     getUserState: () => UserState;
-    onUserStateChange: (callback: (user: UserState) => void) => () => void;
 };
 /**
  * Idempotent provider: if a parent already provided `UserContext`, render
  * children straight through. Otherwise mount a fresh store.
  *
  * The widget layers (`AomiFrame.Root` / `AomiRuntime`) and the wallet-kit
- * layers (`AomiParaProvider` / `AomiBaseAccountProvider`) both want to be
+ * wallet-kit layers may both want to be
  * usable standalone. Each historically wrapped with `<ExtUserProvider>` —
  * but when they nest, the inner provider created a *second* store that
  * shadowed the outer. The chat composer would read from one store while
@@ -456,16 +448,11 @@ declare function ExtUserProvider({ children }: {
  */
 declare function cn(...inputs: ClassValue[]): string;
 /**
- * UI-only join key attached to a completed `task` tool-call part. The trace uses
- * it to pair the transcript part with the live `TaskRunState` sidecar (see
- * `state/thread-store.ts`). Survives `fromThreadMessageLike` because unknown
- * tool-call properties are spread through unchanged.
+ * Pure Assistant UI projection over the canonical ordered event ledger.
+ * Messages and tool parts are grouped by backend turn identity; no transcript
+ * or lifecycle state is stored outside ClientSession.
  */
-type AomiTaskPartMetadata = {
-    agentId: string;
-};
-/** Read `metadata.custom.aomiTask.agentId` off a tool-call part, if present. */
-declare function readTaskPartAgentId(part: unknown): string | undefined;
+declare function projectAssistantMessages(events: readonly Event[]): ThreadMessageLike[];
 /**
  * User configuration props for footer components.
  * Provides user state and setter from UserContext.
@@ -481,6 +468,39 @@ declare const formatAddress: (addr?: string) => string;
 declare const SUPPORTED_CHAINS: ChainInfo[];
 /** Look up ChainInfo by chain ID. Returns undefined for unknown chains. */
 declare const getChainInfo: (chainId: number | undefined) => ChainInfo | undefined;
+
+type TaskRunStep = {
+    kind: "tool_call";
+    toolName: string;
+    args: unknown;
+    resultPreview: string;
+    childSeq: number;
+} | {
+    kind: "note";
+    text: string;
+    childSeq: number;
+};
+type TaskRunStatus = "running" | "completed" | "failed" | "stalled" | "cancelled";
+type TaskRunState = {
+    agentId: string;
+    callId: string;
+    label: string;
+    app: string;
+    status: TaskRunStatus;
+    startedAt: number;
+    phase?: string;
+    elapsedMs?: number;
+    steps: TaskRunStep[];
+    message?: string;
+    stagedCount?: number;
+    durationMs?: number;
+    stepCount?: number;
+};
+type ThreadTaskRuns = Readonly<Record<string, TaskRunState>>;
+declare const EMPTY_TASK_RUNS: ThreadTaskRuns;
+declare function selectTaskRuns(events: readonly Event[]): ThreadTaskRuns;
+declare function useThreadTaskRuns(): ThreadTaskRuns;
+declare function useTaskRun(agentId: string | undefined): TaskRunState | undefined;
 
 /**
  * Resolve the actual backend model for auto mode.
@@ -545,9 +565,6 @@ type PerThreadControlActions = {
     }) => Promise<void>;
     onAppSelect: (app: string, options?: AppSelectionOptions) => void;
     markControlSynced: () => void;
-    syncCurrentThreadControl: (options?: {
-        ignoreProcessing?: boolean;
-    }) => Promise<void>;
 };
 
 /**
@@ -560,7 +577,6 @@ type ControlState = ApiKeyState & ByokState & AuthEndpointsState & {
 };
 type ControlContextApi = ApiKeyActions & ByokActions & AuthEndpointsActions & PerThreadControlActions & {
     state: ControlState;
-    isProcessing: boolean;
     /** Synchronous getter used by the runtime to read the latest state from a
      *  callback that fires outside render. */
     getControlState: () => ControlState;
@@ -582,7 +598,6 @@ declare function useAuthEndpoints(): {
 };
 declare function usePerThreadControl(): {
     actions: PerThreadControlActions;
-    isProcessing: boolean;
 };
 type ControlContextProviderProps = {
     children: ReactNode;
@@ -595,4 +610,4 @@ type ControlContextProviderProps = {
 };
 declare function ControlContextProvider({ children, aomiClient, sessionId, getThreadMetadata, updateThreadMetadata, appPlatforms, applicationId, }: ControlContextProviderProps): react_jsx_runtime.JSX.Element;
 
-export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type AomiTaskPartMetadata, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, EMPTY_TASK_RUNS, type EventContext, EventContextProvider, type EventContextProviderProps, type EventSubscriber, ExtUserProvider, type InboundEvent, type ModelSelectionMode, type Notification$1 as Notification, type NotificationApi, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationHandlerConfig, type NotificationType, RuntimeUserStateProvider, type SSEStatus, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type TaskRunState, type TaskRunStatus, type TaskRunStep, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type ThreadTaskRuns, type ThreadTurnPhase, type UserConfig, type WalletHandlerApi, type WalletHandlerConfig, type WalletRequestStatus, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, readTaskPartAgentId, reduceTaskRuns, resolveAutoModel, useAomiRuntime, useApiKey, useAuthEndpoints, useByok, useControl, useCurrentThreadMessages, useCurrentThreadMetadata, useEventContext, useNotification, useNotificationHandler, useOptionalAomiRuntime, usePerThreadControl, useTaskRun, useThreadContext, useThreadTaskRuns, useUser, useWalletHandler };
+export { type AomiRuntimeApi, AomiRuntimeApiProvider, AomiRuntimeProvider, type AomiRuntimeProviderProps, type ControlContextApi, ControlContextProvider, type ControlContextProviderProps, type ControlState, EMPTY_TASK_RUNS, ExtUserProvider, type ModelSelectionMode, type Notification, NotificationContextProvider, type NotificationContextProviderProps, type NotificationContextApi as NotificationContextValue, type NotificationType, SUPPORTED_CHAINS, type NotificationData as ShowNotificationParams, type StoredByokKey, type TaskRunState, type TaskRunStatus, type TaskRunStep, type ThreadContext, ThreadContextProvider, type ThreadControlState, type ThreadMetadata, type ThreadTaskRuns, type UserConfig, cn, formatAddress, getChainInfo, getNetworkName, initThreadControl, projectAssistantMessages, resolveAutoModel, selectTaskRuns, useActions, useAomiRuntime, useApiKey, useAuthEndpoints, useByok, useControl, useCurrentThreadMetadata, useNotification, useOptionalAomiRuntime, usePerThreadControl, useTaskRun, useThreadContext, useThreadTaskRuns, useUser };

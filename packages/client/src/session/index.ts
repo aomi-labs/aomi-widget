@@ -1,434 +1,182 @@
-import { AomiClient } from "../client";
 import type {
-  AomiClientOptions,
-  AomiMessage,
-  AomiChatResponse,
-  AomiStateResponse,
-} from "../types";
-import {
-  UserState,
-  type AomiClientType,
-  type OwnedUserState,
-  type UserState as UserStateShape,
-} from "../user-state";
-import { TypedEventEmitter } from "../event";
+  Event,
+  EventPage,
+  MessageEvent,
+  StartTurnIntent,
+  TurnState,
+} from "../agent/types";
+import { ActionHandler } from "../actions";
+import { AgentApiError } from "../agent/transport";
+import { AomiClient } from "../client";
+import type { AomiClientOptions } from "../types";
 import type {
   SendResult,
-  SessionEventMap,
   SessionOptions,
   SessionRuntimeOptions,
-  WalletRequest,
-  WalletRequestTarget,
-  WalletRequestResult,
+  SessionSnapshot,
 } from "./types";
-import { stableUserStateString } from "./json";
-import { applySessionState, handleSessionSSEEvent } from "./events";
-import {
-  addExtValue as addUserStateExtValue,
-  removeExtValue as removeUserStateExtValue,
-  resolveWalletState,
-  warnIfUserStateMisaligned,
-} from "./state";
-import { SessionWalletController } from "./wallet";
 
 export { aaModeFromExecutionKind } from "../aa/policy";
 export type {
+  Event,
+  EventPage,
   SendResult,
-  SessionEventMap,
   SessionOptions,
   SessionRuntimeOptions,
-  WalletRequest,
-  WalletSignablePayload,
-  WalletSigningPayload,
-  WalletRequestKind,
-  WalletRequestTarget,
-  WalletRequestResult,
+  SessionSnapshot,
+  TurnState,
 } from "./types";
 
-const SIGNING_RECOVERY_MIN_INTERVAL_MS = 5_000;
+const TERMINAL_TURN_STATES = new Set<TurnState>([
+  "complete",
+  "interrupted",
+  "failed",
+]);
+const TERMINAL_EVENT_DRAIN_MS = 60_000;
 
-export class ClientSession extends TypedEventEmitter<SessionEventMap> {
+/** One Agent session reduced from its single ordered Event stream. */
+export class ClientSession {
   readonly client: AomiClient;
   readonly sessionId: string;
+  readonly actions: ActionHandler;
 
   private app: string;
+  private model?: string | null;
   private applicationId?: number | string | null;
-  private apiKey?: string;
-  private userState?: UserStateShape;
+  private getUserState?: SessionOptions["getUserState"];
   private clientId: string;
-  private paymentMethod?: string | null;
-  private syncPendingTxRequestsFromUserState: boolean;
   private pollIntervalMs: number;
   private logger?: { debug: (...args: unknown[]) => void };
-
+  private cursor?: string;
+  private turnId?: string;
+  private turnState?: TurnState;
+  private startOperation?: { message: string; idempotencyKey: string };
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private pollingActive = false;
   private pollInFlight = false;
   private pollFailureCount = 0;
-  private unsubscribeSSE: (() => void) | null = null;
-  private isSSEActive = false;
-  private _isProcessing = false;
-  private _backendWasProcessing = false;
-  private walletController!: SessionWalletController;
-  private recoveringSigningRequestIds = new Set<string>();
-  private signingRecoveryInFlight: Promise<void> | null = null;
-  private signingRecoveryTimer: ReturnType<typeof setTimeout> | null = null;
-  private lastSigningRecoveryAt = 0;
-  private _messages: AomiMessage[] = [];
-  private _title?: string;
+  private awaitingResume = false;
+  private terminalDrainUntil?: number;
+  private isSubmitting = false;
+  private events: Event[] = [];
+  private eventIds = new Set<string>();
+  private messages: MessageEvent[] = [];
+  private title?: string;
+  private error?: unknown;
   private closed = false;
-
   private pendingResolve: ((result: SendResult) => void) | null = null;
+  private listeners = new Set<() => void>();
+  private actionUnsubscribers: Array<() => void> = [];
+  private snapshot: SessionSnapshot;
+  private applyingPage = false;
 
   constructor(
     clientOrOptions: AomiClient | AomiClientOptions,
     sessionOptions?: SessionOptions,
   ) {
-    super();
-
     this.client =
       clientOrOptions instanceof AomiClient
         ? clientOrOptions
         : new AomiClient(clientOrOptions);
-
     this.sessionId = sessionOptions?.sessionId ?? crypto.randomUUID();
     this.app = sessionOptions?.app ?? "default";
+    this.model = sessionOptions?.model;
     this.applicationId = sessionOptions?.applicationId;
-    this.apiKey = sessionOptions?.apiKey;
-    this.paymentMethod = sessionOptions?.paymentMethod;
-    const initialUserState = UserState.reconcile(
-      undefined,
-      sessionOptions?.userState,
-    );
-    this.userState = sessionOptions?.clientType
-      ? UserState.withExt(
-          initialUserState ?? {},
-          "client_type",
-          sessionOptions.clientType,
-        )
-      : initialUserState;
+    this.getUserState = sessionOptions?.getUserState;
     this.clientId = sessionOptions?.clientId ?? crypto.randomUUID();
-    this.syncPendingTxRequestsFromUserState =
-      sessionOptions?.syncPendingTxRequestsFromUserState ?? true;
     this.pollIntervalMs = sessionOptions?.pollIntervalMs ?? 500;
     this.logger = sessionOptions?.logger;
-    this.walletController = new SessionWalletController({
-      getUserState: () => this.userState,
-      resolveUserState: (userState) => this.resolveUserState(userState),
-      sendSystemEvent: (type, payload) => this.sendSystemEvent(type, payload),
-      completeSigningRequest: (requestId, body) =>
-        this.completeSigningRequest(requestId, body),
-      onChange: (requests) => this.emit("wallet_requests_changed", requests),
-      syncPendingTxRequestsFromUserState:
-        this.syncPendingTxRequestsFromUserState,
-    });
-    // Durable backend-owned signing handoffs must resume even when loading the
-    // application runtime or thread history is slow/unavailable.
-    queueMicrotask(() => this.scheduleSigningRequestRecovery(true));
+    this.actions = new ActionHandler(
+      sessionOptions?.actions ?? {},
+      (action, result, idempotencyKey) =>
+        this.client.agent.respondToAction(
+          this.sessionId,
+          action.id,
+          action.revision,
+          result,
+          idempotencyKey,
+        ),
+    );
+    this.snapshot = this.buildSnapshot();
+    this.actionUnsubscribers.push(
+      this.actions.subscribe(() => {
+        if (!this.applyingPage) this.publish();
+      }),
+      this.actions.on("resolved", () => {
+        this.awaitingResume = true;
+        this.startPolling();
+      }),
+    );
   }
 
-  // ===========================================================================
-  // Public API — Chat
-  // ===========================================================================
+  getSnapshot = (): SessionSnapshot => this.snapshot;
 
-  /**
-   * Send a message and wait for the AI to finish processing.
-   *
-   * The returned promise resolves when `is_processing` becomes `false` AND
-   * there are no pending wallet requests. If a wallet request arrives
-   * mid-processing, polling continues but the promise pauses until the
-   * request is resolved or rejected via `resolve()` / `reject()`.
-   */
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
   async send(message: string): Promise<SendResult> {
-    this.assertOpen();
-
-    const response = await this.submitChat(message);
-
-    if (!response.is_processing && this.walletController.length === 0) {
-      return { messages: this._messages, title: this._title };
+    const page = await this.submit(message);
+    if (this.isTerminal()) {
+      this.drainTerminalPage(page);
+      return this.result();
     }
-
-    this._isProcessing = true;
-    this.emit("processing_start", undefined);
-
-    return new Promise<SendResult>((resolve) => {
+    if (this.turnState !== "awaiting_action" || page.has_more) {
+      this.startPolling();
+    }
+    return new Promise((resolve) => {
       this.pendingResolve = resolve;
-      this.startPolling();
     });
   }
 
-  /**
-   * Send a message without waiting for completion.
-   * Polling starts in the background; listen to events for updates.
-   */
-  async sendAsync(message: string): Promise<AomiChatResponse> {
-    this.assertOpen();
-
-    const response = await this.submitChat(message);
-
-    if (response.is_processing) {
-      this._isProcessing = true;
-      this.emit("processing_start", undefined);
+  async sendAsync(message: string): Promise<EventPage> {
+    const page = await this.submit(message);
+    if (this.isTerminal()) {
+      this.drainTerminalPage(page);
+      return page;
+    }
+    if (this.turnState !== "awaiting_action" || page.has_more) {
       this.startPolling();
     }
-
-    return response;
+    return page;
   }
 
-  // ===========================================================================
-  // Public API — Wallet Request Resolution
-  // ===========================================================================
-
-  /**
-   * Resolve a pending wallet request. The `result.kind` discriminator must
-   * match the originating request's kind — sending a `transaction` result for a `signing`
-   * request would post the wrong wire event with empty fields, so we
-   * fail fast at runtime instead.
-   */
-  async resolve(requestId: string, result: WalletRequestResult): Promise<void> {
-    await this.walletController.resolve(requestId, result);
-    this.resumeAfterWalletResponse();
-  }
-
-  /**
-   * Reject a pending wallet request.
-   * Sends an error to the backend and resumes polling.
-   */
-  async reject(requestId: string, reason?: string): Promise<void> {
-    await this.walletController.reject(requestId, reason);
-    this.resumeAfterWalletResponse();
-  }
-
-  /**
-   * Drop a pending wallet request locally without completing it. Hosts should
-   * normally use `resolve` or `reject`; this is reserved for externally
-   * acknowledged lifecycle cleanup.
-   */
-  dismiss(requestId: string): void {
-    this.walletController.dismiss(requestId);
-    this.resumeAfterWalletResponse();
-  }
-
-  // ===========================================================================
-  // Public API — Control
-  // ===========================================================================
-
-  /**
-   * Cancel the AI's current response.
-   */
   async interrupt(): Promise<void> {
+    if (!this.turnId) throw new Error("No active turn to interrupt");
     this.stopPolling();
-    const response = await this.client.interrupt(this.sessionId, {
-      app: this.app,
-      applicationId: this.applicationId,
-    });
-    this.applyState(response);
-    this._isProcessing = false;
-    this.emit("processing_end", undefined);
-    this.resolvePending();
-  }
-
-  /**
-   * Close the session. Stops polling, unsubscribes SSE, removes all listeners.
-   * The session cannot be used after closing.
-   */
-  close(): void {
-    if (this.closed) return;
-    this.closed = true;
-    this.stopPolling();
-    if (this.signingRecoveryTimer) {
-      clearTimeout(this.signingRecoveryTimer);
-      this.signingRecoveryTimer = null;
-    }
-    this.unsubscribeSSE?.();
-    this.unsubscribeSSE = null;
-    this.isSSEActive = false;
-    this.resolvePending();
-    this.removeAllListeners();
-  }
-
-  // ===========================================================================
-  // Public API — Accessors
-  // ===========================================================================
-
-  /** Current messages in the session. */
-  getMessages(): AomiMessage[] {
-    return this._messages;
-  }
-
-  /** Current session title. */
-  getTitle(): string | undefined {
-    return this._title;
-  }
-
-  /** Latest authoritative backend user_state snapshot seen by this session. */
-  getUserState(): UserStateShape | undefined {
-    return this.userState ? { ...this.userState } : undefined;
-  }
-
-  /** Pending wallet requests waiting for resolve/reject. */
-  getPendingRequests(): WalletRequest[] {
-    return this.walletController.list();
-  }
-
-  /** Whether the AI is currently processing. */
-  getIsProcessing(): boolean {
-    return this._isProcessing;
-  }
-
-  getIsSSEActive(): boolean {
-    return this.isSSEActive;
-  }
-
-  setSSEActive(active: boolean): void {
-    this.assertOpen();
-    if (active === this.isSSEActive) {
-      return;
-    }
-    this.isSSEActive = active;
-    if (active) {
-      this.startSSE();
-      return;
-    }
-    this.unsubscribeSSE?.();
-    this.unsubscribeSSE = null;
+    this.applyEventPage(
+      await this.client.agent.interrupt(this.sessionId, this.turnId),
+    );
+    if (this.isTerminal()) this.finish();
   }
 
   syncRuntimeOptions(options: SessionRuntimeOptions): void {
-    const previousApplicationId = this.applicationId?.toString();
     this.app = options.app;
+    this.model = options.model;
     this.applicationId = options.applicationId;
-    this.apiKey = options.apiKey;
     this.clientId = options.clientId ?? this.clientId;
-
-    if (options.userState) {
-      this.resolveUserState(options.userState);
-    }
-
-    if (
-      this.isSSEActive &&
-      previousApplicationId !== this.applicationId?.toString()
-    ) {
-      this.unsubscribeSSE?.();
-      this.startSSE();
-    }
+    this.getUserState = options.getUserState;
+    if (options.actions) this.actions.setCapabilities(options.actions);
   }
 
-  private startSSE(): void {
-    this.unsubscribeSSE = this.client.subscribeSSE(
-      this.sessionId,
-      (event) => this.handleSSEEvent(event),
-      (error) => this.emit("error", { error }),
-      { applicationId: this.applicationId },
-    );
-  }
-
-  resolveUserState(
-    userState: UserStateShape,
-    opts?: { skipEmit?: boolean },
-  ): void {
-    const previousSerialized = stableUserStateString(this.userState);
-    this.userState = UserState.reconcile(this.userState, userState);
-    const nextSerialized = stableUserStateString(this.userState);
-
-    this.walletController.sync();
-
-    if (
-      !opts?.skipEmit &&
-      this.userState &&
-      previousSerialized !== nextSerialized
-    ) {
-      this.emit("user_state_updated", this.userState);
-    }
-  }
-
-  setClientType(clientType: AomiClientType): void {
-    this.resolveUserState(
-      UserState.withExt(this.userState ?? {}, "client_type", clientType),
-    );
-  }
-
-  addExtValue(key: string, value: unknown): void {
-    this.resolveUserState(addUserStateExtValue(this.userState, key, value));
-  }
-
-  removeExtValue(key: string): void {
-    const next = removeUserStateExtValue(this.userState, key);
-    if (next) {
-      this.resolveUserState(next);
-    }
-  }
-
-  resolveWallet(address: string, chainId?: number): void {
-    this.resolveUserState(resolveWalletState(this.userState, address, chainId));
-  }
-
-  /**
-   * The subset of the stored state the client may send to the backend. Drops
-   * backend-authority `pending` (in-flight requests the client only receives).
-   */
-  private outboundUserState(): OwnedUserState | undefined {
-    return UserState.toOwned(this.userState);
-  }
-
-  async syncUserState(): Promise<AomiStateResponse> {
+  async sync(): Promise<EventPage> {
     this.assertOpen();
-
-    const state = await this.client.fetchState(
-      this.sessionId,
-      this.outboundUserState(),
-      this.clientId,
-      { app: this.app, applicationId: this.applicationId },
-    );
-    this.assertUserStateAligned(state.user_state);
-    this.applyState(state);
-    return state;
+    return this.fetchPage();
   }
 
-  // ===========================================================================
-  // Public API — Polling Control
-  // ===========================================================================
-
-  /** Whether the session is currently polling for state updates. */
-  getIsPolling(): boolean {
-    return this.pollingActive;
-  }
-
-  /**
-   * Fetch the current state from the backend (one-shot).
-   * Automatically starts polling if the backend is processing.
-   */
   async fetchCurrentState(): Promise<void> {
-    this.assertOpen();
-
-    const state = await this.client.fetchState(
-      this.sessionId,
-      this.outboundUserState(),
-      this.clientId,
-      { app: this.app, applicationId: this.applicationId },
-    );
-
-    this.assertUserStateAligned(state.user_state);
-    this.applyState(state);
-
-    if (state.is_processing && !this.pollingActive) {
-      this._isProcessing = true;
-      this.emit("processing_start", undefined);
+    const page = await this.sync();
+    if (this.isTerminal()) this.finish();
+    else if (this.turnState && this.turnState !== "awaiting_action") {
       this.startPolling();
-    } else if (!state.is_processing) {
-      this._isProcessing = false;
     }
+    if (page.has_more) this.startPolling();
   }
 
-  /**
-   * Start polling for state updates. Idempotent — no-op if already polling.
-   * Useful for resuming polling after resolving a wallet request.
-   */
   startPolling(): void {
     if (this.pollingActive || this.closed) return;
-
     this.pollingActive = true;
-    this._backendWasProcessing = true;
     this.logger?.debug("[session] polling started", this.sessionId);
     if (typeof document !== "undefined") {
       document.addEventListener(
@@ -436,16 +184,15 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
         this.handleVisibilityChange,
       );
     }
-    this.schedulePoll(this.currentPollInterval());
+    this.publish();
+    this.schedulePoll(0);
   }
 
-  /** Stop polling for state updates. Idempotent — no-op if not polling. */
   stopPolling(): void {
+    if (!this.pollingActive && !this.pollTimer) return;
     this.pollingActive = false;
-    if (this.pollTimer) {
-      clearTimeout(this.pollTimer);
-      this.pollTimer = null;
-    }
+    if (this.pollTimer) clearTimeout(this.pollTimer);
+    this.pollTimer = null;
     if (typeof document !== "undefined") {
       document.removeEventListener(
         "visibilitychange",
@@ -453,46 +200,164 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
       );
     }
     this.logger?.debug("[session] polling stopped", this.sessionId);
+    this.publish();
+  }
+
+  close(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.stopPolling();
+    this.resolvePending();
+    for (const unsubscribe of this.actionUnsubscribers) unsubscribe();
+    this.actionUnsubscribers = [];
+    this.actions.close();
+    this.listeners.clear();
+  }
+
+  private async submit(message: string): Promise<EventPage> {
+    this.assertOpen();
+    const text = message.trim();
+    if (!text) throw new TypeError("message is required");
+    const applicationId = Number(this.applicationId);
+    const operation =
+      this.startOperation?.message === text
+        ? this.startOperation
+        : {
+            message: text,
+            idempotencyKey: `idem_${crypto.randomUUID().replaceAll("-", "")}`,
+          };
+    this.startOperation = operation;
+    this.awaitingResume = false;
+    this.terminalDrainUntil = undefined;
+    this.isSubmitting = true;
+    this.error = undefined;
+    this.publish();
+    try {
+      const state = this.getUserState?.();
+      const page = await this.client.agent.start(
+        {
+          sessionId: this.sessionId,
+          clientId: this.clientId,
+          message: text,
+          ...(Number.isSafeInteger(applicationId) && applicationId > 0
+            ? { applicationId }
+            : { app: this.app }),
+          ...(this.model ? { model: this.model } : {}),
+          ...(state
+            ? {
+                userState: state as StartTurnIntent["userState"],
+              }
+            : {}),
+        },
+        { idempotencyKey: operation.idempotencyKey },
+      );
+      this.startOperation = undefined;
+      this.applyEventPage(page);
+      return page;
+    } catch (error) {
+      this.error = error;
+      if (error instanceof AgentApiError && !error.retryable) {
+        this.startOperation = undefined;
+      }
+      throw error;
+    } finally {
+      this.isSubmitting = false;
+      this.publish();
+    }
+  }
+
+  private async fetchPage(waitMs = 0): Promise<EventPage> {
+    try {
+      const page = await this.client.agent.poll(this.sessionId, {
+        cursor: this.cursor,
+        waitMs,
+      });
+      this.applyEventPage(page);
+      return page;
+    } catch (error) {
+      if (
+        !(error instanceof AgentApiError) ||
+        error.code !== "invalid_cursor"
+      ) {
+        throw error;
+      }
+      this.cursor = undefined;
+      const page = await this.client.agent.poll(this.sessionId);
+      this.applyEventPage(page);
+      return page;
+    }
+  }
+
+  private applyEventPage(page: EventPage): void {
+    if (page.session_id !== this.sessionId) {
+      throw new TypeError("Agent response session does not match the request");
+    }
+    this.applyingPage = true;
+    try {
+      for (const event of page.events) {
+        if (this.eventIds.has(event.event_id)) continue;
+        const previous = this.events.at(-1);
+        if (previous && event.sequence <= previous.sequence) {
+          throw new TypeError("Agent events are not monotonically ordered");
+        }
+        this.eventIds.add(event.event_id);
+        this.events.push(event);
+        this.turnId = event.turn_id ?? this.turnId;
+        switch (event.type) {
+          case "message":
+            this.applyMessage(event);
+            break;
+          case "turn_state_changed":
+            this.turnState = event.state;
+            if (event.state !== "awaiting_action") {
+              this.awaitingResume = false;
+            }
+            break;
+          case "title_changed":
+            this.title = event.title;
+            break;
+          case "action":
+            this.actions.ingest(event);
+            break;
+        }
+      }
+      this.cursor = page.cursor;
+      this.error = undefined;
+    } finally {
+      this.applyingPage = false;
+    }
+    this.publish();
+  }
+
+  private applyMessage(event: MessageEvent): void {
+    const key = event.message_key ?? event.event_id;
+    const index = this.messages.findIndex(
+      (message) => (message.message_key ?? message.event_id) === key,
+    );
+    if (index >= 0) this.messages[index] = event;
+    else this.messages.push(event);
   }
 
   private async pollTick(): Promise<void> {
     if (!this.pollingActive || this.pollInFlight) return;
     this.pollTimer = null;
     this.pollInFlight = true;
-
     try {
-      const state = await this.client.fetchState(
-        this.sessionId,
-        this.outboundUserState(),
-        this.clientId,
-        { app: this.app, applicationId: this.applicationId },
-      );
-
-      // Guard: polling may have been stopped while awaiting fetch
-      if (!this.pollingActive) return;
-
+      const page = await this.fetchPage(25_000);
       this.pollFailureCount = 0;
-      this.assertUserStateAligned(state.user_state);
-      this.applyState(state);
-
-      // Detect backend processing → idle transition.
-      // Fires even when local wallet requests are pending, so CLI consumers
-      // know all system events for this turn have been delivered.
-      if (this._backendWasProcessing && !state.is_processing) {
-        this.emit("backend_idle", undefined);
-      }
-      this._backendWasProcessing = !!state.is_processing;
-
-      if (!state.is_processing && this.walletController.length === 0) {
+      if (this.isTerminal()) this.drainTerminalPage(page);
+      else if (
+        this.turnState === "awaiting_action" &&
+        !this.awaitingResume &&
+        !page.has_more
+      ) {
         this.stopPolling();
-        this._isProcessing = false;
-        this.emit("processing_end", undefined);
-        this.resolvePending();
       }
     } catch (error) {
       this.pollFailureCount += 1;
+      this.error = error;
       this.logger?.debug("[session] poll error", error);
-      this.emit("error", { error });
+      this.publish();
     } finally {
       this.pollInFlight = false;
       if (this.pollingActive) {
@@ -506,6 +371,66 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
   }
 
+  private finish(): void {
+    this.awaitingResume = false;
+    this.terminalDrainUntil = undefined;
+    this.stopPolling();
+    this.resolvePending();
+  }
+
+  private drainTerminalPage(page: EventPage): void {
+    this.resolvePending();
+    const hasTitle = page.events.some(
+      (event) => event.type === "title_changed",
+    );
+    if (hasTitle || this.title) {
+      this.finish();
+      return;
+    }
+    this.terminalDrainUntil ??= Date.now() + TERMINAL_EVENT_DRAIN_MS;
+    if (page.events.length === 0 && Date.now() >= this.terminalDrainUntil) {
+      this.finish();
+      return;
+    }
+    this.startPolling();
+  }
+
+  private isTerminal(): boolean {
+    return Boolean(this.turnState && TERMINAL_TURN_STATES.has(this.turnState));
+  }
+
+  private result(): SendResult {
+    return { messages: this.messages, title: this.title };
+  }
+
+  private resolvePending(): void {
+    const resolve = this.pendingResolve;
+    this.pendingResolve = null;
+    resolve?.(this.result());
+  }
+
+  private buildSnapshot(): SessionSnapshot {
+    return {
+      sessionId: this.sessionId,
+      ...(this.cursor ? { cursor: this.cursor } : {}),
+      ...(this.turnId ? { turnId: this.turnId } : {}),
+      ...(this.turnState ? { turnState: this.turnState } : {}),
+      events: [...this.events],
+      messages: [...this.messages],
+      actions: this.actions.all(),
+      ...(this.title ? { title: this.title } : {}),
+      isPolling: this.pollingActive,
+      isSubmitting: this.isSubmitting,
+      actionAttempts: this.actions.allAttempts(),
+      ...(this.error === undefined ? {} : { error: this.error }),
+    };
+  }
+
+  private publish(): void {
+    this.snapshot = this.buildSnapshot();
+    for (const listener of this.listeners) listener();
+  }
+
   private currentPollInterval(): number {
     return typeof document !== "undefined" && document.hidden
       ? 2_000
@@ -515,9 +440,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
   private schedulePoll(delayMs: number): void {
     if (!this.pollingActive || this.closed) return;
     if (this.pollTimer) clearTimeout(this.pollTimer);
-    this.pollTimer = setTimeout(() => {
-      void this.pollTick();
-    }, delayMs);
+    this.pollTimer = setTimeout(() => void this.pollTick(), delayMs);
   }
 
   private handleVisibilityChange = (): void => {
@@ -530,206 +453,7 @@ export class ClientSession extends TypedEventEmitter<SessionEventMap> {
     }
   };
 
-  // ===========================================================================
-  // Internal — State Application
-  // ===========================================================================
-
-  private applyState(
-    state: Pick<
-      AomiStateResponse,
-      "messages" | "system_events" | "title" | "is_processing" | "user_state"
-    >,
-  ): void {
-    applySessionState(state, {
-      userState: () => this.userState,
-      resolveUserState: (userState) => this.resolveUserState(userState),
-      setMessages: (messages) => {
-        this._messages = messages;
-      },
-      getMessages: () => this.getMessages(),
-      setTitle: (title) => {
-        this._title = title;
-      },
-      walletController: this.walletController,
-      emit: (type, payload) => this.emit(type, payload),
-    });
-    this.scheduleSigningRequestRecovery();
-  }
-
-  /**
-   * Coalesce recovery behind one request and a bounded cadence. State polling
-   * may run twice per second; durable handoff recovery does not need to.
-   */
-  private scheduleSigningRequestRecovery(immediate = false): void {
-    if (this.closed || this.signingRecoveryInFlight) return;
-
-    const elapsed = Date.now() - this.lastSigningRecoveryAt;
-    const delay = immediate
-      ? 0
-      : Math.max(0, SIGNING_RECOVERY_MIN_INTERVAL_MS - elapsed);
-    if (delay === 0) {
-      void this.recoverSigningRequests();
-      return;
-    }
-    if (this.signingRecoveryTimer) return;
-
-    this.signingRecoveryTimer = setTimeout(() => {
-      this.signingRecoveryTimer = null;
-      if (!this.closed) void this.recoverSigningRequests();
-    }, delay);
-  }
-
-  /**
-   * A signing event is transient, but its backend-owned operation is durable.
-   * Recover an attended handoff from the operation view when a tab reload or
-   * reconnect happens after the original event was delivered.
-   */
-  private async recoverSigningRequests(): Promise<void> {
-    if (this.signingRecoveryInFlight) {
-      await this.signingRecoveryInFlight;
-      return;
-    }
-
-    const recovery = this.fetchSigningRequests();
-    this.signingRecoveryInFlight = recovery;
-    try {
-      await recovery;
-    } finally {
-      this.lastSigningRecoveryAt = Date.now();
-      this.signingRecoveryInFlight = null;
-    }
-  }
-
-  private async fetchSigningRequests(): Promise<void> {
-    let response: { requests?: unknown[] };
-    try {
-      response = await this.client.request<{ requests?: unknown[] }>(
-        "GET",
-        "/api/widget/v1/signing-requests",
-        { sessionId: this.sessionId },
-      );
-    } catch (error) {
-      this.logger?.debug("[session] signing request recovery failed", error);
-      return;
-    }
-    for (const request of response.requests ?? []) {
-      const requestId =
-        typeof request === "object" &&
-        request !== null &&
-        typeof (request as { requestId?: unknown }).requestId === "string"
-          ? (request as { requestId: string }).requestId
-          : undefined;
-      if (!requestId) continue;
-      if (
-        this.walletController.find(requestId) ||
-        this.recoveringSigningRequestIds.has(requestId)
-      ) {
-        continue;
-      }
-
-      this.recoveringSigningRequestIds.add(requestId);
-      try {
-        this.handleSSEEvent({
-          type: "wallet_signing_request",
-          payload: request,
-        });
-      } finally {
-        this.recoveringSigningRequestIds.delete(requestId);
-      }
-    }
-  }
-
-  // ===========================================================================
-  // Internal — SSE Handling
-  // ===========================================================================
-
-  private handleSSEEvent(
-    event: Parameters<typeof handleSessionSSEEvent>[0],
-  ): void {
-    handleSessionSSEEvent(event, {
-      userState: () => this.userState,
-      resolveUserState: (userState) => this.resolveUserState(userState),
-      setMessages: (messages) => {
-        this._messages = messages;
-      },
-      getMessages: () => this.getMessages(),
-      setTitle: (title) => {
-        this._title = title;
-      },
-      walletController: this.walletController,
-      emit: (type, payload) => this.emit(type, payload),
-    });
-  }
-
-  // ===========================================================================
-  // Internal — Helpers
-  // ===========================================================================
-
-  private async sendSystemEvent(type: string, payload: unknown): Promise<void> {
-    const message = JSON.stringify({ type, payload });
-    await this.client.sendSystemMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-    });
-  }
-
-  private async completeSigningRequest(
-    requestId: string,
-    body:
-      | { status: "signed"; signatures: string[] }
-      | { status: "rejected"; reason?: string },
-  ): Promise<void> {
-    await this.client.request(
-      "POST",
-      `/api/widget/v1/signing-requests/${encodeURIComponent(requestId)}`,
-      {
-        sessionId: this.sessionId,
-        body,
-      },
-    );
-  }
-
-  /** Shared completion path for send()/sendAsync() after the chat POST. */
-  private async submitChat(message: string): Promise<AomiChatResponse> {
-    const response = await this.client.sendMessage(this.sessionId, message, {
-      app: this.app,
-      applicationId: this.applicationId,
-      apiKey: this.apiKey,
-      userState: this.outboundUserState(),
-      clientId: this.clientId,
-      paymentMethod: this.paymentMethod,
-    });
-
-    this.assertUserStateAligned(response.user_state);
-    this.applyState(response);
-    return response;
-  }
-
-  private resumeAfterWalletResponse(): void {
-    if (!this._isProcessing) {
-      this._isProcessing = true;
-      this.emit("processing_start", undefined);
-    }
-    this.startPolling();
-  }
-
-  private resolvePending(): void {
-    if (this.pendingResolve) {
-      const resolve = this.pendingResolve;
-      this.pendingResolve = null;
-      resolve({ messages: this._messages, title: this._title });
-    }
-  }
-
   private assertOpen(): void {
-    if (this.closed) {
-      throw new Error("Session is closed");
-    }
-  }
-
-  private assertUserStateAligned(
-    actualUserState?: UserStateShape | null,
-  ): void {
-    warnIfUserStateMisaligned(this.userState, actualUserState);
+    if (this.closed) throw new Error("Session is closed");
   }
 }

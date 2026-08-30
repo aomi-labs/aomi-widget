@@ -76,6 +76,7 @@ jobs:
           NEXT_PUBLIC_PARA_API_KEY: ci-fixture-not-a-secret
           NEXT_PUBLIC_PARA_ENVIRONMENT: BETA
           NEXT_PUBLIC_BACKEND_URL: ${{ github.ref == 'refs/heads/prod' && 'https://api.aomi.dev' || 'https://api-staging.aomi.dev' }}
+          AOMI_AGENT_API_URL: ${{ github.ref == 'refs/heads/prod' && 'https://agent-tunnel.aomi.dev' || 'https://agent-staging-tunnel.aomi.dev' }}
         run: pnpm run build:apps
 
   promotion-policy:

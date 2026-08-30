@@ -14,7 +14,7 @@ import {
   type AomiBackendNonceResponse,
 } from "./aomi-backend-client";
 import {
-  useWidgetSessionProvider,
+  useAccountSessionProvider,
   widgetCredentialsReady,
   type WidgetAuthConfig,
 } from "./use-widget-session-provider";
@@ -40,7 +40,7 @@ export function useAomiBackendAccountRuntime(input: {
   evm: EvmWalletRuntime;
   svm?: SvmWalletRuntime;
 }): AccountRuntime {
-  const widgetSessionProvider = useWidgetSessionProvider({
+  const accountSessionProvider = useAccountSessionProvider({
     baseUrl: input.baseUrl,
     widgetAuth: input.widgetAuth,
     auth: input.auth,
@@ -51,11 +51,11 @@ export function useAomiBackendAccountRuntime(input: {
     () =>
       createAomiBackendAccountClient({
         baseUrl: input.baseUrl,
-        auth: widgetSessionProvider
-          ? { credentials: "omit", getAuthorization: widgetSessionProvider }
+        auth: accountSessionProvider
+          ? { credentials: "omit", getAuthorization: accountSessionProvider }
           : { credentials: "include" },
       }),
-    [input.baseUrl, widgetSessionProvider],
+    [input.baseUrl, accountSessionProvider],
   );
   const authMessageConfig = useMemo(
     () =>
@@ -531,7 +531,7 @@ export function useAomiBackendAccountRuntime(input: {
     user: account?.user ?? undefined,
     linkedAccounts: account?.linkedAccounts ?? [],
     wallets,
-    getAccountBearer: widgetSessionProvider,
+    getAccountBearer: accountSessionProvider,
     refresh,
     signOut: async () => {
       if (activeEvmAddress && activeEvmChainId) {
@@ -565,7 +565,7 @@ export function useAomiBackendAccountRuntime(input: {
       try {
         await accountClient.signOut();
       } finally {
-        await widgetSessionProvider?.signOut();
+        await accountSessionProvider?.signOut();
       }
       setAccount({
         user: null,
@@ -606,7 +606,7 @@ export function useAomiBackendAccountRuntime(input: {
       try {
         await accountClient.deleteAccount();
       } finally {
-        await widgetSessionProvider?.signOut();
+        await accountSessionProvider?.signOut();
       }
       setAccount({
         user: null,

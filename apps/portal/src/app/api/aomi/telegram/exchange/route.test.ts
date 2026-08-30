@@ -28,11 +28,11 @@ vi.mock("@aomi-labs/account/widget-auth", async (importOriginal) => {
   };
 });
 
-vi.mock("@portal/lib/widget-auth/exchange", () => ({
+vi.mock("@portal/server/widget-auth/exchange", () => ({
   verifyWidgetProviderCredential: mocks.verifyCredential,
 }));
 
-vi.mock("@portal/lib/widget-auth/rate-limit", () => ({
+vi.mock("@portal/server/widget-auth/rate-limit", () => ({
   widgetAuthRateLimit: () => null,
 }));
 

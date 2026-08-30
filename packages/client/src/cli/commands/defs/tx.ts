@@ -2,7 +2,7 @@ import { defineCommand } from "citty";
 import { globalArgs, buildCliConfig, getPositionals } from "./shared";
 
 const txListDef = defineCommand({
-  meta: { name: "list", description: "List pending and signed transactions" },
+  meta: { name: "list", description: "List session Actions" },
   args: { ...globalArgs },
   async run({ args }) {
     const { txCommand } = await import("../wallet");
@@ -13,13 +13,13 @@ const txListDef = defineCommand({
 const txSimulateDef = defineCommand({
   meta: {
     name: "simulate",
-    description: "Simulate a batch of pending transactions",
+    description: "Simulate EVM execution Actions",
   },
   args: {
     ...globalArgs,
     txIds: {
       type: "positional",
-      description: "Transaction IDs to simulate",
+      description: "Action IDs to simulate",
       required: false,
     },
   },
@@ -30,35 +30,8 @@ const txSimulateDef = defineCommand({
   },
 });
 
-const txExportDef = defineCommand({
-  meta: {
-    name: "export",
-    description: "Export pending EVM calls for an external wallet",
-  },
-  args: {
-    ...globalArgs,
-    format: {
-      type: "string",
-      description: "Output format: eip5792 (default), moss, or metamask",
-    },
-    txIds: {
-      type: "positional",
-      description: "Pending EVM transaction IDs to export",
-      required: false,
-    },
-  },
-  async run({ args }) {
-    const { exportCommand } = await import("../export");
-    await exportCommand(
-      buildCliConfig(args),
-      getPositionals(args),
-      typeof args.format === "string" ? args.format : undefined,
-    );
-  },
-});
-
 const txSignDef = defineCommand({
-  meta: { name: "sign", description: "Sign and submit pending transactions" },
+  meta: { name: "sign", description: "Execute pending Actions" },
   args: {
     ...globalArgs,
     eoa: {
@@ -82,7 +55,7 @@ const txSignDef = defineCommand({
     },
     txIds: {
       type: "positional",
-      description: "Transaction IDs to sign",
+      description: "Action IDs to execute",
       required: false,
     },
   },
@@ -98,7 +71,6 @@ export const txDef = defineCommand({
   subCommands: {
     list: txListDef,
     simulate: txSimulateDef,
-    export: txExportDef,
     sign: txSignDef,
   },
 });

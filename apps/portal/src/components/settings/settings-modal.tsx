@@ -2,7 +2,7 @@
 
 import { useState, type ComponentType } from "react";
 import { LineChart, Settings, Wallet, X } from "lucide-react";
-import { useAomiAuthAdapter } from "@aomi-labs/widget-lib";
+import { useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { ModalBackdrop } from "@/components/ui/modal-backdrop";
 import { GeneralSettings } from "@portal/features/general";
 import { AccountSettings } from "@portal/features/account";
@@ -114,7 +114,7 @@ function GateNotice({
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<SettingsTab>("general");
   const { status, retry } = useAomiSession();
-  const adapter = useAomiAuthAdapter();
+  const adapter = useAomiWalletKit();
 
   const renderContent = () => {
     // Anonymous / still-connecting sessions have nothing to show — gate fully.
