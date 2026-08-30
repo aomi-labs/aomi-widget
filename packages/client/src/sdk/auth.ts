@@ -197,7 +197,7 @@ export function createGuestAuthController(
     mode: "guest",
     status,
     async login() {
-      await guest();
+      await guest({ forceRefresh: true });
       return status();
     },
     async logout() {

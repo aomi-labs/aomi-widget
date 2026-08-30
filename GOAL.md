@@ -286,6 +286,24 @@ toggle persistence, route continuity, contrast, and console errors pass.
 
 # Auth BFF BetterAuth Cleanup Goal
 
+## Mainline reconciliation
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-30** —
+reconcile the canonical Agent/Event, managed OAuth, and wallet
+cutover with current `main` without restoring retired chat adapters, generated
+distributions, React-side lifecycle reducers, or UserState transaction
+recovery. Mainline EIP-5792 export now reads complete pending EVM `Action`
+records, and the retained Privy embedded-wallet lane executes through the
+shared primitive wallet boundary beneath `ActionHandler`. Same-origin Agent
+traffic now preserves an existing Better Auth session and creates an anonymous
+cookie only after a real 401; cross-origin widgets retain their explicit bearer
+flow. Exact Agent and Pipeline roots receive OAuth like their child routes.
+The isolated FE/BFF/backend stack passed the direct Agent protocol, Pipeline API
+and built CLI discovery, and rendered Action approval through a mined Anvil
+transaction, terminal resume, and A-to-B-to-A session restoration. The complete
+workspace check passed 1,296 tests with two intentional skips; AA passed 17
+focused tests and the Para/Privy/shared execution matrix passed 64.
+
 ## Managed OAuth and canonical wallet salvage
 
 Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-30** — retain

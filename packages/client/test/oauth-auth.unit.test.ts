@@ -39,6 +39,36 @@ describe("public API OAuth transport", () => {
     });
   });
 
+  it("authorizes the exact public API roots", async () => {
+    const upstream = vi.fn(async () => new Response("{}", { status: 200 }));
+    const oauth = vi.fn(async (request: AomiOAuthTokenRequest) => ({
+      accessToken: "root-token",
+      expiresAt: Date.now() + 60_000,
+      resource: request.resource,
+      scopes: request.scopes,
+    }));
+    const authorized = wrapFetchWithPublicApiAuthorization({
+      fetch: upstream as typeof fetch,
+      baseUrl: "https://chat.aomi.dev",
+      oauth,
+    });
+
+    await authorized("https://chat.aomi.dev/v1/agent", { method: "GET" });
+    await authorized("https://chat.aomi.dev/v1/pipeline", { method: "GET" });
+
+    expect(oauth).toHaveBeenNthCalledWith(1, {
+      resource: "https://chat.aomi.dev/v1/agent",
+      scopes: ["agent:read"],
+      forceRefresh: false,
+    });
+    expect(oauth).toHaveBeenNthCalledWith(2, {
+      resource: "https://chat.aomi.dev/v1/pipeline",
+      scopes: ["pipeline:catalog"],
+      forceRefresh: false,
+    });
+    expect(upstream).toHaveBeenCalledTimes(2);
+  });
+
   it("retries once with a refreshed token after a token failure", async () => {
     const upstream = vi
       .fn()
@@ -130,30 +160,45 @@ describe("Better Auth guest bootstrap", () => {
     );
   });
 
-  it("reuses one official anonymous bearer until explicitly refreshed", async () => {
+  it("uses the existing same-origin session before creating a guest", async () => {
     vi.stubGlobal("location", { origin: "https://chat.aomi.dev" });
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValueOnce(
-        new Response("{}", {
-          status: 200,
-          headers: { "set-auth-token": "guest-1" },
-        }),
-      )
-      .mockResolvedValueOnce(
-        new Response("{}", {
-          status: 200,
-          headers: { "set-auth-token": "guest-2" },
-        }),
-      );
+    const fetchImpl = vi.fn().mockResolvedValue(Response.json({}));
     const guest = createGuestSessionProvider({
       baseUrl: "https://chat.aomi.dev",
       fetch: fetchImpl as typeof fetch,
     });
 
-    await expect(guest()).resolves.toBe("guest-1");
-    await expect(guest()).resolves.toBe("guest-1");
-    await expect(guest({ forceRefresh: true })).resolves.toBe("guest-2");
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    await expect(guest()).resolves.toBeNull();
+    expect(fetchImpl).not.toHaveBeenCalled();
+    await expect(guest({ forceRefresh: true })).resolves.toBeNull();
+    await expect(guest()).resolves.toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a same-origin 401 after establishing the guest cookie", async () => {
+    vi.stubGlobal("location", { origin: "https://chat.aomi.dev" });
+    const authFetch = vi.fn().mockResolvedValue(Response.json({}));
+    const upstream = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    const guest = createGuestSessionProvider({
+      baseUrl: "https://chat.aomi.dev",
+      fetch: authFetch as typeof fetch,
+    });
+    const authorized = wrapFetchWithPublicApiAuthorization({
+      fetch: upstream as typeof fetch,
+      baseUrl: "https://chat.aomi.dev",
+      guest,
+    });
+
+    expect(
+      (await authorized("https://chat.aomi.dev/v1/agent/sessions")).status,
+    ).toBe(200);
+    expect(authFetch).toHaveBeenCalledTimes(1);
+    expect(upstream).toHaveBeenCalledTimes(2);
+    for (const [, init] of upstream.mock.calls) {
+      expect(new Headers(init?.headers).has("authorization")).toBe(false);
+    }
   });
 });
