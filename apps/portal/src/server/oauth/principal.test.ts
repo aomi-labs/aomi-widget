@@ -48,7 +48,12 @@ vi.mock("./resources", () => ({
   }),
   guestScopesForAomiResource: (_resource: string, scopes: string[]) =>
     scopes.filter((scope) =>
-      ["agent:read", "agent:write", "offline_access"].includes(scope),
+      [
+        "agent:read",
+        "agent:write",
+        "agent:actions:resolve",
+        "offline_access",
+      ].includes(scope),
     ),
 }));
 
@@ -181,7 +186,7 @@ describe("public OAuth and session principal resolution", () => {
     expect(mocks.getBetterAuthSession).not.toHaveBeenCalled();
   });
 
-  it("keeps anonymous widget sessions capability-bounded and unable to resolve actions", async () => {
+  it("lets anonymous widgets resolve their own actions within the guest ceiling", async () => {
     mocks.resolveWidgetSession.mockResolvedValue({
       userId: "canonical-guest",
       origin: "https://partner.example",
@@ -204,7 +209,7 @@ describe("public OAuth and session principal resolution", () => {
       }),
     ).resolves.toMatchObject({
       canonicalUserId: "canonical-guest",
-      scopes: ["agent:write"],
+      scopes: ["agent:write", "agent:actions:resolve"],
       principalClass: "user",
     });
 
@@ -221,7 +226,11 @@ describe("public OAuth and session principal resolution", () => {
         requiredScopes: ["agent:actions:resolve"],
         sessionScopes: ["agent:read", "agent:write", "agent:actions:resolve"],
       }),
-    ).rejects.toMatchObject({ code: "insufficient_scope", status: 403 });
+    ).resolves.toMatchObject({
+      canonicalUserId: "canonical-guest",
+      scopes: ["agent:actions:resolve"],
+      principalClass: "user",
+    });
   });
 
   it.each(["siwe", "siws"])(

@@ -85,28 +85,25 @@ export function aomiOAuthResourcePolicies(
   env: Record<string, string | undefined> = process.env,
 ): readonly AomiOAuthResourcePolicy[] {
   const resources = aomiOAuthResources(env);
-  const guestPipelineExecute =
-    env.AOMI_GUEST_PIPELINE_EXECUTION_ENABLED?.trim().toLowerCase() === "true"
-      ? ["pipeline:execute"]
-      : [];
   const dpopRequired = isMcpDpopRequired(env);
   return [
     {
       kind: "agentRest",
       identifier: resources.agentRest,
       allowedScopes: AGENT_REST_SCOPES,
-      guestScopes: ["agent:read", "agent:write", "offline_access"],
+      guestScopes: [
+        "agent:read",
+        "agent:write",
+        "agent:actions:resolve",
+        "offline_access",
+      ],
       dpopBoundAccessTokensRequired: false,
     },
     {
       kind: "pipelineRest",
       identifier: resources.pipelineRest,
       allowedScopes: PIPELINE_REST_SCOPES,
-      guestScopes: [
-        "pipeline:catalog",
-        ...guestPipelineExecute,
-        "offline_access",
-      ],
+      guestScopes: ["pipeline:catalog", "pipeline:execute", "offline_access"],
       dpopBoundAccessTokensRequired: false,
     },
     {
@@ -123,7 +120,7 @@ export function aomiOAuthResourcePolicies(
       guestScopes: [
         "mcp:pipeline",
         "pipeline:catalog",
-        ...guestPipelineExecute,
+        "pipeline:execute",
         "offline_access",
       ],
       dpopBoundAccessTokensRequired: dpopRequired,

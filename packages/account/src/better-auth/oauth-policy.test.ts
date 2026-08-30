@@ -41,15 +41,32 @@ describe("Aomi OAuth resource policy", () => {
     }
   });
 
-  it("centralizes guest ceilings and the MCP DPoP rollout switch", () => {
+  it("allows self-custodial guest work without privileged scopes", () => {
     const resources = aomiOAuthResources(env);
     expect(
       guestScopesForAomiResource(
         resources.agentRest,
-        ["agent:read", "custody:delegate"],
+        ["agent:read", "agent:actions:resolve", "custody:delegate"],
         env,
       ),
-    ).toEqual(["agent:read"]);
+    ).toEqual(["agent:read", "agent:actions:resolve"]);
+    expect(
+      guestScopesForAomiResource(
+        resources.pipelineRest,
+        ["pipeline:catalog", "pipeline:execute", "payments:submit"],
+        env,
+      ),
+    ).toEqual(["pipeline:catalog", "pipeline:execute"]);
+    expect(
+      guestScopesForAomiResource(
+        resources.pipelineMcp,
+        ["mcp:pipeline", "pipeline:execute", "custody:delegate"],
+        env,
+      ),
+    ).toEqual(["mcp:pipeline", "pipeline:execute"]);
+  });
+
+  it("centralizes the MCP DPoP rollout switch", () => {
     expect(
       aomiOAuthResourcePolicies({
         ...env,

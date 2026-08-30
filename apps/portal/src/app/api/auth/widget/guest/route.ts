@@ -15,8 +15,14 @@ export const POST = widgetRoute(async (request: Request) => {
   const limited = widgetAuthRateLimit(request);
   if (limited) return limited;
   const origin = requireWidgetOrigin(request);
+  // The widget origin was validated above. Better Auth's server-side anonymous
+  // sign-in must not re-interpret that third-party Origin as a request to one
+  // of its own browser endpoints.
+  const authHeaders = new Headers(request.headers);
+  authHeaders.delete("origin");
+  authHeaders.delete("referer");
   const anonymous = await auth.api.signInAnonymous({
-    headers: request.headers,
+    headers: authHeaders,
   });
   const user = await getOrCreateAomiUserForBetterAuthSession({
     betterAuthUserId: anonymous.user.id,

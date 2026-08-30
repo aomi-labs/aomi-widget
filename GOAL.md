@@ -1,5 +1,16 @@
 # Canonical Landing
 
+Current session goal: **GUEST SELF-CUSTODY API AND SDK FIXES VERIFIED
+2026-08-30** — guest Agent sessions can resolve their own staged actions and
+guest Pipeline sessions can execute self-custodial operations without gaining
+delegated custody or payment authority. Node clients now reuse Better Auth's
+opaque guest bearer directly, local widget origins can bootstrap against hosted
+Portal environments, third-party widget origins no longer conflict with the
+internal anonymous sign-in, and the Portal exposes the Pipeline root, OpenAPI,
+and API catalog routes backed by api-server. Client/account/Portal typechecks,
+scoped lint, the client build, 431 tests, and a live staging guest Agent plus
+Pipeline catalog smoke pass.
+
 Current session goal: **PRIVY LOGIN POLICY DRIFT FIXED 2026-08-30** — the
 portal no longer hard-codes login methods into Privy's modal. The Privy app
 configuration is now the single authority, so disabled providers such as
