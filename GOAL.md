@@ -298,6 +298,10 @@ shared primitive wallet boundary beneath `ActionHandler`. Same-origin Agent
 traffic now preserves an existing Better Auth session and creates an anonymous
 cookie only after a real 401; cross-origin widgets retain their explicit bearer
 flow. Exact Agent and Pipeline roots receive OAuth like their child routes.
+Auto model selection now remains server-owned on Agent starts; only an explicit
+manual model is sent, so guest sessions cannot drift against backend model
+vocabulary. A fresh guest and the controlled logged-in Chrome profile both
+complete an exact `hello` turn without returning to the start page.
 The isolated FE/BFF/backend stack passed the direct Agent protocol, Pipeline API
 and built CLI discovery, and rendered Action approval through a mined Anvil
 transaction, terminal resume, and A-to-B-to-A session restoration. The complete
