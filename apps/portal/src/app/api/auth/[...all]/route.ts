@@ -37,6 +37,12 @@ async function handleAuth(request: Request) {
   }
   const policyFailure = await enforceAomiOAuthRequestPolicy(request);
   if (policyFailure) return policyFailure;
+  if (request.method === "POST" && path.endsWith("/sign-in/anonymous")) {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (session) {
+      return Response.json({ code: "session_exists" }, { status: 409 });
+    }
+  }
   if (request.method === "POST" && path.endsWith("/oauth2/consent")) {
     const session = await auth.api.getSession({ headers: request.headers });
     if (session?.user.isAnonymous === true) {

@@ -60,6 +60,12 @@ async function signInAnonymous(
       credentials: crossOriginBrowser ? "omit" : "include",
     },
   );
+  if (
+    response.status === 409 &&
+    (await responseCode(response)) === "session_exists"
+  ) {
+    return null;
+  }
   if (!response.ok) {
     throw new Error(`Aomi guest sign-in failed with HTTP ${response.status}`);
   }
@@ -76,4 +82,16 @@ async function signInAnonymous(
     );
   if (!token) throw new Error("Aomi guest sign-in returned no bearer session");
   return token;
+}
+
+async function responseCode(response: Response) {
+  return response
+    .clone()
+    .json()
+    .then((body: unknown) =>
+      body && typeof body === "object" && "code" in body
+        ? String(body.code)
+        : null,
+    )
+    .catch(() => null);
 }

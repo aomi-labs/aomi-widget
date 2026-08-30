@@ -160,9 +160,9 @@ describe("Better Auth guest bootstrap", () => {
     );
   });
 
-  it("uses the existing same-origin session before creating a guest", async () => {
+  it("uses the existing same-origin session without probing or creating a guest", async () => {
     vi.stubGlobal("location", { origin: "https://chat.aomi.dev" });
-    const fetchImpl = vi.fn().mockResolvedValue(Response.json({}));
+    const fetchImpl = vi.fn();
     const guest = createGuestSessionProvider({
       baseUrl: "https://chat.aomi.dev",
       fetch: fetchImpl as typeof fetch,
@@ -170,9 +170,26 @@ describe("Better Auth guest bootstrap", () => {
 
     await expect(guest()).resolves.toBeNull();
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("does not replace a signed-in session during forced guest acquisition", async () => {
+    vi.stubGlobal("location", { origin: "https://chat.aomi.dev" });
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json({ code: "session_exists" }, { status: 409 }),
+      );
+    const guest = createGuestSessionProvider({
+      baseUrl: "https://chat.aomi.dev",
+      fetch: fetchImpl as typeof fetch,
+    });
+
     await expect(guest({ forceRefresh: true })).resolves.toBeNull();
     await expect(guest()).resolves.toBeNull();
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
+      "/api/auth/sign-in/anonymous",
+    );
   });
 
   it("retries a same-origin 401 after establishing the guest cookie", async () => {
@@ -196,9 +213,31 @@ describe("Better Auth guest bootstrap", () => {
       (await authorized("https://chat.aomi.dev/v1/agent/sessions")).status,
     ).toBe(200);
     expect(authFetch).toHaveBeenCalledTimes(1);
+    expect(String(authFetch.mock.calls[0]?.[0])).toContain(
+      "/api/auth/sign-in/anonymous",
+    );
     expect(upstream).toHaveBeenCalledTimes(2);
     for (const [, init] of upstream.mock.calls) {
       expect(new Headers(init?.headers).has("authorization")).toBe(false);
     }
+  });
+
+  it("fails closed when anonymous session establishment is unavailable", async () => {
+    vi.stubGlobal("location", { origin: "https://chat.aomi.dev" });
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 503 }));
+    const guest = createGuestSessionProvider({
+      baseUrl: "https://chat.aomi.dev",
+      fetch: fetchImpl as typeof fetch,
+    });
+
+    await expect(guest({ forceRefresh: true })).rejects.toThrow(
+      "Aomi guest sign-in failed with HTTP 503",
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
+      "/api/auth/sign-in/anonymous",
+    );
   });
 });
