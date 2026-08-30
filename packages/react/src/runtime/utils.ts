@@ -122,6 +122,22 @@ type AssistantProjection = {
   toolParts: Map<string, number>;
 };
 
+/** Insert a part once per key, replacing it in place on re-delivery. */
+const upsertPart = (
+  projection: AssistantProjection,
+  registry: Map<string, number>,
+  key: string,
+  part: MessageContentPart,
+) => {
+  const index = registry.get(key);
+  if (index === undefined) {
+    registry.set(key, projection.parts.length);
+    projection.parts.push(part);
+  } else {
+    projection.parts[index] = part;
+  }
+};
+
 const toolPart = (
   event: ToolUpdateEvent | ToolCompleteEvent,
 ): MessageContentPart =>
@@ -132,6 +148,41 @@ const toolPart = (
     args: undefined,
     result: event.result,
   }) as MessageContentPart;
+
+/**
+ * The backend's event ledger still bridges tool steps as agent `message`
+ * events carrying a legacy `[label, json]` tuple in `tool_result` — a field
+ * its OpenAPI contract does not declare, so the generated MessageEvent type
+ * cannot see it. Until the recorder emits real tool_update/tool_complete
+ * events, this is the only wire shape tool steps arrive in; drop it and every
+ * trace renders as an empty "Working" shell.
+ */
+const legacyToolResult = (event: MessageEvent): [string, string] | null => {
+  const raw = (event as { tool_result?: unknown }).tool_result;
+  if (!Array.isArray(raw) || raw.length < 2) return null;
+  const [label, payload] = raw;
+  if (typeof label !== "string" || typeof payload !== "string") return null;
+  return [label, payload];
+};
+
+const legacyToolPart = (
+  [label, payload]: [string, string],
+  key: string,
+): MessageContentPart => {
+  let result: unknown = payload;
+  try {
+    result = JSON.parse(payload);
+  } catch {
+    // Non-JSON payloads render verbatim.
+  }
+  return {
+    type: "tool-call",
+    toolCallId: `legacy:${key}`,
+    toolName: label,
+    args: undefined,
+    result,
+  } as MessageContentPart;
+};
 
 /**
  * Pure Assistant UI projection over the canonical ordered event ledger.
@@ -171,13 +222,14 @@ export function projectAssistantMessages(
       if (event.sender === "agent") {
         const projection = assistantTurn(event);
         const key = event.message_key ?? event.event_id;
-        const index = projection.textParts.get(key);
-        const part = { type: "text", text: event.content } as MessageContentPart;
-        if (index === undefined) {
-          projection.textParts.set(key, projection.parts.length);
-          projection.parts.push(part);
+        const toolResult = legacyToolResult(event);
+        if (toolResult) {
+          upsertPart(projection, projection.toolParts, key, legacyToolPart(toolResult, key));
         } else {
-          projection.parts[index] = part;
+          upsertPart(projection, projection.textParts, key, {
+            type: "text",
+            text: event.content,
+          } as MessageContentPart);
         }
         continue;
       }
@@ -200,15 +252,12 @@ export function projectAssistantMessages(
       event.tool_name !== "task"
     ) {
       const projection = assistantTurn(event);
-      const key = event.call_id ?? event.id;
-      const index = projection.toolParts.get(key);
-      const part = toolPart(event);
-      if (index === undefined) {
-        projection.toolParts.set(key, projection.parts.length);
-        projection.parts.push(part);
-      } else {
-        projection.parts[index] = part;
-      }
+      upsertPart(
+        projection,
+        projection.toolParts,
+        event.call_id ?? event.id,
+        toolPart(event),
+      );
     }
   }
 
