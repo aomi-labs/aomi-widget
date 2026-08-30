@@ -60,6 +60,41 @@ describe("projectAssistantMessages", () => {
     ]);
   });
 
+  it("projects legacy tool_result message events as tool parts", () => {
+    // The recorder still bridges tool steps as agent messages carrying the
+    // legacy [label, json] tuple; the contract-typed events never arrive.
+    const events: Event[] = [
+      {
+        ...meta(1, "message", "turn-1"),
+        type: "message",
+        sender: "agent",
+        content: "",
+        message_key: "tool-step-1",
+        tool_result: [
+          "Read vitalik.eth ETH balance",
+          '{"balance_eth":"6.64"}',
+        ],
+      } as Event,
+      {
+        ...meta(2, "message", "turn-1"),
+        type: "message",
+        sender: "agent",
+        content: "vitalik.eth holds 6.64 ETH",
+        message_key: "agent-1",
+      },
+    ];
+
+    expect(projectAssistantMessages(events)[0]?.content).toMatchObject([
+      {
+        type: "tool-call",
+        toolCallId: "legacy:tool-step-1",
+        toolName: "Read vitalik.eth ETH balance",
+        result: { balance_eth: "6.64" },
+      },
+      { type: "text", text: "vitalik.eth holds 6.64 ETH" },
+    ]);
+  });
+
   it("replaces streaming message revisions by message key", () => {
     const messages: Event[] = [
       {
