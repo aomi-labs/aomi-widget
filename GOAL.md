@@ -301,7 +301,7 @@ flow. Exact Agent and Pipeline roots receive OAuth like their child routes.
 The isolated FE/BFF/backend stack passed the direct Agent protocol, Pipeline API
 and built CLI discovery, and rendered Action approval through a mined Anvil
 transaction, terminal resume, and A-to-B-to-A session restoration. The complete
-workspace check passed 1,296 tests with two intentional skips; AA passed 17
+workspace check passed 1,287 tests with two intentional skips; AA passed 17
 focused tests and the Para/Privy/shared execution matrix passed 64.
 
 ## Managed OAuth and canonical wallet salvage

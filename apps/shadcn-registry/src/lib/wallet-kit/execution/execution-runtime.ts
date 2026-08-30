@@ -76,6 +76,7 @@ export function buildEvmExecutionRuntime(
                   : undefined,
                 chainsById: runtime.chainsById,
                 getPreferredRpcUrl,
+                waitForTransactionReceipt: runtime.waitForTransactionReceipt,
               },
             })
         : undefined),
