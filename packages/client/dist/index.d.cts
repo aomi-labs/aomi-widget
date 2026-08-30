@@ -72,9 +72,17 @@ declare function ensureSvmWalletBoundVia(post: AuthorizationPoster, wallet: stri
 declare function ensureSvmWalletBound(client: AomiClient, wallet: string, signMessage: (message: Uint8Array) => Promise<Uint8Array>): Promise<AomiEnsureBoundResult>;
 declare function isUnboundWalletError(error: unknown): boolean;
 
+/**
+ * Guest credential source for public API calls. Resolves to a bearer token
+ * when one is needed, or `null` when the caller already has a cookie session
+ * that the request will carry on its own — attaching a bearer in that case
+ * would be worse than useless: minting an anonymous session for a signed-in
+ * user REPLACES their session cookie, silently signing them out and rebinding
+ * their work to a guest identity.
+ */
 type GuestSessionProvider = ((options?: {
     forceRefresh?: boolean;
-}) => Promise<string>) & {
+}) => Promise<string | null>) & {
     clear(): void;
 };
 declare function createGuestSessionProvider(input: {

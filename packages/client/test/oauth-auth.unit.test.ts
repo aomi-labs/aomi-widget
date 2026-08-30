@@ -110,14 +110,18 @@ describe("public API OAuth transport", () => {
 
 describe("Better Auth guest bootstrap", () => {
   it("reuses one official anonymous bearer until explicitly refreshed", async () => {
+    // Each acquisition first probes get-session (no session here), then signs
+    // in anonymously for a bearer.
     const fetchImpl = vi
       .fn()
+      .mockResolvedValueOnce(new Response("null", { status: 200 }))
       .mockResolvedValueOnce(
         new Response("{}", {
           status: 200,
           headers: { "set-auth-token": "guest-1" },
         }),
       )
+      .mockResolvedValueOnce(new Response("null", { status: 200 }))
       .mockResolvedValueOnce(
         new Response("{}", {
           status: 200,
@@ -132,6 +136,29 @@ describe("Better Auth guest bootstrap", () => {
     await expect(guest()).resolves.toBe("guest-1");
     await expect(guest()).resolves.toBe("guest-1");
     await expect(guest({ forceRefresh: true })).resolves.toBe("guest-2");
-    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+  });
+
+  it("yields no bearer when a cookie session already exists", async () => {
+    // A signed-in (or already-anonymous) session travels as a cookie; minting
+    // an anonymous session would REPLACE it and silently sign the user out.
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ user: { id: "ba-user-1" } }), {
+          status: 200,
+        }),
+      );
+    const guest = createGuestSessionProvider({
+      baseUrl: "https://chat.aomi.dev",
+      fetch: fetchImpl as typeof fetch,
+    });
+
+    await expect(guest()).resolves.toBeNull();
+    await expect(guest()).resolves.toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain(
+      "/api/auth/get-session",
+    );
   });
 });

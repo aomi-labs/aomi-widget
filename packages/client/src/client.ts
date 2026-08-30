@@ -219,10 +219,10 @@ export function wrapFetchWithPublicApiAuthorization(input: {
           );
         }
       } else if (input.guest) {
-        headers.set(
-          "authorization",
-          `Bearer ${await input.guest({ forceRefresh })}`,
-        );
+        // null = an existing cookie session carries this request; attaching
+        // a minted bearer would replace a signed-in session with a guest one.
+        const token = await input.guest({ forceRefresh });
+        if (token) headers.set("authorization", `Bearer ${token}`);
       }
       return input.fetch(request ? request.clone() : requestInput, {
         ...init,
