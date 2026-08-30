@@ -13,21 +13,30 @@ import {
 } from "../service/account-service";
 import { readAccountAuthEnv } from "./env";
 import {
-  AGENT_SCOPES,
   AOMI_CANONICAL_USER_CLAIM,
   AOMI_PRINCIPAL_CLASS_CLAIM,
   AOMI_SCOPES,
-  PIPELINE_SCOPES,
+  aomiOAuthResourcePolicies,
   aomiOAuthResources,
 } from "./oauth-policy";
 import { verifySiweMessage } from "./siwe";
 import { aomiSiwsPlugin } from "./siws";
 import { aomiProviderAuthPlugin } from "./provider-plugin";
+import { aomiWidgetOAuthBootstrapPlugin } from "./widget-bootstrap-plugin";
 import { observeBetterAuthFailure } from "./failure-observer";
 
 const env = readAccountAuthEnv();
 const resources = aomiOAuthResources();
-const STANDARD_SCOPES = ["openid", "profile", "email", "offline_access"];
+const resourcePolicies = aomiOAuthResourcePolicies();
+const isLoopbackAuthRuntime = (() => {
+  const hostname = new URL(env.betterAuthUrl).hostname;
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname === "[::1]"
+  );
+})();
 // Better Auth seeds configured resources during plugin initialization. Unit
 // suites import this module while intentionally running without PostgreSQL;
 // the resource/scope contract remains covered by oauth-policy and route tests.
@@ -129,9 +138,13 @@ export const auth = betterAuth({
   trustedOrigins: env.trustedOrigins,
   secret: env.betterAuthSecret,
   baseURL: env.betterAuthUrl,
+  basePath: "/api/auth",
   disabledPaths: ["/token"],
   rateLimit: {
-    enabled: true,
+    // Local browsers and integration suites all share the loopback IP, so the
+    // production anonymous-account limit otherwise locks out every local
+    // browser after ten total attempts. Hosted environments remain limited.
+    enabled: !isLoopbackAuthRuntime,
     customRules: {
       "/sign-in/anonymous": { window: 60 * 60, max: 10 },
       "/oauth2/register": { window: 60 * 60, max: 30 },
@@ -195,6 +208,7 @@ export const auth = betterAuth({
   },
   plugins: [
     jwt({
+      issuer: resources.authorizationServerIssuer,
       disableSettingJwtHeader: true,
       jwks: {
         rotationInterval: 30 * 24 * 60 * 60,
@@ -251,44 +265,19 @@ export const auth = betterAuth({
             consentPage: "/oauth/consent",
             resource: resources.agentMcp,
             resources: seedOAuthResources
-              ? [
-                  {
-                    identifier: resources.agentMcp,
-                    allowedScopes: [...AGENT_SCOPES, ...STANDARD_SCOPES],
-                    accessTokenTtl: 5 * 60,
-                  },
-                  {
-                    identifier: resources.pipelineMcp,
-                    allowedScopes: [...PIPELINE_SCOPES, ...STANDARD_SCOPES],
-                    accessTokenTtl: 5 * 60,
-                  },
-                  {
-                    identifier: resources.agentRest,
-                    allowedScopes: [
-                      ...AGENT_SCOPES.filter((scope) => scope !== "mcp:agent"),
-                      ...STANDARD_SCOPES,
-                    ],
-                    accessTokenTtl: 5 * 60,
-                  },
-                  {
-                    identifier: resources.pipelineRest,
-                    allowedScopes: [
-                      ...PIPELINE_SCOPES.filter(
-                        (scope) => scope !== "mcp:pipeline",
-                      ),
-                      ...STANDARD_SCOPES,
-                    ],
-                    accessTokenTtl: 5 * 60,
-                  },
-                ]
+              ? resourcePolicies.map((policy) => ({
+                  identifier: policy.identifier,
+                  allowedScopes: [...policy.allowedScopes, "offline_access"],
+                  accessTokenTtl: 5 * 60,
+                  dpopBoundAccessTokensRequired:
+                    policy.dpopBoundAccessTokensRequired,
+                }))
               : [],
-            resourceSeedMode: "merge",
+            resourceSeedMode: "overwrite",
             scopes: [...AOMI_SCOPES],
-            clientRegistrationDefaultResources: seedOAuthResources
-              ? [resources.agentMcp, resources.pipelineMcp]
-              : [],
+            clientRegistrationDefaultResources: [],
             clientRegistrationAllowedResources: seedOAuthResources
-              ? [resources.agentRest, resources.pipelineRest]
+              ? [resources.agentMcp, resources.pipelineMcp]
               : [],
             clientRegistrationDefaultScopes: [
               "agent:read",
@@ -329,7 +318,7 @@ export const auth = betterAuth({
     }),
     compatiblePlugin(
       oauthDeviceAuthorization({
-        verificationUri: `${resources.issuer}/oauth/device`,
+        verificationUri: `${resources.portalOrigin}/oauth/device`,
         schema: {
           deviceCode: {
             modelName: "ba_oauth_device_codes",
@@ -339,6 +328,7 @@ export const auth = betterAuth({
       }),
     ),
     aomiProviderAuthPlugin(),
+    aomiWidgetOAuthBootstrapPlugin(),
     nextCookies(),
   ],
 });

@@ -16,8 +16,8 @@ test("Para login resolves the canonical Aomi account", async () => {
   assert.match(canonicalAccount, /createProviderCredentialAdapter/);
   assert.match(canonicalAccount, /paraClient\.issueJwt/);
   assert.match(canonicalAccount, /createAccountSessionProvider/);
-  assert.match(canonicalAccount, /\/api\/aomi\/telegram\/exchange/);
-  assert.match(canonicalAccount, /\/api\/aomi\/account/);
+  assert.match(canonicalAccount, /\/api\/auth\/widget\/telegram\/exchange/);
+  assert.match(canonicalAccount, /\/v1\/account/);
 });
 
 test("Telegram launches are verified before a production wallet flow", async () => {

@@ -1,7 +1,11 @@
 import { auth } from "@aomi-labs/account/better-auth";
 import { oauthProviderResourceClient } from "@better-auth/oauth-provider/resource-client";
 
-import { aomiOAuthResources } from "@portal/server/oauth/resources";
+import { publicDiscoveryResponse } from "@portal/server/oauth/cors";
+import {
+  aomiOAuthResourcePolicies,
+  aomiOAuthResources,
+} from "@portal/server/oauth/resources";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,70 +18,34 @@ export async function GET(
 ) {
   const path = `/${(await context.params).path.join("/")}`;
   const resources = aomiOAuthResources();
-  const policies = new Map<string, { resource: string; scopes: string[] }>([
-    [
-      "/agent/mcp",
-      {
-        resource: resources.agentMcp,
-        scopes: [
-          "mcp:agent",
-          "agent:read",
-          "agent:write",
-          "agent:actions:resolve",
-          "payments:submit",
-          "custody:delegate",
-        ],
-      },
-    ],
-    [
-      "/pipeline/mcp",
-      {
-        resource: resources.pipelineMcp,
-        scopes: [
-          "mcp:pipeline",
-          "pipeline:catalog",
-          "pipeline:execute",
-          "payments:submit",
-          "custody:delegate",
-        ],
-      },
-    ],
-    [
-      "/v1/agent",
-      {
-        resource: resources.agentRest,
-        scopes: [
-          "agent:read",
-          "agent:write",
-          "agent:actions:resolve",
-          "payments:submit",
-          "custody:delegate",
-        ],
-      },
-    ],
-    [
-      "/v1/pipeline",
-      {
-        resource: resources.pipelineRest,
-        scopes: [
-          "pipeline:catalog",
-          "pipeline:execute",
-          "payments:submit",
-          "custody:delegate",
-        ],
-      },
-    ],
-  ]);
-  const policy = policies.get(path);
+  const policy = aomiOAuthResourcePolicies().find(
+    (candidate) => new URL(candidate.identifier).pathname === path,
+  );
   if (!policy) return Response.json({ error: "not_found" }, { status: 404 });
-  return Response.json(
-    await client.getProtectedResourceMetadata(
-      {
-        resource: policy.resource,
-        authorization_servers: [resources.issuer],
-        scopes_supported: policy.scopes,
-      },
-      { externalScopes: policy.scopes },
+  return publicDiscoveryResponse(
+    Response.json(
+      await client.getProtectedResourceMetadata({
+        resource: policy.identifier,
+        authorization_servers: [resources.authorizationServerIssuer],
+        scopes_supported: [...policy.allowedScopes],
+        dpop_bound_access_tokens_required: policy.dpopBoundAccessTokensRequired,
+        dpop_signing_alg_values_supported: ["ES256", "EdDSA"],
+      }),
     ),
   );
+}
+
+export async function HEAD(
+  request: Request,
+  context: { params: Promise<{ path: string[] }> },
+) {
+  const response = await GET(request, context);
+  return new Response(null, {
+    status: response.status,
+    headers: response.headers,
+  });
+}
+
+export function OPTIONS() {
+  return publicDiscoveryResponse(new Response(null, { status: 204 }));
 }

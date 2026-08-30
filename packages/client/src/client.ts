@@ -219,10 +219,8 @@ export function wrapFetchWithPublicApiAuthorization(input: {
           );
         }
       } else if (input.guest) {
-        headers.set(
-          "authorization",
-          `Bearer ${await input.guest({ forceRefresh })}`,
-        );
+        const credential = await input.guest({ forceRefresh });
+        if (credential) headers.set("authorization", `Bearer ${credential}`);
       }
       return input.fetch(request ? request.clone() : requestInput, {
         ...init,
@@ -242,7 +240,7 @@ function publicApiPolicy(url: URL, method: string, headers?: HeadersInit) {
   const payment = new Headers(headers).has("payment-signature")
     ? ["payments:submit"]
     : [];
-  if (url.pathname.startsWith("/v1/agent/")) {
+  if (url.pathname === "/v1/agent" || url.pathname.startsWith("/v1/agent/")) {
     const scopes =
       method === "GET"
         ? ["agent:read"]
@@ -255,7 +253,10 @@ function publicApiPolicy(url: URL, method: string, headers?: HeadersInit) {
       method: method.toUpperCase(),
     };
   }
-  if (url.pathname.startsWith("/v1/pipeline/")) {
+  if (
+    url.pathname === "/v1/pipeline" ||
+    url.pathname.startsWith("/v1/pipeline/")
+  ) {
     return {
       resource: `${origin}/v1/pipeline` as AomiOAuthResource,
       scopes: [

@@ -78,15 +78,15 @@ export type AomiBackendAccountEndpointConfig = Partial<{
 }>;
 
 const DEFAULT_ENDPOINTS = {
-  accountPath: "/api/aomi/account",
-  signOutPath: "/api/aomi/sign-out",
-  existingSessionProviderExchangePath: "/api/aomi/provider/exchange",
+  accountPath: "/v1/account",
+  signOutPath: "/api/auth/sign-out",
+  existingSessionProviderExchangePath: "/v1/account/provider/exchange",
   newSessionProviderExchangePath: "/api/auth/aomi/provider/exchange",
-  walletLinkPath: "/api/aomi/wallets/link",
+  walletLinkPath: "/v1/account/wallets/link",
   walletPath: (walletId: string) =>
-    `/api/aomi/wallets/${encodeURIComponent(walletId)}`,
+    `/v1/account/wallets/${encodeURIComponent(walletId)}`,
   identityPath: (identityId: string) =>
-    `/api/aomi/identities/${encodeURIComponent(identityId)}`,
+    `/v1/account/identities/${encodeURIComponent(identityId)}`,
   siweNoncePath: "/api/auth/siwe/nonce",
   siweVerifyPath: "/api/auth/siwe/verify",
   siwsNoncePath: "/api/auth/siws/nonce",

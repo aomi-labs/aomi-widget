@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   verifyAccessTokenRequest: vi.fn(),
+  hasWidgetSessionBearer: vi.fn(),
+  resolveWidgetSession: vi.fn(),
   getBetterAuthSession: vi.fn(),
   canonicalAccount: vi.fn(),
+  dpopRequired: false,
   e2eCanonicalUserId: vi.fn(),
 }));
 
@@ -22,6 +25,10 @@ vi.mock("@better-auth/oauth-provider/resource-client", () => ({
 vi.mock("@aomi-labs/account/account", () => ({
   getOrCreateAomiUserForBetterAuthSession: mocks.canonicalAccount,
 }));
+vi.mock("@aomi-labs/account/widget-auth", () => ({
+  hasWidgetSessionBearer: mocks.hasWidgetSessionBearer,
+  resolveWidgetSession: mocks.resolveWidgetSession,
+}));
 vi.mock("@portal/server/account/session", () => ({
   getBetterAuthSession: mocks.getBetterAuthSession,
 }));
@@ -32,7 +39,17 @@ vi.mock("./features", () => ({
   isGuestRestEnabled: () => true,
 }));
 vi.mock("./resources", () => ({
-  aomiOAuthResources: () => ({ issuer: "https://portal.example" }),
+  aomiOAuthResources: () => ({
+    portalOrigin: "https://portal.example",
+    authorizationServerIssuer: "https://portal.example/api/auth",
+  }),
+  aomiOAuthResourcePolicy: () => ({
+    dpopBoundAccessTokensRequired: mocks.dpopRequired,
+  }),
+  guestScopesForAomiResource: (_resource: string, scopes: string[]) =>
+    scopes.filter((scope) =>
+      ["agent:read", "agent:write", "offline_access"].includes(scope),
+    ),
 }));
 
 import {
@@ -44,6 +61,8 @@ import {
 
 const resource = "https://portal.example/v1/agent" as const;
 const claims = {
+  iss: "https://portal.example/api/auth",
+  aud: resource,
   sub: "ba-user",
   scope: "agent:read agent:write",
   client_id: "client-1",
@@ -55,11 +74,21 @@ const claims = {
 describe("public OAuth and session principal resolution", () => {
   beforeEach(() => {
     mocks.verifyAccessTokenRequest.mockReset();
+    mocks.hasWidgetSessionBearer
+      .mockReset()
+      .mockImplementation(
+        (request: Request) =>
+          request.headers
+            .get("authorization")
+            ?.startsWith("Bearer aomi_wst_") === true,
+      );
+    mocks.resolveWidgetSession.mockReset().mockResolvedValue(null);
     mocks.getBetterAuthSession.mockReset().mockResolvedValue(null);
     mocks.e2eCanonicalUserId.mockReset().mockReturnValue(null);
     mocks.canonicalAccount
       .mockReset()
       .mockResolvedValue({ id: "canonical-user" });
+    mocks.dpopRequired = false;
   });
 
   it("classifies JWT Bearer and DPoP credentials without confusing session bearers", () => {
@@ -102,10 +131,147 @@ describe("public OAuth and session principal resolution", () => {
       authSource: "oauth",
     });
     expect(mocks.verifyAccessTokenRequest).toHaveBeenCalledWith(request, {
-      verifyOptions: { audience: resource },
+      jwksUrl: "https://portal.example/api/auth/jwks",
+      verifyOptions: {
+        audience: resource,
+        issuer: "https://portal.example/api/auth",
+      },
       requiredScopes: ["agent:read"],
       dpop: { signingAlgorithms: ["ES256", "EdDSA"] },
     });
+  });
+
+  it("uses an origin-bound widget session directly for bounded REST access", async () => {
+    mocks.resolveWidgetSession.mockResolvedValue({
+      userId: "canonical-user",
+      origin: "https://partner.example",
+      authMethod: "siwe",
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+    });
+    const request = new Request(resource, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer aomi_wst_widget",
+        origin: "https://partner.example",
+      },
+    });
+
+    await expect(
+      resolveApiPrincipal({
+        request,
+        resource,
+        requiredScopes: ["agent:write"],
+        sessionScopes: [
+          "agent:read",
+          "agent:write",
+          "agent:actions:resolve",
+          "custody:delegate",
+        ],
+      }),
+    ).resolves.toEqual({
+      canonicalUserId: "canonical-user",
+      scopes: ["agent:write", "agent:actions:resolve"],
+      resource,
+      authSource: "session",
+      principalClass: "user",
+      sid: "widget-session",
+      widgetOrigin: "https://partner.example",
+    });
+    expect(mocks.verifyAccessTokenRequest).not.toHaveBeenCalled();
+    expect(mocks.getBetterAuthSession).not.toHaveBeenCalled();
+  });
+
+  it("keeps anonymous widget sessions capability-bounded and unable to resolve actions", async () => {
+    mocks.resolveWidgetSession.mockResolvedValue({
+      userId: "canonical-guest",
+      origin: "https://partner.example",
+      authMethod: "anonymous",
+      expiresAt: Math.floor(Date.now() / 1000) + 300,
+    });
+
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          method: "POST",
+          headers: {
+            authorization: "Bearer aomi_wst_guest",
+            origin: "https://partner.example",
+          },
+        }),
+        resource,
+        requiredScopes: ["agent:write"],
+        sessionScopes: ["agent:read", "agent:write", "agent:actions:resolve"],
+      }),
+    ).resolves.toMatchObject({
+      canonicalUserId: "canonical-guest",
+      scopes: ["agent:write"],
+      principalClass: "user",
+    });
+
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          method: "POST",
+          headers: {
+            authorization: "Bearer aomi_wst_guest",
+            origin: "https://partner.example",
+          },
+        }),
+        resource,
+        requiredScopes: ["agent:actions:resolve"],
+        sessionScopes: ["agent:read", "agent:write", "agent:actions:resolve"],
+      }),
+    ).rejects.toMatchObject({ code: "insufficient_scope", status: 403 });
+  });
+
+  it.each(["siwe", "siws"])(
+    "allows authenticated %s widget sessions to resolve actions",
+    async (authMethod) => {
+      mocks.resolveWidgetSession.mockResolvedValue({
+        userId: "canonical-user",
+        origin: "https://partner.example",
+        authMethod,
+        expiresAt: Math.floor(Date.now() / 1000) + 300,
+      });
+
+      await expect(
+        resolveApiPrincipal({
+          request: new Request(resource, {
+            method: "POST",
+            headers: {
+              authorization: "Bearer aomi_wst_authenticated",
+              origin: "https://partner.example",
+            },
+          }),
+          resource,
+          requiredScopes: ["agent:actions:resolve"],
+          sessionScopes: ["agent:actions:resolve"],
+        }),
+      ).resolves.toMatchObject({
+        scopes: ["agent:actions:resolve"],
+        principalClass: "user",
+      });
+    },
+  );
+
+  it("rejects a revoked widget session without cookie fallback", async () => {
+    mocks.getBetterAuthSession.mockResolvedValue({
+      user: { id: "cookie-user" },
+    });
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          headers: {
+            authorization: "Bearer aomi_wst_revoked",
+            origin: "https://partner.example",
+          },
+        }),
+        resource,
+        requiredScopes: ["agent:read"],
+        sessionScopes: ["agent:read"],
+      }),
+    ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
+    expect(mocks.getBetterAuthSession).not.toHaveBeenCalled();
   });
 
   it("never falls back to a cookie session after invalid OAuth", async () => {
@@ -177,6 +343,46 @@ describe("public OAuth and session principal resolution", () => {
     ).rejects.toMatchObject({ code: "insufficient_scope", status: 403 });
   });
 
+  it("pins issuer and one string audience and enforces the MCP DPoP switch", async () => {
+    await expect(
+      principalFromOAuthClaims(
+        { ...claims, iss: "https://evil.example" },
+        resource,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
+    await expect(
+      principalFromOAuthClaims({ ...claims, aud: [resource] }, resource),
+    ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
+
+    mocks.dpopRequired = true;
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          headers: { authorization: "Bearer one.two.three" },
+        }),
+        resource,
+        requiredScopes: ["agent:read"],
+        sessionScopes: ["agent:read"],
+      }),
+    ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
+    expect(mocks.verifyAccessTokenRequest).not.toHaveBeenCalled();
+
+    mocks.verifyAccessTokenRequest.mockResolvedValue(claims);
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          headers: {
+            authorization: "DPoP one.two.three",
+            dpop: "proof",
+          },
+        }),
+        resource,
+        requiredScopes: ["agent:read"],
+        sessionScopes: ["agent:read"],
+      }),
+    ).resolves.toMatchObject({ authSource: "oauth" });
+  });
+
   it("requires same-origin CSRF for mutating cookie sessions", async () => {
     mocks.getBetterAuthSession.mockResolvedValue({
       user: {
@@ -209,8 +415,73 @@ describe("public OAuth and session principal resolution", () => {
         sessionScopes: ["agent:write"],
       }),
     ).resolves.toMatchObject({ authSource: "session" });
-  });
 
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          method: "POST",
+          headers: { "sec-fetch-site": "same-origin" },
+        }),
+        resource,
+        requiredScopes: ["agent:write"],
+        sessionScopes: ["agent:write"],
+      }),
+    ).resolves.toMatchObject({ authSource: "session" });
+
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          method: "POST",
+          headers: { "x-aomi-csrf": "1" },
+        }),
+        resource,
+        requiredScopes: ["agent:write"],
+        sessionScopes: ["agent:write"],
+      }),
+    ).resolves.toMatchObject({ authSource: "session" });
+
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          method: "POST",
+          headers: { "sec-fetch-site": "cross-site" },
+        }),
+        resource,
+        requiredScopes: ["agent:write"],
+        sessionScopes: ["agent:write"],
+      }),
+    ).rejects.toMatchObject({ code: "csrf_failed", status: 403 });
+
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          method: "POST",
+          headers: {
+            "sec-fetch-site": "cross-site",
+            "x-aomi-csrf": "1",
+          },
+        }),
+        resource,
+        requiredScopes: ["agent:write"],
+        sessionScopes: ["agent:write"],
+      }),
+    ).rejects.toMatchObject({ code: "csrf_failed", status: 403 });
+
+    await expect(
+      resolveApiPrincipal({
+        request: new Request(resource, {
+          method: "POST",
+          headers: {
+            origin: "https://evil.example",
+            "sec-fetch-site": "same-origin",
+          },
+        }),
+        resource,
+        requiredScopes: ["agent:write"],
+        sessionScopes: ["agent:write"],
+      }),
+    ).rejects.toMatchObject({ code: "invalid_token", status: 401 });
+  });
   it("resolves the signed local E2E session at the principal boundary", async () => {
     mocks.e2eCanonicalUserId.mockReturnValue("e2e-user");
     await expect(

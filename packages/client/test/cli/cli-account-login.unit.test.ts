@@ -147,7 +147,7 @@ describe("aomi account login", () => {
           headers: new Headers({ "set-auth-token": "session-123" }),
         } as unknown as Response;
       }
-      if (target.endsWith("/api/aomi/account")) {
+      if (target.endsWith("/v1/account")) {
         return {
           ok: true,
           status: 200,
@@ -243,7 +243,7 @@ describe("aomi account login", () => {
           { headers: { "set-auth-token": "svm-session" } },
         );
       }
-      if (target.endsWith("/api/aomi/account")) {
+      if (target.endsWith("/v1/account")) {
         return Response.json({
           session: {
             betterAuthUserId: "ba-svm-user",

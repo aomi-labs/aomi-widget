@@ -3,7 +3,7 @@ import { widgetAuthRateLimit } from "./rate-limit";
 import { widgetRoute } from "./response";
 
 function requestFromIp(ip: string): Request {
-  return new Request("http://localhost:3002/api/widget/auth/exchange", {
+  return new Request("http://localhost:3002/api/auth/widget/exchange", {
     method: "POST",
     headers: { Origin: "http://localhost:3000", "x-forwarded-for": ip },
   });

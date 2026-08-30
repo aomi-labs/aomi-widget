@@ -94,6 +94,7 @@ export type EvmExecutionRuntime = {
   sendCallsSyncAsync: EvmWalletRuntime["sendCallsSyncAsync"];
   sendTransactionAsync: EvmWalletRuntime["sendTransactionAsync"];
   nativeWalletExecution?: NativeWalletExecutionPolicy;
+  waitForTransactionReceipt?: WalletExecutionKitState["waitForTransactionReceipt"];
   shouldUseExternalSigner: boolean;
   signMessageAsync: EvmWalletRuntime["signMessageAsync"];
   signTypedDataAsync: EvmWalletRuntime["signTypedDataAsync"];

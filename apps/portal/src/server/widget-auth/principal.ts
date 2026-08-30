@@ -23,6 +23,7 @@ export type PortalPrincipal =
   | {
       kind: "widget";
       userId: string;
+      origin: string;
       authMethod: string;
       expiresAt: number;
       providerIdentityId?: string;

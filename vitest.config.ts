@@ -37,6 +37,7 @@ export default defineConfig({
       "apps/telegram/src/**/*.{test,spec}.{ts,tsx}",
       "apps/portal/src/server/agent-api-proxy.{test,spec}.{ts,tsx}",
       "apps/portal/src/server/oauth/**/*.{test,spec}.{ts,tsx}",
+      "apps/portal/src/app/oauth/consent/**/*.{test,spec}.{ts,tsx}",
       "apps/portal/src/lib/widget-auth/**/*.{test,spec}.{ts,tsx}",
       "apps/portal/src/app/api/**/route.{test,spec}.{ts,tsx}",
       "apps/portal/src/app/v1/{agent,pipeline}/**/route.{test,spec}.{ts,tsx}",

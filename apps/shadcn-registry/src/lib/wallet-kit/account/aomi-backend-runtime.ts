@@ -558,14 +558,13 @@ export function useAomiBackendAccountRuntime(input: {
       providerSessionAttempted.current = null;
       credentialFailed.current = null;
       setAccountError(undefined);
-      // Revoke the backend account first (while the WST carrier is still
-      // valid), but always tear down the widget session / provider SDK even if
-      // that first step throws, so a stale WST can't be replayed and the
-      // provider SDK session isn't stranded.
-      try {
+      // Cookie sessions sign out through Better Auth. Widget sessions own
+      // their canonical revocation and provider teardown, avoiding a second
+      // revocation through the retired compatibility facade.
+      if (accountSessionProvider) {
+        await accountSessionProvider.signOut();
+      } else {
         await accountClient.signOut();
-      } finally {
-        await accountSessionProvider?.signOut();
       }
       setAccount({
         user: null,

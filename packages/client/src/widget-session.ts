@@ -101,7 +101,7 @@ export function createProviderCredentialAdapter(input: {
       }
       return exchangeJson(
         fetchImpl,
-        joinUrl(baseUrl, "/api/widget/auth/exchange"),
+        joinUrl(baseUrl, "/api/auth/widget/exchange"),
         {
           provider: input.provider,
           environment: input.environment,
@@ -166,8 +166,8 @@ export function createSiweAccountAuthAdapter(input: {
   getSigner(): Promise<AccountSessionSigner>;
 }): AccountAuthAdapter {
   return createSignedChallengeAdapter({
-    noncePath: "/api/widget/auth/siwe/nonce",
-    verifyPath: "/api/widget/auth/siwe/verify",
+    noncePath: "/api/auth/widget/siwe/nonce",
+    verifyPath: "/api/auth/widget/siwe/verify",
     getSigner: input.getSigner,
     normalizeSigner: normalizeSiweSigner,
     getFingerprint: (signer) =>
@@ -194,8 +194,8 @@ export function createSiwsAccountAuthAdapter(input: {
   getSigner(): Promise<SiwsAccountSessionSigner>;
 }): AccountAuthAdapter {
   return createSignedChallengeAdapter({
-    noncePath: "/api/widget/auth/siws/nonce",
-    verifyPath: "/api/widget/auth/siws/verify",
+    noncePath: "/api/auth/widget/siws/nonce",
+    verifyPath: "/api/auth/widget/siws/verify",
     getSigner: input.getSigner,
     normalizeSigner: (signer) => signer,
     getFingerprint: (signer) => `${signer.chainId}:${signer.address}`,
@@ -238,9 +238,10 @@ export function createAccountSessionProvider(input: {
   // overwrite `cached` with the wrong-identity session.
   let latestFingerprint: string | null = null;
   let nextFingerprintRequestId = 0;
-  let latestResolvedFingerprint:
-    | { requestId: number; fingerprint: string }
-    | null = null;
+  let latestResolvedFingerprint: {
+    requestId: number;
+    fingerprint: string;
+  } | null = null;
   // A generic HTTP 401 does not prove the WST is expired. Both AomiClient and
   // widget-lib's account client retry 401s with `forceRefresh: true`; without a
   // generation guard, a persistent authorization/configuration 401 revokes a
@@ -256,7 +257,7 @@ export function createAccountSessionProvider(input: {
   };
 
   const revokeSession = async (session: AccountAuthSession): Promise<void> => {
-    await fetchImpl(joinUrl(input.baseUrl, "/api/widget/auth/session"), {
+    await fetchImpl(joinUrl(input.baseUrl, "/api/auth/widget/session"), {
       method: "DELETE",
       credentials: "omit",
       headers: { Authorization: `Bearer ${session.accessToken}` },
@@ -316,9 +317,7 @@ export function createAccountSessionProvider(input: {
     }
     const stale = cached;
     const retainStaleDuringForcedExchange = Boolean(
-      forceRefresh &&
-        stale?.fingerprint === fingerprint &&
-        now() < refreshAt,
+      forceRefresh && stale?.fingerprint === fingerprint && now() < refreshAt,
     );
     if (retainStaleDuringForcedExchange && stale) {
       // Mark the attempt before prompting. If signing or verification fails,
@@ -456,7 +455,9 @@ function assertChallengeBinding(challenge: Challenge): void {
     );
   }
   if (issued > now + MAX_WIDGET_CHALLENGE_CLOCK_SKEW_MS) {
-    throw new AccountChallengeBindingError("challenge was issued in the future");
+    throw new AccountChallengeBindingError(
+      "challenge was issued in the future",
+    );
   }
   const expires = Date.parse(challenge.expirationTime);
   if (Number.isNaN(expires)) {

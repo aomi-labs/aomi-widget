@@ -639,7 +639,7 @@ NOTE: this worktree's landing dev server runs on port 3001, not 3000.
   `provider-plugin.ts` includes `signalType` in the error body (better-call
   types it as `{message?,code?,cause?} & Record<string,any>`, so extra fields
   serialize), and `AomiAccountRequestError` carries it into one of three
-  specific messages. `/api/aomi/provider/exchange` already spread it via
+  specific messages. `/v1/account/provider/exchange` already spread it via
   `...result`. NOTE: this is the first `packages/account` file in PR #7 — one
   additive error field, but it breaks the "UI-only" property.
 
@@ -3114,7 +3114,7 @@ components (widget + `general-settings`/`bots`/`apps-settings`/`app-keys`) that
 minted an `Authorization: Bearer` header — but in same-origin proxy mode
 (`NEXT_PUBLIC_BACKEND_URL=/`, the shipped default) the BFF proxy mints the bearer
 server-side from the `better-auth.session_token` cookie and strips that header, so the whole
-machine was dead weight (latency + `/api/aomi/account-bearer` 401 spam + a duplicate
+machine was dead weight (latency + `/v1/account/bearer` 401 spam + a duplicate
 `providerExchange` owner).
 
 - **Not deleted outright — made conditional.** It is still load-bearing in
@@ -3125,7 +3125,7 @@ machine was dead weight (latency + `/api/aomi/account-bearer` 401 spam + a dupli
   SSR and only builds a real provider when `getBackendUrl()` is cross-origin.
   This also collapsed the ~30 duplicated lines across the 5 components into one
   call. The shared `@aomi-labs/client` `createAccountAccessTokenProvider` +
-  `@aomi-labs/account` `createBearerTokenRoute` (`/api/aomi/account-bearer`) are kept
+  `@aomi-labs/account` `createBearerTokenRoute` (`/v1/account/bearer`) are kept
   intact as the documented direct-to-backend seam (used by out-of-repo
   base/landing and the CLI-less direct path).
 - **User decision:** deployment topology was "not sure — play it safe", so the
@@ -3264,7 +3264,7 @@ when there's no account, link when one exists); SIWE was already ungated.
 - `aomi-backend-runtime.ts`: dropped `signInPolicy` from
   `AomiBackendAccountConfig` + the hook input + effect deps; the exchange
   endpoint no longer branches on a policy (`account.user` → link via
-  `/api/aomi/provider/exchange`, else create via
+  `/v1/account/provider/exchange`, else create via
   `/api/auth/aomi/provider/exchange`).
 - Removed `signInPolicy` from `config/types.ts` `AccountConfig` and from all
   three runtime call sites (`AomiWalletKitProvider`, `ParaPluginProvider`,
@@ -3281,7 +3281,7 @@ when there's no account, link when one exists); SIWE was already ungated.
   the full account sign-out path (`disconnect({ family: "all" })` +
   `account.signOut`) instead of only disconnecting the provider row.
 - Dev E2E harness fix: `linkSecondTestWallet` now fetches the link nonce, signs
-  a message containing it, and posts the nonce back to `/api/aomi/wallets/link`.
+  a message containing it, and posts the nonce back to `/v1/account/wallets/link`.
 
 ### Account manager: collapse Privy/Para EVM+SVM into one row (2026-06-19)
 

@@ -48,6 +48,22 @@ const widgetWebpackAliases = {
 } as const;
 
 const nextConfig: NextConfig = {
+  async headers() {
+    return [
+      {
+        source: "/oauth/bootstrap",
+        headers: [
+          { key: "Cache-Control", value: "no-store" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          {
+            key: "Content-Security-Policy",
+            value:
+              "frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+          },
+        ],
+      },
+    ];
+  },
   // Hide the dev-tools indicator when recording demo takes. It renders a
   // badge in the bottom-left corner, directly on top of the account chip,
   // and reads on camera as "this product has N issues". Opt-in via env so

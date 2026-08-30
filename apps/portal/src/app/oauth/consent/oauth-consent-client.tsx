@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { authClient } from "@aomi-labs/account/better-auth/client";
+import { oauthConsentRedirect } from "./consent-response";
 
 const DESCRIPTIONS: Record<string, string> = {
   "agent:read": "Read your Agent sessions",
@@ -56,11 +57,9 @@ export function OAuthConsentClient() {
           scope: acceptedScopes.join(" "),
         }),
       });
-      const body = (await response.json().catch(() => null)) as {
-        redirectURI?: string;
-        redirect_uri?: string;
-      } | null;
-      const redirect = body?.redirectURI ?? body?.redirect_uri;
+      const redirect = oauthConsentRedirect(
+        await response.json().catch(() => null),
+      );
       if (!response.ok || !redirect) {
         setStatus(`Consent failed (HTTP ${response.status})`);
         setPending(false);

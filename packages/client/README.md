@@ -4,14 +4,40 @@ TypeScript client for the Aomi on-chain agent backend. Works in Node.js and brow
 
 ## Public authorization
 
-Agent REST uses the exact OAuth resource `https://<portal>/v1/agent`; Pipeline
-REST uses `https://<portal>/v1/pipeline`. Supply an `oauth` token provider to
-use resource-bound developer grants. If no explicit credential is configured,
-the SDK creates and reuses one Better Auth anonymous/Bearer session for the
-guest-safe REST surface. Set `guest: false` to disable that bootstrap.
+With no auth option, `Aomi` creates and reuses an anonymous session for the
+guest-safe REST surface. For a signed-in CLI, bot, or server process, configure
+OAuth once and let the SDK own exact resources, scopes, refresh, and revocation:
 
-The public MCP resources are the unversioned `https://<portal>/agent/mcp` and
-`https://<portal>/pipeline/mcp`. The removed `/api/mcp` and `/api/mcp/direct`
+```ts
+import { Aomi, oauth } from "@aomi-labs/client";
+
+const aomi = new Aomi({
+  baseUrl: "https://chat.aomi.dev",
+  auth: oauth({
+    clientId: process.env.AOMI_CLIENT_ID!,
+    store: myDurableGrantStore,
+    onVerification({ verificationUriComplete, verificationUri, userCode }) {
+      console.log(
+        `Open ${verificationUriComplete ?? verificationUri}: ${userCode}`,
+      );
+    },
+  }),
+});
+
+// Optional: Agent and Pipeline calls also acquire grants lazily.
+await aomi.auth.login({ for: ["agent", "pipeline"] });
+console.log(await aomi.auth.status());
+await aomi.auth.logout();
+```
+
+Agent REST uses the exact OAuth resource `https://<portal>/v1/agent`; Pipeline
+REST uses `https://<portal>/v1/pipeline`. A host that already owns token
+acquisition can still supply a low-level `oauth` token provider to
+`AomiClient`. Headless grant stores contain rotating refresh tokens and must
+be treated as secrets.
+
+The public MCP resources are `https://<portal>/v1/agent/mcp` and
+`https://<portal>/v1/pipeline/mcp`. The removed `/api/mcp` and `/api/mcp/direct`
 paths are not aliases. MCP always uses Better Auth OAuth with PKCE and an exact
 resource audience; anonymous MCP users still complete the normal login,
 consent, and token flow.
@@ -33,25 +59,22 @@ pnpm add @aomi-labs/client
 
 ### Low-level client
 
-Direct HTTP/SSE access to all backend endpoints.
+Direct typed access to the Agent and Pipeline transports.
 
 ```ts
 import { AomiClient } from "@aomi-labs/client";
 
 const client = new AomiClient({ baseUrl: "https://api.aomi.dev" });
-
-const threadId = crypto.randomUUID();
-await client.createThread(threadId);
-
-const response = await client.sendMessage(threadId, "What's the price of ETH?");
-console.log(response.messages);
+const sessions = await client.agent.sessions.list();
+console.log(sessions.sessions);
 ```
 
 ### High-level SDK
 
 `Aomi` is the product-oriented facade. Pipeline is a stateless Build flow;
-Agent owns its thread and turn lifecycle. Supply wallet adapters once and both
-surfaces use the same wallet controller.
+Agent owns its session and turn lifecycle. Supplying `wallet` once exposes
+`aomi.wallet`, derives canonical `UserState`, and configures the Agent
+`ActionHandler` from primitive wallet capabilities.
 
 ```ts
 import { Aomi } from "@aomi-labs/client";
@@ -88,9 +111,14 @@ For event-driven Agent integrations, retain the run object:
 
 ```ts
 const run = aomi.agent.run("Swap half my USDC and supply the rest");
-run.on("action", renderAction);
-run.on("simulation", renderPreview);
-run.on("wallet_request", showWalletState);
+run.on("action", async (action) => {
+  renderAction(action);
+  if (await showApprovalUI(action)) {
+    await run.session.actions.execute(action.id);
+  } else {
+    await run.reject(action.id, "User rejected");
+  }
+});
 run.on("completed", console.log);
 const result = await run.result();
 ```
@@ -188,16 +216,16 @@ new Session(client: AomiClient, sessionOptions?: SessionOptions)
 
 #### Methods
 
-| Method                 | Description                                                       |
-| ---------------------- | ----------------------------------------------------------------- |
-| `send(message)`        | Send a message, wait for completion, return `{ messages, title }` |
-| `sendAsync(message)`   | Send without waiting — poll in background, listen via events      |
-| `interrupt()`          | Cancel current processing                                         |
-| `sync()`               | Fetch the next ordered EventPage                                  |
-| `fetchCurrentState()`  | Hydrate from the session Event ledger                             |
-| `getSnapshot()`        | Immutable SessionSnapshot                                         |
-| `subscribe(listener)`  | Subscribe for `useSyncExternalStore`                              |
-| `close()`              | Stop polling and release listeners                               |
+| Method                | Description                                                       |
+| --------------------- | ----------------------------------------------------------------- |
+| `send(message)`       | Send a message, wait for completion, return `{ messages, title }` |
+| `sendAsync(message)`  | Send without waiting — poll in background, listen via events      |
+| `interrupt()`         | Cancel current processing                                         |
+| `sync()`              | Fetch the next ordered EventPage                                  |
+| `fetchCurrentState()` | Hydrate from the session Event ledger                             |
+| `getSnapshot()`       | Immutable SessionSnapshot                                         |
+| `subscribe(listener)` | Subscribe for `useSyncExternalStore`                              |
+| `close()`             | Stop polling and release listeners                                |
 
 #### Snapshot
 
@@ -604,7 +632,7 @@ persists local state under `AOMI_STATE_DIR` or `~/.aomi` by default:
 
 ```
 $ npx @aomi-labs/client chat "hello"           # creates session, saves sessionId
-$ npx @aomi-labs/client chat "swap 1 ETH"     # reuses session, queues tx-1 if wallet request arrives
+$ npx @aomi-labs/client chat "swap 1 ETH"     # reuses the Agent session and handles any returned Action
 $ npx @aomi-labs/client tx sign tx-1           # signs tx-1, moves to signedTxs, notifies backend
 $ npx @aomi-labs/client tx list                # shows all txs
 $ npx @aomi-labs/client close                  # clears the active local session pointer

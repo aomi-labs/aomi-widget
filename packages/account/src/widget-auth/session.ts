@@ -116,6 +116,41 @@ export function hasWidgetSessionBearer(request: Request): boolean {
   return widgetBearerToken(request) !== null;
 }
 
+export function widgetSessionIdentifierForRequest(
+  request: Request,
+): string | null {
+  const token = widgetBearerToken(request);
+  return token ? sessionIdentifier(token) : null;
+}
+
+/** Revalidates the WST row captured by a bootstrap ticket without exposing the
+ * bearer token. This closes the window where a revoked WST could otherwise be
+ * exchanged after the widget issued an OAuth bootstrap ticket. */
+export async function validateWidgetSessionBinding(input: {
+  identifier: string;
+  origin: string;
+  userId: string;
+  authMethod: string;
+  providerIdentityId?: string;
+  now?: Date;
+  store?: WidgetAuthStore;
+}): Promise<boolean> {
+  const ticket = await (input.store ?? widgetAuthStore).read({
+    identifier: input.identifier,
+    now: input.now ?? new Date(),
+  });
+  if (
+    ticket?.kind !== "widget_session" ||
+    ticket.origin !== input.origin ||
+    ticket.userId !== input.userId ||
+    ticket.authMethod !== input.authMethod ||
+    ticket.providerIdentityId !== input.providerIdentityId
+  ) {
+    return false;
+  }
+  return Boolean(await findAomiUserById(ticket.userId));
+}
+
 function widgetBearerToken(request: Request): string | null {
   const authorization = request.headers.get("authorization");
   if (!authorization) return null;

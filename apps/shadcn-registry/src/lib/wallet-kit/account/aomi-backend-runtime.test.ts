@@ -151,6 +151,67 @@ describe("useAomiBackendAccountRuntime", () => {
     expect(result.current.getAccountBearer).toBeDefined();
   });
 
+  it("replaces a guest session before signing in with an existing EVM wallet", async () => {
+    const address = "0x1111111111111111111111111111111111111111" as const;
+    mockState
+      .accountClient!.getAccount.mockResolvedValueOnce({
+        guest: true,
+        user: null,
+        linkedAccounts: [],
+        wallets: [],
+        session: null,
+      })
+      .mockResolvedValue({
+        user: { id: "existing-wallet-owner" },
+        linkedAccounts: [],
+        wallets: [],
+        session: null,
+      });
+    mockState.accountClient!.signOut.mockResolvedValue(undefined);
+    mockState.accountClient!.createSiweNonce.mockResolvedValue({
+      nonce: "wallet-sign-in-nonce",
+      domain: "localhost:3000",
+      uri: "http://localhost:3000",
+    });
+    mockState.accountClient!.verifySiwe.mockResolvedValue(undefined);
+    const signMessageAsync = vi.fn().mockResolvedValue("0xsig");
+
+    const { result } = renderHook(() =>
+      useAomiBackendAccountRuntime({
+        enabled: true,
+        baseUrl: "http://localhost:3000",
+        auth: { status: "unauthenticated", provider: "wallet" } as never,
+        evm: {
+          accounts: () => [],
+          activeEvmConnection: { address, chainId: 1 },
+          signMessageAsync,
+        } as never,
+      }),
+    );
+
+    await waitFor(() => expect(result.current.guest).toBe(true));
+    expect(mockState.accountClient?.createSiweNonce).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.linkWallet?.({
+        accountId: "rabby-1",
+        family: "evm",
+        address,
+        chainId: 1,
+      });
+    });
+    await waitFor(() =>
+      expect(result.current.user?.id).toBe("existing-wallet-owner"),
+    );
+    expect(mockState.accountClient?.signOut).toHaveBeenCalledTimes(1);
+    expect(mockState.accountClient?.createSiweNonce).toHaveBeenCalledTimes(1);
+    expect(mockState.accountClient?.getWalletLinkNonce).not.toHaveBeenCalled();
+    expect(
+      mockState.accountClient!.signOut.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      mockState.accountClient!.createSiweNonce.mock.invocationCallOrder[0]!,
+    );
+  });
   it("ignores an old account response after the provider subject changes", async () => {
     let resolveOld!: (value: {
       user: { id: string };
@@ -218,14 +279,11 @@ describe("useAomiBackendAccountRuntime", () => {
     expect(result.current.user?.id).toBe("user-b");
   });
 
-  it("revokes a widget account before provider logout without issuing a fresh credential", async () => {
+  it("lets the widget session revoke before provider logout without duplicate account sign-out", async () => {
     const callOrder: string[] = [];
     const getCredential = vi.fn();
     const logout = vi.fn(async () => {
       callOrder.push("provider-logout");
-    });
-    mockState.accountClient!.signOut.mockImplementation(async () => {
-      callOrder.push("account-sign-out");
     });
 
     const { result } = renderHook(() =>
@@ -252,7 +310,8 @@ describe("useAomiBackendAccountRuntime", () => {
     await act(async () => result.current.signOut?.());
 
     expect(getCredential).not.toHaveBeenCalled();
-    expect(callOrder).toEqual(["account-sign-out", "provider-logout"]);
+    expect(mockState.accountClient?.signOut).not.toHaveBeenCalled();
+    expect(callOrder).toEqual(["provider-logout"]);
   });
 
   it("lets provider-credential session exchange create the account before auto-SIWE", async () => {

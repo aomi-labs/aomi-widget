@@ -1,5 +1,11 @@
 # Canonical Landing
 
+Current session goal: **PRIVY LOGIN POLICY DRIFT FIXED 2026-08-30** — the
+portal no longer hard-codes login methods into Privy's modal. The Privy app
+configuration is now the single authority, so disabled providers such as
+Google cannot be advertised and fail with `disallowed_login_method`. The
+portal suite, typecheck, lint, and a focused provider-config regression pass.
+
 Current session goal: **FULL-BLEED FOOTER BOUNDARY VERIFIED 2026-08-30** — the
 blue footer now stays flush with every viewport edge and the decorative
 atmosphere layer ends at the real landing-content boundary instead of extending
@@ -292,6 +298,41 @@ TypeScript, scoped ESLint, Prettier, `git diff --check`, and browser checks for
 toggle persistence, route continuity, contrast, and console errors pass.
 
 # Auth BFF BetterAuth Cleanup Goal
+
+## Mainline reconciliation
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-30** —
+reconcile the canonical Agent/Event, managed OAuth, and wallet
+cutover with current `main` without restoring retired chat adapters, generated
+distributions, React-side lifecycle reducers, or UserState transaction
+recovery. Mainline EIP-5792 export now reads complete pending EVM `Action`
+records, and the retained Privy embedded-wallet lane executes through the
+shared primitive wallet boundary beneath `ActionHandler`. Same-origin Agent
+traffic now preserves an existing Better Auth session and creates an anonymous
+cookie only after a real 401; cross-origin widgets retain their explicit bearer
+flow. Exact Agent and Pipeline roots receive OAuth like their child routes.
+Auto model selection now remains server-owned on Agent starts; only an explicit
+manual model is sent, so guest sessions cannot drift against backend model
+vocabulary. A fresh guest and the controlled logged-in Chrome profile both
+complete an exact `hello` turn without returning to the start page.
+The isolated FE/BFF/backend stack passed the direct Agent protocol, Pipeline API
+and built CLI discovery, and rendered Action approval through a mined Anvil
+transaction, terminal resume, and A-to-B-to-A session restoration. The complete
+workspace check passed 1,287 tests with two intentional skips; AA passed 17
+focused tests and the Para/Privy/shared execution matrix passed 64.
+
+## Managed OAuth and canonical wallet salvage
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-30** — retain
+the useful SDK/auth work from the retired cumulative release stack on top of
+the canonical Agent/Event architecture. `Aomi` now owns lazy, refreshable,
+resource-specific OAuth through `aomi.auth`; `new Aomi({ wallet })` exposes
+the primitive wallet facade while the existing `ActionHandler` remains the
+only Action lifecycle owner. Cross-origin guests receive origin-bound widget
+sessions, managed widgets use a one-time WST/PKCE-bound OAuth bootstrap, and
+the runnable examples exercise the canonical Agent, Pipeline, OAuth, and
+Action APIs. No legacy wallet controller, auth route alias, compatibility
+projection, or tracked generated distribution was restored.
 
 ## TypeScript SDK and developer surfaces
 
@@ -644,7 +685,7 @@ through the canonical Session contract.
 
 Current session goal: **UNIFIED AUTH IMPLEMENTED AND LOCALLY VERIFIED
 2026-08-24** — the Agent and Pipeline MCP surfaces now use one Better Auth 1.7
-issuer at the canonical unversioned `/agent/mcp` and `/pipeline/mcp` resources.
+issuer at the canonical versioned `/v1/agent/mcp` and `/v1/pipeline/mcp` resources.
 The former `/api/mcp` and `/api/mcp/direct` paths are absent. The same issuer,
 WalletKit-capable login/consent UI, exact resource policy, anonymous identity,
 refresh/revocation, and device authorization also serve developer and guest
@@ -1235,7 +1276,7 @@ USDC` for the canonical mainnet mint, or just the visible UI amount with the
 
 - Removed runtime `/api/bff/auth/siwe/*`, `/api/bff/auth/exchange`, and
   `/api/bff/auth/token` mounts from portal, base, and landing.
-- Added `/api/aomi/account-bearer` for direct AccountBearer minting from an
+- Added `/v1/account/bearer` for direct AccountBearer minting from an
   existing BetterAuth session.
 - Inverted `@aomi-labs/account` so portal supplies the BetterAuth-backed
   canonical-user resolver.

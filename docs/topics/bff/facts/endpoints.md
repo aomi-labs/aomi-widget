@@ -14,7 +14,7 @@ sources_of_truth:
 
 The portal BFF routes translate browser-facing portal calls into backend
 requests. Public developer routes also live at `/v1/agent/*`,
-`/v1/pipeline/*`, `/agent/mcp`, and `/pipeline/mcp`.
+`/v1/pipeline/*`, `/v1/agent/mcp`, and `/v1/pipeline/mcp`.
 
 The two MCP paths are unversioned OAuth resources and require a valid exact-
 resource token even for `initialize` and `tools/list`. `/api/mcp` and

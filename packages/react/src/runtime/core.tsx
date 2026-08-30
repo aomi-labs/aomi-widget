@@ -111,7 +111,10 @@ export function AomiRuntimeCore({
   } = useRuntimeOrchestrator(aomiClient, {
     getUserState,
     getApp: getCurrentThreadApp,
-    getModel: () => getCurrentThreadControl().model,
+    getModel: () => {
+      const control = getCurrentThreadControl();
+      return control.modelMode === "manual" ? control.model : null;
+    },
     getApplicationId: () => getCurrentThreadApplicationId() ?? applicationId,
     getClientId: () => getControlState().clientId ?? undefined,
     getActions: () => actionCapabilities,

@@ -106,7 +106,7 @@ OAuth/session client -> portal -> aud=aomi-api-server -> aud=aomi-backend
 ```
 
 Set `AOMI_AGENT_API_URL` to the local api-server and use the canonical
-`/v1/agent`, `/v1/pipeline`, `/agent/mcp`, and `/pipeline/mcp` resources. The
+`/v1/agent`, `/v1/pipeline`, `/v1/agent/mcp`, and `/v1/pipeline/mcp` resources. The
 new surfaces default on outside production. Production-like local runs can
 exercise independent rollback with `AOMI_OAUTH_ISSUANCE_ENABLED`,
 `AOMI_REST_OAUTH_ENABLED`, `AOMI_AGENT_MCP_OAUTH_ENABLED`,
@@ -132,10 +132,10 @@ sourced by the shell rather than hand-parsed because values may be quoted.
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8080/health
 curl -s -o /dev/null -w '%{http_code}\n' http://localhost:3000/
-curl -s http://localhost:3000/api/aomi/account
+curl -s http://localhost:3000/v1/account
 ```
 
-Unauthenticated `/api/aomi/account` should return a null account payload, not a
+Unauthenticated `/v1/account` should return a null account payload, not a
 Better Auth `Failed to get session` error. Some proxied backend routes may return
 `401` before login; that is expected.
 

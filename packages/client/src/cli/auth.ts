@@ -500,7 +500,7 @@ export async function fetchPortalAccount(
   baseUrl: string,
   sessionToken: string,
 ): Promise<PortalAccountResponse | null> {
-  const response = await fetchImpl(joinUrl(baseUrl, "/api/aomi/account"), {
+  const response = await fetchImpl(joinUrl(baseUrl, "/v1/account"), {
     method: "GET",
     credentials: "include",
     headers: {
