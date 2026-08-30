@@ -112,8 +112,8 @@ exercise independent rollback with `AOMI_OAUTH_ISSUANCE_ENABLED`,
 `AOMI_REST_OAUTH_ENABLED`, `AOMI_AGENT_MCP_OAUTH_ENABLED`,
 `AOMI_PIPELINE_MCP_OAUTH_ENABLED`, `AOMI_LEGACY_SESSION_AUTH_ENABLED`,
 `AOMI_GUEST_AGENT_REST_ENABLED`, and `AOMI_GUEST_PIPELINE_REST_ENABLED`.
-Pipeline guest execution has a separate
-`AOMI_GUEST_PIPELINE_EXECUTION_ENABLED` switch and backend allowlists.
+Guest Agent and Pipeline sessions can complete self-custodial work, while
+payment submission and delegated custody remain outside the guest scope ceiling.
 
 ## Product-Mono Notes
 

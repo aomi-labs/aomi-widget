@@ -93,14 +93,12 @@ export async function resolveApiPrincipal(input: {
       }
     }
     const scopes = [...new Set(input.requiredScopes)];
-    // An authenticated widget that can create an agent turn also needs to
-    // resolve that turn's staged action. Keep the grant narrow: anonymous
-    // widgets cannot resolve actions and no custody/MCP OAuth scopes are
-    // inherited.
+    // A widget that can create an agent turn also needs to resolve that
+    // turn's staged action. The guest ceiling permits that self-custodial
+    // continuation while still excluding custody, payment, and MCP scopes.
     if (
-      !isAnonymousWidget &&
       input.requiredScopes.includes("agent:write") &&
-      input.sessionScopes.includes("agent:actions:resolve")
+      allowedSessionScopes.includes("agent:actions:resolve")
     ) {
       scopes.push("agent:actions:resolve");
     }
@@ -115,7 +113,7 @@ export async function resolveApiPrincipal(input: {
       // Widget requests are delegated through the BFF as user-class thread
       // credentials so the backend can select the configured guest-safe
       // model. The original widget auth method still applies the guest scope
-      // ceiling above, including denial of action resolution.
+      // ceiling above.
       principalClass: "user",
       sid: "widget-session",
       widgetOrigin: widget.origin,
