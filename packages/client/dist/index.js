@@ -595,6 +595,7 @@ function stringValue(value) {
 }
 
 // src/guest-auth.ts
+var COOKIE_SESSION = /* @__PURE__ */ Symbol("cookie-session");
 function createGuestSessionProvider(input) {
   var _a;
   const fetchImpl = (_a = input.fetch) != null ? _a : globalThis.fetch.bind(globalThis);
@@ -602,12 +603,12 @@ function createGuestSessionProvider(input) {
   let pending = null;
   const provider2 = async (options) => {
     if (options == null ? void 0 : options.forceRefresh) credential = null;
-    if (credential) return credential;
-    pending != null ? pending : pending = signInAnonymous(fetchImpl, input.baseUrl).finally(() => {
+    if (credential) return credential === COOKIE_SESSION ? null : credential;
+    pending != null ? pending : pending = resolveGuestCredential(fetchImpl, input.baseUrl).finally(() => {
       pending = null;
     });
     credential = await pending;
-    return credential;
+    return credential === COOKIE_SESSION ? null : credential;
   };
   return Object.assign(provider2, {
     clear() {
@@ -615,20 +616,35 @@ function createGuestSessionProvider(input) {
     }
   });
 }
-async function signInAnonymous(fetchImpl, baseUrl) {
-  var _a, _b;
-  const response = await fetchImpl(
-    `${baseUrl.replace(/\/+$/, "")}/api/auth/sign-in/anonymous`,
-    {
-      method: "POST",
-      headers: {
-        accept: "application/json",
-        "content-type": "application/json"
-      },
-      body: "{}",
+async function resolveGuestCredential(fetchImpl, baseUrl) {
+  var _a;
+  const origin = baseUrl.replace(/\/+$/, "");
+  try {
+    const response = await fetchImpl(`${origin}/api/auth/get-session`, {
+      headers: { accept: "application/json" },
       credentials: "include"
+    });
+    if (response.ok) {
+      const session = await response.json();
+      if (session && typeof session === "object" && "user" in session && ((_a = session.user) == null ? void 0 : _a.id)) {
+        return COOKIE_SESSION;
+      }
     }
-  );
+  } catch (e) {
+  }
+  return signInAnonymous(fetchImpl, origin);
+}
+async function signInAnonymous(fetchImpl, origin) {
+  var _a, _b;
+  const response = await fetchImpl(`${origin}/api/auth/sign-in/anonymous`, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json"
+    },
+    body: "{}",
+    credentials: "include"
+  });
   if (!response.ok) {
     throw new Error(`Aomi guest sign-in failed with HTTP ${response.status}`);
   }
@@ -772,10 +788,8 @@ function wrapFetchWithPublicApiAuthorization(input) {
           );
         }
       } else if (input.guest) {
-        headers.set(
-          "authorization",
-          `Bearer ${await input.guest({ forceRefresh })}`
-        );
+        const token = await input.guest({ forceRefresh });
+        if (token) headers.set("authorization", `Bearer ${token}`);
       }
       return input.fetch(request ? request.clone() : requestInput, __spreadProps(__spreadValues({}, init), {
         headers
