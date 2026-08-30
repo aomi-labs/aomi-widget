@@ -48,7 +48,9 @@ export async function proxyAgentApi(
 ): Promise<Response> {
   const incoming = new URL(request.url);
   if (
+    incoming.pathname !== "/v1/agent" &&
     !incoming.pathname.startsWith("/v1/agent/") &&
+    incoming.pathname !== "/v1/pipeline" &&
     !incoming.pathname.startsWith("/v1/pipeline/")
   ) {
     return Response.json(
@@ -85,6 +87,37 @@ export async function proxyAgentApi(
     // Node fetch requires this for a streamed Request body.
     duplex: "half",
   } as RequestInit & { duplex: "half" });
+  return new Response(response.body, {
+    status: response.status,
+    headers: allowlisted(response.headers, RESPONSE_HEADERS),
+  });
+}
+
+const DISCOVERY_PATHS = new Set(["/openapi.json", "/.well-known/api-catalog"]);
+const DISCOVERY_REQUEST_HEADERS = new Set(["accept", "x-request-id"]);
+
+/** Public read-only discovery proxy for the api-server contract. */
+export async function proxyAgentApiDiscovery(
+  request: Request,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Response> {
+  const incoming = new URL(request.url);
+  if (request.method !== "GET" || !DISCOVERY_PATHS.has(incoming.pathname)) {
+    return Response.json(
+      { error: { code: "not_found", message: "Not found" } },
+      { status: 404 },
+    );
+  }
+  const upstream = new URL(
+    `${incoming.pathname}${incoming.search}`,
+    configuredAgentApiUrl(),
+  );
+  const response = await fetchImpl(upstream, {
+    method: "GET",
+    headers: allowlisted(request.headers, DISCOVERY_REQUEST_HEADERS),
+    cache: "no-store",
+    redirect: "manual",
+  });
   return new Response(response.body, {
     status: response.status,
     headers: allowlisted(response.headers, RESPONSE_HEADERS),

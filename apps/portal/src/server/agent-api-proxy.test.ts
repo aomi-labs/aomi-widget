@@ -6,7 +6,11 @@ vi.mock("@aomi-labs/account", () => ({
   mintAgentApiBearer: mocks.mintAgentApiBearer,
 }));
 
-import { configuredAgentApiUrl, proxyAgentApi } from "./agent-api-proxy";
+import {
+  configuredAgentApiUrl,
+  proxyAgentApi,
+  proxyAgentApiDiscovery,
+} from "./agent-api-proxy";
 
 const principal = {
   canonicalUserId: "canonical-user",
@@ -118,6 +122,53 @@ describe("Agent API proxy", () => {
     expect(headers.get("idempotency-key")).toBe("pipeline-1");
     expect(headers.get("payment-signature")).toBe("payment-1");
   });
+
+  it("proxies the exact Pipeline root", async () => {
+    vi.stubEnv("AOMI_AGENT_API_URL", "http://api-server:8082");
+    const upstream = vi
+      .fn()
+      .mockResolvedValue(Response.json({ resources: [] }));
+    const response = await proxyAgentApi(
+      new Request("https://portal.example/v1/pipeline"),
+      {
+        ...principal,
+        scopes: ["pipeline:catalog"],
+        resource: "https://portal.example/v1/pipeline",
+      },
+      upstream,
+    );
+    expect(response.status).toBe(200);
+    expect(String(upstream.mock.calls[0]?.[0])).toBe(
+      "http://api-server:8082/v1/pipeline",
+    );
+  });
+
+  it.each(["/openapi.json", "/.well-known/api-catalog"])(
+    "proxies public API discovery at %s without minting a bearer",
+    async (path) => {
+      vi.stubEnv("AOMI_AGENT_API_URL", "http://api-server:8082");
+      const upstream = vi.fn().mockResolvedValue(Response.json({ ok: true }));
+      const response = await proxyAgentApiDiscovery(
+        new Request(`https://portal.example${path}`, {
+          headers: {
+            accept: "application/json",
+            "payment-signature": "must-not-forward",
+            "x-request-id": "discovery-1",
+          },
+        }),
+        upstream,
+      );
+      expect(response.status).toBe(200);
+      expect(String(upstream.mock.calls[0]?.[0])).toBe(
+        `http://api-server:8082${path}`,
+      );
+      const headers = new Headers(upstream.mock.calls[0]?.[1]?.headers);
+      expect(headers.get("accept")).toBe("application/json");
+      expect(headers.get("x-request-id")).toBe("discovery-1");
+      expect(headers.get("payment-signature")).toBeNull();
+      expect(mocks.mintAgentApiBearer).not.toHaveBeenCalled();
+    },
+  );
 
   it("rejects paths outside the public Agent and Pipeline namespaces", async () => {
     const upstream = vi.fn();
