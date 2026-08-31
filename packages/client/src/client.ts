@@ -314,7 +314,9 @@ export class AomiClient {
         ? globalThis.fetch.bind(globalThis)
         : fetchImpl;
     const guest =
-      options.oauth || options.getAccountBearer || options.guest === false
+      options.oauth ||
+      options.guest === false ||
+      (options.getAccountBearer && options.guest === undefined)
         ? undefined
         : typeof options.guest === "function"
           ? options.guest

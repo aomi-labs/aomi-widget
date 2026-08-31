@@ -1,4 +1,5 @@
 import type {
+  Event,
   MessageEvent,
   TaskActivityEvent,
   TaskCompletedEvent,
@@ -32,6 +33,49 @@ export function printJson(value: unknown): void {
 }
 
 type ToolEvent = ToolUpdateEvent | ToolCompleteEvent;
+
+export type LegacyToolResult = {
+  name: string;
+  result: string;
+  turnId: string;
+};
+
+type ToolBearingMessageEvent = MessageEvent & {
+  tool_name?: unknown;
+  tool_result?: unknown;
+};
+
+export function legacyToolResultFromMessage(
+  event: MessageEvent,
+): LegacyToolResult | null {
+  const message = event as ToolBearingMessageEvent;
+  const raw = message.tool_result;
+  if (!Array.isArray(raw) || raw.length < 2) return null;
+  const [topic, result] = raw;
+  if (typeof topic !== "string" || typeof result !== "string") return null;
+  return {
+    name:
+      typeof message.tool_name === "string" && message.tool_name.length > 0
+        ? message.tool_name
+        : topic,
+    result,
+    turnId: event.turn_id ?? `event:${event.event_id}`,
+  };
+}
+
+export function countToolCalls(events: readonly Event[]): number {
+  const typedToolTurns = new Set(
+    events
+      .filter((event) => event.type === "tool_complete")
+      .map((event) => event.turn_id ?? `event:${event.event_id}`),
+  );
+  return events.filter((event) => {
+    if (event.type === "tool_complete") return true;
+    if (event.type !== "message") return false;
+    const tool = legacyToolResultFromMessage(event);
+    return tool !== null && !typedToolTurns.has(tool.turnId);
+  }).length;
+}
 
 export function printToolComplete(event: ToolEvent): void {
   const name = getToolNameFromEvent(event);
@@ -68,16 +112,13 @@ export function printTaskCompleted(
 
 /** `tool_call` → tool name, `note` → note text. Truncated for one-line output. */
 export function formatTaskActivity(event: TaskActivityEvent): string {
-  const raw =
-    event.kind === "note" ? event.text : event.tool_name;
+  const raw = event.kind === "note" ? event.text : event.tool_name;
   const normalized = raw.replace(/\s+/g, " ").trim();
   if (normalized.length <= TASK_LINE_MAX) return normalized;
   return `${normalized.slice(0, TASK_LINE_MAX)}…`;
 }
 
-export function formatTaskCompletionStats(
-  event: TaskCompletedEvent,
-): string {
+export function formatTaskCompletionStats(event: TaskCompletedEvent): string {
   const steps = event.steps;
   const seconds = (event.duration_ms / 1000).toFixed(1);
   return `${steps} ${steps === 1 ? "step" : "steps"}, ${seconds}s`;
@@ -122,9 +163,7 @@ export function getToolNameFromEvent(event: ToolEvent): string {
   return event.tool_name;
 }
 
-export function getToolResultFromEvent(
-  event: ToolEvent,
-): string | undefined {
+export function getToolResultFromEvent(event: ToolEvent): string | undefined {
   return typeof event.result === "string"
     ? event.result
     : JSON.stringify(event.result);
@@ -154,7 +193,9 @@ export function printNewAgentMessages(
   messages: readonly MessageEvent[],
   lastPrintedCount: number,
 ): number {
-  const agentMessages = messages.filter((message) => message.sender === "agent");
+  const agentMessages = messages.filter(
+    (message) => message.sender === "agent",
+  );
 
   let handled = lastPrintedCount;
   for (let i = lastPrintedCount; i < agentMessages.length; i++) {
