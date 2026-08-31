@@ -7,6 +7,7 @@ import { seedAccountOverview } from "@portal/lib/account-overview";
 const walletKitState = vi.hoisted(() => ({
   current: {
     identity: { isConnected: true, chainId: 1 },
+    accountGuest: false,
     accounts: [{ id: "para", walletName: "Para", active: true }],
     accountUser: undefined as { id: string } | undefined,
     accountError: undefined as string | undefined,
@@ -44,6 +45,7 @@ describe("usePortalWalletAccountMenu sign-in wiring", () => {
       seedAccountOverview(null);
     });
     walletKitState.current.accountUser = undefined;
+    walletKitState.current.accountGuest = false;
     walletKitState.current.accountError = undefined;
     walletKitState.current.connect.mockClear();
     walletKitState.current.disconnect.mockClear();
@@ -59,6 +61,12 @@ describe("usePortalWalletAccountMenu sign-in wiring", () => {
 
     expect(walletKitState.current.connect).toHaveBeenCalledTimes(1);
     expect(walletKitState.current.openAccountUI).not.toHaveBeenCalled();
+  });
+
+  it("does not show account chrome for a temporary guest", () => {
+    walletKitState.current.accountGuest = true;
+
+    expect(readMenu()).toBeUndefined();
   });
 
   it("keeps exchange failure copy off the truncated chip line", () => {

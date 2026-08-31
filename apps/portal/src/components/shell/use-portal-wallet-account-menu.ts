@@ -48,10 +48,13 @@ export function usePortalWalletAccountMenu(
   const overview = useAccountOverview();
   const { settings, updateSetting } = useSettings();
   const adapter = useAomiWalletKit();
-  const { accountUser, accountError, identity } = adapter;
+  const { accountGuest, accountUser, accountError, identity } = adapter;
 
   return useMemo(() => {
-    if (!identity.isConnected) return undefined;
+    // A Better Auth guest is only transport for guest chat. Do not present it
+    // as an account or offer account-management actions; linking a wallet
+    // replaces this temporary session with a verified wallet sign-in.
+    if (!identity.isConnected || accountGuest) return undefined;
 
     const usage = overview?.usage;
     // A wallet can be connected while the Aomi account session is missing:
@@ -103,6 +106,7 @@ export function usePortalWalletAccountMenu(
     };
   }, [
     accountError,
+    accountGuest,
     accountUser,
     adapter,
     identity.chainId,

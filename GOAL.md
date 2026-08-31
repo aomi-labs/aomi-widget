@@ -10,6 +10,18 @@ longer declares an unused redirect flow. Client and React builds, typecheck,
 lint, formatting, 259 focused package tests, 44 Rust runtime tests, and repeated
 live staging CLI tool calls pass with message, tool, answer, and terminal order.
 
+Current session goal: **PAYMENT-GATE ANONYMOUS AUTH SLICE PORTED 2026-08-31**
+— selectively moved the hidden guest-account transition and wallet-signing
+fixes from the payment-gate worktree onto current `origin/main` without its
+developer-key, payment, credit, or application-gate work. Better Auth guests
+remain valid chat principals but expose no public account user, identities, or
+wallets; SIWE, SIWS, Para, and Privy replace the disposable guest before durable
+sign-in; wallet auth is explicit and single-prompt; strict SIWE bodies and
+BigInt-safe EIP-712 test signing are restored; and chat persistence remounts
+across principal changes. Focused Portal/widget tests, both TypeScript checks,
+targeted ESLint, live guest/sign-out contracts, and anonymous browser chrome
+verification pass.
+
 Current session goal: **GUEST SELF-CUSTODY API AND SDK FIXES VERIFIED
 2026-08-30** — guest Agent sessions can resolve their own staged actions and
 guest Pipeline sessions can execute self-custodial operations without gaining
