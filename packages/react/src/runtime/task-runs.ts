@@ -10,6 +10,7 @@ import type {
 } from "@aomi-labs/client";
 
 import { useAomiRuntime } from "../interface";
+import { parseTimestamp } from "./utils";
 
 export type TaskRunStep =
   | {
@@ -66,7 +67,8 @@ const emptyRun = (event: TaskEvent): TaskRunState => ({
   label: "",
   app: "",
   status: "running",
-  startedAt: event.occurred_at,
+  // The wire sends epoch seconds; consumers compare against Date.now() ms.
+  startedAt: parseTimestamp(event.occurred_at),
   steps: [],
 });
 
@@ -99,7 +101,7 @@ export function selectTaskRuns(events: readonly Event[]): ThreadTaskRuns {
             callId: event.call_id,
             label: event.label ?? "",
             app: event.app,
-            startedAt: event.occurred_at,
+            startedAt: parseTimestamp(event.occurred_at),
           };
           break;
         case "task_phase":

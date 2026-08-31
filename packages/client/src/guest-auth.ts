@@ -72,6 +72,16 @@ async function signInAnonymous(
   ) {
     return null;
   }
+  // Better Auth refuses a second anonymous sign-in while an anonymous
+  // session cookie is live. That cookie IS a working credential — fall back
+  // to it instead of failing the caller's request.
+  if (
+    response.status === 400 &&
+    (await responseCode(response)) ===
+      "ANONYMOUS_USERS_CANNOT_SIGN_IN_AGAIN_ANONYMOUSLY"
+  ) {
+    return null;
+  }
   if (!response.ok) {
     throw new Error(`Aomi guest sign-in failed with HTTP ${response.status}`);
   }

@@ -191,6 +191,11 @@ export function PortalAomiFrame() {
         backendUrl={backendUrl}
         applicationId={lockedApplicationId}
         accountSessionAvailable={Boolean(accountUser)}
+        // Scope the remembered thread to the signed-in principal so a
+        // sign-out (or a different account) never restores another
+        // principal's thread id, which the backend rejects with
+        // session_not_found.
+        threadPersistenceScope={accountUserId ?? "guest"}
         showSidebar={!lockedApp}
         walletPosition="footer"
         walletFamilies={["evm", "solana"]}

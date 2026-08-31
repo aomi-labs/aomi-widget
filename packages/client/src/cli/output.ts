@@ -34,29 +34,25 @@ export function printJson(value: unknown): void {
 
 type ToolEvent = ToolUpdateEvent | ToolCompleteEvent;
 
-export type LegacyToolResult = {
+export type InlineToolResult = {
   name: string;
   result: string;
   turnId: string;
 };
 
-type ToolBearingMessageEvent = MessageEvent & {
-  tool_name?: unknown;
-  tool_result?: unknown;
-};
-
-export function legacyToolResultFromMessage(
+export function inlineToolResultFromMessage(
   event: MessageEvent,
-): LegacyToolResult | null {
-  const message = event as ToolBearingMessageEvent;
-  const raw = message.tool_result;
+): InlineToolResult | null {
+  // The fields are declared on MessageEvent, but the wire is still untrusted
+  // input — validate before use.
+  const raw: unknown = event.tool_result;
   if (!Array.isArray(raw) || raw.length < 2) return null;
   const [topic, result] = raw;
   if (typeof topic !== "string" || typeof result !== "string") return null;
   return {
     name:
-      typeof message.tool_name === "string" && message.tool_name.length > 0
-        ? message.tool_name
+      typeof event.tool_name === "string" && event.tool_name.length > 0
+        ? event.tool_name
         : topic,
     result,
     turnId: event.turn_id ?? `event:${event.event_id}`,
@@ -64,16 +60,22 @@ export function legacyToolResultFromMessage(
 }
 
 export function countToolCalls(events: readonly Event[]): number {
-  const typedToolTurns = new Set(
-    events
-      .filter((event) => event.type === "tool_complete")
-      .map((event) => event.turn_id ?? `event:${event.event_id}`),
+  // Subagent lifecycles ("task") are not tool calls, and an inline-tool
+  // message is a duplicate only of a typed completion for the SAME tool in
+  // the same turn — deduping by turn alone undercounts turns mixing inline
+  // and async tools.
+  const typedToolPairs = new Set(
+    events.flatMap((event) =>
+      event.type === "tool_complete" && event.tool_name !== "task"
+        ? [`${event.turn_id ?? `event:${event.event_id}`}::${event.tool_name}`]
+        : [],
+    ),
   );
   return events.filter((event) => {
-    if (event.type === "tool_complete") return true;
+    if (event.type === "tool_complete") return event.tool_name !== "task";
     if (event.type !== "message") return false;
-    const tool = legacyToolResultFromMessage(event);
-    return tool !== null && !typedToolTurns.has(tool.turnId);
+    const tool = inlineToolResultFromMessage(event);
+    return tool !== null && !typedToolPairs.has(`${tool.turnId}::${tool.name}`);
   }).length;
 }
 

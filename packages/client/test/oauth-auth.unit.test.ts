@@ -229,6 +229,32 @@ describe("Better Auth guest bootstrap", () => {
     );
   });
 
+  it("falls back to the anonymous cookie when Better Auth refuses a second anonymous sign-in", async () => {
+    vi.stubGlobal("location", { origin: "https://chat.aomi.dev" });
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        Response.json(
+          {
+            code: "ANONYMOUS_USERS_CANNOT_SIGN_IN_AGAIN_ANONYMOUSLY",
+            message: "Anonymous users cannot sign in again anonymously",
+          },
+          { status: 400 },
+        ),
+      );
+    const guest = createGuestSessionProvider({
+      baseUrl: "https://chat.aomi.dev",
+      fetch: fetchImpl as typeof fetch,
+    });
+
+    // The live anonymous cookie IS a working credential; the refusal must
+    // not fail the caller's request, and the null result is cached so the
+    // provider does not re-POST on every call.
+    await expect(guest({ forceRefresh: true })).resolves.toBeNull();
+    await expect(guest()).resolves.toBeNull();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it("retries a same-origin 401 after establishing the guest cookie", async () => {
     vi.stubGlobal("location", { origin: "https://chat.aomi.dev" });
     const authFetch = vi.fn().mockResolvedValue(Response.json({}));

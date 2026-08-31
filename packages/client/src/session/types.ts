@@ -24,6 +24,13 @@ export type SessionSnapshot = Readonly<{
   title?: string;
   isPolling: boolean;
   isSubmitting: boolean;
+  /**
+   * Optimistic echo of the outbound message for the in-flight turn. Set the
+   * moment `send`/`sendAsync` is called and cleared when the server's own
+   * user message event arrives (which can trail the start response by a
+   * poll or two). Render this so the just-sent message never disappears.
+   */
+  pendingUserMessage?: string;
   actionAttempts: ReadonlyMap<string, ActionAttempt>;
   error?: unknown;
 }>;

@@ -199,6 +199,14 @@ describe("high-level Aomi Agent", () => {
               occurred_at: occurredAt,
               state: "complete",
             },
+            {
+              type: "title_changed",
+              event_id: "event-title",
+              sequence: 7,
+              turn_id: "turn-1",
+              occurred_at: occurredAt,
+              title: "Execute action",
+            },
           ]),
         );
       }

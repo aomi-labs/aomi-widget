@@ -73,4 +73,26 @@ describe("selectTaskRuns", () => {
       ],
     });
   });
+
+  it("normalizes epoch-second timestamps so startedAt is comparable to Date.now()", () => {
+    // The wire sends occurred_at in epoch seconds. Stored raw, the trace
+    // header renders `Date.now() - startedAt` as ~56 years of elapsed time.
+    const startedAtSeconds = 1_756_000_000;
+    const events: Event[] = [
+      {
+        ...meta(1, "task_started"),
+        occurred_at: startedAtSeconds,
+        type: "task_started",
+        call_id: "call-1",
+        agent_id: "agent-1",
+        label: "Trader",
+        app: "swap",
+        resumed: false,
+      },
+    ];
+
+    expect(selectTaskRuns(events)["agent-1"]?.startedAt).toBe(
+      startedAtSeconds * 1000,
+    );
+  });
 });

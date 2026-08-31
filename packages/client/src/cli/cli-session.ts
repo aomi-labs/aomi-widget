@@ -432,17 +432,30 @@ export class CliSession {
     return session;
   }
 
-  createGuestProvider(fetchImpl: typeof fetch): GuestSessionProvider {
+  createGuestProvider(
+    fetchImpl: typeof fetch,
+    baseUrl?: string,
+  ): GuestSessionProvider {
+    const targetBaseUrl = baseUrl ?? this.state.baseUrl;
+    // The persisted guest bearer was minted for the persisted base URL; only
+    // reuse (or overwrite) it when this provider targets the same origin, so
+    // a --backend-url override never sends or clobbers another origin's
+    // credential.
+    const canUsePersisted = targetBaseUrl === this.state.baseUrl;
     const guest = createGuestSessionProvider({
-      baseUrl: this.state.baseUrl,
+      baseUrl: targetBaseUrl,
       fetch: fetchImpl,
     });
     const provider = async (options?: { forceRefresh?: boolean }) => {
-      if (!options?.forceRefresh && this.state.guestBearer) {
+      if (!options?.forceRefresh && canUsePersisted && this.state.guestBearer) {
         return this.state.guestBearer;
       }
       const credential = await guest(options);
-      if (credential && credential !== this.state.guestBearer) {
+      if (
+        canUsePersisted &&
+        credential &&
+        credential !== this.state.guestBearer
+      ) {
         this.state.guestBearer = credential;
         this.save();
       }
@@ -451,7 +464,7 @@ export class CliSession {
     return Object.assign(provider, {
       clear: () => {
         guest.clear();
-        if (this.state.guestBearer) {
+        if (canUsePersisted && this.state.guestBearer) {
           delete this.state.guestBearer;
           this.save();
         }
