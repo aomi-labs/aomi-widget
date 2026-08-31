@@ -1,7 +1,9 @@
 /** Optional account-menu layer for the sidebar wallet chip (portal supplies live data). */
 export type WalletAccountMenuOptions = {
-  /** When true, a connected chip opens AccountMenu instead of WalletPicker. */
+  /** When true, the chip represents an authenticated account and opens AccountMenu. */
   enabled?: boolean;
+  /** Primary account label shown on the chip and at the top of the menu. */
+  primaryLine?: string;
   /** Second line on the chip (e.g. monthly allowance). Omit to show network detail. */
   secondaryLine?: string;
   /**
@@ -18,6 +20,8 @@ export type WalletAccountMenuOptions = {
   themeLabel?: string;
   onSwitchNetwork?: () => void;
   onToggleTheme?: () => void;
+  /** Open the host's canonical account-and-wallet management surface. */
+  onManageAccount?: () => void;
   onOpenSettings?: () => void;
   onOpenDeployments?: () => void;
   /** Finish Aomi account sign-in (wallet connected, session missing). */

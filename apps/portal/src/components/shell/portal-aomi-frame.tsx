@@ -7,6 +7,7 @@ import { HeaderControls } from "@portal/components/shell/header-controls";
 import { OverlayPortal } from "@portal/components/shell/overlay-portal";
 import { PackagesModal } from "@portal/components/shell/packages-modal";
 import { SettingsModal } from "@portal/components/settings/settings-modal";
+import type { SettingsTab } from "@portal/components/settings/settings-modal";
 import {
   usePortalClientOptions,
   useRequestedAppConfig,
@@ -144,8 +145,14 @@ export function PortalAomiFrame() {
   const [overlay, setOverlay] = useState<"none" | "settings" | "packages">(
     "none",
   );
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
+  const openSettings = useCallback((tab: SettingsTab) => {
+    setSettingsTab(tab);
+    setOverlay("settings");
+  }, []);
   const walletAccountMenu = usePortalWalletAccountMenu(
-    useCallback(() => setOverlay("settings"), []),
+    useCallback(() => openSettings("general"), [openSettings]),
+    useCallback(() => openSettings("account"), [openSettings]),
   );
 
   useEffect(() => {
@@ -196,6 +203,7 @@ export function PortalAomiFrame() {
         showSidebar={!lockedApp}
         walletPosition="footer"
         walletFamilies={["evm", "solana"]}
+        walletConnectLabel="Sign in"
         walletAccountMenu={walletAccountMenu}
         className="portal-aomi-frame aui-suggestions-marquee rounded-none border-0 shadow-none"
         clientOptions={clientOptions}
@@ -208,7 +216,8 @@ export function PortalAomiFrame() {
         />
         <AomiFrame.Header>
           <HeaderControls
-            onOpenSettings={() => setOverlay("settings")}
+            showSettings={Boolean(accountUser)}
+            onOpenSettings={() => openSettings("general")}
             onOpenPackages={() => setOverlay("packages")}
           />
         </AomiFrame.Header>
@@ -227,7 +236,11 @@ export function PortalAomiFrame() {
             backdrop still covers the sidebar and chat as one surface. */}
         {overlay === "settings" && (
           <OverlayPortal>
-            <SettingsModal onClose={() => setOverlay("none")} />
+            <SettingsModal
+              key={settingsTab}
+              initialTab={settingsTab}
+              onClose={() => setOverlay("none")}
+            />
           </OverlayPortal>
         )}
         {overlay === "packages" && (

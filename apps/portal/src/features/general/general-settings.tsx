@@ -6,6 +6,7 @@ import { formatAuthMethod, useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { ChevronRight, Shield } from "lucide-react";
 import { countDriftedWallets } from "@portal/features/account/wallet-attention";
 import { useAccountAcl } from "@portal/features/account/use-account-acl";
+import { buildUnifiedAccountWallets } from "@portal/features/account/wallet-management-model";
 import { useAccountOverview } from "@portal/lib/account-overview";
 import { useSettings, type ColorMode } from "@portal/lib/use-settings";
 
@@ -46,16 +47,17 @@ export function GeneralSettings({
   const walletAttentionCount =
     acl.status === "ready" ? countDriftedWallets(acl.wallets) : 0;
 
-  const disconnect = (
-    adapter as { disconnect?: () => void | Promise<void> }
-  ).disconnect;
-
-  const walletHint =
-    identity.address &&
-    account?.user.public_key &&
-    identity.address.toLowerCase() !== account.user.public_key.toLowerCase()
-      ? identity.address
-      : "Active signing session";
+  const wallets = useMemo(
+    () =>
+      buildUnifiedAccountWallets({
+        accounts: adapter.accounts ?? [],
+        linkedWallets: adapter.accountWallets ?? [],
+        policies: acl.wallets,
+      }),
+    [acl.wallets, adapter.accountWallets, adapter.accounts],
+  );
+  const connectedWallets = wallets.filter((wallet) => wallet.connected).length;
+  const linkedWallets = wallets.filter((wallet) => wallet.linked).length;
 
   const themeChoices: { mode: ColorMode; label: string }[] = [
     { mode: "dark", label: "Dark" },
@@ -114,27 +116,18 @@ export function GeneralSettings({
         <Divider />
 
         <FlatSettingRow
-          label="Connected wallet"
-          hint={walletHint}
-          hintMono={walletHint !== "Active signing session"}
+          label="Wallets"
+          hint={`${connectedWallets} connected · ${linkedWallets} linked`}
         >
-          {disconnect ? (
+          {onManageAccount ? (
             <button
               type="button"
-              onClick={() => void disconnect()}
+              onClick={onManageAccount}
               className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 rounded-full border px-3 py-1 text-[13px] font-medium transition-colors"
             >
-              Disconnect
+              Manage
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void adapter.openAccountUI?.()}
-              className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 rounded-full border px-3 py-1 text-[13px] font-medium transition-colors"
-            >
-              Manage wallet
-            </button>
-          )}
+          ) : null}
         </FlatSettingRow>
       </div>
     </div>
@@ -210,8 +203,8 @@ function AccountSummaryCard({
                 {remaining.toLocaleString()} remaining
               </span>
               <span className="text-aomi-accent-strong text-[12px] tabular-nums">
-                {creditsUsed.toLocaleString()} / {creditsIncluded.toLocaleString()}{" "}
-                used
+                {creditsUsed.toLocaleString()} /{" "}
+                {creditsIncluded.toLocaleString()} used
               </span>
             </div>
           </SettingRow>
@@ -220,8 +213,8 @@ function AccountSummaryCard({
 
       <div className="border-aomi-border flex items-start justify-between gap-3 border-t px-4 py-3 sm:px-5">
         <p className="text-aomi-muted min-w-0 flex-1 text-[12px] leading-snug">
-          Usage shows spend by app. Overflow settles via wallet pay when allowance
-          is used.
+          Usage shows spend by app. Overflow settles via wallet pay when
+          allowance is used.
         </p>
         <button
           type="button"
@@ -255,8 +248,8 @@ function WalletAttentionBanner({
           </h3>
           <p className="text-aomi-muted mt-1.5 text-[13px] leading-relaxed">
             {walletAttentionCount}{" "}
-            {walletAttentionCount === 1 ? "wallet needs" : "wallets need"} a renewed
-            provider grant before auto-signing can run.
+            {walletAttentionCount === 1 ? "wallet needs" : "wallets need"} a
+            renewed provider grant before auto-signing can run.
           </p>
         </div>
         <button
@@ -362,8 +355,18 @@ function formatPeriodLabel(periodUtcMonth?: string): string {
   }
   const [year, month] = periodUtcMonth.split("-").map(Number);
   const names = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
   ];
   return `${names[month - 1] ?? periodUtcMonth} ${year}`;
 }

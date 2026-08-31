@@ -6,6 +6,7 @@ import { WalletIconSlot } from "./wallet-icon-slot";
 
 export type AccountMenuProps = {
   open: boolean;
+  accountLabel?: string;
   address?: string;
   walletLabel?: string;
   allowanceLine?: string;
@@ -13,7 +14,7 @@ export type AccountMenuProps = {
   networkLabel?: string;
   themeLabel?: string;
   onClose: () => void;
-  onManageWallets: () => void;
+  onManageAccount?: () => void;
   onSwitchNetwork?: () => void;
   onToggleTheme?: () => void;
   onOpenSettings?: () => void;
@@ -47,6 +48,7 @@ function MenuRow({
 
 export function AccountMenu({
   open,
+  accountLabel,
   address,
   walletLabel,
   allowanceLine,
@@ -54,7 +56,7 @@ export function AccountMenu({
   networkLabel,
   themeLabel,
   onClose,
-  onManageWallets,
+  onManageAccount,
   onSwitchNetwork,
   onToggleTheme,
   onOpenSettings,
@@ -90,7 +92,7 @@ export function AccountMenu({
               className="bg-aomi-surface-2 shrink-0 rounded-full"
             />
             <span className="truncate text-[13px] font-semibold">
-              {walletLabel ?? "Wallet"}
+              {accountLabel ?? walletLabel ?? "Account"}
             </span>
           </div>
           {shortAddress ? (
@@ -117,13 +119,19 @@ export function AccountMenu({
               onClose();
               onSignIn();
             }}
-            className="bg-aomi-fg text-aomi-bg hover:opacity-90 mx-0.5 mb-1 flex h-9 w-[calc(100%-4px)] items-center justify-center rounded-lg px-2.5 text-[13px] font-medium transition-opacity"
+            className="bg-aomi-fg text-aomi-bg mx-0.5 mb-1 flex h-9 w-[calc(100%-4px)] items-center justify-center rounded-lg px-2.5 text-[13px] font-medium transition-opacity hover:opacity-90"
           >
             Sign in
           </button>
         ) : null}
 
-        <MenuRow label="Manage wallets" trailing="›" onClick={onManageWallets} />
+        {onManageAccount ? (
+          <MenuRow
+            label="Manage account"
+            trailing="›"
+            onClick={onManageAccount}
+          />
+        ) : null}
         {onSwitchNetwork ? (
           <MenuRow
             label="Switch network"
@@ -142,7 +150,11 @@ export function AccountMenu({
           <MenuRow label="Settings" onClick={onOpenSettings} />
         ) : null}
         {onOpenDeployments ? (
-          <MenuRow label="Deployments" trailing="›" onClick={onOpenDeployments} />
+          <MenuRow
+            label="Deployments"
+            trailing="›"
+            onClick={onOpenDeployments}
+          />
         ) : null}
         <a
           href="https://aomi.dev/docs"

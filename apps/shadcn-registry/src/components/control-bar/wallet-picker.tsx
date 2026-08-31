@@ -499,8 +499,7 @@ export function WalletPicker() {
       ),
     [walletActions],
   );
-  const sessionProvider =
-    identity.sessionProvider ?? identity.embeddedProvider;
+  const sessionProvider = identity.sessionProvider ?? identity.embeddedProvider;
   const providerSignInOptions = useMemo(
     () => filterQuickSignInOptions(socialLoginOptions, sessionProvider),
     [sessionProvider, socialLoginOptions],
@@ -531,12 +530,20 @@ export function WalletPicker() {
     identity.authValue ??
     providerBrandLabel ??
     "Your account";
-  const pickerTitle = hasConnectedWallets
-    ? "Manage wallets"
-    : "Select a wallet";
-  const pickerDescription = hasConnectedWallets
-    ? "Switch wallets or link another one."
-    : "Sign in quickly, or connect a wallet.";
+  const needsFirstWalletLink = Boolean(
+    hasConnectedWallets &&
+    (!adapter.accountUser || (adapter.accountWallets?.length ?? 0) === 0),
+  );
+  const pickerTitle = needsFirstWalletLink
+    ? "Finish signing in"
+    : hasConnectedWallets
+      ? "Add a wallet"
+      : "Sign in to Aomi";
+  const pickerDescription = needsFirstWalletLink
+    ? "Verify the connected wallet to finish setting up your account."
+    : hasConnectedWallets
+      ? "Connect another wallet to this account."
+      : "Choose a wallet or another sign-in method.";
 
   // Pop back to the wallet manager if the signed account becomes unavailable.
   useEffect(() => {
@@ -562,7 +569,7 @@ export function WalletPicker() {
 
   const quickSignInSection = socialOptionsToShow.length ? (
     <section className="flex flex-col gap-1.5">
-      <SectionLabel>Quick sign-in</SectionLabel>
+      <SectionLabel>Other ways to sign in</SectionLabel>
       {socialOptionsToShow.map((option) => (
         <SocialLoginRow
           key={option.id}
@@ -849,29 +856,22 @@ export function WalletPicker() {
               accountView && "h-0 overflow-hidden",
             )}
           >
-            <div className="border-border/70 bg-background/80 flex items-start gap-3 border-b px-4 pb-3 pt-4">
-              <span className="bg-muted/70 text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-2xl">
+            <div className="border-aomi-border bg-aomi-bg/40 flex items-start gap-3 border-b px-4 pb-3 pt-4">
+              <span className="bg-aomi-surface-2 text-aomi-muted flex size-10 shrink-0 items-center justify-center rounded-xl">
                 <WalletIcon className="size-5" />
               </span>
               <div className="min-w-0 flex-1">
                 <h2
                   id="aomi-wallet-picker-title"
-                  className="text-foreground text-base font-semibold tracking-tight"
+                  className="text-aomi-fg text-base font-semibold tracking-tight"
                 >
                   {pickerTitle}
                 </h2>
-                <p className="text-muted-foreground mt-0.5 text-xs leading-snug">
+                <p className="text-aomi-muted mt-0.5 text-xs leading-snug">
                   {pickerDescription}
                 </p>
               </div>
               <div className="flex h-8 shrink-0 items-center gap-1.5">
-                {hasAccountManagement ? (
-                  <ManageAccountButton
-                    pending={pending}
-                    providerSubtitle={providerSubtitle}
-                    onClick={() => setView("account")}
-                  />
-                ) : null}
                 <button
                   type="button"
                   onClick={closePicker}
@@ -910,7 +910,7 @@ export function WalletPicker() {
             </div>
           </section>
 
-          {hasAccountManagement ? (
+          {hasAccountManagement && accountView ? (
             <AccountManagerPanel
               inertPanel={!accountView}
               pending={pending}
@@ -1089,6 +1089,10 @@ function filterQuickSignInOptions(
       option.actions.some((action) => action.kind === "authenticate");
 
     if (!storedProviderAuth) return true;
+    // A configured social option is the canonical provider entry. Stored
+    // embedded wallets from that provider are account data, not extra sign-in
+    // buttons, and belong in the host's account settings surface.
+    if (providerAuthOptions.size > 0) return false;
     if (providerAuthOptions.has(provider)) return false;
     if (seenStoredProviders.has(provider)) return false;
     seenStoredProviders.add(provider);
@@ -1142,37 +1146,6 @@ function networkNameForChain(
   return supportedEvmChains && supportedEvmChains.length > 0
     ? null
     : (getChainInfo(chainId)?.name ?? null);
-}
-
-function ManageAccountButton({
-  pending,
-  providerSubtitle,
-  onClick,
-}: {
-  pending: string | null;
-  providerSubtitle?: string | null;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={pending !== null}
-      onClick={onClick}
-      aria-label="Manage your account"
-      title={
-        providerSubtitle
-          ? `Signed in with ${providerSubtitle}`
-          : "Aomi account settings"
-      }
-      className={cn(
-        "border-border/70 bg-card text-muted-foreground hover:bg-accent hover:text-foreground inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-medium transition-colors",
-        "disabled:pointer-events-none disabled:opacity-70",
-      )}
-    >
-      <UserRoundIcon className="size-3.5 shrink-0" />
-      <span>Account</span>
-    </button>
-  );
 }
 
 function AccountManagerPanel({
@@ -2159,12 +2132,12 @@ function ConnectedWalletRow({
   return (
     <div
       className={cn(
-        "group flex items-center rounded-2xl border transition-colors duration-200",
+        "group flex items-center rounded-xl border transition-colors duration-200",
         active
-          ? "border-primary/35 bg-primary/[0.05]"
-          : "border-border/70 bg-card",
+          ? "border-aomi-accent-strong/35 bg-aomi-accent-subtle"
+          : "border-aomi-border bg-aomi-bg/40",
         selectable &&
-          "hover:border-primary/40 hover:bg-accent/40 has-[:focus-visible]:border-primary/50",
+          "hover:bg-aomi-hover has-[:focus-visible]:border-aomi-accent-strong/50",
       )}
     >
       {selectable ? (
@@ -2174,7 +2147,7 @@ function ConnectedWalletRow({
           disabled={pending !== null}
           aria-label={`Make ${title} active`}
           className={cn(
-            "flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-2xl px-3 py-2.5 text-left outline-none",
+            "flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none",
             "disabled:cursor-default",
           )}
         >
@@ -2191,30 +2164,39 @@ function ConnectedWalletRow({
         </div>
       )}
       <div className="flex shrink-0 items-center gap-1 py-2.5 pl-1 pr-2.5">
-        {actions.map(({ action, account }) => (
-          <RowIconButton
-            key={`${action.kind}:${account.id}`}
-            icon={
-              action.kind === "manage"
-                ? Settings2Icon
-                : action.kind === "link"
-                  ? LinkIcon
-                  : LogOutIcon
-            }
-            ariaLabel={
-              action.kind === "manage"
-                ? `Manage ${title}`
-                : action.kind === "link"
-                  ? `Verify ${title}`
+        {actions.map(({ action, account }) =>
+          action.kind === "link" ? (
+            <button
+              key={`${action.kind}:${account.id}`}
+              type="button"
+              disabled={pending !== null}
+              onClick={() => onAction({ action, account })}
+              className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-medium transition-colors disabled:opacity-50"
+            >
+              {pending === `${action.kind}:${account.id}` ? (
+                <Loader2Icon className="size-3.5 animate-spin" />
+              ) : (
+                <LinkIcon className="size-3.5" />
+              )}
+              Link wallet
+            </button>
+          ) : (
+            <RowIconButton
+              key={`${action.kind}:${account.id}`}
+              icon={action.kind === "manage" ? Settings2Icon : LogOutIcon}
+              ariaLabel={
+                action.kind === "manage"
+                  ? `Manage ${title}`
                   : action.kind === "signout"
                     ? "Sign out"
                     : `Disconnect ${familyLabel(account.family)} wallet`
-            }
-            disabled={pending !== null}
-            loading={pending === `${action.kind}:${account.id}`}
-            onClick={() => onAction({ action, account })}
-          />
-        ))}
+              }
+              disabled={pending !== null}
+              loading={pending === `${action.kind}:${account.id}`}
+              onClick={() => onAction({ action, account })}
+            />
+          ),
+        )}
       </div>
     </div>
   );
@@ -2250,7 +2232,7 @@ function WalletActionRow({
       onClick={onClick}
       aria-label={`${actionVerb} ${wallet.label}`}
       className={cn(
-        "border-border/70 bg-card hover:border-primary/30 hover:bg-accent/40 flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors",
+        "border-aomi-border bg-aomi-bg/40 hover:bg-aomi-hover flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
         "disabled:pointer-events-none disabled:opacity-50",
       )}
     >
@@ -2263,19 +2245,19 @@ function WalletActionRow({
         <span className="block truncate text-sm font-medium">
           {wallet.label}
         </span>
-        <span className="text-muted-foreground block truncate text-[11px]">
+        <span className="text-aomi-muted block truncate text-[11px]">
           {visibleDescription}
         </span>
       </span>
       {showStatus ? (
-        <span className="bg-muted text-muted-foreground shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium">
+        <span className="bg-aomi-surface-2 text-aomi-muted shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium">
           {walletStatusLabel(wallet)}
         </span>
       ) : null}
       {pending === wallet.actionKey ? (
         <Loader2Icon className="size-4 shrink-0 animate-spin" />
       ) : (
-        <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />
+        <ChevronRightIcon className="text-aomi-muted size-4 shrink-0" />
       )}
     </button>
   );
@@ -2306,27 +2288,27 @@ function SocialLoginRow({
       onClick={onClick}
       aria-label={option.label}
       className={cn(
-        "border-border/70 bg-card hover:border-primary/30 hover:bg-accent/40 flex items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition-colors",
+        "border-aomi-border bg-aomi-bg/40 hover:bg-aomi-hover flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition-colors",
         "disabled:pointer-events-none disabled:opacity-50",
       )}
     >
       {brandLabel ? (
         <WalletIconSlot id={brandLabel} label={brandLabel} />
       ) : (
-        <span className="bg-muted/50 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-xl">
+        <span className="bg-aomi-surface-2 text-aomi-muted flex size-9 shrink-0 items-center justify-center rounded-xl">
           <MailIcon className="size-4" />
         </span>
       )}
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{title}</span>
-        <span className="text-muted-foreground block truncate text-[11px]">
+        <span className="text-aomi-muted block truncate text-[11px]">
           {subtitle}
         </span>
       </span>
       {pending === `social:${option.id}` ? (
         <Loader2Icon className="size-4 shrink-0 animate-spin" />
       ) : (
-        <ChevronRightIcon className="text-muted-foreground size-4 shrink-0" />
+        <ChevronRightIcon className="text-aomi-muted size-4 shrink-0" />
       )}
     </button>
   );

@@ -10,6 +10,18 @@ longer declares an unused redirect flow. Client and React builds, typecheck,
 lint, formatting, 259 focused package tests, 44 Rust runtime tests, and repeated
 live staging CLI tool calls pass with message, tool, answer, and terminal order.
 
+Current session goal: **PORTAL ACCOUNT AND WALLET UI UNIFIED 2026-08-31** —
+anonymous Portal sessions now show a Sign in entry point without account
+settings chrome; the initial wallet/auth picker uses the current Aomi visual
+system and advances connected-but-unlinked wallets through an explicit finish
+sign-in step. Authenticated account management now lives in Settings → Account,
+where connected and linked wallets are deduplicated into one list alongside
+sign-in methods and account actions. External wallets remain controlled by
+their wallet apps and never receive Para/Privy signing-policy controls. Portal
+and widget typechecks, focused auth/wallet tests, scoped ESLint, the widget
+registry/package build and dry-run pack, and a live anonymous browser smoke
+pass.
+
 Current session goal: **PAYMENT-GATE ANONYMOUS AUTH SLICE PORTED 2026-08-31**
 — selectively moved the hidden guest-account transition and wallet-signing
 fixes from the payment-gate worktree onto current `origin/main` without its

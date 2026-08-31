@@ -216,19 +216,35 @@ describe("account ACL wiring", () => {
 
     await renderAcl();
 
-    await screen.findByText("0x71C7…976F");
+    await screen.findByText(/0x71C7…976F/);
     expect(paths(calls)).toContain("/api/account/wallets");
     expect(paths(calls)).toContain("/api/account/grants");
+    // External wallets appear in the unified list but never expose provider
+    // signing-policy controls.
+    expect(screen.queryByText("Auto-approve")).toBeNull();
     // Privy provenance + live grant render from the wire inside the expanded row.
-    await click(await screen.findByText("Privy"));
+    await click((await screen.findAllByText("8xKnQm…TzWv")).at(-1)!);
     expect(screen.getByText(/Privy · Session delegation/)).toBeTruthy();
   });
 
   it("runs challenge → sign → commit and reloads on a mode change", async () => {
-    const { calls } = installFetchRecorder();
+    const paraWallets = {
+      wallets: [
+        {
+          ...WALLETS.wallets[0],
+          wallet_provider: "para",
+          provider_managed: false,
+          can_use_auto: false,
+        },
+      ],
+    };
+    const { calls } = installFetchRecorder({
+      "/api/account/wallets": () => Response.json(paraWallets),
+      "/api/account/grants": () => Response.json({ grants: [] }),
+    });
 
     await renderAcl();
-    const row = await screen.findByText("0x71C7…976F");
+    const row = (await screen.findAllByText("0x71C7…976F")).at(-1)!;
 
     await click(row);
     await click(await screen.findByText("Auto-approve"));
@@ -269,16 +285,15 @@ describe("account ACL wiring", () => {
     });
 
     await renderAcl();
-    await click(await screen.findByText("0x71C7…976F"));
+    await click((await screen.findAllByText("0x71C7…976F")).at(-1)!);
 
     const accept = await screen.findByRole("button", {
       name: /^Auto-approve/,
     });
     expect(accept).toHaveProperty("disabled", false);
-    expect(screen.getByRole("button", { name: /^Bypass permissions/ })).toHaveProperty(
-      "disabled",
-      true,
-    );
+    expect(
+      screen.getByRole("button", { name: /^Bypass permissions/ }),
+    ).toHaveProperty("disabled", true);
     expect(screen.getByRole("button", { name: /^Locked/ })).toHaveProperty(
       "disabled",
       false,
@@ -302,10 +317,23 @@ describe("account ACL wiring", () => {
       address: "0xSomeOtherWallet",
       svmAddress: undefined,
     };
-    const { calls } = installFetchRecorder();
+    const paraWallets = {
+      wallets: [
+        {
+          ...WALLETS.wallets[0],
+          wallet_provider: "para",
+          provider_managed: false,
+          can_use_auto: false,
+        },
+      ],
+    };
+    const { calls } = installFetchRecorder({
+      "/api/account/wallets": () => Response.json(paraWallets),
+      "/api/account/grants": () => Response.json({ grants: [] }),
+    });
 
     await renderAcl();
-    const row = await screen.findByText("0x71C7…976F");
+    const row = (await screen.findAllByText("0x71C7…976F")).at(-1)!;
 
     await click(row);
     await click(await screen.findByText("Auto-approve"));
@@ -322,7 +350,19 @@ describe("account ACL wiring", () => {
   it("restates a lost version CAS in words instead of raw JSON", async () => {
     // The backend answers `{"error":"stale_permit"}` with a 409 when another
     // commit won the version race; the raw body must never reach the user.
+    const paraWallets = {
+      wallets: [
+        {
+          ...WALLETS.wallets[0],
+          wallet_provider: "para",
+          provider_managed: false,
+          can_use_auto: false,
+        },
+      ],
+    };
     installFetchRecorder({
+      "/api/account/wallets": () => Response.json(paraWallets),
+      "/api/account/grants": () => Response.json({ grants: [] }),
       "/api/account/authorization/commit": () =>
         new Response(JSON.stringify({ error: "stale_permit" }), {
           status: 409,
@@ -330,7 +370,7 @@ describe("account ACL wiring", () => {
     });
 
     await renderAcl();
-    await click(await screen.findByText("0x71C7…976F"));
+    await click((await screen.findAllByText("0x71C7…976F")).at(-1)!);
     await click(await screen.findByText("Auto-approve"));
     await click(await screen.findByText("Sign to authorize"));
 
@@ -345,7 +385,7 @@ describe("account ACL wiring", () => {
     const { calls } = installFetchRecorder();
 
     await renderAcl();
-    await click(await screen.findByText("Privy"));
+    await click((await screen.findAllByText("8xKnQm…TzWv")).at(-1)!);
     await click(await screen.findByText("Revoke"));
 
     await waitFor(() =>
@@ -380,7 +420,7 @@ describe("account ACL wiring", () => {
     });
 
     await renderAcl();
-    await click(await screen.findByRole("button", { name: "Activate" }));
+    await click(await screen.findByRole("button", { name: "Link" }));
 
     await waitFor(() =>
       expect(paths(calls)).toContain("/api/account/authorization/commit"),

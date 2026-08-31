@@ -58,6 +58,8 @@ type RootProps = {
   walletPosition?: "header" | "footer" | null;
   /** Which wallet families to show as dual slots (omit for single-family mode) */
   walletFamilies?: Array<"evm" | "solana">;
+  /** Host-specific label for the anonymous wallet/account entry point. */
+  walletConnectLabel?: string;
   /** Optional account menu on the sidebar wallet chip (portal supplies live data). */
   walletAccountMenu?: WalletAccountMenuOptions;
   /** Products in the sidebar wordmark dropdown. Pass `null` for a plain wordmark. */
@@ -125,6 +127,7 @@ const Root: FC<RootProps> = ({
   style,
   walletPosition = "footer",
   walletFamilies,
+  walletConnectLabel,
   walletAccountMenu,
   products,
   currentProductId,
@@ -173,6 +176,7 @@ const Root: FC<RootProps> = ({
             <ThreadListSidebar
               walletPosition={walletPosition}
               walletFamilies={walletFamilies}
+              walletConnectLabel={walletConnectLabel}
               walletAccountMenu={walletAccountMenu}
               products={products}
               currentProductId={currentProductId}

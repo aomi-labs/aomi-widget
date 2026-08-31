@@ -18,6 +18,7 @@ import type { WalletAccountMenuOptions } from "./account-menu-types";
 export type DualWalletBarProps = {
   families: Array<"evm" | "solana">;
   className?: string;
+  disconnectedLabel?: string;
   onConnectionChange?: (connected: boolean) => void;
   /** Optional account menu layer — portal passes live allowance + action callbacks. */
   accountMenu?: WalletAccountMenuOptions;
@@ -48,6 +49,7 @@ function solanaClusterLabel(cluster?: string): string | undefined {
 const DualWalletBarInner: FC<DualWalletBarProps> = ({
   families,
   className,
+  disconnectedLabel = "Connect wallet",
   onConnectionChange,
   accountMenu,
 }) => {
@@ -74,16 +76,16 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
               family,
               walletName: activeEvmAccount?.walletName,
               address: identity.address,
-              detail: getChainInfo(activeEvmAccount?.chainId ?? identity.chainId)
-                ?.name,
+              detail: getChainInfo(
+                activeEvmAccount?.chainId ?? identity.chainId,
+              )?.name,
             }
           : null
         : identity.svmAddress
           ? {
               family,
               walletName:
-                activeSolanaAccount?.walletName ??
-                identity.svmWalletName,
+                activeSolanaAccount?.walletName ?? identity.svmWalletName,
               address: identity.svmAddress,
               detail: solanaClusterLabel(identity.svmCluster),
             }
@@ -113,22 +115,17 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
   }, [identity.isConnected, onConnectionChange]);
 
   useEffect(() => {
-    if (!connected) {
+    if (!connected && !accountMenuEnabled) {
       setMenuOpen(false);
       setDisconnectOpen(false);
     }
-  }, [connected]);
+  }, [accountMenuEnabled, connected]);
 
   const handleChipClick = () => {
-    if (accountMenuEnabled && connected) {
+    if (accountMenuEnabled) {
       setMenuOpen((open) => !open);
       return;
     }
-    openPicker();
-  };
-
-  const handleManageWallets = () => {
-    setMenuOpen(false);
     openPicker();
   };
 
@@ -187,90 +184,92 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
           onClick={handleChipClick}
           className={chipClassName}
           aria-label={
-            accountMenuEnabled && connected ? "Open account menu" : "Manage wallets"
+            accountMenuEnabled ? "Open account menu" : disconnectedLabel
           }
-          aria-expanded={accountMenuEnabled && connected ? menuOpen : undefined}
+          aria-expanded={accountMenuEnabled ? menuOpen : undefined}
         >
-          {connected && connectedWallets.length ? (
-            accountMenuEnabled ? (
-              <span className="flex min-w-0 flex-1 items-center gap-2.5">
-                <WalletIconSlot
-                  label={walletLabel}
-                  size={AVATAR_SIZE}
-                  className="ring-aomi-border bg-aomi-surface-2 shrink-0 rounded-full ring-1"
-                />
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="text-aomi-fg truncate font-mono text-[12px] font-medium leading-none tracking-tight">
-                    {primaryWallet ? longAddress(primaryWallet.address) : "Connected"}
-                  </span>
-                  {secondaryLine ? (
-                    <span className="text-aomi-muted truncate text-[11px] leading-none">
-                      {secondaryLine}
-                    </span>
-                  ) : null}
+          {accountMenuEnabled ? (
+            <span className="flex min-w-0 flex-1 items-center gap-2.5">
+              <WalletIconSlot
+                label={walletLabel}
+                size={AVATAR_SIZE}
+                className="ring-aomi-border bg-aomi-surface-2 shrink-0 rounded-full ring-1"
+              />
+              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className="text-aomi-fg truncate text-[12px] font-medium leading-none">
+                  {accountMenu?.primaryLine ??
+                    (primaryWallet
+                      ? longAddress(primaryWallet.address)
+                      : "Account")}
                 </span>
+                {secondaryLine ? (
+                  <span className="text-aomi-muted truncate text-[11px] leading-none">
+                    {secondaryLine}
+                  </span>
+                ) : null}
               </span>
-            ) : (
-              <span className="flex min-w-0 items-center gap-2.5">
-                <span className="flex shrink-0 items-center">
+            </span>
+          ) : connected && connectedWallets.length ? (
+            <span className="flex min-w-0 items-center gap-2.5">
+              <span className="flex shrink-0 items-center">
+                {connectedWallets.map((wallet, index) => (
+                  <WalletIconSlot
+                    key={wallet.family}
+                    label={
+                      wallet.walletName ??
+                      (wallet.family === "solana" ? "Solana" : "Ethereum")
+                    }
+                    size={AVATAR_SIZE}
+                    className={cn(
+                      "ring-aomi-border bg-aomi-surface-2 rounded-full ring-1",
+                      index > 0 && "-ml-2",
+                    )}
+                  />
+                ))}
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="min-w-0 truncate text-[13px] font-medium">
                   {connectedWallets.map((wallet, index) => (
-                    <WalletIconSlot
-                      key={wallet.family}
-                      label={
-                        wallet.walletName ??
-                        (wallet.family === "solana" ? "Solana" : "Ethereum")
-                      }
-                      size={AVATAR_SIZE}
-                      className={cn(
-                        "ring-aomi-border bg-aomi-surface-2 rounded-full ring-1",
-                        index > 0 && "-ml-2",
+                    <Fragment key={wallet.family}>
+                      {index > 0 ? (
+                        <span className="text-aomi-muted/60">{" / "}</span>
+                      ) : null}
+                      {singleWallet ? (
+                        <>
+                          <span className="@[15rem]:hidden">
+                            {formatWalletAddress(wallet.address)}
+                          </span>
+                          <span className="@[15rem]:inline hidden">
+                            {longAddress(wallet.address)}
+                          </span>
+                        </>
+                      ) : (
+                        <span>{formatWalletAddress(wallet.address)}</span>
                       )}
-                    />
+                    </Fragment>
                   ))}
                 </span>
-                <span className="flex min-w-0 flex-col">
-                  <span className="min-w-0 truncate text-[13px] font-medium">
-                    {connectedWallets.map((wallet, index) => (
-                      <Fragment key={wallet.family}>
-                        {index > 0 ? (
-                          <span className="text-aomi-muted/60">{" / "}</span>
-                        ) : null}
-                        {singleWallet ? (
-                          <>
-                            <span className="@[15rem]:hidden">
-                              {formatWalletAddress(wallet.address)}
-                            </span>
-                            <span className="hidden @[15rem]:inline">
-                              {longAddress(wallet.address)}
-                            </span>
-                          </>
-                        ) : (
-                          <span>{formatWalletAddress(wallet.address)}</span>
-                        )}
-                      </Fragment>
-                    ))}
+                {secondaryLine ? (
+                  <span className="text-aomi-muted min-w-0 truncate text-[11px]">
+                    {secondaryLine}
                   </span>
-                  {secondaryLine ? (
-                    <span className="text-aomi-muted min-w-0 truncate text-[11px]">
-                      {secondaryLine}
-                    </span>
-                  ) : null}
-                </span>
+                ) : null}
               </span>
-            )
+            </span>
           ) : (
             <span className="flex h-7 min-w-0 flex-1 items-center">
               <span className="truncate text-sm font-medium">
-                Connect wallet
+                {disconnectedLabel}
               </span>
             </span>
           )}
           {chipChevron}
         </button>
 
-        {accountMenuEnabled && connected ? (
+        {accountMenuEnabled ? (
           <AccountMenu
             open={menuOpen}
+            accountLabel={accountMenu?.primaryLine}
             address={visibleAddress}
             walletLabel={walletLabel}
             allowanceLine={accountMenu?.secondaryLine}
@@ -278,7 +277,7 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
             networkLabel={accountMenu?.networkLabel ?? networkDetail}
             themeLabel={accountMenu?.themeLabel}
             onClose={() => setMenuOpen(false)}
-            onManageWallets={handleManageWallets}
+            onManageAccount={wrapMenuAction(accountMenu?.onManageAccount)}
             onSwitchNetwork={wrapMenuAction(accountMenu?.onSwitchNetwork)}
             onToggleTheme={wrapMenuAction(accountMenu?.onToggleTheme)}
             onOpenSettings={wrapMenuAction(accountMenu?.onOpenSettings)}

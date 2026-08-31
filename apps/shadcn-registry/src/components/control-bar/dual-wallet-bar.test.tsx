@@ -71,6 +71,23 @@ const adapterState = {
 afterEach(() => {
   cleanup();
   openPicker.mockClear();
+  adapterState.current.identity = {
+    status: "connected",
+    isConnected: true,
+    address: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+    chainId: 1,
+    svmAddress: undefined,
+  };
+  adapterState.current.accounts = [
+    {
+      id: "mm",
+      family: "evm",
+      address: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+      walletName: "MetaMask",
+      chainId: 1,
+      active: true,
+    },
+  ];
   adapterState.current.disconnect.mockClear();
   adapterState.current.signOutAccount.mockReset();
   adapterState.current.signOutAccount.mockResolvedValue(undefined);
@@ -79,7 +96,7 @@ afterEach(() => {
 describe("DualWalletBar account menu", () => {
   it("opens WalletPicker directly when account menu is disabled", () => {
     render(<DualWalletBar families={["evm"]} />);
-    fireEvent.click(screen.getByRole("button", { name: "Manage wallets" }));
+    fireEvent.click(screen.getByRole("button", { name: "Connect wallet" }));
     expect(openPicker).toHaveBeenCalledTimes(1);
     expect(
       screen.queryByRole("menu", { name: "Account menu" }),
@@ -106,17 +123,50 @@ describe("DualWalletBar account menu", () => {
     ).toBeInTheDocument();
   });
 
-  it("routes Manage wallets from AccountMenu to WalletPicker", () => {
+  it("renders an authenticated account menu without a connected wallet", () => {
+    adapterState.current.identity = {
+      status: "disconnected",
+      isConnected: false,
+    };
+    adapterState.current.accounts = [];
+
     render(
       <DualWalletBar
         families={["evm"]}
-        accountMenu={{ enabled: true, secondaryLine: "420 left · 80/500 used" }}
+        accountMenu={{
+          enabled: true,
+          primaryLine: "Alice",
+          secondaryLine: "Aomi account",
+          onManageAccount: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    expect(
+      screen.getByRole("menu", { name: "Account menu" }),
+    ).toBeInTheDocument();
+    expect(openPicker).not.toHaveBeenCalled();
+  });
+
+  it("routes Manage account from AccountMenu to the host settings surface", () => {
+    const onManageAccount = vi.fn();
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{
+          enabled: true,
+          secondaryLine: "420 left · 80/500 used",
+          onManageAccount,
+        }}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
-    fireEvent.click(screen.getByText("Manage wallets"));
-    expect(openPicker).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText("Manage account"));
+    expect(onManageAccount).toHaveBeenCalledTimes(1);
+    expect(openPicker).not.toHaveBeenCalled();
     expect(
       screen.queryByRole("menu", { name: "Account menu" }),
     ).not.toBeInTheDocument();
