@@ -1,5 +1,15 @@
 # Canonical Landing
 
+Current session goal: **CLI AGENT CHAT AUTH, ORDER, AND TOOL TRACES VERIFIED
+2026-08-31** — anonymous Agent and Pipeline calls now receive a guest bearer
+even while additive account auth is configured, the CLI persists that guest
+identity across processes, and resumed chats skip prior-turn output. Current
+wire-format `message` tool results render in both React and verbose CLI output
+without duplicating future typed tool events. Device-only OAuth registration no
+longer declares an unused redirect flow. Client and React builds, typecheck,
+lint, formatting, 259 focused package tests, 44 Rust runtime tests, and repeated
+live staging CLI tool calls pass with message, tool, answer, and terminal order.
+
 Current session goal: **GUEST SELF-CUSTODY API AND SDK FIXES VERIFIED
 2026-08-30** — guest Agent sessions can resolve their own staged actions and
 guest Pipeline sessions can execute self-custodial operations without gaining

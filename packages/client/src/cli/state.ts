@@ -44,6 +44,9 @@ export type CliSessionState = {
   /** Aomi account bearer for authenticated requests. Persisted so a bearer
    * supplied once (via `--account-bearer`) survives across CLI invocations. */
   accountBearer?: string;
+  /** Better Auth anonymous bearer owning guest Agent sessions. Stored in the
+   * same private state file so a later CLI process can resume that identity. */
+  guestBearer?: string;
   publicKey?: string;
   privateKey?: string;
   /** Solana public key (base58), derived from the Solana keypair when provided. */
@@ -122,6 +125,7 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
     accountBearer: stored.accountBearer,
+    guestBearer: stored.guestBearer,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
     svmPublicKey: stored.svmPublicKey,
@@ -159,6 +163,10 @@ function readStoredSession(path: string): StoredSessionState | null {
       modelSynced: parsed.modelSynced,
       apiKey: parsed.apiKey,
       accountBearer: parsed.accountBearer,
+      guestBearer:
+        typeof parsed.guestBearer === "string" && parsed.guestBearer
+          ? parsed.guestBearer
+          : undefined,
       publicKey: parsed.publicKey,
       privateKey: parsed.privateKey,
       svmPublicKey: parsed.svmPublicKey,
@@ -388,7 +396,6 @@ export function deleteStoredSession(
 }
 
 export function readState(): CliSessionState | null {
-
   const sessions = readAllStoredSessions();
   if (sessions.length === 0) return null;
 
