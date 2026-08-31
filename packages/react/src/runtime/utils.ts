@@ -157,29 +157,44 @@ const toolPart = (
  * events, this is the only wire shape tool steps arrive in; drop it and every
  * trace renders as an empty "Working" shell.
  */
-const legacyToolResult = (event: MessageEvent): [string, string] | null => {
-  const raw = (event as { tool_result?: unknown }).tool_result;
+type ToolBearingMessageEvent = MessageEvent & {
+  tool_result?: unknown;
+  tool_name?: unknown;
+  tool_arguments?: unknown;
+};
+
+const legacyToolResult = (event: MessageEvent) => {
+  const message = event as ToolBearingMessageEvent;
+  const raw = message.tool_result;
   if (!Array.isArray(raw) || raw.length < 2) return null;
-  const [label, payload] = raw;
-  if (typeof label !== "string" || typeof payload !== "string") return null;
-  return [label, payload];
+  const [topic, payload] = raw;
+  if (typeof topic !== "string" || typeof payload !== "string") return null;
+  return {
+    topic,
+    payload,
+    toolName:
+      typeof message.tool_name === "string" && message.tool_name.length > 0
+        ? message.tool_name
+        : topic,
+    args: message.tool_arguments,
+  };
 };
 
 const legacyToolPart = (
-  [label, payload]: [string, string],
+  tool: NonNullable<ReturnType<typeof legacyToolResult>>,
   key: string,
 ): MessageContentPart => {
-  let result: unknown = payload;
+  let result: unknown = tool.payload;
   try {
-    result = JSON.parse(payload);
+    result = JSON.parse(tool.payload);
   } catch {
     // Non-JSON payloads render verbatim.
   }
   return {
     type: "tool-call",
     toolCallId: `legacy:${key}`,
-    toolName: label,
-    args: undefined,
+    toolName: tool.toolName,
+    args: tool.args,
     result,
   } as MessageContentPart;
 };
@@ -195,9 +210,17 @@ export function projectAssistantMessages(
   const output: Array<ThreadMessageLike | AssistantProjection> = [];
   const assistantTurns = new Map<string, AssistantProjection>();
   const standaloneMessages = new Map<string, number>();
+  const turnKey = (event: Event) => event.turn_id ?? `event:${event.event_id}`;
+  const typedToolTurns = new Set(
+    events
+      .filter(
+        (event) => event.type === "tool_complete" && event.tool_name !== "task",
+      )
+      .map(turnKey),
+  );
 
   const assistantTurn = (event: Event): AssistantProjection => {
-    const key = event.turn_id ?? `event:${event.event_id}`;
+    const key = turnKey(event);
     const existing = assistantTurns.get(key);
     if (existing) return existing;
     const projection: AssistantProjection = {
@@ -224,7 +247,14 @@ export function projectAssistantMessages(
         const key = event.message_key ?? event.event_id;
         const toolResult = legacyToolResult(event);
         if (toolResult) {
-          upsertPart(projection, projection.toolParts, key, legacyToolPart(toolResult, key));
+          if (!typedToolTurns.has(turnKey(event))) {
+            upsertPart(
+              projection,
+              projection.toolParts,
+              key,
+              legacyToolPart(toolResult, key),
+            );
+          }
         } else {
           upsertPart(projection, projection.textParts, key, {
             type: "text",
