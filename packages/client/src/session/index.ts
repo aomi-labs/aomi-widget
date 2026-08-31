@@ -57,10 +57,19 @@ export class ClientSession {
   private pollFailureCount = 0;
   private awaitingResume = false;
   private terminalDrainUntil?: number;
+  private terminalTurnId?: string;
   private isSubmitting = false;
+  private pendingUserMessage?: { content: string; sinceSequence: number };
   private events: Event[] = [];
   private eventIds = new Set<string>();
   private messages: MessageEvent[] = [];
+  private storeVersion = 0;
+  private cachedStore?: {
+    version: number;
+    events: Event[];
+    messages: MessageEvent[];
+  };
+  private lastPageNewEvents = 0;
   private title?: string;
   private error?: unknown;
   private closed = false;
@@ -120,9 +129,10 @@ export class ClientSession {
     const page = await this.submit(message);
     if (this.isTerminal()) {
       this.drainTerminalPage(page);
-      return this.result();
-    }
-    if (this.turnState !== "awaiting_action" || page.has_more) {
+      // The drain may still be polling for the trailing final message /
+      // title; only a finished drain has the complete result in hand.
+      if (!this.pollingActive) return this.result();
+    } else if (this.turnState !== "awaiting_action" || page.has_more) {
       this.startPolling();
     }
     return new Promise((resolve) => {
@@ -229,7 +239,16 @@ export class ClientSession {
     this.startOperation = operation;
     this.awaitingResume = false;
     this.terminalDrainUntil = undefined;
+    this.terminalTurnId = undefined;
     this.isSubmitting = true;
+    // The start response and even the first polls may not carry the user's
+    // message event yet (it can trail in a later page). Hold an optimistic
+    // echo so consumers can render the outbound message immediately; it is
+    // cleared the moment the server's own user message event lands.
+    this.pendingUserMessage = {
+      content: text,
+      sinceSequence: this.events.at(-1)?.sequence ?? 0,
+    };
     this.error = undefined;
     this.publish();
     try {
@@ -256,6 +275,7 @@ export class ClientSession {
       return page;
     } catch (error) {
       this.error = error;
+      this.pendingUserMessage = undefined;
       if (error instanceof AgentApiError && !error.retryable) {
         this.startOperation = undefined;
       }
@@ -293,6 +313,7 @@ export class ClientSession {
       throw new TypeError("Agent response session does not match the request");
     }
     this.applyingPage = true;
+    this.lastPageNewEvents = 0;
     try {
       for (const event of page.events) {
         if (this.eventIds.has(event.event_id)) continue;
@@ -302,13 +323,25 @@ export class ClientSession {
         }
         this.eventIds.add(event.event_id);
         this.events.push(event);
+        this.storeVersion += 1;
+        this.lastPageNewEvents += 1;
         this.turnId = event.turn_id ?? this.turnId;
         switch (event.type) {
           case "message":
             this.applyMessage(event);
+            if (
+              event.sender === "user" &&
+              this.pendingUserMessage &&
+              event.sequence > this.pendingUserMessage.sinceSequence
+            ) {
+              this.pendingUserMessage = undefined;
+            }
             break;
           case "turn_state_changed":
             this.turnState = event.state;
+            if (TERMINAL_TURN_STATES.has(event.state)) {
+              this.terminalTurnId = event.turn_id ?? this.turnId;
+            }
             if (event.state !== "awaiting_action") {
               this.awaitingResume = false;
             }
@@ -374,25 +407,45 @@ export class ClientSession {
   private finish(): void {
     this.awaitingResume = false;
     this.terminalDrainUntil = undefined;
+    this.terminalTurnId = undefined;
+    this.pendingUserMessage = undefined;
     this.stopPolling();
     this.resolvePending();
   }
 
   private drainTerminalPage(page: EventPage): void {
-    this.resolvePending();
-    const hasTitle = page.events.some(
-      (event) => event.type === "title_changed",
-    );
-    if (hasTitle || this.title) {
+    // A turn's final answer can trail its terminal state. Finish only after
+    // the current terminal turn has a settled, non-tool agent message and the
+    // current page is fully drained. Titles are asynchronous thread metadata:
+    // they may be unchanged, delayed, or absent, so they cannot be a sentinel.
+    if (!page.has_more && this.hasTerminalAnswer()) {
       this.finish();
       return;
     }
     this.terminalDrainUntil ??= Date.now() + TERMINAL_EVENT_DRAIN_MS;
-    if (page.events.length === 0 && Date.now() >= this.terminalDrainUntil) {
+    if (
+      !page.has_more &&
+      this.lastPageNewEvents === 0 &&
+      Date.now() >= this.terminalDrainUntil
+    ) {
       this.finish();
       return;
     }
     this.startPolling();
+  }
+
+  private hasTerminalAnswer(): boolean {
+    const turnId = this.terminalTurnId;
+    if (!turnId) return false;
+    return this.events.some(
+      (event) =>
+        event.type === "message" &&
+        event.turn_id === turnId &&
+        event.sender === "agent" &&
+        event.is_streaming !== true &&
+        !event.tool_result &&
+        event.content.trim().length > 0,
+    );
   }
 
   private isTerminal(): boolean {
@@ -410,17 +463,30 @@ export class ClientSession {
   }
 
   private buildSnapshot(): SessionSnapshot {
+    // Keep the events/messages array identities stable across publishes that
+    // did not apply new events, so downstream memoized projections (React's
+    // useMemo on snapshot.events) don't rebuild every poll tick.
+    if (!this.cachedStore || this.cachedStore.version !== this.storeVersion) {
+      this.cachedStore = {
+        version: this.storeVersion,
+        events: [...this.events],
+        messages: [...this.messages],
+      };
+    }
     return {
       sessionId: this.sessionId,
       ...(this.cursor ? { cursor: this.cursor } : {}),
       ...(this.turnId ? { turnId: this.turnId } : {}),
       ...(this.turnState ? { turnState: this.turnState } : {}),
-      events: [...this.events],
-      messages: [...this.messages],
+      events: this.cachedStore.events,
+      messages: this.cachedStore.messages,
       actions: this.actions.all(),
       ...(this.title ? { title: this.title } : {}),
       isPolling: this.pollingActive,
       isSubmitting: this.isSubmitting,
+      ...(this.pendingUserMessage
+        ? { pendingUserMessage: this.pendingUserMessage.content }
+        : {}),
       actionAttempts: this.actions.allAttempts(),
       ...(this.error === undefined ? {} : { error: this.error }),
     };

@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { Event, MessageEvent } from "../../src/agent/types";
 import {
   countToolCalls,
-  legacyToolResultFromMessage,
+  inlineToolResultFromMessage,
 } from "../../src/cli/output";
 
-const legacyToolMessage = {
+const inlineToolMessage = {
   event_id: "event-tool",
   sequence: 2,
   turn_id: "turn-1",
@@ -21,7 +21,7 @@ const legacyToolMessage = {
 
 describe("CLI tool output projection", () => {
   it("reads tool traces from today's message event wire shape", () => {
-    expect(legacyToolResultFromMessage(legacyToolMessage)).toEqual({
+    expect(inlineToolResultFromMessage(inlineToolMessage)).toEqual({
       name: "get_account_info",
       result: '{"balance_native":"1"}',
       turnId: "turn-1",
@@ -40,6 +40,6 @@ describe("CLI tool output projection", () => {
       result: { balance_native: "1" },
     } as Event;
 
-    expect(countToolCalls([legacyToolMessage as Event, typedTool])).toBe(1);
+    expect(countToolCalls([inlineToolMessage as Event, typedTool])).toBe(1);
   });
 });

@@ -6,7 +6,7 @@ import {
   getToolNameFromEvent,
   getToolResultFromEvent,
   isAlwaysVisibleTool,
-  legacyToolResultFromMessage,
+  inlineToolResultFromMessage,
   printNewAgentMessages,
   printPaymentEvent,
   printTaskActivity,
@@ -105,8 +105,12 @@ export async function chatCommand(
     let handledSequence = 0;
     let thinkingPrinted = false;
     const agentLabels = new Map<string, string>();
-    const legacyToolTurns = new Set<string>();
-    const typedToolTurns = new Set<string>();
+    // One printed line per (turn, tool) pair, whichever wire shape lands
+    // first. Suppressing by turn alone silently drops a distinct tool's only
+    // trace whenever another tool in the turn used the other shape.
+    const seenToolPairs = new Set<string>();
+    const toolPairKey = (turnId: string, name: string) =>
+      `${turnId}::${name}`;
     const render = () => {
       const snapshot = session.getSnapshot();
       if (
@@ -121,23 +125,23 @@ export async function chatCommand(
         if (event.sequence <= handledSequence) continue;
         handledSequence = event.sequence;
         if (event.type === "tool_complete") {
-          const turnId = event.turn_id ?? `event:${event.event_id}`;
-          typedToolTurns.add(turnId);
           const name = getToolNameFromEvent(event);
-          if (
-            !legacyToolTurns.has(turnId) &&
-            (verbose || isAlwaysVisibleTool(name))
-          ) {
+          // Subagent lifecycles print through the task_* lines, not as tools.
+          if (name === "task") continue;
+          const turnId = event.turn_id ?? `event:${event.event_id}`;
+          const pair = toolPairKey(turnId, name);
+          const firstForPair = !seenToolPairs.has(pair);
+          seenToolPairs.add(pair);
+          if (firstForPair && (verbose || isAlwaysVisibleTool(name))) {
             printToolComplete(event);
           }
         } else if (event.type === "message") {
-          const tool = legacyToolResultFromMessage(event);
+          const tool = inlineToolResultFromMessage(event);
           if (tool) {
-            legacyToolTurns.add(tool.turnId);
-            if (
-              !typedToolTurns.has(tool.turnId) &&
-              (verbose || isAlwaysVisibleTool(tool.name))
-            ) {
+            const pair = toolPairKey(tool.turnId, tool.name);
+            const firstForPair = !seenToolPairs.has(pair);
+            seenToolPairs.add(pair);
+            if (firstForPair && (verbose || isAlwaysVisibleTool(tool.name))) {
               printToolResultLine(tool.name, tool.result);
             }
           } else if (verbose && event.sender === "notice") {
