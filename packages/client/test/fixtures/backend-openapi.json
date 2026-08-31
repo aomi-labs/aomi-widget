@@ -1634,7 +1634,7 @@
         ]
       }
     },
-    "/api/account/providers/{provider}/grant": {
+    "/api/account/providers/{provider}/delegation": {
       "delete": {
         "responses": {
           "200": {

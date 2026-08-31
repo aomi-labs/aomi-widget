@@ -267,34 +267,6 @@ export interface AomiAccountProfile {
   onchain_policy_bindings: AomiOnchainPolicyBinding[];
 }
 
-export interface AomiCreateApprovalRequest {
-  auth_identity_id: number;
-  grant_kind: string;
-  secret_handle: string;
-  external_subject?: string | null;
-  display_label?: string | null;
-  scopes?: string[];
-  expires_at?: number | null;
-  metadata?: unknown;
-}
-
-export interface AomiAccessApproval {
-  id: number;
-  user_id: string;
-  auth_identity_id: number;
-  external_subject?: string | null;
-  display_label?: string | null;
-  grant_kind: string;
-  scopes: string[];
-  secret_handle: string;
-  expires_at?: number | null;
-  granted_at: number;
-  revoked_at?: number | null;
-  metadata: unknown;
-  created_at: number;
-  updated_at: number;
-}
-
 export interface AomiBeginAccountAuthResponse {
   state_token: string;
   auth_url: string;

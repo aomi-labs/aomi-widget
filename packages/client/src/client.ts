@@ -1,13 +1,11 @@
 import type {
   AomiAccountProfile,
   AomiAccountResponse,
-  AomiAccessApproval,
   AomiAuthPurpose,
   AomiAuthWalletFamily,
   AomiAppDescriptor,
   AomiBeginAccountAuthResponse,
   AomiClientOptions,
-  AomiCreateApprovalRequest,
   AomiClearSecretsResponse,
   AomiDeleteByokKeyResponse,
   AomiDeleteSecretResponse,
@@ -616,15 +614,6 @@ export class AomiClient {
     }
 
     return (await response.json()) as AomiAccountResponse;
-  }
-
-  async createAccountApproval(
-    request: AomiCreateApprovalRequest,
-  ): Promise<AomiAccessApproval> {
-    return this.request<AomiAccessApproval>("POST", "/api/account/approvals", {
-      body: request,
-      raw: true,
-    });
   }
 
   /**

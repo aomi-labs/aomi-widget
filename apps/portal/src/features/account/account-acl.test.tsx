@@ -126,7 +126,7 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
           authorization_version: 3,
         });
       }
-      if (url.pathname.endsWith("/grant") && method === "DELETE") {
+      if (url.pathname.endsWith("/delegation") && method === "DELETE") {
         return Response.json({ status: "revoked", provider: "privy" });
       }
       if (
@@ -142,7 +142,7 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
             is_primary: false,
             signing_mode: "manual",
             authorization_version: 0,
-            has_delegated_grant: false,
+            has_delegated_account: false,
             provider_managed: true,
           },
         });
@@ -157,7 +157,7 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
   return { calls, fetchMock };
 }
 
-/** Render and let the initial wallets+grants load settle inside `act`. */
+/** Render and let the initial account profile load settle inside `act`. */
 async function renderAcl() {
   await act(async () => {
     render(<AccountSettings />);
@@ -216,7 +216,7 @@ describe("account ACL wiring", () => {
     expect(paths(calls).filter((path) => path === "/api/account")).toHaveLength(
       1,
     );
-    // Privy provenance + live grant render from the wire inside the expanded row.
+    // Privy provenance + live delegation render inside the expanded row.
     await click(await screen.findByText("Privy"));
     expect(screen.getByText(/Privy · Session delegation/)).toBeTruthy();
   });
@@ -335,7 +335,7 @@ describe("account ACL wiring", () => {
     ).toBeTruthy();
   });
 
-  it("revokes a grant through the provider grant route", async () => {
+  it("revokes provider delegated accounts", async () => {
     const { calls } = installFetchRecorder();
 
     await renderAcl();
@@ -343,7 +343,7 @@ describe("account ACL wiring", () => {
     await click(await screen.findByText("Revoke"));
 
     await waitFor(() =>
-      expect(paths(calls)).toContain("/api/account/providers/privy/grant"),
+      expect(paths(calls)).toContain("/api/account/providers/privy/delegation"),
     );
   });
 

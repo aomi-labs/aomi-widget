@@ -37,20 +37,20 @@ export interface WalletPolicy {
   primary?: boolean;
   /** The ACL — the committed desired signing mode. */
   desiredMode: SignerMode;
-  /** Whether a live delegated grant currently backs `auto` (capability axis). */
-  grantActive?: boolean;
-  /** Human label for the backing grant's expiry, when relevant. */
-  grantExpiresLabel?: string;
+  /** Whether a live delegated account currently backs `auto` (capability axis). */
+  delegationActive?: boolean;
+  /** Human label for the delegated account's expiry, when relevant. */
+  delegationExpiresLabel?: string;
   /** Monotonic authorization_version (bumped by each committed permit). */
   authVersion: number;
   /** Audit label of the last permit that set the mode. */
   lastPermit?: string;
-  /** Raw `auth_providers.provider` — what a grant revoke is keyed on. */
+  /** Raw `auth_providers.provider` — what delegation revocation is keyed on. */
   provider?: string;
   /**
    * Backend truth for whether `auto` is offerable (provenance AND a live
-   * grant). The client must not re-derive this from `linkedVia`: a Para or
-   * Privy wallet with no grant still can't go auto.
+   * delegated account). The client must not re-derive this from `linkedVia`:
+   * a Para or Privy wallet with no delegation still can't go auto.
    */
   canUseAuto?: boolean;
   /**
@@ -64,13 +64,13 @@ export interface WalletPolicy {
  * A `DelegatedAccount` — the capability axis. Its presence + validity is
  * what lets an `auto` ACL actually reconcile.
  */
-export interface DelegationGrant {
+export interface DelegatedAccountView {
   id: string;
   /** Display name, e.g. "Privy". */
   provider: string;
   /** Raw provider key the revoke route is addressed by, e.g. "privy". */
   providerKey?: string;
-  /** What the grant is scoped to, e.g. "Solana · 8xKn…9QpS". */
+  /** Exact address this delegated capability can sign for. */
   scope: string;
   kind: string;
   status: "active" | "expired" | "revoked";

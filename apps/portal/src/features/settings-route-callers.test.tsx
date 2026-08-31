@@ -53,12 +53,12 @@ vi.mock("./account/use-account-acl", () => ({
   useAccountAcl: () => ({
     status: "ready",
     wallets: [],
-    grants: [],
+    delegatedAccounts: [],
     refresh: vi.fn(),
     commitMode: vi.fn(),
-    revokeGrant: vi.fn(),
+    revokeDelegation: vi.fn(),
     stopAllAuto: vi.fn(),
-    regrant: vi.fn(),
+    renewDelegation: vi.fn(),
     blockedReason: () => null,
   }),
 }));

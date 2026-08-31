@@ -35,7 +35,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "DELETE",
-    path: "/api/account/providers/:provider/grant",
+    path: "/api/account/providers/:provider/delegation",
     auth: ["account"],
   },
   {
@@ -76,7 +76,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "DELETE",
     path: "/api/threads/:thread_id",
-    auth: ["account","thread"],
+    auth: ["account", "thread"],
   },
   {
     method: "GET",
@@ -446,27 +446,27 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "GET",
     path: "/api/threads",
-    auth: ["account","thread"],
+    auth: ["account", "thread"],
   },
   {
     method: "GET",
     path: "/api/threads/:thread_id",
-    auth: ["account","thread"],
+    auth: ["account", "thread"],
   },
   {
     method: "GET",
     path: "/api/widget/v1/aa-operations/:operation_id",
-    auth: ["account","thread"],
+    auth: ["account", "thread"],
   },
   {
     method: "GET",
     path: "/api/widget/v1/execution-profile",
-    auth: ["account","thread"],
+    auth: ["account", "thread"],
   },
   {
     method: "GET",
     path: "/api/widget/v1/signing-requests",
-    auth: ["account","thread"],
+    auth: ["account", "thread"],
   },
   {
     method: "GET",
@@ -496,7 +496,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "PATCH",
     path: "/api/threads/:thread_id",
-    auth: ["account","thread"],
+    auth: ["account", "thread"],
   },
   {
     method: "POST",
@@ -511,7 +511,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/_internal/agent/turns",
-    auth: ["delegated","app_gate"],
+    auth: ["delegated", "app_gate"],
   },
   {
     method: "POST",
@@ -621,7 +621,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/exec/run",
-    auth: ["account","thread","app_gate","delegated"],
+    auth: ["account", "thread", "app_gate", "delegated"],
   },
   {
     method: "POST",
@@ -631,7 +631,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/exec/tool-call",
-    auth: ["account","thread","app_gate","delegated"],
+    auth: ["account", "thread", "app_gate", "delegated"],
   },
   {
     method: "POST",
@@ -691,52 +691,52 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/pipeline/apps/:app/operations/:operation",
-    auth: ["account","app_gate","delegated"],
+    auth: ["account", "app_gate", "delegated"],
   },
   {
     method: "POST",
     path: "/api/pipeline/evm/build",
-    auth: ["account","app_gate","delegated"],
+    auth: ["account", "app_gate", "delegated"],
   },
   {
     method: "POST",
     path: "/api/pipeline/evm/commit",
-    auth: ["account","app_gate","delegated"],
+    auth: ["account", "app_gate", "delegated"],
   },
   {
     method: "POST",
     path: "/api/pipeline/evm/simulate",
-    auth: ["account","app_gate","delegated"],
+    auth: ["account", "app_gate", "delegated"],
   },
   {
     method: "POST",
     path: "/api/pipeline/evm/stage",
-    auth: ["account","app_gate","delegated"],
+    auth: ["account", "app_gate", "delegated"],
   },
   {
     method: "POST",
     path: "/api/pipeline/skills/:skill/operations/:operation",
-    auth: ["account","app_gate","delegated"],
+    auth: ["account", "app_gate", "delegated"],
   },
   {
     method: "POST",
     path: "/api/pipeline/svm/build",
-    auth: ["account","app_gate","delegated"],
+    auth: ["account", "app_gate", "delegated"],
   },
   {
     method: "POST",
     path: "/api/pipeline/svm/commit",
-    auth: ["account","app_gate","delegated"],
+    auth: ["account", "app_gate", "delegated"],
   },
   {
     method: "POST",
     path: "/api/pipeline/svm/simulate",
-    auth: ["account","app_gate","delegated"],
+    auth: ["account", "app_gate", "delegated"],
   },
   {
     method: "POST",
     path: "/api/pipeline/svm/stage",
-    auth: ["account","app_gate","delegated"],
+    auth: ["account", "app_gate", "delegated"],
   },
   {
     method: "POST",
@@ -811,7 +811,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/system",
-    auth: ["account","thread"],
+    auth: ["account", "thread"],
   },
   {
     method: "POST",
@@ -831,17 +831,17 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/threads/:thread_id/archive",
-    auth: ["account","thread"],
+    auth: ["account", "thread"],
   },
   {
     method: "POST",
     path: "/api/threads/:thread_id/unarchive",
-    auth: ["account","thread"],
+    auth: ["account", "thread"],
   },
   {
     method: "POST",
     path: "/api/widget/v1/signing-requests/:request_id",
-    auth: ["account","thread"],
+    auth: ["account", "thread"],
   },
   {
     method: "PUT",
@@ -871,6 +871,6 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "PUT",
     path: "/api/widget/v1/aa-accounts/:chain_id",
-    auth: ["account","thread"],
+    auth: ["account", "thread"],
   },
 ] as const satisfies readonly AomiEndpointSpec[];
