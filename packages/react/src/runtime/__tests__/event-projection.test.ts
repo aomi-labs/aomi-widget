@@ -3,7 +3,11 @@ import type { Event } from "@aomi-labs/client";
 
 import { projectAssistantMessages } from "../utils";
 
-const meta = (sequence: number, type: Event["type"], turnId: string | null) => ({
+const meta = (
+  sequence: number,
+  type: Event["type"],
+  turnId: string | null,
+) => ({
   event_id: `event-${sequence}`,
   sequence,
   turn_id: turnId,
@@ -70,10 +74,9 @@ describe("projectAssistantMessages", () => {
         sender: "agent",
         content: "",
         message_key: "tool-step-1",
-        tool_result: [
-          "Read vitalik.eth ETH balance",
-          '{"balance_eth":"6.64"}',
-        ],
+        tool_name: "get_balance",
+        tool_arguments: { owner: "vitalik.eth" },
+        tool_result: ["Read vitalik.eth ETH balance", '{"balance_eth":"6.64"}'],
       } as Event,
       {
         ...meta(2, "message", "turn-1"),
@@ -88,10 +91,51 @@ describe("projectAssistantMessages", () => {
       {
         type: "tool-call",
         toolCallId: "legacy:tool-step-1",
-        toolName: "Read vitalik.eth ETH balance",
+        toolName: "get_balance",
+        args: { owner: "vitalik.eth" },
         result: { balance_eth: "6.64" },
       },
       { type: "text", text: "vitalik.eth holds 6.64 ETH" },
+    ]);
+  });
+
+  it("prefers typed tool completion when both wire shapes are present", () => {
+    const events: Event[] = [
+      {
+        ...meta(1, "message", "turn-1"),
+        type: "message",
+        sender: "agent",
+        content: "",
+        message_key: "tool-step-1",
+        tool_name: "get_balance",
+        tool_result: ["Read balance", '{"balance_eth":"6.64"}'],
+      } as Event,
+      {
+        ...meta(2, "tool_complete", "turn-1"),
+        type: "tool_complete",
+        id: "tool-1",
+        call_id: "call-1",
+        tool_name: "get_balance",
+        result: { balance_eth: "6.64" },
+      },
+      {
+        ...meta(3, "message", "turn-1"),
+        type: "message",
+        sender: "agent",
+        content: "Done",
+        message_key: "agent-1",
+      },
+    ];
+
+    expect(projectAssistantMessages(events)[0]?.content).toEqual([
+      {
+        type: "tool-call",
+        toolCallId: "call-1",
+        toolName: "get_balance",
+        args: undefined,
+        result: { balance_eth: "6.64" },
+      },
+      { type: "text", text: "Done" },
     ]);
   });
 

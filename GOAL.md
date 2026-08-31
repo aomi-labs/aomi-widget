@@ -11,6 +11,14 @@ and API catalog routes backed by api-server. Client/account/Portal typechecks,
 scoped lint, the client build, 431 tests, and a live staging guest Agent plus
 Pipeline catalog smoke pass.
 
+Current session goal: **LEGACY AGENT TOOL TRACE PROJECTION VERIFIED
+2026-08-30** — React now projects the Agent ledger's current tool-bearing
+`message` events into Assistant UI tool-call parts with the backend tool name,
+arguments, and parsed result. Typed `tool_complete` events take precedence for
+the turn, so the compatibility path does not duplicate traces after the backend
+cutover. Focused React tests, library typecheck, lint, formatting, build, and
+package dry-run inspection pass.
+
 Current session goal: **PRIVY LOGIN POLICY DRIFT FIXED 2026-08-30** — the
 portal no longer hard-codes login methods into Privy's modal. The Privy app
 configuration is now the single authority, so disabled providers such as
