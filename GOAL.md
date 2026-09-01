@@ -1,5 +1,10 @@
 # Canonical Landing
 
+Current session goal: **WORKING TRACE MOTION AND ALIGNMENT POLISHED 2026-09-01** —
+remove the decorative Thinking ellipsis, constrain the live signal to one
+smooth breathing indicator, normalize header and collapsed-pill heights, and
+use a soft fade/scale handoff as the trace gains real steps.
+
 Current session goal: **WORKING TRACE START STATE REDESIGNED 2026-09-01** —
 replace the empty full-width Working card with a compact Thinking status pill,
 then transition into a softer live trace with one pulse signal, a quiet count

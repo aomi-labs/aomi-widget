@@ -182,9 +182,9 @@ const childStepCount = (item: TraceItem): number =>
 const WorkingLivePulse: FC = () => (
   <span
     aria-hidden="true"
-    className="aui-working-live relative flex size-3 shrink-0 items-center justify-center"
+    className="aui-working-live relative flex size-4 shrink-0 items-center justify-center"
   >
-    <span className="bg-aomi-accent/30 absolute size-3 animate-ping rounded-full motion-reduce:animate-none" />
+    <span className="aui-working-live-halo bg-aomi-accent/25 absolute size-2.5 rounded-full" />
     <span className="bg-aomi-accent-strong relative size-1.5 rounded-full" />
   </span>
 );
@@ -387,7 +387,7 @@ export const WorkingTrace: FC<{
     // compact header chip remains visible.
     <div
       className={cn(
-        "aui-working-trace mb-3 flex w-full flex-col overflow-hidden rounded-xl border transition-[border-color,background-color,box-shadow] duration-300 motion-reduce:transition-none",
+        "aui-working-trace animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 mb-3 flex w-full origin-top-left flex-col overflow-hidden rounded-xl border transition-[border-color,background-color,box-shadow] duration-300 ease-out motion-reduce:animate-none motion-reduce:transition-none",
         open
           ? "border-aomi-border/70 bg-aomi-surface/25 shadow-[0_6px_20px_rgba(0,0,0,0.025)]"
           : "border-transparent bg-transparent shadow-none",
@@ -398,25 +398,29 @@ export const WorkingTrace: FC<{
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         className={cn(
-          "aui-working-trace-header flex items-center gap-2 border text-left text-sm transition-[padding,border-radius,border-color,background-color] duration-300 ease-out motion-reduce:transition-none",
+          "aui-working-trace-header flex items-center gap-2 border text-left text-sm transition-[height,padding,border-radius,border-color,background-color] duration-300 ease-out motion-reduce:transition-none",
           open
-            ? "bg-aomi-surface/65 w-full self-stretch rounded-[11px] border-transparent px-3.5 py-[10px]"
-            : "border-aomi-border bg-aomi-surface hover:border-aomi-muted/40 w-fit self-start rounded-full px-3 py-[7px]",
+            ? "bg-aomi-surface/65 h-10 w-full self-stretch rounded-[11px] border-transparent px-3.5"
+            : "border-aomi-border bg-aomi-surface hover:border-aomi-muted/40 h-9 w-fit self-start rounded-full px-3",
         )}
       >
         {running ? (
           <WorkingLivePulse />
         ) : (
-          <CheckIcon className="text-aomi-success size-3.5 shrink-0" />
+          <span className="flex size-4 shrink-0 items-center justify-center">
+            <CheckIcon className="text-aomi-success size-3.5" />
+          </span>
         )}
-        <span className={cn("text-[13px]", headerClass)}>{label}</span>
+        <span className={cn("text-[13px] leading-none", headerClass)}>
+          {label}
+        </span>
         {orchestrating && (
-          <span className="aui-working-badge bg-aomi-accent-subtle text-aomi-accent-strong shrink-0 rounded-full px-2 py-[1px] font-mono text-[10px] uppercase tracking-[0.1em]">
+          <span className="aui-working-badge bg-aomi-accent-subtle text-aomi-accent-strong inline-flex h-5 shrink-0 items-center rounded-full px-2 font-mono text-[10px] uppercase leading-none tracking-[0.1em]">
             orchestrator
           </span>
         )}
         {stepCount > 0 ? (
-          <span className="bg-aomi-surface-2/80 text-aomi-muted rounded-full px-2 py-0.5 font-mono text-[10px] tabular-nums">
+          <span className="bg-aomi-surface-2/80 text-aomi-muted inline-flex h-5 items-center rounded-full px-2 font-mono text-[10px] tabular-nums leading-none">
             {stepCount} {stepCount === 1 ? "step" : "steps"}
           </span>
         ) : null}
@@ -548,20 +552,11 @@ export const MinimalWorkingTrace: FC = () => (
   <div
     role="status"
     aria-label="Aomi is thinking"
-    className="aui-working-trace-start ring-aomi-border/70 bg-aomi-surface/70 mb-3 flex w-fit items-center gap-2.5 rounded-full px-3 py-2 ring-1 ring-inset"
+    className="aui-working-trace-start ring-aomi-border/70 bg-aomi-surface/70 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 mb-3 flex h-9 w-fit origin-top-left items-center gap-2 rounded-full px-3 ring-1 ring-inset duration-300 ease-out motion-reduce:animate-none"
   >
     <WorkingLivePulse />
-    <span className="aui-working-shimmer text-[13px] font-medium">
+    <span className="aui-working-shimmer text-[13px] font-medium leading-none">
       Thinking
-    </span>
-    <span className="flex items-center gap-1" aria-hidden="true">
-      {[0, 1, 2].map((index) => (
-        <span
-          key={index}
-          className="bg-aomi-muted/55 size-1 animate-pulse rounded-full motion-reduce:animate-none"
-          style={{ animationDelay: `${index * 180}ms` }}
-        />
-      ))}
     </span>
   </div>
 );

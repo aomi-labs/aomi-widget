@@ -44,6 +44,7 @@ describe("WorkingTrace", () => {
     );
     expect(container.querySelector(".aui-working-live")).toBeTruthy();
     expect(container.querySelector(".aui-working-trace")).toBeNull();
+    expect(getByRole("status")).toHaveTextContent(/^Thinking$/);
   });
 
   it("progressively reveals a buffered final answer", async () => {
