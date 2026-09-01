@@ -45,10 +45,10 @@ import {
  */
 
 const formatDuration = (seconds: number): string => {
-  if (seconds < 1) return "less than a second";
-  if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
-  const m = Math.floor(seconds / 60);
-  const s = Math.round(seconds % 60);
+  const totalSeconds = Math.max(1, Math.round(seconds));
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
   return `${m}m ${s}s`;
 };
 
@@ -552,10 +552,10 @@ export const MinimalWorkingTrace: FC = () => (
   <div
     role="status"
     aria-label="Aomi is thinking"
-    className="aui-working-trace-start ring-aomi-border/70 bg-aomi-surface/70 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 mb-3 flex h-9 w-fit origin-top-left items-center gap-2 rounded-full px-3 ring-1 ring-inset duration-300 ease-out motion-reduce:animate-none"
+    className="aui-working-trace-start ring-aomi-border/70 bg-aomi-surface/70 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 -mt-px mb-3 flex h-8 w-fit origin-top-left items-center gap-2 rounded-full px-3 ring-1 ring-inset duration-300 ease-out motion-reduce:animate-none"
   >
     <WorkingLivePulse />
-    <span className="aui-working-shimmer text-[13px] font-medium leading-none">
+    <span className="aui-working-shimmer relative -top-px text-[13px] font-medium leading-none">
       Thinking
     </span>
   </div>

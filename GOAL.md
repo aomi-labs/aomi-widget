@@ -1,5 +1,9 @@
 # Canonical Landing
 
+Current session goal: **WORKING TRACE OPTICAL ALIGNMENT VERIFIED 2026-09-01** —
+align the compact Thinking pill to the Aomi mark, optically center its label,
+and show completed durations as whole seconds without decimal precision.
+
 Current session goal: **WORKING TRACE MOTION AND ALIGNMENT POLISHED 2026-09-01** —
 remove the decorative Thinking ellipsis, constrain the live signal to one
 smooth breathing indicator, normalize header and collapsed-pill heights, and

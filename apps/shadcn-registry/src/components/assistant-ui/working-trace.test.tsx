@@ -39,12 +39,45 @@ describe("WorkingTrace", () => {
       "Thinking",
     );
     expect(container.querySelector(".aui-working-trace-start")).toHaveClass(
+      "h-8",
       "w-fit",
       "rounded-full",
     );
     expect(container.querySelector(".aui-working-live")).toBeTruthy();
     expect(container.querySelector(".aui-working-trace")).toBeNull();
     expect(getByRole("status")).toHaveTextContent(/^Thinking$/);
+  });
+
+  it("shows completed duration as whole seconds", () => {
+    const now = Date.now();
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(now);
+    try {
+      const { getByRole, rerender } = render(
+        <WorkingTrace
+          running
+          items={[]}
+          revealed={0}
+          orchestrating={false}
+          startedAtMs={now - 6400}
+        />,
+      );
+
+      rerender(
+        <WorkingTrace
+          running={false}
+          items={[]}
+          revealed={0}
+          orchestrating={false}
+          startedAtMs={now - 6400}
+        />,
+      );
+
+      expect(getByRole("button", { name: /Worked for/ })).toHaveTextContent(
+        "Worked for 6s",
+      );
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   it("progressively reveals a buffered final answer", async () => {
