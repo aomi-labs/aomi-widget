@@ -62,8 +62,10 @@ describe("AccountManagement wallet actions", () => {
     })[0];
     expect(connect.querySelector("svg")).toBeTruthy();
     expect(disconnect.querySelector("svg")).toBeTruthy();
-    expect(screen.queryByText(/Not connected on this device/i)).toBeNull();
     expect(screen.queryByRole("button", { name: "Use" })).toBeNull();
+    expect(
+      screen.getByText("3 linked wallets · 1 not connected on this device"),
+    ).toBeTruthy();
 
     const selectWallet = screen.getByRole("button", {
       name: "Make Coinbase Wallet active",

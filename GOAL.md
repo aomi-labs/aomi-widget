@@ -1,5 +1,11 @@
 # Canonical Landing
 
+Current session goal: **GENERAL ACCOUNT IDENTITY SUMMARY VERIFIED 2026-09-01** —
+Settings General now leads with the live Aomi display name instead of a wallet
+address and summarizes durable wallet state, including how many linked wallets
+are not connected on the current device. Account uses the same summary language
+alongside the email so both settings surfaces describe one identity graph.
+
 Current session goal: **ACCOUNT MENU QUICK WALLET SWITCH VERIFIED 2026-09-01** —
 add a compact wallet-stack control to the grouped account summary so connected
 EVM wallets can be activated in place without opening Settings. The inline

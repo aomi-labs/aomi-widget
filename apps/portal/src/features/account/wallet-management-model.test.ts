@@ -3,6 +3,7 @@ import {
   buildUnifiedAccountWallets,
   isProviderSigningWallet,
   visibleSignInMethods,
+  walletConnectionSummary,
 } from "./wallet-management-model";
 
 describe("buildUnifiedAccountWallets", () => {
@@ -127,6 +128,29 @@ describe("buildUnifiedAccountWallets", () => {
 });
 
 describe("wallet management classification", () => {
+  it("summarizes linked wallets that are offline on this device", () => {
+    expect(
+      walletConnectionSummary([
+        {
+          key: "evm:0x1",
+          family: "evm",
+          address: "0x1",
+          connected: true,
+          linked: true,
+          active: true,
+        },
+        {
+          key: "evm:0x2",
+          family: "evm",
+          address: "0x2",
+          connected: false,
+          linked: true,
+          active: false,
+        },
+      ]),
+    ).toBe("2 linked wallets · 1 not connected on this device");
+  });
+
   it("keeps public wallet proofs out of provider signing controls", () => {
     expect(
       isProviderSigningWallet({

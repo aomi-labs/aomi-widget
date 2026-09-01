@@ -2,11 +2,14 @@
 
 import { useMemo, type ReactNode } from "react";
 import { getChainInfo } from "@aomi-labs/react";
-import { formatAuthMethod, useAomiWalletKit } from "@aomi-labs/widget-lib";
-import { ChevronRight, Shield } from "lucide-react";
+import { useAomiWalletKit } from "@aomi-labs/widget-lib";
+import { ChevronRight, Shield, UserRound } from "lucide-react";
 import { countDriftedWallets } from "@portal/features/account/wallet-attention";
 import { useAccountAcl } from "@portal/features/account/use-account-acl";
-import { buildUnifiedAccountWallets } from "@portal/features/account/wallet-management-model";
+import {
+  buildUnifiedAccountWallets,
+  walletConnectionSummary,
+} from "@portal/features/account/wallet-management-model";
 import { useAccountOverview } from "@portal/lib/account-overview";
 import { useSettings, type ColorMode } from "@portal/lib/use-settings";
 
@@ -33,17 +36,6 @@ export function GeneralSettings({
     ? getChainInfo(identity.chainId)?.ticker
     : undefined;
 
-  const identityType = useMemo(() => {
-    if (identity.status !== "connected") return "Disconnected";
-    return formatAuthMethod(identity.authMethod) ?? "Wallet";
-  }, [identity.authMethod, identity.status]);
-
-  const address =
-    identity.address ?? account?.user.public_key ?? "Not connected";
-  const primary =
-    account?.user.verified_email ??
-    (identity.address ? truncateAddress(identity.address) : address);
-
   const walletAttentionCount =
     acl.status === "ready" ? countDriftedWallets(acl.wallets) : 0;
 
@@ -58,6 +50,12 @@ export function GeneralSettings({
   );
   const connectedWallets = wallets.filter((wallet) => wallet.connected).length;
   const linkedWallets = wallets.filter((wallet) => wallet.linked).length;
+  const linkedWalletStatus = walletConnectionSummary(wallets);
+  const accountName =
+    adapter.accountUser?.displayName?.trim() ||
+    adapter.accountUser?.email ||
+    account?.user.verified_email ||
+    "Aomi account";
 
   const themeChoices: { mode: ColorMode; label: string }[] = [
     { mode: "dark", label: "Dark" },
@@ -75,8 +73,8 @@ export function GeneralSettings({
       )}
 
       <AccountSummaryCard
-        primary={primary}
-        identityDesc={`${identityType} · ${address}`}
+        primary={accountName}
+        walletDesc={linkedWalletStatus}
         tier={account?.user.tier}
         memberSince={formatMemberSince(account?.user.created_at)}
         usage={account?.usage}
@@ -136,7 +134,7 @@ export function GeneralSettings({
 
 function AccountSummaryCard({
   primary,
-  identityDesc,
+  walletDesc,
   tier,
   memberSince,
   usage,
@@ -144,7 +142,7 @@ function AccountSummaryCard({
   onViewUsage,
 }: {
   primary: string;
-  identityDesc: string;
+  walletDesc: string;
   tier?: string;
   memberSince?: string;
   usage?: {
@@ -165,8 +163,12 @@ function AccountSummaryCard({
     <div className="border-aomi-border bg-aomi-bg/40 overflow-hidden rounded-xl border">
       <SettingRow
         title={primary}
-        desc={identityDesc}
-        descMono
+        desc={walletDesc}
+        leading={
+          <span className="bg-aomi-surface-2 text-aomi-muted flex size-8 shrink-0 items-center justify-center rounded-full">
+            <UserRound size={16} />
+          </span>
+        }
         className="px-4 sm:px-5"
       >
         <button
@@ -267,13 +269,13 @@ function WalletAttentionBanner({
 function SettingRow({
   title,
   desc,
-  descMono,
+  leading,
   className = "",
   children,
 }: {
   title: string;
   desc: string;
-  descMono?: boolean;
+  leading?: ReactNode;
   className?: string;
   children?: ReactNode;
 }) {
@@ -281,15 +283,14 @@ function SettingRow({
     <div
       className={`flex items-center justify-between gap-4 py-3.5 ${className}`}
     >
-      <div className="min-w-0 flex-1">
-        <span className="text-sm font-medium leading-none">{title}</span>
-        <span
-          className={`text-aomi-muted mt-1 block truncate text-[13px] leading-snug ${
-            descMono ? "font-mono" : ""
-          }`}
-        >
-          {desc}
-        </span>
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        {leading}
+        <div className="min-w-0 flex-1">
+          <span className="text-sm font-medium leading-none">{title}</span>
+          <span className="text-aomi-muted mt-1 block truncate text-[13px] leading-snug">
+            {desc}
+          </span>
+        </div>
       </div>
       {children}
     </div>
@@ -369,9 +370,4 @@ function formatPeriodLabel(periodUtcMonth?: string): string {
     "Dec",
   ];
   return `${names[month - 1] ?? periodUtcMonth} ${year}`;
-}
-
-function truncateAddress(value: string): string {
-  if (value.length <= 12) return value;
-  return `${value.slice(0, 6)}…${value.slice(-4)}`;
 }

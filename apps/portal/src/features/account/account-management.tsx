@@ -18,7 +18,10 @@ import {
 import { WalletProviderAvatar } from "./wallet-brands";
 import { Divider, SettingRow } from "./settings-rows";
 import { shortenAddress } from "./account-api";
-import type { UnifiedAccountWallet } from "./wallet-management-model";
+import {
+  walletConnectionSummary,
+  type UnifiedAccountWallet,
+} from "./wallet-management-model";
 
 export type AddWalletOption = {
   id: string;
@@ -83,6 +86,11 @@ export function AccountManagement({
   const connectedWalletCount = wallets.filter(
     (wallet) => wallet.connected,
   ).length;
+  const walletSummary = walletConnectionSummary(wallets);
+  const accountDetail =
+    user?.email && user.email !== visibleName
+      ? `${user.email} · ${walletSummary}`
+      : walletSummary;
 
   const saveName = async () => {
     if (!onRenameAccount) return;
@@ -112,7 +120,7 @@ export function AccountManagement({
               </span>
             }
             title={editingName ? "Account name" : visibleName}
-            desc={user?.email ?? `${wallets.length} wallets`}
+            desc={accountDetail}
           >
             {editingName ? (
               <div className="flex items-center gap-1.5">

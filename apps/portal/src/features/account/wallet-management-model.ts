@@ -146,6 +146,29 @@ export function buildUnifiedAccountWallets({
   return [...rows.values()];
 }
 
+export function walletConnectionSummary(
+  wallets: readonly UnifiedAccountWallet[],
+): string {
+  const linked = wallets.filter((wallet) => wallet.linked);
+  const linkedOffline = linked.filter((wallet) => !wallet.connected).length;
+
+  if (linked.length > 0) {
+    const linkedLabel = `${linked.length} linked ${
+      linked.length === 1 ? "wallet" : "wallets"
+    }`;
+    if (linkedOffline > 0) {
+      return `${linkedLabel} · ${linkedOffline} not connected on this device`;
+    }
+    return `${linkedLabel} · all connected on this device`;
+  }
+
+  const connected = wallets.filter((wallet) => wallet.connected).length;
+  if (connected > 0) {
+    return `${connected} ${connected === 1 ? "wallet" : "wallets"} connected on this device`;
+  }
+  return "No wallets linked yet";
+}
+
 export function visibleSignInMethods(
   accounts: readonly LinkedAuthAccount[],
 ): LinkedAuthAccount[] {

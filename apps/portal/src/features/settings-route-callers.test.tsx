@@ -33,7 +33,33 @@ vi.mock("@aomi-labs/widget-lib", () => ({
   Input: (props: InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
   formatAuthMethod: () => "Wallet",
   useAomiWalletKit: () => ({
-    accountUser: { id: "acct-user-1" },
+    accountUser: { id: "acct-user-1", displayName: "Aron" },
+    accountWallets: [
+      {
+        id: "wallet-rabby",
+        family: "evm",
+        address: "0xabc",
+        label: "Rabby",
+        kind: "external",
+      },
+      {
+        id: "wallet-metamask",
+        family: "evm",
+        address: "0xdef",
+        label: "MetaMask",
+        kind: "external",
+      },
+    ],
+    accounts: [
+      {
+        id: "rabby",
+        family: "evm",
+        address: "0xabc",
+        walletName: "Rabby",
+        active: true,
+        linked: true,
+      },
+    ],
     canConnect: true,
     canOpenAccountUI: true,
     connect: widgetMock.connect,
@@ -154,9 +180,10 @@ describe("settings route callers", () => {
 
     render(<GeneralSettings />);
 
-    await waitFor(() =>
-      expect(screen.getByText("alice@example.com")).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByText("Aron")).toBeTruthy());
+    expect(
+      screen.getByText("2 linked wallets · 1 not connected on this device"),
+    ).toBeTruthy();
     expect(screen.getByText("Pro")).toBeTruthy();
     expect(screen.getByText(/88 remaining/)).toBeTruthy();
     expect(screen.getByText(/12 \/ 100 used/)).toBeTruthy();
