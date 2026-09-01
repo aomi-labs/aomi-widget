@@ -275,7 +275,18 @@ export const auth = betterAuth({
               : [],
             resourceSeedMode: "overwrite",
             scopes: [...AOMI_SCOPES],
-            clientRegistrationDefaultResources: [],
+            // A client registering under RFC 7591 declares no resource, so
+            // whatever sits here is the entire set it may later ask for. The
+            // mcp plugin appends its own `resource` (agentMcp) to this list,
+            // so leaving it empty bound every dynamically registered client to
+            // Agent MCP alone and left Pipeline MCP unreachable. Defaulting to
+            // the same pair as clientRegistrationAllowedResources widens no
+            // client beyond what it was already allowed to request; the
+            // one-exact-resource rule and per-resource scope validation still
+            // apply on authorize and token, which is where a grant is minted.
+            clientRegistrationDefaultResources: seedOAuthResources
+              ? [resources.pipelineMcp]
+              : [],
             clientRegistrationAllowedResources: seedOAuthResources
               ? [resources.agentMcp, resources.pipelineMcp]
               : [],

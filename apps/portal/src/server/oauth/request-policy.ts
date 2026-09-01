@@ -103,7 +103,15 @@ async function enforceMcpRegistration(
       "Registration is limited to authorization-code MCP clients",
     );
   }
+  // RFC 7591 client metadata has no resource field, and the MCP clients we
+  // support register without one: they bind the resource later, per RFC 8707,
+  // on authorize and token. Registration is client identity only, so requiring
+  // a resource here rejected every real client before it could reach the
+  // browser flow. `enforceAomiOAuthRequestPolicy` above is what holds the
+  // one-exact-resource invariant, on the requests that actually mint a grant.
+  // A client that does declare `resources` is still held to exactly one.
   const requestedResources = stringArray(metadata.resources);
+  if (requestedResources.length === 0) return null;
   const resources = aomiOAuthResources();
   if (
     requestedResources.length !== 1 ||
