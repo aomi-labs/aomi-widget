@@ -26,9 +26,11 @@ export type WalletAccountMenuOptions = {
   onOpenDeployments?: () => void;
   /** Finish Aomi account sign-in (wallet connected, session missing). */
   onSignIn?: () => void;
+  /** End the Aomi account session while preserving live wallet connections. */
+  onSignOut?: () => void | Promise<void>;
   /**
-   * Called after disconnect confirm. Omit to use the canonical sign-out:
-   * Aomi account/widget session teardown first, then wallet disconnect.
+   * Disconnect live wallet connectors while preserving the Aomi account
+   * session. Omit to use the wallet-kit connector teardown.
    */
   onDisconnect?: () => void | Promise<void>;
 };

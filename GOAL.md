@@ -1,5 +1,13 @@
 # Canonical Landing
 
+Current session goal: **ACCOUNT MENU SESSION SEMANTICS VERIFIED 2026-09-01** —
+replace the cramped account-summary separator with a softly grouped header and
+collapse exit actions behind one Session & wallet row. Sign out now ends only
+the Aomi account session while preserving live wallet connectors; Disconnect
+wallet tears down connectors while preserving the account session. Both paths
+carry explicit explanatory copy and confirmation instead of one ambiguous
+combined Disconnect action.
+
 Current session goal: **CLI AGENT CHAT AUTH, ORDER, AND TOOL TRACES VERIFIED
 2026-08-31** — anonymous Agent and Pipeline calls now receive a guest bearer
 even while additive account auth is configured, the CLI persists that guest

@@ -90,13 +90,13 @@ describe("usePortalWalletAccountMenu account wiring", () => {
     expect(onManageAccount).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves disconnect to the widget-lib canonical teardown", () => {
+  it("leaves session and wallet teardown to widget-lib", () => {
     walletKitState.current.accountUser = { id: "acct-a" };
     const menu = readMenu();
 
-    // DualWalletBar's default runs account/widget session sign-out before
-    // wallet disconnect (covered in dual-wallet-bar.test.tsx); supplying a
-    // portal onDisconnect would just duplicate it.
+    // DualWalletBar owns these as distinct actions; Portal does not override
+    // either boundary with a combined teardown.
+    expect(menu?.onSignOut).toBeUndefined();
     expect(menu?.onDisconnect).toBeUndefined();
   });
 });

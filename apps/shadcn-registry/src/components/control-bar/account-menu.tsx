@@ -1,6 +1,12 @@
 "use client";
 
-import { LogOutIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  ChevronDownIcon,
+  LogOutIcon,
+  UnplugIcon,
+  WalletCardsIcon,
+} from "lucide-react";
 import { formatWalletAddress } from "../../lib/wallet-kit";
 import { WalletIconSlot } from "./wallet-icon-slot";
 
@@ -20,6 +26,7 @@ export type AccountMenuProps = {
   onOpenSettings?: () => void;
   onOpenDeployments?: () => void;
   onSignIn?: () => void;
+  onSignOut: () => void;
   onDisconnect: () => void;
 };
 
@@ -62,8 +69,15 @@ export function AccountMenu({
   onOpenSettings,
   onOpenDeployments,
   onSignIn,
+  onSignOut,
   onDisconnect,
 }: AccountMenuProps) {
+  const [sessionOpen, setSessionOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) setSessionOpen(false);
+  }, [open]);
+
   if (!open) return null;
 
   const shortAddress = address ? formatWalletAddress(address) : undefined;
@@ -84,7 +98,7 @@ export function AccountMenu({
         aria-label="Account menu"
         className="border-aomi-border bg-aomi-raised absolute bottom-[calc(100%+8px)] left-0 z-50 flex w-[min(248px,calc(100vw-1.5rem))] flex-col rounded-xl border p-2 shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
       >
-        <div className="border-aomi-border border-b px-2.5 pb-3 pt-2">
+        <div className="bg-aomi-surface-2/55 mx-0.5 mb-2 rounded-lg px-3 py-3">
           <div className="flex items-center gap-1.5">
             <WalletIconSlot
               label={walletLabel ?? "Wallet"}
@@ -165,14 +179,58 @@ export function AccountMenu({
         >
           Docs
         </a>
-        <button
-          type="button"
-          onClick={onDisconnect}
-          className="text-aomi-danger hover:bg-aomi-surface-2 mt-1 flex h-9 items-center gap-2 rounded-lg px-2.5 text-[13px] font-medium transition-colors"
-        >
-          <LogOutIcon size={14} />
-          Disconnect
-        </button>
+        <div className="border-aomi-border/70 mx-0.5 mt-2 border-t pt-2">
+          <button
+            type="button"
+            aria-expanded={sessionOpen}
+            onClick={() => setSessionOpen((value) => !value)}
+            className="text-aomi-fg hover:bg-aomi-surface-2 flex h-9 w-full items-center gap-2 rounded-lg px-2.5 text-[13px] font-medium transition-colors"
+          >
+            <WalletCardsIcon className="text-aomi-muted" size={14} />
+            <span className="flex-1 text-left">Session &amp; wallet</span>
+            <ChevronDownIcon
+              className={`text-aomi-muted transition-transform ${sessionOpen ? "rotate-180" : ""}`}
+              size={14}
+            />
+          </button>
+
+          {sessionOpen ? (
+            <div className="bg-aomi-bg/45 border-aomi-border/70 mt-1 overflow-hidden rounded-lg border p-1">
+              {address ? (
+                <button
+                  type="button"
+                  onClick={onDisconnect}
+                  className="hover:bg-aomi-surface-2 flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors"
+                >
+                  <UnplugIcon className="text-aomi-muted shrink-0" size={14} />
+                  <span className="min-w-0 flex-1">
+                    <span className="text-aomi-fg block text-[12px] font-medium">
+                      Disconnect {walletLabel ?? "wallet"}
+                    </span>
+                    <span className="text-aomi-muted block text-[11px] leading-snug">
+                      Keep the Aomi account signed in
+                    </span>
+                  </span>
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={onSignOut}
+                className="hover:bg-aomi-danger/5 flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors"
+              >
+                <LogOutIcon className="text-aomi-danger shrink-0" size={14} />
+                <span className="min-w-0 flex-1">
+                  <span className="text-aomi-danger block text-[12px] font-medium">
+                    Sign out
+                  </span>
+                  <span className="text-aomi-muted block text-[11px] leading-snug">
+                    End the Aomi session; keep wallet connected
+                  </span>
+                </span>
+              </button>
+            </div>
+          ) : null}
+        </div>
       </div>
     </>
   );

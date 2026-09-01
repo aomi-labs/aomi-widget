@@ -190,7 +190,7 @@ describe("DualWalletBar account menu", () => {
     expect(onSignIn).toHaveBeenCalledTimes(1);
   });
 
-  it("confirms account sign-out and keeps canonical history", async () => {
+  it("keeps session actions collapsed and disconnects only the wallet", async () => {
     const onDisconnect = vi.fn(async () => undefined);
     render(
       <DualWalletBar
@@ -204,10 +204,17 @@ describe("DualWalletBar account menu", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
-    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    expect(screen.queryByRole("button", { name: /Sign out/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Session & wallet" }));
+    expect(
+      screen.getByText("End the Aomi session; keep wallet connected"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Disconnect MetaMask/ }),
+    );
 
     expect(screen.getByRole("dialog")).toHaveTextContent(
-      "Your chat history remains in your Aomi account.",
+      "Your Aomi account stays signed in.",
     );
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
 
@@ -216,7 +223,7 @@ describe("DualWalletBar account menu", () => {
     expect(adapterState.current.signOutAccount).not.toHaveBeenCalled();
   });
 
-  it("defaults to account sign-out before wallet disconnect", async () => {
+  it("signs out without disconnecting the wallet", async () => {
     render(
       <DualWalletBar
         families={["evm"]}
@@ -225,7 +232,36 @@ describe("DualWalletBar account menu", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
-    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Session & wallet" }));
+    fireEvent.click(screen.getByRole("button", { name: /Sign out/ }));
+
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Your wallet stays connected in this browser.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+
+    await waitFor(() =>
+      expect(adapterState.current.signOutAccount).toHaveBeenCalledTimes(1),
+    );
+    expect(adapterState.current.disconnect).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("defaults wallet disconnect to connector teardown only", async () => {
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{ enabled: true, secondaryLine: "420 credits left" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(screen.getByRole("button", { name: "Session & wallet" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Disconnect MetaMask/ }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
 
     await waitFor(() =>
@@ -233,18 +269,10 @@ describe("DualWalletBar account menu", () => {
         family: "all",
       }),
     );
-    expect(adapterState.current.signOutAccount).toHaveBeenCalledTimes(1);
-    expect(
-      adapterState.current.signOutAccount.mock.invocationCallOrder[0],
-    ).toBeLessThan(
-      adapterState.current.disconnect.mock.invocationCallOrder[0] ?? 0,
-    );
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
+    expect(adapterState.current.signOutAccount).not.toHaveBeenCalled();
   });
 
-  it("still disconnects wallets when account sign-out fails", async () => {
+  it("never disconnects the wallet when account sign-out fails", async () => {
     adapterState.current.signOutAccount.mockRejectedValueOnce(
       new Error("sign-out failed"),
     );
@@ -257,17 +285,13 @@ describe("DualWalletBar account menu", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
-    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
-    fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
+    fireEvent.click(screen.getByRole("button", { name: "Session & wallet" }));
+    fireEvent.click(screen.getByRole("button", { name: /Sign out/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
-    await waitFor(() =>
-      expect(adapterState.current.disconnect).toHaveBeenCalledWith({
-        family: "all",
-      }),
-    );
-    // The failure is contained (no unhandled rejection) and the dialog stays
-    // open for a retry until the connected-state effect observes the drop.
     await waitFor(() => expect(warn).toHaveBeenCalled());
+    expect(adapterState.current.disconnect).not.toHaveBeenCalled();
+    // The failure is contained and the dialog stays open for an explicit retry.
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     warn.mockRestore();
   });

@@ -3,11 +3,7 @@
 import { Fragment, useEffect, useState, type FC } from "react";
 import { ChevronsUpDownIcon, UnfoldVerticalIcon } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
-import {
-  useAomiWalletKit,
-  formatWalletAddress,
-  signOutAndDisconnect,
-} from "../../lib/wallet-kit";
+import { useAomiWalletKit, formatWalletAddress } from "../../lib/wallet-kit";
 import { WalletIconSlot } from "./wallet-icon-slot";
 import { WalletPicker } from "./wallet-picker";
 import { WalletPickerProvider, useWalletPicker } from "./wallet-picker-context";
@@ -57,8 +53,10 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
   const identity = adapter.identity;
   const { openPicker } = useWalletPicker();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [disconnectOpen, setDisconnectOpen] = useState(false);
-  const [disconnectBusy, setDisconnectBusy] = useState(false);
+  const [sessionAction, setSessionAction] = useState<
+    "signout" | "disconnect" | null
+  >(null);
+  const [sessionActionBusy, setSessionActionBusy] = useState(false);
 
   const connected = Boolean(identity.address || identity.svmAddress);
   const accountMenuEnabled = Boolean(accountMenu?.enabled);
@@ -117,7 +115,7 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
   useEffect(() => {
     if (!connected && !accountMenuEnabled) {
       setMenuOpen(false);
-      setDisconnectOpen(false);
+      setSessionAction(null);
     }
   }, [accountMenuEnabled, connected]);
 
@@ -129,26 +127,35 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
     openPicker();
   };
 
-  const handleDisconnectRequest = () => {
+  const handleSessionActionRequest = (action: "signout" | "disconnect") => {
     setMenuOpen(false);
-    setDisconnectOpen(true);
+    setSessionAction(action);
   };
 
-  const handleDisconnectConfirm = async () => {
-    setDisconnectBusy(true);
+  const handleSessionActionConfirm = async () => {
+    if (!sessionAction) return;
+    setSessionActionBusy(true);
     try {
-      if (accountMenu?.onDisconnect) {
-        await accountMenu.onDisconnect();
+      if (sessionAction === "signout") {
+        if (accountMenu?.onSignOut) {
+          await accountMenu.onSignOut();
+        } else {
+          await adapter.signOutAccount?.();
+        }
       } else {
-        await signOutAndDisconnect(adapter);
+        if (accountMenu?.onDisconnect) {
+          await accountMenu.onDisconnect();
+        } else {
+          await adapter.disconnect?.({ family: "all" });
+        }
       }
-      setDisconnectOpen(false);
+      setSessionAction(null);
     } catch (err) {
-      // Keep the dialog open for a retry; if the wallet drop itself landed,
-      // the connected-state effect above closes it.
-      console.warn("[DualWalletBar] disconnect failed", err);
+      // Keep the dialog open for a retry so either session action remains
+      // explicit and never silently falls through to the other teardown.
+      console.warn(`[DualWalletBar] ${sessionAction} failed`, err);
     } finally {
-      setDisconnectBusy(false);
+      setSessionActionBusy(false);
     }
   };
 
@@ -283,17 +290,19 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
             onOpenSettings={wrapMenuAction(accountMenu?.onOpenSettings)}
             onOpenDeployments={wrapMenuAction(accountMenu?.onOpenDeployments)}
             onSignIn={wrapMenuAction(accountMenu?.onSignIn)}
-            onDisconnect={handleDisconnectRequest}
+            onSignOut={() => handleSessionActionRequest("signout")}
+            onDisconnect={() => handleSessionActionRequest("disconnect")}
           />
         ) : null}
       </div>
 
       <DisconnectConfirmDialog
-        open={disconnectOpen}
+        open={sessionAction !== null}
+        mode={sessionAction ?? "signout"}
         address={visibleAddress}
-        busy={disconnectBusy}
-        onConfirm={() => void handleDisconnectConfirm()}
-        onCancel={() => setDisconnectOpen(false)}
+        busy={sessionActionBusy}
+        onConfirm={() => void handleSessionActionConfirm()}
+        onCancel={() => setSessionAction(null)}
       />
       <WalletPicker />
     </>
