@@ -179,6 +179,16 @@ type TraceItem =
 const childStepCount = (item: TraceItem): number =>
   item.kind === "agent" ? agentStepCount(item.run) : 0;
 
+const WorkingLivePulse: FC = () => (
+  <span
+    aria-hidden="true"
+    className="aui-working-live relative flex size-3 shrink-0 items-center justify-center"
+  >
+    <span className="bg-aomi-accent/30 absolute size-3 animate-ping rounded-full motion-reduce:animate-none" />
+    <span className="bg-aomi-accent-strong relative size-1.5 rounded-full" />
+  </span>
+);
+
 export const WorkingTrace: FC<{
   running: boolean;
   items: TraceItem[];
@@ -377,8 +387,10 @@ export const WorkingTrace: FC<{
     // compact header chip remains visible.
     <div
       className={cn(
-        "aui-working-trace mb-3 flex w-full flex-col overflow-hidden rounded-xl border transition-colors duration-300 motion-reduce:transition-none",
-        open ? "border-aomi-border" : "border-transparent",
+        "aui-working-trace mb-3 flex w-full flex-col overflow-hidden rounded-xl border transition-[border-color,background-color,box-shadow] duration-300 motion-reduce:transition-none",
+        open
+          ? "border-aomi-border/70 bg-aomi-surface/25 shadow-[0_6px_20px_rgba(0,0,0,0.025)]"
+          : "border-transparent bg-transparent shadow-none",
       )}
     >
       <button
@@ -388,11 +400,13 @@ export const WorkingTrace: FC<{
         className={cn(
           "aui-working-trace-header flex items-center gap-2 border text-left text-sm transition-[padding,border-radius,border-color,background-color] duration-300 ease-out motion-reduce:transition-none",
           open
-            ? "bg-aomi-surface w-full self-stretch rounded-[11px] border-transparent px-3.5 py-[11px]"
+            ? "bg-aomi-surface/65 w-full self-stretch rounded-[11px] border-transparent px-3.5 py-[10px]"
             : "border-aomi-border bg-aomi-surface hover:border-aomi-muted/40 w-fit self-start rounded-full px-3 py-[7px]",
         )}
       >
-        {!running && (
+        {running ? (
+          <WorkingLivePulse />
+        ) : (
           <CheckIcon className="text-aomi-success size-3.5 shrink-0" />
         )}
         <span className={cn("text-[13px]", headerClass)}>{label}</span>
@@ -401,9 +415,11 @@ export const WorkingTrace: FC<{
             orchestrator
           </span>
         )}
-        <span className="text-aomi-muted font-mono text-xs">
-          {stepCount} {stepCount === 1 ? "step" : "steps"}
-        </span>
+        {stepCount > 0 ? (
+          <span className="bg-aomi-surface-2/80 text-aomi-muted rounded-full px-2 py-0.5 font-mono text-[10px] tabular-nums">
+            {stepCount} {stepCount === 1 ? "step" : "steps"}
+          </span>
+        ) : null}
         {open && <span className="flex-1" />}
         <ChevronDownIcon
           className={cn(
@@ -424,7 +440,7 @@ export const WorkingTrace: FC<{
         )}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="border-aomi-border relative border-t">
+          <div className="border-aomi-border/60 bg-aomi-bg/15 relative border-t">
             {windowed && overflowing && !animating && (
               <>
                 <span
@@ -528,13 +544,25 @@ export const WorkingTrace: FC<{
   );
 };
 
-const MinimalWorkingTrace: FC = () => (
-  <div className="aui-working-trace border-aomi-border mb-3 flex flex-col overflow-hidden rounded-xl border">
-    <div className="aui-working-trace-header bg-aomi-surface flex items-center gap-2.5 px-3.5 py-[11px] text-sm">
-      <span className="aui-working-shimmer text-[13px] font-medium">
-        Working
-      </span>
-    </div>
+export const MinimalWorkingTrace: FC = () => (
+  <div
+    role="status"
+    aria-label="Aomi is thinking"
+    className="aui-working-trace-start ring-aomi-border/70 bg-aomi-surface/70 mb-3 flex w-fit items-center gap-2.5 rounded-full px-3 py-2 ring-1 ring-inset"
+  >
+    <WorkingLivePulse />
+    <span className="aui-working-shimmer text-[13px] font-medium">
+      Thinking
+    </span>
+    <span className="flex items-center gap-1" aria-hidden="true">
+      {[0, 1, 2].map((index) => (
+        <span
+          key={index}
+          className="bg-aomi-muted/55 size-1 animate-pulse rounded-full motion-reduce:animate-none"
+          style={{ animationDelay: `${index * 180}ms` }}
+        />
+      ))}
+    </span>
   </div>
 );
 

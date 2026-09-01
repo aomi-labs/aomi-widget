@@ -15,7 +15,11 @@ vi.mock("@/components/assistant-ui/markdown-text", async () => {
   };
 });
 
-import { ProgressiveRenderedText, WorkingTrace } from "./working-trace";
+import {
+  MinimalWorkingTrace,
+  ProgressiveRenderedText,
+  WorkingTrace,
+} from "./working-trace";
 
 const run = (steps: TaskRunState["steps"]): TaskRunState => ({
   agentId: "task-agent:9f2c1a2b3c4d",
@@ -28,6 +32,20 @@ const run = (steps: TaskRunState["steps"]): TaskRunState => ({
 });
 
 describe("WorkingTrace", () => {
+  it("uses a compact status pill before trace steps arrive", () => {
+    const { container, getByRole } = render(<MinimalWorkingTrace />);
+
+    expect(getByRole("status", { name: "Aomi is thinking" })).toHaveTextContent(
+      "Thinking",
+    );
+    expect(container.querySelector(".aui-working-trace-start")).toHaveClass(
+      "w-fit",
+      "rounded-full",
+    );
+    expect(container.querySelector(".aui-working-live")).toBeTruthy();
+    expect(container.querySelector(".aui-working-trace")).toBeNull();
+  });
+
   it("progressively reveals a buffered final answer", async () => {
     vi.useFakeTimers();
     try {
@@ -60,6 +78,8 @@ describe("WorkingTrace", () => {
     expect(container).toHaveTextContent("Working");
     expect(container).toHaveTextContent("orchestrator");
     expect(container).not.toHaveTextContent("Orchestrating");
+    expect(container.querySelector(".aui-working-live")).toBeTruthy();
+    expect(container).not.toHaveTextContent("0 steps");
   });
 
   it("keeps the trace body mounted while animating it open and closed", () => {

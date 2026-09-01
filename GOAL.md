@@ -1,5 +1,10 @@
 # Canonical Landing
 
+Current session goal: **WORKING TRACE START STATE REDESIGNED 2026-09-01** —
+replace the empty full-width Working card with a compact Thinking status pill,
+then transition into a softer live trace with one pulse signal, a quiet count
+badge, and reduced border weight once real steps arrive.
+
 Current session goal: **IN-PLACE ACCOUNT NAME EDIT VERIFIED 2026-09-01** —
 editing the Account display name now transforms the name itself into the input,
 keeps wallet status anchored beneath it, and provides adjacent save/cancel
