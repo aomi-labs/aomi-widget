@@ -1,5 +1,10 @@
 # Canonical Landing
 
+Current session goal: **IN-PLACE ACCOUNT NAME EDIT VERIFIED 2026-09-01** —
+editing the Account display name now transforms the name itself into the input,
+keeps wallet status anchored beneath it, and provides adjacent save/cancel
+actions plus Enter/Escape keyboard handling without relabeling or jumping rows.
+
 Current session goal: **GENERAL ACCOUNT IDENTITY SUMMARY VERIFIED 2026-09-01** —
 Settings General now leads with the live Aomi display name instead of a wallet
 address and summarizes durable wallet state, including how many linked wallets

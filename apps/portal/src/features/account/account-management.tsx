@@ -14,6 +14,7 @@ import {
   Trash2,
   Unplug,
   UserRound,
+  X,
 } from "lucide-react";
 import { WalletProviderAvatar } from "./wallet-brands";
 import { Divider, SettingRow } from "./settings-rows";
@@ -98,6 +99,11 @@ export function AccountManagement({
     setEditingName(false);
   };
 
+  const cancelNameEdit = () => {
+    setDisplayName(user?.displayName ?? "");
+    setEditingName(false);
+  };
+
   return (
     <div className="flex flex-col gap-6 px-[22px] py-5">
       {error ? (
@@ -119,24 +125,41 @@ export function AccountManagement({
                 <UserRound size={16} />
               </span>
             }
-            title={editingName ? "Account name" : visibleName}
+            title={
+              editingName ? (
+                <input
+                  autoFocus
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void saveName();
+                    if (event.key === "Escape") cancelNameEdit();
+                  }}
+                  aria-label="Account display name"
+                  disabled={pending === "account:rename"}
+                  className="border-aomi-border bg-aomi-bg text-aomi-fg focus:border-aomi-muted h-7 w-full max-w-64 rounded-md border px-2 text-sm font-medium outline-none transition-colors"
+                />
+              ) : (
+                visibleName
+              )
+            }
             desc={accountDetail}
           >
             {editingName ? (
               <div className="flex items-center gap-1.5">
-                <input
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  aria-label="Account display name"
-                  disabled={pending === "account:rename"}
-                  className="border-aomi-border bg-aomi-bg text-aomi-fg h-8 w-40 rounded-lg border px-2 text-[13px] outline-none"
-                />
                 <IconButton
                   label="Save account name"
                   busy={pending === "account:rename"}
                   onClick={() => void saveName()}
                 >
                   <Check size={14} />
+                </IconButton>
+                <IconButton
+                  label="Cancel account name edit"
+                  disabled={pending === "account:rename"}
+                  onClick={cancelNameEdit}
+                >
+                  <X size={14} />
                 </IconButton>
               </div>
             ) : onRenameAccount ? (
@@ -564,19 +587,21 @@ function IconButton({
   label,
   danger = false,
   busy = false,
+  disabled = false,
   onClick,
 }: {
   children: React.ReactNode;
   label: string;
   danger?: boolean;
   busy?: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
       aria-label={label}
-      disabled={busy}
+      disabled={busy || disabled}
       onClick={onClick}
       className={`hover:bg-aomi-surface-2 flex h-8 w-8 items-center justify-center rounded-lg transition-colors disabled:opacity-50 ${danger ? "text-aomi-danger" : "text-aomi-muted hover:text-aomi-fg"}`}
     >

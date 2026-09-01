@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AccountManagement } from "./account-management";
 import type { UnifiedAccountWallet } from "./wallet-management-model";
@@ -35,6 +35,69 @@ const inactiveWallet: UnifiedAccountWallet = {
 };
 
 describe("AccountManagement wallet actions", () => {
+  it("edits the account name in place without relabeling the row", async () => {
+    const onRenameAccount = vi.fn(async () => undefined);
+    render(
+      <AccountManagement
+        user={{ id: "user-1", displayName: "Aron" }}
+        wallets={[connectedWallet, inactiveWallet, linkedWallet]}
+        signInMethods={[]}
+        addWalletOptions={[]}
+        addSignInOptions={[]}
+        pending={null}
+        onRenameAccount={onRenameAccount}
+        onAddWallet={async () => undefined}
+        onAddSignIn={async () => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Rename account" }));
+    const input = screen.getByRole("textbox", {
+      name: "Account display name",
+    });
+    expect(input).toHaveValue("Aron");
+    expect(screen.queryByText("Account name")).toBeNull();
+    expect(
+      screen.getByText("3 linked wallets · 1 not connected on this device"),
+    ).toBeTruthy();
+
+    fireEvent.change(input, { target: { value: "Aron Aomi" } });
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Save account name" }),
+      );
+    });
+    expect(onRenameAccount).toHaveBeenCalledWith("Aron Aomi");
+  });
+
+  it("cancels an in-place name edit", () => {
+    render(
+      <AccountManagement
+        user={{ id: "user-1", displayName: "Aron" }}
+        wallets={[]}
+        signInMethods={[]}
+        addWalletOptions={[]}
+        addSignInOptions={[]}
+        pending={null}
+        onRenameAccount={async () => undefined}
+        onAddWallet={async () => undefined}
+        onAddSignIn={async () => undefined}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Rename account" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Account display name" }),
+      { target: { value: "Temporary" } },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Cancel account name edit" }),
+    );
+
+    expect(screen.getByText("Aron")).toBeTruthy();
+    expect(screen.queryByDisplayValue("Temporary")).toBeNull();
+  });
+
   it("shows Connect with an icon for offline wallets and Disconnect for live wallets", () => {
     const onConnectWallet = vi.fn(async () => undefined);
     const onDisconnectWallet = vi.fn(async () => undefined);
