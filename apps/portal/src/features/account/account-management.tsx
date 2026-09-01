@@ -9,6 +9,7 @@ import {
   Loader2,
   LogOut,
   Pencil,
+  Plug,
   Plus,
   Trash2,
   Unplug,
@@ -23,6 +24,7 @@ export type AddWalletOption = {
   id: string;
   family: "evm" | "svm";
   label: string;
+  markKey?: string;
   ready: boolean;
 };
 
@@ -44,6 +46,7 @@ type AccountManagementProps = {
   onAddWallet: (option: AddWalletOption) => Promise<void>;
   onAddSignIn: (option: AddSignInOption) => Promise<void>;
   onLinkWallet?: (wallet: UnifiedAccountWallet) => Promise<void>;
+  onConnectWallet?: (wallet: UnifiedAccountWallet) => Promise<void>;
   onSelectWallet?: (wallet: UnifiedAccountWallet) => Promise<void>;
   onDisconnectWallet?: (wallet: UnifiedAccountWallet) => Promise<void>;
   onUnlinkWallet?: (wallet: UnifiedAccountWallet) => Promise<void>;
@@ -64,6 +67,7 @@ export function AccountManagement({
   onAddWallet,
   onAddSignIn,
   onLinkWallet,
+  onConnectWallet,
   onSelectWallet,
   onDisconnectWallet,
   onUnlinkWallet,
@@ -76,6 +80,9 @@ export function AccountManagement({
   const [addWalletOpen, setAddWalletOpen] = useState(false);
   const [addSignInOpen, setAddSignInOpen] = useState(false);
   const visibleName = user?.displayName ?? user?.email ?? "Aomi account";
+  const connectedWalletCount = wallets.filter(
+    (wallet) => wallet.connected,
+  ).length;
 
   const saveName = async () => {
     if (!onRenameAccount) return;
@@ -142,7 +149,7 @@ export function AccountManagement({
       <section className="flex flex-col gap-2">
         <SectionHeading
           title="Wallets"
-          detail={`${wallets.length} total`}
+          detail={`${wallets.length} total · ${connectedWalletCount} connected now`}
           action={
             addWalletOptions.length ? (
               <button
@@ -179,6 +186,7 @@ export function AccountManagement({
                   wallet={wallet}
                   pending={pending}
                   onLink={onLinkWallet}
+                  onConnect={onConnectWallet}
                   onSelect={onSelectWallet}
                   onDisconnect={onDisconnectWallet}
                   onUnlink={onUnlinkWallet}
@@ -317,6 +325,7 @@ function WalletRow({
   wallet,
   pending,
   onLink,
+  onConnect,
   onSelect,
   onDisconnect,
   onUnlink,
@@ -324,6 +333,7 @@ function WalletRow({
   wallet: UnifiedAccountWallet;
   pending: string | null;
   onLink?: (wallet: UnifiedAccountWallet) => Promise<void>;
+  onConnect?: (wallet: UnifiedAccountWallet) => Promise<void>;
   onSelect?: (wallet: UnifiedAccountWallet) => Promise<void>;
   onDisconnect?: (wallet: UnifiedAccountWallet) => Promise<void>;
   onUnlink?: (wallet: UnifiedAccountWallet) => Promise<void>;
@@ -334,11 +344,13 @@ function WalletRow({
     (wallet.provider ? titleCase(wallet.provider) : undefined) ??
     (wallet.family === "evm" ? "Ethereum wallet" : "Solana wallet");
   const busy = pending?.endsWith(wallet.key) ?? false;
-
-  return (
-    <div className="flex items-center gap-3 px-4 py-3">
+  const selectable = Boolean(wallet.connected && !wallet.active && onSelect);
+  const walletContent = (
+    <>
       <WalletProviderAvatar
-        markKey={wallet.walletName ?? wallet.provider ?? wallet.family}
+        markKey={`${wallet.walletName ?? ""} ${wallet.label ?? ""} ${
+          wallet.provider ?? ""
+        }`}
         size={17}
       />
       <div className="min-w-0 flex-1">
@@ -355,7 +367,44 @@ function WalletRow({
           {wallet.family === "evm" ? "Ethereum" : "Solana"}
         </span>
       </div>
-      <div className="flex shrink-0 items-center gap-1.5">
+    </>
+  );
+
+  return (
+    <div
+      data-wallet-state={
+        wallet.active ? "active" : wallet.connected ? "connected" : "linked"
+      }
+      className={`relative flex items-stretch transition-colors ${
+        wallet.active
+          ? "bg-aomi-success/[0.045]"
+          : selectable
+            ? "hover:bg-aomi-hover has-[:focus-visible]:ring-aomi-accent-strong/40 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-inset"
+            : ""
+      }`}
+    >
+      {wallet.active ? (
+        <span
+          className="bg-aomi-success absolute bottom-2 left-0 top-2 w-[3px] rounded-r-full shadow-[0_0_12px_rgba(16,185,129,0.45)]"
+          aria-hidden="true"
+        />
+      ) : null}
+      {selectable ? (
+        <button
+          type="button"
+          aria-label={`Make ${title} active`}
+          disabled={busy}
+          onClick={() => void onSelect?.(wallet)}
+          className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left outline-none disabled:cursor-default"
+        >
+          {walletContent}
+        </button>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
+          {walletContent}
+        </div>
+      )}
+      <div className="flex shrink-0 items-center gap-1.5 py-3 pr-4">
         {busy ? (
           <Loader2 className="text-aomi-muted size-4 animate-spin" />
         ) : null}
@@ -365,16 +414,17 @@ function WalletRow({
             Link
           </TextButton>
         ) : null}
-        {!busy && wallet.connected && !wallet.active && onSelect ? (
-          <TextButton onClick={() => void onSelect(wallet)}>Use</TextButton>
+        {!busy && !wallet.connected && onConnect ? (
+          <TextButton onClick={() => void onConnect(wallet)}>
+            <Plug size={14} />
+            Connect
+          </TextButton>
         ) : null}
         {!busy && wallet.connected && onDisconnect ? (
-          <IconButton
-            label={`Disconnect ${title}`}
-            onClick={() => void onDisconnect(wallet)}
-          >
+          <TextButton onClick={() => void onDisconnect(wallet)}>
             <Unplug size={14} />
-          </IconButton>
+            Disconnect
+          </TextButton>
         ) : null}
         {!busy && wallet.linked && wallet.accountWalletId && onUnlink ? (
           <IconButton
@@ -412,7 +462,9 @@ function SectionHeading({
   );
 }
 
-function OptionGrid<T extends { id: string; label: string; ready: boolean }>({
+function OptionGrid<
+  T extends { id: string; label: string; markKey?: string; ready: boolean },
+>({
   options,
   pending,
   prefix,
@@ -435,7 +487,12 @@ function OptionGrid<T extends { id: string; label: string; ready: boolean }>({
             onClick={() => onSelect(option)}
             className="border-aomi-border bg-aomi-bg hover:bg-aomi-hover text-aomi-fg flex h-10 items-center justify-between rounded-lg border px-3 text-left text-[13px] font-medium transition-colors disabled:opacity-50"
           >
-            <span className="truncate">{option.label}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              {option.markKey ? (
+                <WalletProviderAvatar markKey={option.markKey} size={14} />
+              ) : null}
+              <span className="truncate">{option.label}</span>
+            </span>
             {busy ? (
               <Loader2 size={14} className="animate-spin" />
             ) : (
@@ -457,9 +514,9 @@ function StatusBadge({
 }) {
   const toneClass =
     tone === "active"
-      ? "bg-aomi-accent-subtle text-aomi-accent-strong"
+      ? "bg-aomi-success/10 text-aomi-success ring-aomi-success/20 ring-1 ring-inset"
       : tone === "connected"
-        ? "bg-aomi-success/10 text-aomi-success"
+        ? "bg-sky-500/10 text-sky-700 ring-1 ring-inset ring-sky-500/15 dark:text-sky-300"
         : "bg-aomi-surface-2 text-aomi-muted";
   return (
     <span

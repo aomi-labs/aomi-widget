@@ -50,7 +50,7 @@ describe("buildUnifiedAccountWallets", () => {
     });
   });
 
-  it("sorts the active wallet before connected and linked-only wallets", () => {
+  it("keeps wallet order stable when the active wallet changes", () => {
     const rows = buildUnifiedAccountWallets({
       accounts: [
         { id: "two", family: "svm", address: "Two", active: false },
@@ -67,7 +67,62 @@ describe("buildUnifiedAccountWallets", () => {
       policies: [],
     });
 
-    expect(rows.map((row) => row.address)).toEqual(["0x1", "Two", "0x3"]);
+    expect(rows.map((row) => row.address)).toEqual(["0x3", "Two", "0x1"]);
+
+    const switched = buildUnifiedAccountWallets({
+      accounts: [
+        { id: "two", family: "svm", address: "Two", active: true },
+        { id: "one", family: "evm", address: "0x1", active: false },
+      ],
+      linkedWallets: [
+        {
+          id: "three",
+          family: "evm",
+          address: "0x3",
+          linkedVia: "siwe",
+        },
+      ],
+      policies: [],
+    });
+
+    expect(switched.map((row) => row.address)).toEqual(["0x3", "Two", "0x1"]);
+  });
+
+  it("keeps a live wallet connected while the account runtime refreshes", () => {
+    const rows = buildUnifiedAccountWallets({
+      accounts: [],
+      linkedWallets: [
+        {
+          id: "wallet-rabby",
+          family: "evm",
+          address: "0xABC",
+          label: "Rabby 1",
+          linkedVia: "siwe",
+        },
+      ],
+      policies: [],
+      liveConnections: [
+        {
+          id: "rabby-connector",
+          family: "evm",
+          address: "0xabc",
+          walletName: "Rabby",
+          chainId: 1,
+          active: true,
+        },
+      ],
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      walletName: "Rabby",
+      label: "Rabby 1",
+      connected: true,
+      linked: true,
+      active: true,
+      connectedAccountId: "rabby-connector",
+      accountWalletId: "wallet-rabby",
+    });
   });
 });
 

@@ -10,6 +10,21 @@ longer declares an unused redirect flow. Client and React builds, typecheck,
 lint, formatting, 259 focused package tests, 44 Rust runtime tests, and repeated
 live staging CLI tool calls pass with message, tool, answer, and terminal order.
 
+Current session goal: **WALLET AUTH UI FOLLOW-UP VERIFIED 2026-09-01** —
+wallet and provider marks now render in their brand colors, including persisted
+labels such as “Rabby 1” and “MetaMask 1”; Settings distinguishes linked wallets
+from wallets connected on the current device and preserves that live state
+through the post-link account refresh. The initial picker and finish-sign-in
+step now use the Settings visual system, and every provider row fills the popup
+instead of leaving a clipped-looking blank column. Offline linked wallets show
+an explicit Connect action, while live wallets show Disconnect. Inactive
+connected rows activate from their wallet body instead of a separate Use
+button; only the active row receives the green rail and wash, while the
+connected state uses a cooler blue chip. Selection hover spans the complete
+row, and active-state changes preserve wallet order. Focused Portal/widget tests, scoped
+lint, Portal and package builds, package dry-run, and live anonymous UI
+measurements pass.
+
 Current session goal: **PORTAL ACCOUNT AND WALLET UI UNIFIED 2026-08-31** —
 anonymous Portal sessions now show a Sign in entry point without account
 settings chrome; the initial wallet/auth picker uses the current Aomi visual

@@ -15,6 +15,7 @@ import {
   visibleSignInMethods,
   type UnifiedAccountWallet,
 } from "./wallet-management-model";
+import { resolveWalletBrandKey } from "./wallet-brands";
 
 /** Settings › Account is the canonical account, wallet, and signing surface. */
 export function AccountSettings() {
@@ -23,14 +24,81 @@ export function AccountSettings() {
   const [pending, setPending] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const liveConnections = useMemo(() => {
+    const rows = (adapter.walletModalRows ?? [])
+      .filter(
+        (row) =>
+          row.source === "live" &&
+          Boolean(row.address) &&
+          (row.status === "active" || row.status === "connected"),
+      )
+      .map((row) => ({
+        id: row.id,
+        family: row.family,
+        address: row.address!,
+        chainId: row.chainId,
+        walletName: row.walletName,
+        provider: row.provider,
+        active: row.status === "active",
+      }));
+
+    const addIdentityFallback = (
+      family: "evm" | "svm",
+      address: string | undefined,
+      walletName?: string,
+      chainId?: number,
+    ) => {
+      if (!address) return;
+      const normalized = family === "evm" ? address.toLowerCase() : address;
+      if (
+        rows.some(
+          (row) =>
+            row.family === family &&
+            (family === "evm" ? row.address.toLowerCase() : row.address) ===
+              normalized,
+        )
+      ) {
+        return;
+      }
+      rows.push({
+        id: `identity:${family}:${normalized}`,
+        family,
+        address,
+        chainId,
+        walletName,
+        provider: undefined,
+        active: true,
+      });
+    };
+
+    addIdentityFallback(
+      "evm",
+      adapter.identity.address,
+      adapter.accounts.find(
+        (account) =>
+          account.family === "evm" &&
+          account.address.toLowerCase() ===
+            adapter.identity.address?.toLowerCase(),
+      )?.walletName,
+      adapter.identity.chainId,
+    );
+    addIdentityFallback(
+      "svm",
+      adapter.identity.svmAddress,
+      adapter.identity.svmWalletName,
+    );
+    return rows;
+  }, [adapter.accounts, adapter.identity, adapter.walletModalRows]);
+
   const wallets = useMemo(
     () =>
       buildUnifiedAccountWallets({
         accounts: adapter.accounts ?? [],
         linkedWallets: adapter.accountWallets ?? [],
         policies: acl.wallets,
+        liveConnections,
       }),
-    [acl.wallets, adapter.accountWallets, adapter.accounts],
+    [acl.wallets, adapter.accountWallets, adapter.accounts, liveConnections],
   );
   const signInMethods = useMemo(
     () => visibleSignInMethods(adapter.accountLinkedAccounts ?? []),
@@ -46,12 +114,14 @@ export function AccountSettings() {
         id: wallet.id,
         family: "evm" as const,
         label: wallet.label,
+        markKey: `${wallet.id} ${wallet.label}`,
         ready: wallet.status !== "unavailable",
       })),
       ...(adapter.solanaWallets ?? []).map((wallet) => ({
         id: wallet.name,
         family: "svm" as const,
         label: wallet.name,
+        markKey: wallet.name,
         ready: wallet.ready,
       })),
     ],
@@ -117,6 +187,48 @@ export function AccountSettings() {
     );
   };
 
+  const connectWallet = async (wallet: UnifiedAccountWallet) => {
+    await run(`connect:${wallet.key}`, async () => {
+      const brand = resolveWalletBrandKey(
+        `${wallet.walletName ?? ""} ${wallet.label ?? ""} ${
+          wallet.provider ?? ""
+        }`,
+      );
+
+      if (wallet.family === "evm" && adapter.connectEvmWallet) {
+        const option = adapter.evmWallets?.find((candidate) => {
+          const candidateBrand = resolveWalletBrandKey(
+            `${candidate.id} ${candidate.label}`,
+          );
+          return brand
+            ? candidateBrand === brand
+            : candidate.label.toLowerCase() ===
+                (wallet.walletName ?? wallet.label ?? "").toLowerCase();
+        });
+        if (option) {
+          await adapter.connectEvmWallet(option.id);
+          return;
+        }
+      }
+
+      if (wallet.family === "svm" && adapter.connectSolanaWallet) {
+        const option = adapter.solanaWallets?.find((candidate) => {
+          const candidateBrand = resolveWalletBrandKey(candidate.name);
+          return brand
+            ? candidateBrand === brand
+            : candidate.name.toLowerCase() ===
+                (wallet.walletName ?? wallet.label ?? "").toLowerCase();
+        });
+        if (option) {
+          await adapter.connectSolanaWallet(option.name);
+          return;
+        }
+      }
+
+      await adapter.connect({ family: wallet.family });
+    });
+  };
+
   return (
     <div className="flex flex-col">
       <AccountManagement
@@ -158,6 +270,7 @@ export function AccountSettings() {
           })
         }
         onLinkWallet={linkWallet}
+        onConnectWallet={connectWallet}
         onSelectWallet={async (wallet) => {
           if (!wallet.connectedAccountId) return;
           await run(`select:${wallet.key}`, () =>

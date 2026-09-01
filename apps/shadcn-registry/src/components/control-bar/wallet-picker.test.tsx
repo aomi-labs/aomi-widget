@@ -254,6 +254,10 @@ describe("WalletPicker", () => {
     expect(backdrop).toHaveAttribute("data-slot", "modal-backdrop");
     expect(backdrop.className).toContain("bg-black/20");
     expect(backdrop.className).toContain("backdrop-blur-[3px]");
+    openAddWallets();
+    expect(
+      screen.getByRole("button", { name: "Link Rabby" }).className,
+    ).toContain("w-full");
   });
 
   it("quietly handles a rejected or unfinished wallet connection", async () => {
@@ -319,7 +323,7 @@ describe("WalletPicker", () => {
   it("renders connected accounts with family tags and a collapsible add-wallet list", () => {
     renderPicker(makeAdapter());
     expect(screen.getByText("Finish signing in")).toBeTruthy();
-    const connectedLabel = screen.getByText("Connected");
+    const connectedLabel = screen.getByText("Connected on this device");
     const addLabel = screen.getByRole("button", { name: "Add another wallet" });
     // Para isn't connected here (MetaMask + Phantom), so the Para sign-in row
     // stays available under "Other ways to sign in".
@@ -595,7 +599,7 @@ describe("WalletPicker", () => {
     );
     expect(screen.queryByText("Connected")).toBeNull();
     const quickSignInLabel = screen.getByText("Other ways to sign in");
-    const walletsLabel = screen.getByText("Wallets");
+    const walletsLabel = screen.getByText("Choose a wallet");
     expect(
       quickSignInLabel.compareDocumentPosition(walletsLabel) &
         Node.DOCUMENT_POSITION_FOLLOWING,
@@ -800,6 +804,57 @@ describe("WalletPicker", () => {
     // in the connected list).
     expect(screen.queryByText("Wallet connected")).toBeNull();
     expect(screen.getByText("Finish signing in")).toBeTruthy();
+  });
+
+  it("uses the new finish-sign-in panel and closes after a successful link", async () => {
+    const linkWallet = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        accounts: [
+          {
+            id: "rabby-account",
+            family: "evm",
+            address: "0xBBBBBBBB",
+            walletName: "Rabby Wallet",
+            chainId: 1,
+            active: true,
+          },
+        ],
+        accountWallets: [],
+        linkWallet,
+        walletModalRows: [
+          {
+            id: "rabby-account",
+            family: "evm",
+            address: "0xBBBBBBBB",
+            walletName: "Rabby Wallet",
+            label: "0xBBBBBBBB",
+            chainId: 1,
+            source: "live",
+            status: "active",
+            actions: [{ kind: "link", label: "Link wallet" }],
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByText("Connected wallet")).toBeTruthy();
+    expect(screen.getByText("Connected now")).toBeTruthy();
+    expect(document.querySelector('[data-wallet-brand="rabby"]')).toBeTruthy();
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Link wallet and sign in" }),
+      );
+    });
+
+    expect(linkWallet).toHaveBeenCalledWith({
+      accountId: "rabby-account",
+      family: "evm",
+      address: "0xBBBBBBBB",
+      chainId: 1,
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("auto-links the first connected EVM wallet for an empty account", async () => {

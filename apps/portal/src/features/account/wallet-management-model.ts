@@ -22,10 +22,21 @@ export type UnifiedAccountWallet = {
   policy?: WalletPolicy;
 };
 
+export type LiveWalletConnection = {
+  id: string;
+  family: "evm" | "svm";
+  address: string;
+  chainId?: number;
+  walletName?: string;
+  provider?: string;
+  active: boolean;
+};
+
 export type WalletManagementInput = {
   accounts: readonly AomiAccount[];
   linkedWallets: readonly AccountWallet[];
   policies: readonly WalletPolicy[];
+  liveConnections?: readonly LiveWalletConnection[];
 };
 
 function walletKey(family: "evm" | "svm", address: string): string {
@@ -36,6 +47,7 @@ export function buildUnifiedAccountWallets({
   accounts,
   linkedWallets,
   policies,
+  liveConnections = [],
 }: WalletManagementInput): UnifiedAccountWallet[] {
   const rows = new Map<string, UnifiedAccountWallet>();
 
@@ -80,6 +92,31 @@ export function buildUnifiedAccountWallets({
     });
   }
 
+  // Account linking refreshes the durable account graph and can briefly leave
+  // `accounts` empty while the wallet registry is still live. Merge that live
+  // connection explicitly so a connected wallet never collapses into a
+  // linked-only row during the session transition.
+  for (const connection of liveConnections) {
+    const key = walletKey(connection.family, connection.address);
+    const current = rows.get(key);
+    rows.set(key, {
+      key,
+      family: connection.family,
+      address: connection.address,
+      chainId: connection.chainId ?? current?.chainId,
+      walletName: connection.walletName ?? current?.walletName,
+      label: current?.label,
+      provider: connection.provider ?? current?.provider,
+      kind: current?.kind ?? "external",
+      connected: true,
+      linked: current?.linked ?? false,
+      active: connection.active,
+      connectedAccountId: connection.id,
+      accountWalletId: current?.accountWalletId,
+      policy: current?.policy,
+    });
+  }
+
   for (const account of accounts) {
     if (!account.address) continue;
     const key = walletKey(account.family, account.address);
@@ -102,14 +139,11 @@ export function buildUnifiedAccountWallets({
     });
   }
 
-  return [...rows.values()].sort((left, right) => {
-    const rank = (wallet: UnifiedAccountWallet) =>
-      wallet.active ? 0 : wallet.connected ? 1 : wallet.linked ? 2 : 3;
-    const rankDelta = rank(left) - rank(right);
-    if (rankDelta !== 0) return rankDelta;
-    if (left.family !== right.family) return left.family === "evm" ? -1 : 1;
-    return left.address.localeCompare(right.address);
-  });
+  // Map insertion order follows the durable linked-wallet list, then appends
+  // wallets first observed from policy or live runtimes. Do not sort on active
+  // state: selecting another wallet should update its state in place rather
+  // than making rows jump around underneath the pointer.
+  return [...rows.values()];
 }
 
 export function visibleSignInMethods(
