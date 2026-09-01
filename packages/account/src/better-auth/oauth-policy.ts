@@ -40,53 +40,19 @@ export const PIPELINE_SCOPES = [
 ] as const;
 
 /**
- * What a dynamically registered MCP client may hold. Agent and Pipeline both,
- * because Codex registers a separate client per MCP server and each needs its
- * own resource's scopes. The OIDC identity scopes are deliberately absent: an
- * MCP client never needs them, and leaving them out keeps identity scopes off
- * the registration path entirely.
- */
-export const MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES = [
-  ...new Set([...AGENT_SCOPES, ...PIPELINE_SCOPES, "offline_access"]),
-] as const;
-
-/**
- * What a client gets when it registers without asking for anything. Agent MCP
- * is the documented primary path, and this set must stay valid for that one
- * resource on its own — see `narrowMcpRegistrationScopes`.
+ * What a dynamically registered client is granted when it asks for nothing.
+ * Agent MCP is the documented primary path, and this set must stay valid for
+ * that one resource on its own, which a test pins.
+ *
+ * It does not constrain what a client may later request: MCP clients build
+ * their scope request from the authorization server's `scopes_supported`, and
+ * that request is narrowed to the resource it names at authorize — see
+ * `narrowScopesForAomiResource`.
  */
 export const MCP_CLIENT_REGISTRATION_SCOPES = [
   ...AGENT_SCOPES,
   "offline_access",
 ] as const;
-
-/**
- * Decide what a registration response should advertise.
- *
- * Better Auth registers a DCR client with the whole *allowed* set rather than
- * the scope the client asked for, and an MCP client then requests its entire
- * advertised set at authorize — where `validateAomiResourceScopes` checks it
- * against one resource. Advertising the union of both resources therefore
- * produced a request no single resource could satisfy, and login failed with
- * invalid_scope before the browser ever opened.
- *
- * A client already tells us which resource it means: it derives its requested
- * scope from that resource's protected-resource metadata. Echoing that back,
- * intersected with what we allow, is what lets an Agent client and a Pipeline
- * client each ask for exactly their own resource's scopes.
- */
-export function narrowMcpRegistrationScopes(
-  requestedScope: string | null | undefined,
-): string[] {
-  const allowed = new Set<string>(MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES);
-  const requested = (requestedScope ?? "").split(/\s+/).filter(Boolean);
-  const narrowed = [...new Set(requested)].filter((scope) =>
-    allowed.has(scope),
-  );
-  return narrowed.length > 0
-    ? narrowed
-    : [...MCP_CLIENT_REGISTRATION_SCOPES];
-}
 
 export const AGENT_REST_SCOPES = AGENT_SCOPES.filter(
   (scope) => scope !== "mcp:agent",
@@ -197,6 +163,29 @@ export function guestScopesForAomiResource(
   if (!policy) return [];
   const ceiling = new Set(policy.guestScopes);
   return requestedScopes.filter((scope) => ceiling.has(scope));
+}
+
+/**
+ * Reduce a requested scope set to what this resource actually permits.
+ *
+ * MCP clients derive their scope request from the authorization server's
+ * `scopes_supported`, which spans every resource this server hosts, so a client
+ * targeting one resource still asks for all of them. RFC 6749 §3.3 allows the
+ * authorization server to grant a narrower scope than requested; doing so is
+ * what lets those clients complete a login without ever widening a grant.
+ *
+ * Returns an empty array when nothing requested is usable, which callers should
+ * treat as invalid_scope rather than as an unscoped grant.
+ */
+export function narrowScopesForAomiResource(
+  resource: string,
+  requestedScopes: readonly string[],
+  env: Record<string, string | undefined> = process.env,
+): string[] {
+  const policy = aomiOAuthResourcePolicy(resource, env);
+  if (!policy) return [];
+  const allowed = new Set([...policy.allowedScopes, "offline_access"]);
+  return [...new Set(requestedScopes)].filter((scope) => allowed.has(scope));
 }
 
 export function validateAomiResourceScopes(

@@ -16,7 +16,6 @@ import {
   AOMI_CANONICAL_USER_CLAIM,
   AOMI_PRINCIPAL_CLASS_CLAIM,
   AOMI_SCOPES,
-  MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES,
   MCP_CLIENT_REGISTRATION_SCOPES,
   aomiOAuthResourcePolicies,
   aomiOAuthResources,
@@ -284,12 +283,11 @@ export const auth = betterAuth({
             // (agentMcp) to the defaults, so naming pipelineMcp here is what
             // makes the pair.
             //
-            // The scope set a client ends up advertising is NOT this list —
-            // Better Auth would hand every client the whole allowed set, and an
-            // MCP client then requests its entire advertised set at authorize,
-            // where validateAomiResourceScopes checks it against one resource.
-            // The registration response is narrowed per client in the portal's
-            // auth route; see narrowMcpRegistrationScopes.
+            // Registration breadth does not decide what a grant carries. MCP
+            // clients build their scope request from this server's
+            // `scopes_supported`, which spans every resource it hosts, so the
+            // request is narrowed to the one resource it names at authorize —
+            // see narrowScopesForAomiResource.
             clientRegistrationDefaultResources: seedOAuthResources
               ? [resources.pipelineMcp]
               : [],
@@ -297,9 +295,12 @@ export const auth = betterAuth({
               ? [resources.agentMcp, resources.pipelineMcp]
               : [],
             clientRegistrationDefaultScopes: [...MCP_CLIENT_REGISTRATION_SCOPES],
-            clientRegistrationAllowedScopes: [
-              ...MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES,
-            ],
+            // What a client may ASK for at registration. Better Auth fails a
+            // registration outright on any requested scope missing from this
+            // list, and MCP clients do request `openid` — Codex does — so
+            // refusing it here broke registration before the browser opened.
+            // Breadth here is safe because the grant is bounded at authorize.
+            clientRegistrationAllowedScopes: [...AOMI_SCOPES],
             clientRegistrationRequirePKCE: true,
             allowDynamicClientRegistration: true,
             allowUnauthenticatedClientRegistration: true,

@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   AOMI_SCOPES,
-  MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES,
   MCP_CLIENT_REGISTRATION_SCOPES,
-  narrowMcpRegistrationScopes,
+  narrowScopesForAomiResource,
   aomiOAuthResourcePolicies,
   aomiOAuthResources,
   guestScopesForAomiResource,
@@ -98,46 +97,45 @@ describe("Aomi OAuth resource policy", () => {
   });
 
   // Both `codex mcp add aomi-agent` and `codex mcp add aomi-pipeline` must be
-  // able to log in. They are separate clients, each deriving its requested
-  // scope from its own resource's protected-resource metadata, so what we
-  // advertise back has to stay valid for that one resource.
-  it("advertises a scope set each MCP resource can satisfy on its own", () => {
+  // able to log in. A client builds its scope request from the authorization
+  // server's `scopes_supported`, which spans every resource this server hosts,
+  // so what makes that possible is narrowing the request to the resource it
+  // names — not anything decided at registration.
+  it("narrows one over-broad request into a valid grant for either resource", () => {
     const resources = aomiOAuthResources(env);
-    const cases = [
-      // Verbatim scopes_supported from each resource's live protected-resource
-      // metadata, which is where an MCP client derives its requested scope.
-      {
-        resource: resources.agentMcp,
-        requested:
-          "agent:read agent:write agent:actions:resolve mcp:agent payments:submit custody:delegate offline_access",
-      },
-      {
-        resource: resources.pipelineMcp,
-        requested:
-          "pipeline:catalog pipeline:execute mcp:pipeline payments:submit custody:delegate offline_access",
-      },
-    ];
-    for (const { resource, requested } of cases) {
-      const advertised = narrowMcpRegistrationScopes(requested);
-      expect(validateAomiResourceScopes(resource, advertised, env).ok).toBe(
-        true,
-      );
+    // The full advertised set, which is what a client actually asks for.
+    const requested = [...AOMI_SCOPES];
+    for (const resource of [resources.agentMcp, resources.pipelineMcp]) {
+      const narrowed = narrowScopesForAomiResource(resource, requested, env);
+      expect(narrowed.length).toBeGreaterThan(0);
+      expect(validateAomiResourceScopes(resource, narrowed, env).ok).toBe(true);
     }
   });
 
-  it("drops scopes outside the MCP registration set and never echoes OIDC", () => {
-    expect(narrowMcpRegistrationScopes("mcp:agent openid profile email")).toEqual([
-      "mcp:agent",
-    ]);
-    expect([...MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES]).not.toContain("openid");
+  // Clients do request the OIDC scopes — Codex sends `openid` — and the
+  // authorization server fails a registration outright on any scope it does
+  // not permit, so those must stay requestable. They must equally never reach
+  // a resource grant, which validateAomiResourceScopes refuses outright.
+  it("keeps identity scopes requestable but out of every resource grant", () => {
+    const resources = aomiOAuthResources(env);
+    for (const identity of ["openid", "profile", "email"]) {
+      expect([...AOMI_SCOPES]).toContain(identity);
+      for (const resource of [resources.agentMcp, resources.pipelineMcp]) {
+        expect(
+          narrowScopesForAomiResource(resource, [...AOMI_SCOPES], env),
+        ).not.toContain(identity);
+      }
+    }
   });
 
-  it("falls back to the Agent set when a client requests nothing usable", () => {
-    for (const input of [null, "", "   ", "not:a:scope"]) {
-      expect(narrowMcpRegistrationScopes(input)).toEqual([
-        ...MCP_CLIENT_REGISTRATION_SCOPES,
-      ]);
-    }
+  it("narrows to nothing when no requested scope suits the resource", () => {
+    const resources = aomiOAuthResources(env);
+    expect(
+      narrowScopesForAomiResource(resources.agentMcp, ["pipeline:execute"], env),
+    ).toEqual([]);
+    expect(
+      narrowScopesForAomiResource(resources.agentMcp, [], env),
+    ).toEqual([]);
   });
 
   it("refuses the union of every scope against one MCP resource", () => {
