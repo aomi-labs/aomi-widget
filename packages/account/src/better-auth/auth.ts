@@ -16,7 +16,6 @@ import {
   AOMI_CANONICAL_USER_CLAIM,
   AOMI_PRINCIPAL_CLASS_CLAIM,
   AOMI_SCOPES,
-  MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES,
   MCP_CLIENT_REGISTRATION_SCOPES,
   aomiOAuthResourcePolicies,
   aomiOAuthResources,
@@ -297,9 +296,14 @@ export const auth = betterAuth({
               ? [resources.agentMcp, resources.pipelineMcp]
               : [],
             clientRegistrationDefaultScopes: [...MCP_CLIENT_REGISTRATION_SCOPES],
-            clientRegistrationAllowedScopes: [
-              ...MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES,
-            ],
+            // What a client may ASK for at registration, which is not what it
+            // is advertised back. Better Auth fails a registration outright on
+            // any requested scope missing from this list, and MCP clients do
+            // request `openid` — Codex does — so refusing it here broke
+            // registration before the browser opened. The response is narrowed
+            // to MCP_ADVERTISABLE_SCOPES instead, which is what the client then
+            // asks for at authorize.
+            clientRegistrationAllowedScopes: [...AOMI_SCOPES],
             clientRegistrationRequirePKCE: true,
             allowDynamicClientRegistration: true,
             allowUnauthenticatedClientRegistration: true,

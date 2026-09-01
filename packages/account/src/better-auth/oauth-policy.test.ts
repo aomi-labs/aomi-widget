@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AOMI_SCOPES,
-  MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES,
+  MCP_ADVERTISABLE_SCOPES,
   MCP_CLIENT_REGISTRATION_SCOPES,
   narrowMcpRegistrationScopes,
   aomiOAuthResourcePolicies,
@@ -125,11 +125,19 @@ describe("Aomi OAuth resource policy", () => {
     }
   });
 
-  it("drops scopes outside the MCP registration set and never echoes OIDC", () => {
-    expect(narrowMcpRegistrationScopes("mcp:agent openid profile email")).toEqual([
-      "mcp:agent",
-    ]);
-    expect([...MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES]).not.toContain("openid");
+  // Clients do request the OIDC scopes at registration — Codex sends `openid`
+  // — and the authorization server fails a registration outright on any scope
+  // it does not permit, so those must be requestable. They must equally never
+  // come back in the advertised set, because the client asks for exactly that
+  // at authorize and validateAomiResourceScopes refuses OIDC beside a resource.
+  it("accepts an OIDC request at registration but never advertises it back", () => {
+    expect(
+      narrowMcpRegistrationScopes("mcp:agent agent:read openid profile email"),
+    ).toEqual(["mcp:agent", "agent:read"]);
+    for (const scope of ["openid", "profile", "email"]) {
+      expect([...MCP_ADVERTISABLE_SCOPES]).not.toContain(scope);
+      expect([...AOMI_SCOPES]).toContain(scope);
+    }
   });
 
   it("falls back to the Agent set when a client requests nothing usable", () => {
