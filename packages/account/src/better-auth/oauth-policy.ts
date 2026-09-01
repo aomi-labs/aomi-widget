@@ -39,6 +39,19 @@ export const PIPELINE_SCOPES = [
   "custody:delegate",
 ] as const;
 
+/**
+ * The scope set granted to a dynamically registered MCP client. It must stay
+ * valid for the Agent MCP resource on its own: Better Auth registers a DCR
+ * client with the allowed set rather than the scope it asked for, MCP clients
+ * then request their whole registered set at authorize, and
+ * `validateAomiResourceScopes` checks that request against one resource.
+ * Pinned by a test — widening this past one resource breaks MCP login.
+ */
+export const MCP_CLIENT_REGISTRATION_SCOPES = [
+  ...AGENT_SCOPES,
+  "offline_access",
+] as const;
+
 export const AGENT_REST_SCOPES = AGENT_SCOPES.filter(
   (scope) => scope !== "mcp:agent",
 );

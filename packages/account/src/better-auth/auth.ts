@@ -16,6 +16,7 @@ import {
   AOMI_CANONICAL_USER_CLAIM,
   AOMI_PRINCIPAL_CLASS_CLAIM,
   AOMI_SCOPES,
+  MCP_CLIENT_REGISTRATION_SCOPES,
   aomiOAuthResourcePolicies,
   aomiOAuthResources,
 } from "./oauth-policy";
@@ -275,29 +276,32 @@ export const auth = betterAuth({
               : [],
             resourceSeedMode: "overwrite",
             scopes: [...AOMI_SCOPES],
-            // A client registering under RFC 7591 declares no resource, so
-            // whatever sits here is the entire set it may later ask for. The
-            // mcp plugin appends its own `resource` (agentMcp) to this list,
-            // so leaving it empty bound every dynamically registered client to
-            // Agent MCP alone and left Pipeline MCP unreachable. Defaulting to
-            // the same pair as clientRegistrationAllowedResources widens no
-            // client beyond what it was already allowed to request; the
-            // one-exact-resource rule and per-resource scope validation still
-            // apply on authorize and token, which is where a grant is minted.
-            clientRegistrationDefaultResources: seedOAuthResources
-              ? [resources.pipelineMcp]
-              : [],
+            // Dynamic registration is Agent MCP only, and the scope set must
+            // stay inside what AGENT_SCOPES permits for that one resource.
+            //
+            // Better Auth registers a DCR client with the *allowed* set rather
+            // than the scope the client asked for, and MCP clients then request
+            // their full registered set at authorize. Meanwhile it validates an
+            // authorize request against `client.scopes`, never against the
+            // requested resource's allowedScopes, so anything registered here
+            // is something it will happily mint a token for. Registering the
+            // union of both resources plus the OIDC scopes therefore produced
+            // an authorize request that no single resource could satisfy, and
+            // `validateAomiResourceScopes` rejected it with invalid_scope.
+            //
+            // A DCR client cannot declare which resource it wants, so one
+            // client cannot serve both Agent and Pipeline under a per-resource
+            // scope policy: the two sets intersect only at payments:submit and
+            // custody:delegate, with no mcp:* at all. Serving both needs
+            // resource-aware registration. Until then Pipeline MCP is not
+            // reachable by dynamic registration, which is why it is absent
+            // from both lists rather than merely unlisted in the defaults.
+            clientRegistrationDefaultResources: [],
             clientRegistrationAllowedResources: seedOAuthResources
-              ? [resources.agentMcp, resources.pipelineMcp]
+              ? [resources.agentMcp]
               : [],
-            clientRegistrationDefaultScopes: [
-              "agent:read",
-              "agent:write",
-              "pipeline:catalog",
-              "mcp:agent",
-              "mcp:pipeline",
-            ],
-            clientRegistrationAllowedScopes: [...AOMI_SCOPES],
+            clientRegistrationDefaultScopes: [...MCP_CLIENT_REGISTRATION_SCOPES],
+            clientRegistrationAllowedScopes: [...MCP_CLIENT_REGISTRATION_SCOPES],
             clientRegistrationRequirePKCE: true,
             allowDynamicClientRegistration: true,
             allowUnauthenticatedClientRegistration: true,
