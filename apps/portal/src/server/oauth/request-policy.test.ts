@@ -68,4 +68,24 @@ describe("OAuth request policy", () => {
       register("https://portal.example/v1/agent"),
     ).resolves.toMatchObject({ status: 400 });
   });
+
+  it("accepts RFC 7591 registration that declares no resource", async () => {
+    // The payload Codex, Claude Code, and Cursor actually send. RFC 7591 has
+    // no resource field; the resource arrives later on authorize and token.
+    await expect(
+      enforceAomiOAuthRequestPolicy(
+        new Request("https://portal.example/api/auth/oauth2/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            client_name: "codex",
+            redirect_uris: ["http://localhost:1455/auth/callback"],
+            grant_types: ["authorization_code", "refresh_token"],
+            response_types: ["code"],
+            token_endpoint_auth_method: "none",
+          }),
+        }),
+      ),
+    ).resolves.toBeNull();
+  });
 });
