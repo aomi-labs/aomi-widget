@@ -1,5 +1,9 @@
 # Canonical Landing
 
+Current session goal: **THINKING PILL TRAILING SPACE POLISHED 2026-09-01** —
+retain the aligned icon and label geometry while adding a small amount of
+trailing breathing room after the Thinking label.
+
 Current session goal: **WORKING TRACE OPTICAL ALIGNMENT VERIFIED 2026-09-01** —
 align the compact Thinking pill to the Aomi mark, optically center its label,
 and show completed durations as whole seconds without decimal precision.

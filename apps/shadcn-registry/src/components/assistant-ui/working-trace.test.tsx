@@ -42,6 +42,8 @@ describe("WorkingTrace", () => {
       "h-8",
       "w-fit",
       "rounded-full",
+      "pr-3.5",
+      "pl-3",
     );
     expect(container.querySelector(".aui-working-live")).toBeTruthy();
     expect(container.querySelector(".aui-working-trace")).toBeNull();
