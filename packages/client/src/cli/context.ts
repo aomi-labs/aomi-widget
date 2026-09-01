@@ -41,7 +41,7 @@ export function createControlClient(
     // inside that wrapper so a newly-added Payment-Signature is authorized
     // again with payments:submit instead of reusing the narrower first token.
     oauth: paymentFetch ? undefined : oauth,
-    guest: false,
+    guest: oauth ? false : (cli?.createGuestProvider(fetch, baseUrl) ?? true),
     getAccountBearer:
       createCliGetAccountBearer(config) ??
       createCliAuthTokenProvider(() => readState() ?? {}),

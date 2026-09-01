@@ -50,6 +50,8 @@ type MessageContentPart =
     ? U
     : never;
 
+const userMessageId = (ordinal: number) => `aomi-user-${ordinal}`;
+
 export function toInboundMessage(
   msg: MessageEvent,
   /** Position in the raw list, the id fallback for a notice with no key. */
@@ -107,6 +109,9 @@ function buildInboundMessage(msg: MessageEvent): ThreadMessageLike | null {
   }
 
   const threadMessage = {
+    // A stable id keeps assistant-ui from assigning positional ids that
+    // shift (and re-key the row) when earlier projections change shape.
+    id: msg.message_key ?? msg.event_id,
     role,
     content: content as ThreadMessageLike["content"],
     createdAt: new Date(parseTimestamp(msg.occurred_at)),
@@ -150,36 +155,45 @@ const toolPart = (
   }) as MessageContentPart;
 
 /**
- * The backend's event ledger still bridges tool steps as agent `message`
- * events carrying a legacy `[label, json]` tuple in `tool_result` — a field
- * its OpenAPI contract does not declare, so the generated MessageEvent type
- * cannot see it. Until the recorder emits real tool_update/tool_complete
- * events, this is the only wire shape tool steps arrive in; drop it and every
- * trace renders as an empty "Working" shell.
+ * The backend's event ledger bridges INLINE (sync-executed) tool steps as agent
+ * `message` events carrying a `[topic, payload]` tuple in `tool_result`
+ * (declared on the client's MessageEvent shape). Until the recorder emits
+ * real tool_update/tool_complete events for inline tools, this is the only
+ * wire shape those steps arrive in; drop it and every trace renders as an
+ * empty "Working" shell.
  */
-const legacyToolResult = (event: MessageEvent): [string, string] | null => {
-  const raw = (event as { tool_result?: unknown }).tool_result;
+const inlineToolResult = (event: MessageEvent) => {
+  // Declared on the type, but the wire is untrusted — validate before use.
+  const raw: unknown = event.tool_result;
   if (!Array.isArray(raw) || raw.length < 2) return null;
-  const [label, payload] = raw;
-  if (typeof label !== "string" || typeof payload !== "string") return null;
-  return [label, payload];
+  const [topic, payload] = raw;
+  if (typeof topic !== "string" || typeof payload !== "string") return null;
+  return {
+    topic,
+    payload,
+    toolName:
+      typeof event.tool_name === "string" && event.tool_name.length > 0
+        ? event.tool_name
+        : topic,
+    args: event.tool_arguments,
+  };
 };
 
-const legacyToolPart = (
-  [label, payload]: [string, string],
+const inlineToolPart = (
+  tool: NonNullable<ReturnType<typeof inlineToolResult>>,
   key: string,
 ): MessageContentPart => {
-  let result: unknown = payload;
+  let result: unknown = tool.payload;
   try {
-    result = JSON.parse(payload);
+    result = JSON.parse(tool.payload);
   } catch {
     // Non-JSON payloads render verbatim.
   }
   return {
     type: "tool-call",
-    toolCallId: `legacy:${key}`,
-    toolName: label,
-    args: undefined,
+    toolCallId: `inline:${key}`,
+    toolName: tool.toolName,
+    args: tool.args,
     result,
   } as MessageContentPart;
 };
@@ -195,9 +209,24 @@ export function projectAssistantMessages(
   const output: Array<ThreadMessageLike | AssistantProjection> = [];
   const assistantTurns = new Map<string, AssistantProjection>();
   const standaloneMessages = new Map<string, number>();
+  let userMessageOrdinal = 0;
+  const turnKey = (event: Event) => event.turn_id ?? `event:${event.event_id}`;
+  // Inline results only ever arrive as `tool_result` message events, so an
+  // inline part may be suppressed only when the SAME tool also produced a
+  // typed completion in the turn — suppressing per turn would drop a sync
+  // tool's only trace whenever any other tool in the turn completed typed.
+  const typedToolKey = (turn: string, toolName: string) =>
+    `${turn}::${toolName}`;
+  const typedToolCompletions = new Set(
+    events.flatMap((event) =>
+      event.type === "tool_complete" && event.tool_name !== "task"
+        ? [typedToolKey(turnKey(event), event.tool_name)]
+        : [],
+    ),
+  );
 
   const assistantTurn = (event: Event): AssistantProjection => {
-    const key = event.turn_id ?? `event:${event.event_id}`;
+    const key = turnKey(event);
     const existing = assistantTurns.get(key);
     if (existing) return existing;
     const projection: AssistantProjection = {
@@ -222,9 +251,20 @@ export function projectAssistantMessages(
       if (event.sender === "agent") {
         const projection = assistantTurn(event);
         const key = event.message_key ?? event.event_id;
-        const toolResult = legacyToolResult(event);
+        const toolResult = inlineToolResult(event);
         if (toolResult) {
-          upsertPart(projection, projection.toolParts, key, legacyToolPart(toolResult, key));
+          if (
+            !typedToolCompletions.has(
+              typedToolKey(turnKey(event), toolResult.toolName),
+            )
+          ) {
+            upsertPart(
+              projection,
+              projection.toolParts,
+              key,
+              inlineToolPart(toolResult, key),
+            );
+          }
         } else {
           upsertPart(projection, projection.textParts, key, {
             type: "text",
@@ -234,15 +274,22 @@ export function projectAssistantMessages(
         continue;
       }
 
-      const projected = toInboundMessage(event, output.length);
+      let projected = toInboundMessage(event, output.length);
       if (!projected) continue;
       const key = event.message_key ?? event.event_id;
       const index = standaloneMessages.get(key);
       if (index === undefined) {
+        if (projected.role === "user") {
+          projected = { ...projected, id: userMessageId(userMessageOrdinal++) };
+        }
         standaloneMessages.set(key, output.length);
         output.push(projected);
       } else {
-        output[index] = projected;
+        const previous = output[index];
+        output[index] =
+          projected.role === "user" && previous && !("parts" in previous)
+            ? { ...projected, id: previous.id }
+            : projected;
       }
       continue;
     }
@@ -273,6 +320,34 @@ export function projectAssistantMessages(
       (message) =>
         typeof message.content === "string" || message.content.length > 0,
     );
+}
+
+/**
+ * Project the external-store snapshot, including the user message that has
+ * been submitted but has not reached the event ledger yet.
+ *
+ * User ids are ordinal because the ledger is append-only. This gives the
+ * optimistic row and its eventual server row the same identity, so
+ * assistant-ui updates the row instead of retaining both as sibling branches.
+ */
+export function projectRuntimeMessages(
+  events: readonly Event[],
+  pendingUserMessage?: string,
+): ThreadMessageLike[] {
+  const projected = projectAssistantMessages(events);
+  if (pendingUserMessage === undefined) return projected;
+
+  const userMessageOrdinal = projected.reduce(
+    (count, message) => count + Number(message.role === "user"),
+    0,
+  );
+  projected.push({
+    id: userMessageId(userMessageOrdinal),
+    role: "user",
+    content: [{ type: "text", text: pendingUserMessage }],
+    createdAt: new Date(),
+  });
+  return projected;
 }
 
 // ==================== Wallet Utilities ====================

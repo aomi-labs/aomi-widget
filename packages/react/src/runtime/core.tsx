@@ -8,7 +8,11 @@ import {
   type AppendMessage,
 } from "@assistant-ui/react";
 
-import type { ActionCapabilities, AomiClient } from "@aomi-labs/client";
+import {
+  AgentApiError,
+  type ActionCapabilities,
+  type AomiClient,
+} from "@aomi-labs/client";
 import { useControl } from "../contexts/control-context";
 import { useUser } from "../contexts/ext-user-context";
 import { useThreadContext } from "../contexts/thread-context";
@@ -23,7 +27,7 @@ import {
   clearPersistedThreadId,
   writePersistedThreadId,
 } from "./thread-persistence";
-import { projectAssistantMessages } from "./utils";
+import { projectAssistantMessages, projectRuntimeMessages } from "./utils";
 
 /** Deduplicate in-flight async work keyed by thread id. */
 async function runSingleFlight(
@@ -141,11 +145,40 @@ export function AomiRuntimeCore({
           kind: "payment_required",
           title: "You're out of funds",
         });
+        // Prewarmed empty threads are intentionally durable. A quota failure
+        // keeps the same thread so payment setup can retry without another
+        // create/model round trip.
+        return;
       }
 
-      // Prewarmed empty threads are intentionally durable. A quota failure
-      // keeps the same thread so payment setup can retry without another
-      // create/model round trip.
+      if (
+        error instanceof AgentApiError &&
+        error.code === "session_not_found"
+      ) {
+        // The pinned thread belongs to another principal (sign-out, new
+        // guest). Drop the pin so the next attempt starts clean instead of
+        // 404ing forever.
+        if (threadPersistenceKey) {
+          clearPersistedThreadId(threadPersistenceKey);
+        }
+        notificationContext.showNotification({
+          type: "error",
+          title: "Conversation unavailable",
+          message: "This conversation is no longer accessible. Start a new chat and send your message again.",
+        });
+        return;
+      }
+
+      // Every other failure was previously swallowed — the composer text
+      // vanished with no feedback at all.
+      notificationContext.showNotification({
+        type: "error",
+        title: "Message not sent",
+        message:
+          error instanceof Error && error.message
+            ? error.message
+            : "Something went wrong sending your message. Please try again.",
+      });
     },
   });
 
@@ -242,9 +275,13 @@ export function AomiRuntimeCore({
     warmThread,
   ]);
 
+  // The server's user event can trail the start response by a poll or two.
+  // Echo it immediately with the same ordinal id the canonical projection will
+  // use, keeping the previous assistant reply complete without creating a
+  // phantom user-message branch when the server event arrives.
   const currentMessages = useMemo(
-    () => projectAssistantMessages(snapshot.events),
-    [snapshot.events],
+    () => projectRuntimeMessages(snapshot.events, snapshot.pendingUserMessage),
+    [snapshot.events, snapshot.pendingUserMessage],
   );
 
   useEffect(() => {
@@ -286,6 +323,7 @@ export function AomiRuntimeCore({
   // ---------------------------------------------------------------------------
   // External store runtime
   // ---------------------------------------------------------------------------
+  const restoreComposerTextRef = useRef<(text: string) => void>(() => {});
   const runtime = useExternalStoreRuntime({
     messages: currentMessages,
     isLoading: isThreadLoading,
@@ -297,6 +335,7 @@ export function AomiRuntimeCore({
           await orchestratorSendMessage(text, threadContext.currentThreadId);
         } catch (error) {
           console.error("Failed to send message:", error);
+          restoreComposerTextRef.current(text);
         }
       }
     },
@@ -306,6 +345,10 @@ export function AomiRuntimeCore({
     convertMessage: (msg) => msg,
     adapters: { threadList: threadListAdapter },
   });
+  restoreComposerTextRef.current = (text) => {
+    const composer = runtime.thread.composer;
+    if (!composer.getState().text) composer.setText(text);
+  };
 
   // ---------------------------------------------------------------------------
   // Cleanup on unmount.

@@ -31,9 +31,11 @@ function meta(type: string, sequence: number) {
 function turn(
   sequence: number,
   state: "processing" | "awaiting_action" | "complete",
+  turnId = "turn-1",
 ) {
   return {
     ...meta("turn_state_changed", sequence),
+    turn_id: turnId,
     type: "turn_state_changed",
     state,
   } as const;
@@ -132,7 +134,19 @@ describe("ClientSession Agent transport", () => {
       .mockRejectedValueOnce(
         new AgentApiError(503, "upstream_unavailable", "try again", true),
       )
-      .mockResolvedValue(page([turn(1, "complete")]));
+      .mockResolvedValue(
+        page([
+          {
+            ...meta("message", 1),
+            type: "message",
+            message_key: "message-1",
+            sender: "agent",
+            content: "done",
+            is_streaming: false,
+          },
+          turn(2, "complete"),
+        ]),
+      );
     const session = new Session(api, { sessionId: "session-agent" });
 
     await expect(session.send("hello")).rejects.toThrow("try again");
@@ -142,6 +156,75 @@ describe("ClientSession Agent transport", () => {
     expect(start.mock.calls[0]?.[1]?.idempotencyKey).toBe(
       start.mock.calls[1]?.[1]?.idempotencyKey,
     );
+    session.close();
+  });
+
+  it("drains the final agent message without waiting for another title", async () => {
+    vi.useFakeTimers();
+    const api = client();
+    // Turn 1 completed earlier and set a session title.
+    vi.spyOn(api.agent, "start")
+      .mockResolvedValueOnce(
+        page([
+          {
+            ...meta("message", 1),
+            type: "message",
+            message_key: "message-1",
+            sender: "agent",
+            content: "first answer",
+            is_streaming: false,
+          },
+          {
+            ...meta("title_changed", 2),
+            type: "title_changed",
+            title: "Existing title",
+          },
+          turn(3, "complete"),
+        ]),
+      )
+      // Turn 2: the start page carries only the new processing state.
+      .mockResolvedValueOnce(page([turn(4, "processing", "turn-2")]));
+    const session = new Session(api, {
+      sessionId: "session-agent",
+      pollIntervalMs: 10,
+    });
+    await session.send("first");
+
+    // Turn 2's ledger trails: complete arrives alone, then the final message.
+    // The thread title does not change, so no title event follows this turn.
+    vi.spyOn(api.agent, "poll")
+      .mockResolvedValueOnce(page([turn(5, "complete", "turn-2")]))
+      .mockResolvedValue(
+        page([
+          {
+            ...meta("message", 6),
+            turn_id: "turn-2",
+            type: "message",
+            message_key: "message-final",
+            sender: "agent",
+            content: "FINAL ANSWER",
+            is_streaming: false,
+          },
+        ]),
+      );
+
+    const result = session.send("second");
+    let settled = false;
+    void result.then(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(10);
+
+    expect(settled).toBe(true);
+    await expect(result).resolves.toMatchObject({
+      title: "Existing title",
+    });
+    expect(session.getSnapshot().messages.at(-1)).toMatchObject({
+      message_key: "message-final",
+      content: "FINAL ANSWER",
+    });
+    expect(session.getSnapshot().isPolling).toBe(false);
     session.close();
   });
 
@@ -306,14 +389,16 @@ describe("ClientSession Agent transport", () => {
       .mockResolvedValueOnce(
         page([turn(5, "complete")], { cursor: "cursor-5" }),
       )
-      .mockResolvedValueOnce(page([], { cursor: "cursor-5" }))
       .mockResolvedValueOnce(
         page(
           [
             {
-              ...meta("title_changed", 6),
-              type: "title_changed",
-              title: "Canonical title",
+              ...meta("message", 6),
+              type: "message",
+              message_key: "message-final",
+              sender: "agent",
+              content: "The action was rejected.",
+              is_streaming: false,
             },
           ],
           { cursor: "cursor-6" },
@@ -342,12 +427,6 @@ describe("ClientSession Agent transport", () => {
 
     expect(poll).toHaveBeenCalledTimes(3);
     expect(session.getSnapshot().title).toBeUndefined();
-    expect(session.getSnapshot().isPolling).toBe(true);
-
-    await vi.advanceTimersByTimeAsync(10);
-
-    expect(poll).toHaveBeenCalledTimes(4);
-    expect(session.getSnapshot().title).toBe("Canonical title");
     expect(session.getSnapshot().isPolling).toBe(false);
     session.close();
   });

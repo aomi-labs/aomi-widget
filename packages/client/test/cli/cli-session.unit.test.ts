@@ -23,6 +23,7 @@ describe("CLI session lifecycle", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     process.env = { ...ORIGINAL_ENV };
     rmSync(stateDir, { recursive: true, force: true });
   });
@@ -222,6 +223,89 @@ describe("CLI session lifecycle", () => {
     });
   });
 
+  it("uses an anonymous bearer for Agent requests without an OAuth grant", async () => {
+    vi.stubGlobal("location", undefined);
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = new URL(String(input)).pathname;
+        if (path === "/api/auth/sign-in/anonymous") {
+          return Response.json({ token: "guest-session" });
+        }
+        if (path === "/v1/agent/sessions") {
+          if (
+            new Headers(init?.headers).get("authorization") !==
+            "Bearer guest-session"
+          ) {
+            return Response.json(
+              { error: { code: "invalid_token" } },
+              { status: 401 },
+            );
+          }
+          return Response.json({ sessions: [] });
+        }
+        return new Response(null, { status: 404 });
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const cli = CliSession.create({
+      baseUrl: "https://chat-staging.aomi.dev",
+      secrets: {},
+    });
+    const session = cli.createClientSession();
+
+    await expect(session.client.agent.sessions.list()).resolves.toEqual({
+      sessions: [],
+    });
+    session.close();
+
+    expect(
+      fetchMock.mock.calls.map(([input]) => new URL(String(input)).pathname),
+    ).toEqual(["/api/auth/sign-in/anonymous", "/v1/agent/sessions"]);
+  });
+
+  it("reuses the anonymous bearer across CLI process sessions", async () => {
+    vi.stubGlobal("location", undefined);
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = new URL(String(input)).pathname;
+        if (path === "/api/auth/sign-in/anonymous") {
+          return Response.json({ token: "guest-session" });
+        }
+        if (path === "/v1/agent/sessions") {
+          expect(new Headers(init?.headers).get("authorization")).toBe(
+            "Bearer guest-session",
+          );
+          return Response.json({ sessions: [] });
+        }
+        return new Response(null, { status: 404 });
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+    const first = CliSession.create({
+      baseUrl: "https://chat-staging.aomi.dev",
+      secrets: {},
+    });
+    const firstClient = first.createClientSession();
+    await firstClient.client.agent.sessions.list();
+    firstClient.close();
+
+    const reloaded = CliSession.load();
+    const secondClient = reloaded?.createClientSession();
+    await secondClient?.client.agent.sessions.list();
+    secondClient?.close();
+
+    expect(readState()?.guestBearer).toBe("guest-session");
+    expect(
+      fetchMock.mock.calls.filter(
+        ([input]) =>
+          new URL(String(input)).pathname === "/api/auth/sign-in/anonymous",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("persists explicit wallet, chain, and backend settings on the active session", async () => {
     const { setWalletCommand, setChainCommand, setBackendCommand } =
       await import("../../src/cli/commands/preferences");
@@ -385,5 +469,4 @@ describe("CLI session lifecycle", () => {
 
     expect(readState()?.accountBearer).toBe("bearer-1");
   });
-
 });

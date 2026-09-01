@@ -25,6 +25,10 @@ import { createCliPaymentFetch, type CliPaymentListener } from "./payment";
 import type { AomiOAuthTokenProvider } from "../authorization";
 import { signInWithOAuthDevice } from "./oauth-device-auth";
 import { wrapFetchWithPublicApiAuthorization } from "../client";
+import {
+  createGuestSessionProvider,
+  type GuestSessionProvider,
+} from "../guest-auth";
 import { cliActionCapabilities } from "./action-capabilities";
 
 export class CliSession {
@@ -92,14 +96,16 @@ export class CliSession {
       }
     }
 
+    const baseUrl = config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL;
     const state: CliSessionState = {
       sessionId,
       clientId: crypto.randomUUID(),
-      baseUrl: config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL,
+      baseUrl,
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
       accountBearer: config.accountBearer ?? seed?.accountBearer,
+      guestBearer: baseUrl === seed?.baseUrl ? seed.guestBearer : undefined,
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: seed?.privateKey,
       svmPublicKey: svmPublicKey ?? seed?.svmPublicKey,
@@ -185,6 +191,7 @@ export class CliSession {
 
     if (config.baseUrl !== undefined && config.baseUrl !== this.state.baseUrl) {
       this.state.baseUrl = config.baseUrl;
+      delete this.state.guestBearer;
       changed = true;
     }
     if (config.app !== undefined && config.app !== this.state.app) {
@@ -266,6 +273,7 @@ export class CliSession {
   }
 
   setBaseUrl(url: string): void {
+    if (url !== this.state.baseUrl) delete this.state.guestBearer;
     this.state.baseUrl = url;
     this.save();
   }
@@ -403,7 +411,9 @@ export class CliSession {
         fetch: paymentFetch,
         getAccountBearer: createCliAuthTokenProvider(() => this.state),
         oauth: paymentFetch ? undefined : oauth,
-        guest: false,
+        // Account auth remains additive for control routes. Public Agent and
+        // Pipeline requests still need a guest bearer until the user logs in.
+        guest: oauth ? false : this.createGuestProvider(fetch),
       },
       {
         sessionId: this.state.sessionId,
@@ -420,6 +430,46 @@ export class CliSession {
       },
     );
     return session;
+  }
+
+  createGuestProvider(
+    fetchImpl: typeof fetch,
+    baseUrl?: string,
+  ): GuestSessionProvider {
+    const targetBaseUrl = baseUrl ?? this.state.baseUrl;
+    // The persisted guest bearer was minted for the persisted base URL; only
+    // reuse (or overwrite) it when this provider targets the same origin, so
+    // a --backend-url override never sends or clobbers another origin's
+    // credential.
+    const canUsePersisted = targetBaseUrl === this.state.baseUrl;
+    const guest = createGuestSessionProvider({
+      baseUrl: targetBaseUrl,
+      fetch: fetchImpl,
+    });
+    const provider = async (options?: { forceRefresh?: boolean }) => {
+      if (!options?.forceRefresh && canUsePersisted && this.state.guestBearer) {
+        return this.state.guestBearer;
+      }
+      const credential = await guest(options);
+      if (
+        canUsePersisted &&
+        credential &&
+        credential !== this.state.guestBearer
+      ) {
+        this.state.guestBearer = credential;
+        this.save();
+      }
+      return credential;
+    };
+    return Object.assign(provider, {
+      clear: () => {
+        guest.clear();
+        if (canUsePersisted && this.state.guestBearer) {
+          delete this.state.guestBearer;
+          this.save();
+        }
+      },
+    });
   }
 
   createOAuthProvider(

@@ -1,5 +1,15 @@
 # Canonical Landing
 
+Current session goal: **CLI AGENT CHAT AUTH, ORDER, AND TOOL TRACES VERIFIED
+2026-08-31** — anonymous Agent and Pipeline calls now receive a guest bearer
+even while additive account auth is configured, the CLI persists that guest
+identity across processes, and resumed chats skip prior-turn output. Current
+wire-format `message` tool results render in both React and verbose CLI output
+without duplicating future typed tool events. Device-only OAuth registration no
+longer declares an unused redirect flow. Client and React builds, typecheck,
+lint, formatting, 259 focused package tests, 44 Rust runtime tests, and repeated
+live staging CLI tool calls pass with message, tool, answer, and terminal order.
+
 Current session goal: **GUEST SELF-CUSTODY API AND SDK FIXES VERIFIED
 2026-08-30** — guest Agent sessions can resolve their own staged actions and
 guest Pipeline sessions can execute self-custodial operations without gaining
@@ -10,6 +20,14 @@ internal anonymous sign-in, and the Portal exposes the Pipeline root, OpenAPI,
 and API catalog routes backed by api-server. Client/account/Portal typechecks,
 scoped lint, the client build, 431 tests, and a live staging guest Agent plus
 Pipeline catalog smoke pass.
+
+Current session goal: **LEGACY AGENT TOOL TRACE PROJECTION VERIFIED
+2026-08-30** — React now projects the Agent ledger's current tool-bearing
+`message` events into Assistant UI tool-call parts with the backend tool name,
+arguments, and parsed result. Typed `tool_complete` events take precedence for
+the turn, so the compatibility path does not duplicate traces after the backend
+cutover. Focused React tests, library typecheck, lint, formatting, build, and
+package dry-run inspection pass.
 
 Current session goal: **PRIVY LOGIN POLICY DRIFT FIXED 2026-08-30** — the
 portal no longer hard-codes login methods into Privy's modal. The Privy app
