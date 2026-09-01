@@ -1,5 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { enforceAomiOAuthRequestPolicy } from "./request-policy";
+import {
+  enforceAomiOAuthRequestPolicy,
+  type AomiOAuthPolicyResult,
+} from "./request-policy";
+
+async function expectContinue(
+  result: Promise<AomiOAuthPolicyResult>,
+): Promise<Request> {
+  const settled = await result;
+  expect(settled.kind).toBe("continue");
+  if (settled.kind !== "continue") throw new Error("unreachable");
+  return settled.request;
+}
+
+async function expectReject(
+  result: Promise<AomiOAuthPolicyResult>,
+  status = 400,
+): Promise<void> {
+  const settled = await result;
+  expect(settled.kind).toBe("reject");
+  if (settled.kind !== "reject") throw new Error("unreachable");
+  expect(settled.response.status).toBe(status);
+}
+
+function scopeOf(request: Request): string[] {
+  return (new URL(request.url).searchParams.get("scope") ?? "")
+    .split(" ")
+    .filter(Boolean);
+}
 
 beforeEach(() => {
   vi.stubEnv("NODE_ENV", "test");
@@ -17,31 +45,23 @@ describe("OAuth request policy", () => {
           `https://portal.example/api/auth/oauth2/authorize?${query}`,
         ),
       );
-    await expect(
-      authorize(
+    await expectContinue(authorize(
         new URLSearchParams({
           resource: "https://portal.example/v1/agent",
           scope: "agent:read",
         }).toString(),
-      ),
-    ).resolves.toBeNull();
-    await expect(authorize("scope=agent%3Aread")).resolves.toMatchObject({
-      status: 400,
-    });
+      ));
+    await expectReject(authorize("scope=agent%3Aread"));
     const multiple = new URLSearchParams({ scope: "agent:read" });
     multiple.append("resource", "https://portal.example/v1/agent");
     multiple.append("resource", "https://portal.example/v1/agent/mcp");
-    await expect(authorize(multiple.toString())).resolves.toMatchObject({
-      status: 400,
-    });
-    await expect(
-      authorize(
+    await expectReject(authorize(multiple.toString()));
+    await expectReject(authorize(
         new URLSearchParams({
           resource: "https://portal.example/v1/agent",
           scope: "pipeline:execute",
         }).toString(),
-      ),
-    ).resolves.toMatchObject({ status: 400 });
+      ));
   });
 
   it("limits unauthenticated DCR to an exact MCP resource", async () => {
@@ -58,15 +78,11 @@ describe("OAuth request policy", () => {
           }),
         }),
       );
-    await expect(
-      register("https://portal.example/v1/agent/mcp"),
-    ).resolves.toBeNull();
-    await expect(
+    await expectContinue(register("https://portal.example/v1/agent/mcp"));
+    await expectReject(
       register(`https://portal.example/${["agent", "mcp"].join("/")}`),
-    ).resolves.toMatchObject({ status: 400 });
-    await expect(
-      register("https://portal.example/v1/agent"),
-    ).resolves.toMatchObject({ status: 400 });
+    );
+    await expectReject(register("https://portal.example/v1/agent"));
   });
 
   it("accepts RFC 7591 registration that declares no resource", async () => {
@@ -85,7 +101,90 @@ describe("OAuth request policy", () => {
             token_endpoint_auth_method: "none",
           }),
         }),
+      ));
+  });
+
+  // The scope list Codex actually sends, captured from a real `codex mcp login`.
+  // It is the authorization server's whole `scopes_supported` — clients build
+  // the request from AS metadata, not from the resource metadata and not from
+  // the registration response, so it necessarily spans every resource plus the
+  // OIDC scopes. Rejecting it made MCP login impossible; it must be narrowed to
+  // the one resource the request names.
+  const CODEX_SCOPES =
+    "agent:read agent:write agent:actions:resolve mcp:agent payments:submit " +
+    "custody:delegate pipeline:catalog pipeline:execute mcp:pipeline openid " +
+    "profile email offline_access";
+
+  const authorizeWith = (resource: string, scope: string) =>
+    enforceAomiOAuthRequestPolicy(
+      new Request(
+        `https://portal.example/api/auth/oauth2/authorize?${new URLSearchParams(
+          { resource, scope },
+        ).toString()}`,
       ),
-    ).resolves.toBeNull();
+    );
+
+  it("narrows the scope an MCP client sends to the resource it named", async () => {
+    const agent = await expectContinue(
+      authorizeWith("https://portal.example/v1/agent/mcp", CODEX_SCOPES),
+    );
+    expect(scopeOf(agent).sort()).toEqual(
+      [
+        "agent:actions:resolve",
+        "agent:read",
+        "agent:write",
+        "custody:delegate",
+        "mcp:agent",
+        "offline_access",
+        "payments:submit",
+      ].sort(),
+    );
+
+    const pipeline = await expectContinue(
+      authorizeWith("https://portal.example/v1/pipeline/mcp", CODEX_SCOPES),
+    );
+    expect(scopeOf(pipeline).sort()).toEqual(
+      [
+        "custody:delegate",
+        "mcp:pipeline",
+        "offline_access",
+        "payments:submit",
+        "pipeline:catalog",
+        "pipeline:execute",
+      ].sort(),
+    );
+  });
+
+  it("never lets a narrowed grant cross resources or carry identity scopes", async () => {
+    for (const resource of [
+      "https://portal.example/v1/agent/mcp",
+      "https://portal.example/v1/pipeline/mcp",
+    ]) {
+      const scopes = scopeOf(
+        await expectContinue(authorizeWith(resource, CODEX_SCOPES)),
+      );
+      const foreign = resource.includes("/agent/") ? "pipeline" : "agent";
+      expect(scopes.some((s) => s.startsWith(foreign))).toBe(false);
+      expect(scopes).not.toContain("mcp:" + foreign);
+      for (const identity of ["openid", "profile", "email"]) {
+        expect(scopes).not.toContain(identity);
+      }
+    }
+  });
+
+  it("rejects when nothing requested is usable for the resource", async () => {
+    await expectReject(
+      authorizeWith("https://portal.example/v1/agent/mcp", "pipeline:execute"),
+    );
+  });
+
+  it("leaves an already-valid request untouched", async () => {
+    const request = await expectContinue(
+      authorizeWith(
+        "https://portal.example/v1/agent/mcp",
+        "agent:read mcp:agent",
+      ),
+    );
+    expect(scopeOf(request)).toEqual(["agent:read", "mcp:agent"]);
   });
 });

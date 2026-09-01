@@ -2,7 +2,6 @@ import { auth } from "@aomi-labs/account/better-auth";
 import {
   aomiOAuthResources,
   guestScopesForAomiResource,
-  narrowMcpRegistrationScopes,
 } from "@aomi-labs/account/better-auth";
 
 import {
@@ -36,8 +35,9 @@ async function handleAuth(request: Request) {
   ) {
     return Response.json({ error: "origin_not_allowed" }, { status: 403 });
   }
-  const policyFailure = await enforceAomiOAuthRequestPolicy(request);
-  if (policyFailure) return policyFailure;
+  const policy = await enforceAomiOAuthRequestPolicy(request);
+  if (policy.kind === "reject") return policy.response;
+  request = policy.request;
   if (request.method === "POST" && path.endsWith("/sign-in/anonymous")) {
     const session = await auth.api.getSession({ headers: request.headers });
     if (session) {
@@ -106,9 +106,6 @@ async function handleAuth(request: Request) {
     }
   }
   let response = await auth.handler(request);
-  if (request.method === "POST" && path.endsWith("/oauth2/register")) {
-    response = await narrowRegisteredScopes(request, response);
-  }
   if (request.method === "GET" && path.endsWith("/jwks")) {
     response = publicDiscoveryResponse(response);
   }
@@ -135,57 +132,6 @@ async function handleAuth(request: Request) {
   return response;
 }
 
-/**
- * Advertise the scopes this client actually asked for, not every scope it is
- * allowed to hold.
- *
- * Better Auth answers a dynamic registration with the whole allowed scope set
- * regardless of what the client requested. An MCP client then asks for its
- * entire advertised set at authorize, where `enforceAomiOAuthRequestPolicy`
- * validates it against the single requested resource — so advertising Agent
- * and Pipeline scopes together produced a request no one resource could
- * satisfy, and login failed with invalid_scope before the browser opened.
- *
- * A client already tells us which resource it means, by deriving its requested
- * scope from that resource's protected-resource metadata. Echoing that back is
- * what lets `codex mcp add aomi-agent` and `codex mcp add aomi-pipeline` each
- * log in.
- *
- * This narrows what is advertised, not what is stored: the grant itself is
- * still bounded at authorize and token, which is where the one-exact-resource
- * rule and per-resource scope validation run.
- */
-async function narrowRegisteredScopes(
-  request: Request,
-  response: Response,
-): Promise<Response> {
-  if (!response.ok) return response;
-  const requested = await request
-    .clone()
-    .json()
-    .then((body: unknown) =>
-      body && typeof body === "object" && "scope" in body
-        ? String((body as { scope?: unknown }).scope ?? "")
-        : "",
-    )
-    .catch(() => "");
-  const registered = (await response
-    .clone()
-    .json()
-    .catch(() => null)) as Record<string, unknown> | null;
-  if (!registered) return response;
-  const body = JSON.stringify({
-    ...registered,
-    scope: narrowMcpRegistrationScopes(requested).join(" "),
-  });
-  const headers = new Headers(response.headers);
-  headers.delete("content-length");
-  return new Response(body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers,
-  });
-}
 
 function isObservedOAuthPath(path: string): boolean {
   return ["/oauth2/", "/device/", "/jwks"].some((part) => path.includes(part));

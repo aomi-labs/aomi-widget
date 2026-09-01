@@ -6,6 +6,7 @@ import {
   aomiOAuthResourcePolicy,
   aomiOAuthResources,
   guestScopesForAomiResource,
+  narrowScopesForAomiResource,
   validateAomiResourceScopes,
 } from "@aomi-labs/account/better-auth";
 
@@ -17,6 +18,7 @@ export {
   aomiOAuthResourcePolicy,
   aomiOAuthResources,
   guestScopesForAomiResource,
+  narrowScopesForAomiResource,
   validateAomiResourceScopes,
 };
 

@@ -40,13 +40,19 @@ export const PIPELINE_SCOPES = [
 ] as const;
 
 /**
- * What a dynamically registered MCP client may hold. Agent and Pipeline both,
- * because Codex registers a separate client per MCP server and each needs its
- * own resource's scopes. The OIDC identity scopes are deliberately absent: an
- * MCP client never needs them, and leaving them out keeps identity scopes off
- * the registration path entirely.
+ * What an MCP registration response may advertise. Agent and Pipeline both,
+ * because a client is registered per MCP server and each needs its own
+ * resource's scopes. The OIDC identity scopes are deliberately absent: an MCP
+ * client never needs them in an API token, and `validateAomiResourceScopes`
+ * refuses them outright once a resource is named.
+ *
+ * This is narrower than what a client may *request* at registration. Clients
+ * do ask for `openid` — Codex does — and the authorization server rejects a
+ * registration outright if a requested scope is not permitted, so refusing it
+ * there would fail registration before the browser ever opens. Accept the
+ * request, advertise back only what is usable.
  */
-export const MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES = [
+export const MCP_ADVERTISABLE_SCOPES = [
   ...new Set([...AGENT_SCOPES, ...PIPELINE_SCOPES, "offline_access"]),
 ] as const;
 
@@ -78,7 +84,7 @@ export const MCP_CLIENT_REGISTRATION_SCOPES = [
 export function narrowMcpRegistrationScopes(
   requestedScope: string | null | undefined,
 ): string[] {
-  const allowed = new Set<string>(MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES);
+  const allowed = new Set<string>(MCP_ADVERTISABLE_SCOPES);
   const requested = (requestedScope ?? "").split(/\s+/).filter(Boolean);
   const narrowed = [...new Set(requested)].filter((scope) =>
     allowed.has(scope),
@@ -197,6 +203,29 @@ export function guestScopesForAomiResource(
   if (!policy) return [];
   const ceiling = new Set(policy.guestScopes);
   return requestedScopes.filter((scope) => ceiling.has(scope));
+}
+
+/**
+ * Reduce a requested scope set to what this resource actually permits.
+ *
+ * MCP clients derive their scope request from the authorization server's
+ * `scopes_supported`, which spans every resource this server hosts, so a client
+ * targeting one resource still asks for all of them. RFC 6749 §3.3 allows the
+ * authorization server to grant a narrower scope than requested; doing so is
+ * what lets those clients complete a login without ever widening a grant.
+ *
+ * Returns an empty array when nothing requested is usable, which callers should
+ * treat as invalid_scope rather than as an unscoped grant.
+ */
+export function narrowScopesForAomiResource(
+  resource: string,
+  requestedScopes: readonly string[],
+  env: Record<string, string | undefined> = process.env,
+): string[] {
+  const policy = aomiOAuthResourcePolicy(resource, env);
+  if (!policy) return [];
+  const allowed = new Set([...policy.allowedScopes, "offline_access"]);
+  return [...new Set(requestedScopes)].filter((scope) => allowed.has(scope));
 }
 
 export function validateAomiResourceScopes(
