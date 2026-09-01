@@ -16,6 +16,8 @@ import {
   AOMI_CANONICAL_USER_CLAIM,
   AOMI_PRINCIPAL_CLASS_CLAIM,
   AOMI_SCOPES,
+  MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES,
+  MCP_CLIENT_REGISTRATION_SCOPES,
   aomiOAuthResourcePolicies,
   aomiOAuthResources,
 } from "./oauth-policy";
@@ -275,29 +277,29 @@ export const auth = betterAuth({
               : [],
             resourceSeedMode: "overwrite",
             scopes: [...AOMI_SCOPES],
-            // A client registering under RFC 7591 declares no resource, so
-            // whatever sits here is the entire set it may later ask for. The
-            // mcp plugin appends its own `resource` (agentMcp) to this list,
-            // so leaving it empty bound every dynamically registered client to
-            // Agent MCP alone and left Pipeline MCP unreachable. Defaulting to
-            // the same pair as clientRegistrationAllowedResources widens no
-            // client beyond what it was already allowed to request; the
-            // one-exact-resource rule and per-resource scope validation still
-            // apply on authorize and token, which is where a grant is minted.
+            // Both MCP resources are reachable by dynamic registration: Codex
+            // registers a separate client per MCP server, so an Agent client
+            // and a Pipeline client are distinct clients that each need their
+            // own resource. The mcp plugin appends its own `resource`
+            // (agentMcp) to the defaults, so naming pipelineMcp here is what
+            // makes the pair.
+            //
+            // The scope set a client ends up advertising is NOT this list —
+            // Better Auth would hand every client the whole allowed set, and an
+            // MCP client then requests its entire advertised set at authorize,
+            // where validateAomiResourceScopes checks it against one resource.
+            // The registration response is narrowed per client in the portal's
+            // auth route; see narrowMcpRegistrationScopes.
             clientRegistrationDefaultResources: seedOAuthResources
               ? [resources.pipelineMcp]
               : [],
             clientRegistrationAllowedResources: seedOAuthResources
               ? [resources.agentMcp, resources.pipelineMcp]
               : [],
-            clientRegistrationDefaultScopes: [
-              "agent:read",
-              "agent:write",
-              "pipeline:catalog",
-              "mcp:agent",
-              "mcp:pipeline",
+            clientRegistrationDefaultScopes: [...MCP_CLIENT_REGISTRATION_SCOPES],
+            clientRegistrationAllowedScopes: [
+              ...MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES,
             ],
-            clientRegistrationAllowedScopes: [...AOMI_SCOPES],
             clientRegistrationRequirePKCE: true,
             allowDynamicClientRegistration: true,
             allowUnauthenticatedClientRegistration: true,

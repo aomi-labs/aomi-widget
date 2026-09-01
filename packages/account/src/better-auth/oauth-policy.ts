@@ -39,6 +39,55 @@ export const PIPELINE_SCOPES = [
   "custody:delegate",
 ] as const;
 
+/**
+ * What a dynamically registered MCP client may hold. Agent and Pipeline both,
+ * because Codex registers a separate client per MCP server and each needs its
+ * own resource's scopes. The OIDC identity scopes are deliberately absent: an
+ * MCP client never needs them, and leaving them out keeps identity scopes off
+ * the registration path entirely.
+ */
+export const MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES = [
+  ...new Set([...AGENT_SCOPES, ...PIPELINE_SCOPES, "offline_access"]),
+] as const;
+
+/**
+ * What a client gets when it registers without asking for anything. Agent MCP
+ * is the documented primary path, and this set must stay valid for that one
+ * resource on its own — see `narrowMcpRegistrationScopes`.
+ */
+export const MCP_CLIENT_REGISTRATION_SCOPES = [
+  ...AGENT_SCOPES,
+  "offline_access",
+] as const;
+
+/**
+ * Decide what a registration response should advertise.
+ *
+ * Better Auth registers a DCR client with the whole *allowed* set rather than
+ * the scope the client asked for, and an MCP client then requests its entire
+ * advertised set at authorize — where `validateAomiResourceScopes` checks it
+ * against one resource. Advertising the union of both resources therefore
+ * produced a request no single resource could satisfy, and login failed with
+ * invalid_scope before the browser ever opened.
+ *
+ * A client already tells us which resource it means: it derives its requested
+ * scope from that resource's protected-resource metadata. Echoing that back,
+ * intersected with what we allow, is what lets an Agent client and a Pipeline
+ * client each ask for exactly their own resource's scopes.
+ */
+export function narrowMcpRegistrationScopes(
+  requestedScope: string | null | undefined,
+): string[] {
+  const allowed = new Set<string>(MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES);
+  const requested = (requestedScope ?? "").split(/\s+/).filter(Boolean);
+  const narrowed = [...new Set(requested)].filter((scope) =>
+    allowed.has(scope),
+  );
+  return narrowed.length > 0
+    ? narrowed
+    : [...MCP_CLIENT_REGISTRATION_SCOPES];
+}
+
 export const AGENT_REST_SCOPES = AGENT_SCOPES.filter(
   (scope) => scope !== "mcp:agent",
 );
