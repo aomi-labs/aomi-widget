@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   AOMI_SCOPES,
+  MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES,
   MCP_CLIENT_REGISTRATION_SCOPES,
+  narrowMcpRegistrationScopes,
   aomiOAuthResourcePolicies,
   aomiOAuthResources,
   guestScopesForAomiResource,
@@ -93,6 +95,49 @@ describe("Aomi OAuth resource policy", () => {
       env,
     );
     expect(result.ok).toBe(true);
+  });
+
+  // Both `codex mcp add aomi-agent` and `codex mcp add aomi-pipeline` must be
+  // able to log in. They are separate clients, each deriving its requested
+  // scope from its own resource's protected-resource metadata, so what we
+  // advertise back has to stay valid for that one resource.
+  it("advertises a scope set each MCP resource can satisfy on its own", () => {
+    const resources = aomiOAuthResources(env);
+    const cases = [
+      // Verbatim scopes_supported from each resource's live protected-resource
+      // metadata, which is where an MCP client derives its requested scope.
+      {
+        resource: resources.agentMcp,
+        requested:
+          "agent:read agent:write agent:actions:resolve mcp:agent payments:submit custody:delegate offline_access",
+      },
+      {
+        resource: resources.pipelineMcp,
+        requested:
+          "pipeline:catalog pipeline:execute mcp:pipeline payments:submit custody:delegate offline_access",
+      },
+    ];
+    for (const { resource, requested } of cases) {
+      const advertised = narrowMcpRegistrationScopes(requested);
+      expect(validateAomiResourceScopes(resource, advertised, env).ok).toBe(
+        true,
+      );
+    }
+  });
+
+  it("drops scopes outside the MCP registration set and never echoes OIDC", () => {
+    expect(narrowMcpRegistrationScopes("mcp:agent openid profile email")).toEqual([
+      "mcp:agent",
+    ]);
+    expect([...MCP_CLIENT_REGISTRATION_ALLOWED_SCOPES]).not.toContain("openid");
+  });
+
+  it("falls back to the Agent set when a client requests nothing usable", () => {
+    for (const input of [null, "", "   ", "not:a:scope"]) {
+      expect(narrowMcpRegistrationScopes(input)).toEqual([
+        ...MCP_CLIENT_REGISTRATION_SCOPES,
+      ]);
+    }
   });
 
   it("refuses the union of every scope against one MCP resource", () => {
