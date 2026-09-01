@@ -1,5 +1,11 @@
 # Canonical Landing
 
+Current session goal: **ACCOUNT MENU QUICK WALLET SWITCH VERIFIED 2026-09-01** —
+add a compact wallet-stack control to the grouped account summary so connected
+EVM wallets can be activated in place without opening Settings. The inline
+switcher preserves connector order, identifies the active wallet, retains
+provider branding, and offers a direct Add wallet path into the new picker.
+
 Current session goal: **ACCOUNT MENU SESSION SEMANTICS VERIFIED 2026-09-01** —
 replace the cramped account-summary separator with a softly grouped header and
 collapse exit actions behind one Session & wallet row. Sign out now ends only

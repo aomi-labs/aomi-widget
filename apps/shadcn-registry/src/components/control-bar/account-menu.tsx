@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from "react";
 import {
+  CheckIcon,
   ChevronDownIcon,
+  ChevronsUpDownIcon,
+  LoaderCircleIcon,
   LogOutIcon,
+  PlusIcon,
   UnplugIcon,
   WalletCardsIcon,
 } from "lucide-react";
@@ -19,6 +23,12 @@ export type AccountMenuProps = {
   noticeLine?: string;
   networkLabel?: string;
   themeLabel?: string;
+  wallets?: readonly {
+    id: string;
+    address: string;
+    walletLabel: string;
+    active: boolean;
+  }[];
   onClose: () => void;
   onManageAccount?: () => void;
   onSwitchNetwork?: () => void;
@@ -26,6 +36,8 @@ export type AccountMenuProps = {
   onOpenSettings?: () => void;
   onOpenDeployments?: () => void;
   onSignIn?: () => void;
+  onSelectWallet?: (id: string) => Promise<void>;
+  onAddWallet?: () => void;
   onSignOut: () => void;
   onDisconnect: () => void;
 };
@@ -62,6 +74,7 @@ export function AccountMenu({
   noticeLine,
   networkLabel,
   themeLabel,
+  wallets = [],
   onClose,
   onManageAccount,
   onSwitchNetwork,
@@ -69,13 +82,21 @@ export function AccountMenu({
   onOpenSettings,
   onOpenDeployments,
   onSignIn,
+  onSelectWallet,
+  onAddWallet,
   onSignOut,
   onDisconnect,
 }: AccountMenuProps) {
   const [sessionOpen, setSessionOpen] = useState(false);
+  const [walletsOpen, setWalletsOpen] = useState(false);
+  const [switchingWalletId, setSwitchingWalletId] = useState<string>();
 
   useEffect(() => {
-    if (!open) setSessionOpen(false);
+    if (!open) {
+      setSessionOpen(false);
+      setWalletsOpen(false);
+      setSwitchingWalletId(undefined);
+    }
   }, [open]);
 
   if (!open) return null;
@@ -84,6 +105,20 @@ export function AccountMenu({
   const networkTrailing = networkLabel
     ? `${networkLabel.slice(0, 8)} ›`
     : "Network ›";
+  const canQuickSwitch = wallets.length > 0 && Boolean(onSelectWallet);
+
+  const selectWallet = async (id: string, active: boolean) => {
+    if (active || !onSelectWallet || switchingWalletId) return;
+    setSwitchingWalletId(id);
+    try {
+      await onSelectWallet(id);
+      setWalletsOpen(false);
+    } catch (error) {
+      console.warn("[AccountMenu] wallet switch failed", error);
+    } finally {
+      setSwitchingWalletId(undefined);
+    }
+  };
 
   return (
     <>
@@ -96,24 +131,59 @@ export function AccountMenu({
       <div
         role="menu"
         aria-label="Account menu"
-        className="border-aomi-border bg-aomi-raised absolute bottom-[calc(100%+8px)] left-0 z-50 flex w-[min(248px,calc(100vw-1.5rem))] flex-col rounded-xl border p-2 shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+        className="border-aomi-border bg-aomi-raised absolute bottom-[calc(100%+8px)] left-0 z-50 flex max-h-[calc(100dvh-1rem)] w-[min(248px,calc(100vw-1.5rem))] flex-col overflow-y-auto rounded-xl border p-2 shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
       >
         <div className="bg-aomi-surface-2/55 mx-0.5 mb-2 rounded-lg px-3 py-3">
-          <div className="flex items-center gap-1.5">
-            <WalletIconSlot
-              label={walletLabel ?? "Wallet"}
-              size={14}
-              className="bg-aomi-surface-2 shrink-0 rounded-full"
-            />
-            <span className="truncate text-[13px] font-semibold">
-              {accountLabel ?? walletLabel ?? "Account"}
-            </span>
-          </div>
-          {shortAddress ? (
-            <div className="text-aomi-muted mt-1 truncate font-mono text-[11px]">
-              {shortAddress}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <WalletIconSlot
+                  label={walletLabel ?? "Wallet"}
+                  size={14}
+                  className="bg-aomi-surface-2 shrink-0 rounded-full"
+                />
+                <span className="truncate text-[13px] font-semibold">
+                  {accountLabel ?? walletLabel ?? "Account"}
+                </span>
+              </div>
+              {shortAddress ? (
+                <div className="text-aomi-muted mt-1 truncate font-mono text-[11px]">
+                  {shortAddress}
+                </div>
+              ) : null}
             </div>
-          ) : null}
+
+            {canQuickSwitch || onAddWallet ? (
+              <button
+                type="button"
+                aria-label="Quick switch wallet"
+                aria-expanded={walletsOpen}
+                onClick={() => setWalletsOpen((value) => !value)}
+                className="border-aomi-border bg-aomi-raised hover:bg-aomi-hover flex h-7 shrink-0 items-center rounded-full border px-1.5 transition-colors"
+              >
+                <span className="flex items-center -space-x-1.5">
+                  {wallets.slice(0, 2).map((wallet) => (
+                    <WalletIconSlot
+                      key={wallet.id}
+                      label={wallet.walletLabel}
+                      size={18}
+                      className="ring-aomi-raised bg-aomi-surface-2 rounded-full ring-2"
+                    />
+                  ))}
+                  {wallets.length === 0 ? (
+                    <WalletCardsIcon
+                      className="text-aomi-muted mx-0.5"
+                      size={14}
+                    />
+                  ) : null}
+                </span>
+                <ChevronsUpDownIcon
+                  className="text-aomi-muted ml-1"
+                  size={12}
+                />
+              </button>
+            ) : null}
+          </div>
           {allowanceLine ? (
             <div className="text-aomi-muted mt-2 text-[12px] font-medium">
               {allowanceLine}
@@ -123,6 +193,76 @@ export function AccountMenu({
             <p className="text-aomi-muted mt-2 text-[12px] leading-snug">
               {noticeLine}
             </p>
+          ) : null}
+
+          {walletsOpen ? (
+            <div
+              role="group"
+              aria-label="Quick wallet switcher"
+              className="border-aomi-border/70 mt-2 border-t pt-2"
+            >
+              <div className="flex flex-col gap-0.5">
+                {wallets.map((wallet) => {
+                  const pending = switchingWalletId === wallet.id;
+                  return (
+                    <button
+                      key={wallet.id}
+                      type="button"
+                      aria-label={
+                        wallet.active
+                          ? `${wallet.walletLabel} is active`
+                          : `Use ${wallet.walletLabel}`
+                      }
+                      disabled={Boolean(switchingWalletId)}
+                      onClick={() =>
+                        void selectWallet(wallet.id, wallet.active)
+                      }
+                      className={`flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left transition-colors ${
+                        wallet.active
+                          ? "bg-aomi-raised/80"
+                          : "hover:bg-aomi-raised/65"
+                      }`}
+                    >
+                      <WalletIconSlot
+                        label={wallet.walletLabel}
+                        size={22}
+                        className="bg-aomi-raised shrink-0 rounded-full"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="text-aomi-fg block truncate text-[11px] font-medium">
+                          {wallet.walletLabel}
+                        </span>
+                        <span className="text-aomi-muted block truncate font-mono text-[10px]">
+                          {formatWalletAddress(wallet.address)}
+                        </span>
+                      </span>
+                      {pending ? (
+                        <LoaderCircleIcon
+                          className="text-aomi-muted animate-spin"
+                          size={13}
+                        />
+                      ) : wallet.active ? (
+                        <span className="bg-aomi-success/12 text-aomi-success flex size-5 items-center justify-center rounded-full">
+                          <CheckIcon size={12} strokeWidth={2.5} />
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+              {onAddWallet ? (
+                <button
+                  type="button"
+                  onClick={onAddWallet}
+                  className="text-aomi-muted hover:bg-aomi-raised/65 hover:text-aomi-fg mt-0.5 flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-[11px] font-medium transition-colors"
+                >
+                  <span className="border-aomi-border flex size-[22px] items-center justify-center rounded-full border">
+                    <PlusIcon size={12} />
+                  </span>
+                  Add wallet
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
 

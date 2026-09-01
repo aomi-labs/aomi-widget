@@ -77,8 +77,8 @@ export function usePortalWalletAccountMenu(
       onOpenDeployments: () => {
         window.location.assign("/deployments");
       },
-      // No onDisconnect: DualWalletBar's default already runs the canonical
-      // teardown (account/widget session sign-out, then wallet disconnect).
+      // No session overrides: DualWalletBar keeps account sign-out and wallet
+      // connector teardown as two explicit, independent actions.
     };
   }, [
     accountError,

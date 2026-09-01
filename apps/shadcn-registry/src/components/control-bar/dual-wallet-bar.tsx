@@ -107,6 +107,14 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
     (primaryWallet?.family === "solana" ? "Solana" : "Ethereum");
   const visibleAddress =
     identity.address ?? identity.svmAddress ?? primaryWallet?.address;
+  const quickSwitchWallets = adapter.accounts
+    .filter((account) => account.family === "evm")
+    .map((account) => ({
+      id: account.id,
+      address: account.address,
+      walletLabel: account.walletName ?? "Ethereum wallet",
+      active: account.active,
+    }));
 
   useEffect(() => {
     onConnectionChange?.(identity.isConnected);
@@ -283,6 +291,7 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
             noticeLine={accountMenu?.noticeLine}
             networkLabel={accountMenu?.networkLabel ?? networkDetail}
             themeLabel={accountMenu?.themeLabel}
+            wallets={quickSwitchWallets}
             onClose={() => setMenuOpen(false)}
             onManageAccount={wrapMenuAction(accountMenu?.onManageAccount)}
             onSwitchNetwork={wrapMenuAction(accountMenu?.onSwitchNetwork)}
@@ -290,6 +299,11 @@ const DualWalletBarInner: FC<DualWalletBarProps> = ({
             onOpenSettings={wrapMenuAction(accountMenu?.onOpenSettings)}
             onOpenDeployments={wrapMenuAction(accountMenu?.onOpenDeployments)}
             onSignIn={wrapMenuAction(accountMenu?.onSignIn)}
+            onSelectWallet={(id) => adapter.selectAccount(id)}
+            onAddWallet={() => {
+              setMenuOpen(false);
+              openPicker();
+            }}
             onSignOut={() => handleSessionActionRequest("signout")}
             onDisconnect={() => handleSessionActionRequest("disconnect")}
           />

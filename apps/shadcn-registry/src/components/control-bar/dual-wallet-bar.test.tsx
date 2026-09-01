@@ -63,6 +63,7 @@ const adapterState = {
         actions: [],
       },
     ],
+    selectAccount: vi.fn(async () => undefined),
     disconnect: vi.fn(async () => undefined),
     signOutAccount: vi.fn(async () => undefined),
   } satisfies Partial<AomiWalletKit>,
@@ -88,6 +89,7 @@ afterEach(() => {
       active: true,
     },
   ];
+  adapterState.current.selectAccount.mockClear();
   adapterState.current.disconnect.mockClear();
   adapterState.current.signOutAccount.mockReset();
   adapterState.current.signOutAccount.mockResolvedValue(undefined);
@@ -121,6 +123,78 @@ describe("DualWalletBar account menu", () => {
     expect(
       screen.getByRole("menu", { name: "Account menu" }),
     ).toBeInTheDocument();
+  });
+
+  it("quick-switches connected wallets from the account summary", async () => {
+    adapterState.current.accounts = [
+      {
+        id: "rabby",
+        family: "evm",
+        address: "0x71C7656EC7ab88b098defB751B7401B5f6d8976F",
+        walletName: "Rabby",
+        chainId: 1,
+        active: true,
+      },
+      {
+        id: "metamask",
+        family: "evm",
+        address: "0x99C7656EC7ab88b098defB751B7401B5f6d8900",
+        walletName: "MetaMask",
+        chainId: 1,
+        active: false,
+      },
+    ];
+
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{ enabled: true, primaryLine: "Aron" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Quick switch wallet" }),
+    );
+
+    expect(
+      screen.getByRole("group", { name: "Quick wallet switcher" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Rabby is active" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use MetaMask" }));
+
+    await waitFor(() =>
+      expect(adapterState.current.selectAccount).toHaveBeenCalledWith(
+        "metamask",
+      ),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("group", { name: "Quick wallet switcher" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("opens the redesigned picker from the account summary", () => {
+    render(
+      <DualWalletBar
+        families={["evm"]}
+        accountMenu={{ enabled: true, primaryLine: "Aron" }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open account menu" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Quick switch wallet" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add wallet" }));
+
+    expect(openPicker).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("menu", { name: "Account menu" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders an authenticated account menu without a connected wallet", () => {
