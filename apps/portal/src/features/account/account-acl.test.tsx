@@ -221,6 +221,48 @@ describe("account ACL wiring", () => {
     expect(screen.getByText(/Privy · Session delegation/)).toBeTruthy();
   });
 
+  it("offers server auto from current delegated capability, not the saved mode", async () => {
+    const manualWithCapability = {
+      ...ACCOUNT,
+      signing_policies: ACCOUNT.signing_policies.map((policy) =>
+        policy.address.chain === "svm" ? { ...policy, mode: "manual" } : policy,
+      ),
+    };
+    installFetchRecorder({
+      "/api/account": () => Response.json(manualWithCapability),
+    });
+
+    await renderAcl();
+    await click(await screen.findByText("Privy"));
+
+    expect(
+      screen
+        .getByRole("button", { name: /Bypass permissions/ })
+        .hasAttribute("disabled"),
+    ).toBe(false);
+  });
+
+  it("does not use another provider's delegation as signing capability", async () => {
+    const mismatchedDelegation = {
+      ...ACCOUNT,
+      delegated_accounts: ACCOUNT.delegated_accounts.map((delegation) => ({
+        ...delegation,
+        delegation_provider: "para",
+      })),
+    };
+    installFetchRecorder({
+      "/api/account": () => Response.json(mismatchedDelegation),
+    });
+
+    await renderAcl();
+    await click(await screen.findByText("Privy"));
+
+    expect(screen.getByText("Delegation expired")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: /Bypass permissions/ }),
+    ).toBeNull();
+  });
+
   it("runs challenge → sign → commit and reloads on a mode change", async () => {
     const { calls } = installFetchRecorder();
 

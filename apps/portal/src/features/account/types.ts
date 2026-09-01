@@ -48,9 +48,9 @@ export interface WalletPolicy {
   /** Raw `auth_providers.provider` — what delegation revocation is keyed on. */
   provider?: string;
   /**
-   * Backend truth for whether `auto` is offerable (provenance AND a live
-   * delegated account). The client must not re-derive this from `linkedVia`:
-   * a Para or Privy wallet with no delegation still can't go auto.
+   * Whether `auto` is currently offerable, derived from a matching active
+   * `DelegatedAccount`. The client must not infer this from the saved policy
+   * mode or `linkedVia`: provenance alone is not a signing capability.
    */
   canUseAuto?: boolean;
   /**
@@ -73,6 +73,5 @@ export interface DelegatedAccountView {
   /** Exact address this delegated capability can sign for. */
   scope: string;
   kind: string;
-  status: "active" | "expired" | "revoked";
-  expiresLabel: string;
+  status: "provisioning" | "active" | "expired" | "revoked" | "unavailable";
 }

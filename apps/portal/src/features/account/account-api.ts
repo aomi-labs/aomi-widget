@@ -139,9 +139,14 @@ function toWalletPolicy(
   ownedAddresses: Set<string>,
 ): WalletPolicy {
   const chain = row.address.chain;
-  const active = delegations.find(
-    (delegation) => delegation.status === "active",
-  );
+  const provider = userAccount?.auth_provider?.toLowerCase();
+  const active = provider
+    ? delegations.find(
+        (delegation) =>
+          delegation.status === "active" &&
+          delegation.delegation_provider.toLowerCase() === provider,
+      )
+    : undefined;
   return {
     id: `${chain}:${row.address.address}`,
     chain,
@@ -154,7 +159,10 @@ function toWalletPolicy(
     authVersion: row.authorization_version,
     lastPermit: formatPermit(row, ownedAddresses),
     provider: userAccount?.auth_provider ?? undefined,
-    canUseAuto: row.mode === "auto" && Boolean(active),
+    // Offerability is current capability, not the policy already selected.
+    // A manual wallet with a live delegated account must be able to move to
+    // auto; a stale auto policy without that capability must not.
+    canUseAuto: Boolean(active),
     providerManaged: userAccount?.provider_managed ?? false,
   };
 }
@@ -166,14 +174,7 @@ function toDelegatedAccountView(row: DelegatedAccount): DelegatedAccountView {
     providerKey: row.delegation_provider,
     scope: delegationScope(row),
     kind: delegationKindLabel(row.kind),
-    status:
-      row.status === "provisioning" || row.status === "unavailable"
-        ? "expired"
-        : row.status,
-    expiresLabel:
-      row.status === "revoked"
-        ? (formatDate(row.revoked_at) ?? "")
-        : (formatDate(row.expires_at) ?? "no expiry"),
+    status: row.status,
   };
 }
 

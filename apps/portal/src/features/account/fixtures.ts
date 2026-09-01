@@ -75,7 +75,6 @@ export const seedDelegatedAccounts: DelegatedAccountView[] = [
     scope: "Solana · 8xKn…9QpS",
     kind: "session delegation",
     status: "active",
-    expiresLabel: "Aug 3, 2026",
   },
   {
     id: "g-para",
@@ -83,6 +82,5 @@ export const seedDelegatedAccounts: DelegatedAccountView[] = [
     scope: "Ethereum · 0x9f2B…A41c",
     kind: "session delegation",
     status: "expired",
-    expiresLabel: "Jul 18, 2026",
   },
 ];
