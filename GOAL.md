@@ -1,5 +1,9 @@
 # Canonical Landing
 
+Current session goal: **THINKING TYPOGRAPHY AND SPACING MATCHED 2026-09-01** —
+add the final two pixels of trailing space and bind Thinking and Working to one
+shared status typography definition for identical size, weight, and line height.
+
 Current session goal: **THINKING PILL TRAILING SPACE POLISHED 2026-09-01** —
 retain the aligned icon and label geometry while adding a small amount of
 trailing breathing room after the Thinking label.

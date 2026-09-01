@@ -42,8 +42,13 @@ describe("WorkingTrace", () => {
       "h-8",
       "w-fit",
       "rounded-full",
-      "pr-3.5",
+      "pr-4",
       "pl-3",
+    );
+    expect(container.querySelector(".aui-working-shimmer")).toHaveClass(
+      "text-[13px]",
+      "font-medium",
+      "leading-none",
     );
     expect(container.querySelector(".aui-working-live")).toBeTruthy();
     expect(container.querySelector(".aui-working-trace")).toBeNull();
@@ -107,11 +112,16 @@ describe("WorkingTrace", () => {
   });
 
   it("uses Working while the orchestrator badge identifies the mode", () => {
-    const { container } = render(
+    const { container, getByText } = render(
       <WorkingTrace running items={[]} revealed={0} orchestrating />,
     );
 
     expect(container).toHaveTextContent("Working");
+    expect(getByText("Working")).toHaveClass(
+      "text-[13px]",
+      "font-medium",
+      "leading-none",
+    );
     expect(container).toHaveTextContent("orchestrator");
     expect(container).not.toHaveTextContent("Orchestrating");
     expect(container.querySelector(".aui-working-live")).toBeTruthy();

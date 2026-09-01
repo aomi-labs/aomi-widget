@@ -189,6 +189,8 @@ const WorkingLivePulse: FC = () => (
   </span>
 );
 
+const WORKING_STATUS_TEXT_CLASS = "text-[13px] font-medium leading-none";
+
 export const WorkingTrace: FC<{
   running: boolean;
   items: TraceItem[];
@@ -365,10 +367,10 @@ export const WorkingTrace: FC<{
   // and the trace is open; if the user collapses mid-run, the header shimmers.
   const activeIndex = running ? revealed - 1 : -1;
   const headerClass = !running
-    ? "text-aomi-fg font-medium"
+    ? "text-aomi-fg"
     : open
-      ? "text-aomi-muted font-medium"
-      : "aui-working-shimmer font-medium";
+      ? "text-aomi-muted"
+      : "aui-working-shimmer";
 
   const visibleItems = items.slice(0, revealed);
 
@@ -411,7 +413,7 @@ export const WorkingTrace: FC<{
             <CheckIcon className="text-aomi-success size-3.5" />
           </span>
         )}
-        <span className={cn("text-[13px] leading-none", headerClass)}>
+        <span className={cn(WORKING_STATUS_TEXT_CLASS, headerClass)}>
           {label}
         </span>
         {orchestrating && (
@@ -552,10 +554,15 @@ export const MinimalWorkingTrace: FC = () => (
   <div
     role="status"
     aria-label="Aomi is thinking"
-    className="aui-working-trace-start ring-aomi-border/70 bg-aomi-surface/70 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 -mt-px mb-3 flex h-8 w-fit origin-top-left items-center gap-2 rounded-full pr-3.5 pl-3 ring-1 ring-inset duration-300 ease-out motion-reduce:animate-none"
+    className="aui-working-trace-start ring-aomi-border/70 bg-aomi-surface/70 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 -mt-px mb-3 flex h-8 w-fit origin-top-left items-center gap-2 rounded-full pr-4 pl-3 ring-1 ring-inset duration-300 ease-out motion-reduce:animate-none"
   >
     <WorkingLivePulse />
-    <span className="aui-working-shimmer relative -top-px text-[13px] font-medium leading-none">
+    <span
+      className={cn(
+        WORKING_STATUS_TEXT_CLASS,
+        "aui-working-shimmer relative -top-px",
+      )}
+    >
       Thinking
     </span>
   </div>
