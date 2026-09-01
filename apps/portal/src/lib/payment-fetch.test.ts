@@ -45,7 +45,6 @@ describe("createPortalPaymentFetch", () => {
 
   it("settles chained x402 challenges without an unsigned replay", async () => {
     const requests: Array<{ body: string; signed: boolean }> = [];
-    const mppFetch = vi.fn();
     const rawFetch: typeof globalThis.fetch = async (input, init) => {
       const request = new Request(input, init);
       requests.push({
@@ -68,7 +67,6 @@ describe("createPortalPaymentFetch", () => {
     const { client, createPaymentPayload } = paymentClient();
     const fetch = createPortalPaymentFetch({
       fetch: rawFetch,
-      mppFetch,
       x402: client,
     });
 
@@ -84,10 +82,9 @@ describe("createPortalPaymentFetch", () => {
       { body: "original request", signed: true },
     ]);
     expect(createPaymentPayload).toHaveBeenCalledTimes(2);
-    expect(mppFetch).not.toHaveBeenCalled();
   });
 
-  it("does not route an x402 challenge to MPP without an EVM wallet", async () => {
+  it("leaves an x402 challenge untouched without an EVM wallet", async () => {
     const challenge = new Response(null, {
       status: 402,
       headers: {
@@ -96,54 +93,25 @@ describe("createPortalPaymentFetch", () => {
       },
     });
     const rawFetch = vi.fn(async () => challenge);
-    const mppFetch = vi.fn();
-    const fetch = createPortalPaymentFetch({ fetch: rawFetch, mppFetch });
+    const fetch = createPortalPaymentFetch({ fetch: rawFetch });
 
     const response = await fetch(CHAT_URL, { method: "POST" });
 
     expect(response).toBe(challenge);
-    expect(mppFetch).not.toHaveBeenCalled();
-  });
-
-  it("routes only MPP challenges to the MPP fetch", async () => {
-    const rawFetch = vi.fn(
-      async () =>
-        new Response(null, {
-          status: 402,
-          headers: { "www-authenticate": 'Payment id="mpp-challenge"' },
-        }),
-    );
-    const expected = Response.json({ ok: true });
-    const mppFetch = vi.fn(async () => expected);
-    const { client, createPaymentPayload } = paymentClient();
-    const fetch = createPortalPaymentFetch({
-      fetch: rawFetch,
-      mppFetch,
-      x402: client,
-    });
-
-    const response = await fetch(CHAT_URL, { method: "POST" });
-
-    expect(response).toBe(expected);
-    expect(mppFetch).toHaveBeenCalledTimes(1);
-    expect(createPaymentPayload).not.toHaveBeenCalled();
   });
 
   it("returns an unrecognized 402 without invoking a payment client", async () => {
     const challenge = new Response(null, { status: 402 });
     const rawFetch = vi.fn(async () => challenge);
-    const mppFetch = vi.fn();
     const { client, createPaymentPayload } = paymentClient();
     const fetch = createPortalPaymentFetch({
       fetch: rawFetch,
-      mppFetch,
       x402: client,
     });
 
     const response = await fetch(CHAT_URL, { method: "POST" });
 
     expect(response).toBe(challenge);
-    expect(mppFetch).not.toHaveBeenCalled();
     expect(createPaymentPayload).not.toHaveBeenCalled();
   });
 });

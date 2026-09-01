@@ -12,12 +12,6 @@ function isChatPost(request: Request): boolean {
   );
 }
 
-function isMppChallenge(response: Response): boolean {
-  return /^\s*Payment(?:\s|$)/i.test(
-    response.headers.get("www-authenticate") ?? "",
-  );
-}
-
 export function x402EvmChainId(network: string): number {
   const prefix = "eip155:";
   const chainId = network.startsWith(prefix)
@@ -68,11 +62,9 @@ export function createPortalX402Client(
 
 export function createPortalPaymentFetch({
   fetch: rawFetch,
-  mppFetch,
   x402,
 }: {
   fetch: typeof globalThis.fetch;
-  mppFetch?: typeof globalThis.fetch;
   x402?: x402Client;
 }): typeof globalThis.fetch {
   return async (input, init) => {
@@ -91,10 +83,6 @@ export function createPortalPaymentFetch({
         return response;
       }
       return handlePaymentChallenges(request, response, rawFetch, x402);
-    }
-
-    if (mppFetch && isMppChallenge(response)) {
-      return mppFetch(request);
     }
 
     return response;

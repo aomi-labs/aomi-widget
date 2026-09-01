@@ -4,17 +4,14 @@
  * The portal's runtime fetch stack, extracted from the frame shell so the
  * component file stays presentational.
  *
- * Layers (inside-out): native fetch → debug logging → payment handling
- * (x402 + optional mppx/tempo) → locked-app query scoping. The composed fetch
+ * Layers (inside-out): native fetch → debug logging → x402 payment handling
+ * → locked-app query scoping. The composed fetch
  * plus the AccountBearer provider become the widget's `clientOptions`.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { type AomiClientOptions } from "@aomi-labs/react";
 import { useAomiWalletKit } from "@aomi-labs/widget-lib";
-import { Mppx, tempo } from "mppx/client";
-import { useConfig } from "wagmi";
-import { getConnectorClient } from "wagmi/actions";
 import { createPortalAccountBearerProvider } from "@portal/lib/account-bearer";
 import {
   createPortalPaymentFetch,
@@ -65,14 +62,6 @@ export function useRequestedAppConfig(): RequestedAppConfig {
   }, []);
 
   return config;
-}
-
-function useOptionalWagmiConfig(): ReturnType<typeof useConfig> | undefined {
-  try {
-    return useConfig();
-  } catch {
-    return undefined;
-  }
 }
 
 export function withDebugLogging(
@@ -213,7 +202,6 @@ export function usePortalClientOptions(
   lockedApp: string | null,
   lockedApplicationId: string | null,
 ): Omit<AomiClientOptions, "baseUrl"> | undefined {
-  const wagmiConfig = useOptionalWagmiConfig();
   const nativeFetch = useMemo(() => globalThis.fetch.bind(globalThis), []);
   const {
     getAccountCredential,
@@ -235,27 +223,6 @@ export function usePortalClientOptions(
     [accountAccessTokenProvider],
   );
 
-  const mppFetch = useMemo(() => {
-    if (!wagmiConfig) {
-      return undefined;
-    }
-
-    const mppx = Mppx.create({
-      polyfill: false,
-      methods: [
-        tempo({
-          getClient: (parameters) =>
-            getConnectorClient(
-              wagmiConfig,
-              parameters as Parameters<typeof getConnectorClient>[1],
-            ),
-        }),
-      ],
-    });
-
-    return mppx.fetch;
-  }, [wagmiConfig]);
-
   const paymentClient = useMemo(
     () =>
       createPortalX402Client({
@@ -270,7 +237,6 @@ export function usePortalClientOptions(
     const rawFetch = withDebugLogging("native.fetch", nativeFetch);
     const paymentFetch = createPortalPaymentFetch({
       fetch: rawFetch,
-      mppFetch: mppFetch ? withDebugLogging("mppx.fetch", mppFetch) : undefined,
       x402: paymentClient,
     });
     const routedFetch: typeof fetch = async (input, init) => {
@@ -288,7 +254,6 @@ export function usePortalClientOptions(
     accountAccessTokenProvider,
     lockedApp,
     lockedApplicationId,
-    mppFetch,
     nativeFetch,
     paymentClient,
   ]);

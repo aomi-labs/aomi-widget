@@ -1917,38 +1917,6 @@
         ]
       }
     },
-    "/api/account/payment/tempo": {
-      "delete": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "accountBearer": []
-          }
-        ],
-        "x-aomi-auth": [
-          "account"
-        ]
-      },
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "accountBearer": []
-          }
-        ],
-        "x-aomi-auth": [
-          "account"
-        ]
-      }
-    },
     "/api/resource/apps": {
       "get": {
         "responses": {
@@ -2235,6 +2203,23 @@
         ],
         "x-aomi-auth": [
           "activation"
+        ]
+      }
+    },
+    "/api/_internal/agent/execution-preflight": {
+      "post": {
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "security": [
+          {
+            "delegatedBearer": []
+          }
+        ],
+        "x-aomi-auth": [
+          "delegated"
         ]
       }
     },
