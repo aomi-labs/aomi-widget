@@ -45,23 +45,27 @@ describe("OAuth request policy", () => {
           `https://portal.example/api/auth/oauth2/authorize?${query}`,
         ),
       );
-    await expectContinue(authorize(
+    await expectContinue(
+      authorize(
         new URLSearchParams({
           resource: "https://portal.example/v1/agent",
           scope: "agent:read",
         }).toString(),
-      ));
+      ),
+    );
     await expectReject(authorize("scope=agent%3Aread"));
     const multiple = new URLSearchParams({ scope: "agent:read" });
     multiple.append("resource", "https://portal.example/v1/agent");
     multiple.append("resource", "https://portal.example/v1/agent/mcp");
     await expectReject(authorize(multiple.toString()));
-    await expectReject(authorize(
+    await expectReject(
+      authorize(
         new URLSearchParams({
           resource: "https://portal.example/v1/agent",
           scope: "pipeline:execute",
         }).toString(),
-      ));
+      ),
+    );
   });
 
   it("limits unauthenticated DCR to an exact MCP resource", async () => {
@@ -88,7 +92,7 @@ describe("OAuth request policy", () => {
   it("accepts RFC 7591 registration that declares no resource", async () => {
     // The payload Codex, Claude Code, and Cursor actually send. RFC 7591 has
     // no resource field; the resource arrives later on authorize and token.
-    await expect(
+    const request = await expectContinue(
       enforceAomiOAuthRequestPolicy(
         new Request("https://portal.example/api/auth/oauth2/register", {
           method: "POST",
@@ -101,7 +105,83 @@ describe("OAuth request policy", () => {
             token_endpoint_auth_method: "none",
           }),
         }),
-      ));
+      ),
+    );
+    await expect(request.json()).resolves.toMatchObject({
+      redirect_uris: ["http://localhost:1455/auth/callback"],
+    });
+  });
+
+  it("normalizes redirect URIs before Better Auth persists them", async () => {
+    const request = await expectContinue(
+      enforceAomiOAuthRequestPolicy(
+        new Request("https://portal.example/api/auth/oauth2/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            redirect_uris: [
+              " HTTP://127.0.0.1:49152/a/../callback?x=1 ",
+              "http://127.0.0.1:49152/callback?x=1",
+            ],
+            grant_types: ["authorization_code", "refresh_token"],
+            response_types: ["code"],
+            token_endpoint_auth_method: "none",
+          }),
+        }),
+      ),
+    );
+
+    await expect(request.json()).resolves.toMatchObject({
+      redirect_uris: ["http://127.0.0.1:49152/callback?x=1"],
+    });
+  });
+
+  it.each([
+    ["non-array", "http://127.0.0.1:49152/callback"],
+    ["relative", ["/callback"]],
+    ["credentials", ["http://user@127.0.0.1:49152/callback"]],
+    ["empty credentials", ["http://@127.0.0.1:49152/callback"]],
+    ["fragment", ["http://127.0.0.1:49152/callback#done"]],
+    ["empty fragment", ["http://127.0.0.1:49152/callback#"]],
+  ])(
+    "rejects %s redirect metadata before persistence",
+    async (_name, value) => {
+      await expectReject(
+        enforceAomiOAuthRequestPolicy(
+          new Request("https://portal.example/api/auth/oauth2/register", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              redirect_uris: value,
+              grant_types: ["authorization_code", "refresh_token"],
+              response_types: ["code"],
+              token_endpoint_auth_method: "none",
+            }),
+          }),
+        ),
+      );
+    },
+  );
+
+  it("removes an empty query delimiter while normalizing registration", async () => {
+    const request = await expectContinue(
+      enforceAomiOAuthRequestPolicy(
+        new Request("https://portal.example/api/auth/oauth2/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            redirect_uris: ["http://127.0.0.1:49152/callback?"],
+            grant_types: ["authorization_code", "refresh_token"],
+            response_types: ["code"],
+            token_endpoint_auth_method: "none",
+          }),
+        }),
+      ),
+    );
+
+    await expect(request.json()).resolves.toMatchObject({
+      redirect_uris: ["http://127.0.0.1:49152/callback"],
+    });
   });
 
   // The scope list Codex actually sends, captured from a real `codex mcp login`.

@@ -7,6 +7,7 @@ import {
 
 type OAuthError =
   | "invalid_client_metadata"
+  | "invalid_redirect_uri"
   | "invalid_request"
   | "invalid_scope"
   | "invalid_target"
@@ -44,8 +45,10 @@ export async function enforceAomiOAuthRequestPolicy(
 ): Promise<AomiOAuthPolicyResult> {
   const path = new URL(request.url).pathname;
   if (request.method === "POST" && path.endsWith("/oauth2/register")) {
-    const rejection = await enforceMcpRegistration(request);
-    return rejection ? reject(rejection) : proceed(request);
+    const registration = await enforceMcpRegistration(request);
+    return registration instanceof Response
+      ? reject(registration)
+      : proceed(registration);
   }
 
   const isAuthorize =
@@ -146,7 +149,7 @@ async function withScope(
 
 async function enforceMcpRegistration(
   request: Request,
-): Promise<Response | null> {
+): Promise<Request | Response> {
   const metadata = (await request
     .clone()
     .json()
@@ -154,6 +157,11 @@ async function enforceMcpRegistration(
   if (!metadata) {
     return oauthError("invalid_client_metadata", "Malformed client metadata");
   }
+  const redirectUris = normalizeRegistrationRedirectUris(
+    metadata.redirect_uris,
+  );
+  if (redirectUris instanceof Response) return redirectUris;
+  if (redirectUris) metadata.redirect_uris = redirectUris;
   if (String(metadata.token_endpoint_auth_method ?? "none") !== "none") {
     return oauthError(
       "invalid_client_metadata",
@@ -180,7 +188,9 @@ async function enforceMcpRegistration(
   // one-exact-resource invariant, on the requests that actually mint a grant.
   // A client that does declare `resources` is still held to exactly one.
   const requestedResources = stringArray(metadata.resources);
-  if (requestedResources.length === 0) return null;
+  if (requestedResources.length === 0) {
+    return withJsonBody(request, metadata);
+  }
   const resources = aomiOAuthResources();
   if (
     requestedResources.length !== 1 ||
@@ -200,7 +210,62 @@ async function enforceMcpRegistration(
   if (!validated.ok) {
     return oauthError(validated.error, "Invalid MCP registration scopes");
   }
-  return null;
+  return withJsonBody(request, metadata);
+}
+
+/**
+ * Store one canonical absolute representation for every registered redirect.
+ * Better Auth remains responsible for client-type and scheme policy; this
+ * boundary only rejects shapes that must never reach storage and removes URL
+ * spelling differences before the provider performs exact/RFC 8252 matching.
+ */
+function normalizeRegistrationRedirectUris(
+  value: unknown,
+): string[] | Response | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length === 0) {
+    return oauthError(
+      "invalid_redirect_uri",
+      "redirect_uris must be a non-empty array of absolute URIs",
+    );
+  }
+
+  const normalized: string[] = [];
+  for (const candidate of value) {
+    if (typeof candidate !== "string" || candidate.trim().length === 0) {
+      return oauthError(
+        "invalid_redirect_uri",
+        "redirect_uris must contain only absolute URIs",
+      );
+    }
+    const raw = candidate.trim();
+    let url: URL;
+    try {
+      url = new URL(raw);
+    } catch {
+      return oauthError(
+        "invalid_redirect_uri",
+        "redirect_uris must contain only absolute URIs",
+      );
+    }
+    const authority = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i.exec(raw)?.[1];
+    if (
+      url.username ||
+      url.password ||
+      authority?.includes("@") ||
+      raw.includes("#")
+    ) {
+      return oauthError(
+        "invalid_redirect_uri",
+        "redirect URIs must not contain credentials or fragments",
+      );
+    }
+    const canonical = url.toString();
+    normalized.push(
+      canonical.endsWith("?") ? canonical.slice(0, -1) : canonical,
+    );
+  }
+  return [...new Set(normalized)];
 }
 
 async function formValues(request: Request): Promise<RequestValues | null> {
@@ -227,6 +292,17 @@ async function formValues(request: Request): Promise<RequestValues | null> {
     };
   }
   return null;
+}
+
+function withJsonBody(
+  request: Request,
+  body: Record<string, unknown>,
+): Request {
+  return new Request(request.url, {
+    method: request.method,
+    headers: request.headers,
+    body: JSON.stringify(body),
+  });
 }
 
 function stringArray(value: unknown): string[] {
