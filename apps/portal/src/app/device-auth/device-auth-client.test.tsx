@@ -28,9 +28,18 @@ vi.mock("@aomi-labs/widget-lib", () => ({
 vi.mock("@portal/lib/device-auth-provider", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@portal/lib/device-auth-provider")>();
+  // CI has no public Para/Privy configuration, and the page reads it at
+  // module load, so classify against a fixed configured deployment instead of
+  // whatever NEXT_PUBLIC_* happens to be in the environment.
+  const configured = { paraApiKey: "para-public-key", privyAppId: "privy-app" };
   return {
     ...actual,
     providerConfigurationFailure: () => null,
+    classifyProviderInitializationFailure: (
+      provider: "para" | "privy",
+      error: unknown,
+    ) =>
+      actual.classifyProviderInitializationFailure(provider, error, configured),
   };
 });
 
