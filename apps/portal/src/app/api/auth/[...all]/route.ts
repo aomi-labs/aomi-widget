@@ -123,7 +123,7 @@ async function handleAuth(request: Request) {
     request.method === "GET" &&
     path.endsWith("/oauth2/authorize") &&
     ["invalid_redirect", "invalid_request"].includes(
-      oauthResponseError(response) ?? "",
+      (await oauthResponseError(response)) ?? "",
     ) &&
     new URL(request.url).searchParams.has("client_id") &&
     new URL(request.url).searchParams.has("redirect_uri")
@@ -169,11 +169,26 @@ async function observeOAuthRedirectFailure(request: Request): Promise<void> {
   }
 }
 
-function oauthResponseError(response: Response): string | null {
+async function oauthResponseError(response: Response): Promise<string | null> {
   const location = response.headers.get("location");
-  if (!location) return null;
+  if (location) {
+    try {
+      return new URL(location, "https://oauth.invalid").searchParams.get(
+        "error",
+      );
+    } catch {
+      return null;
+    }
+  }
+  const body = (await response
+    .clone()
+    .json()
+    .catch(() => null)) as { url?: unknown } | null;
+  if (typeof body?.url !== "string") return null;
   try {
-    return new URL(location, "https://oauth.invalid").searchParams.get("error");
+    return new URL(body.url, "https://oauth.invalid").searchParams.get(
+      "error",
+    );
   } catch {
     return null;
   }

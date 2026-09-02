@@ -120,6 +120,35 @@ describe("OAuth redirect rejection diagnostics", () => {
     expect(mocks.oauthRedirectFailureDiagnostics).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
   });
+
+  it("observes Better Auth JSON redirects returned by hosted requests", async () => {
+    mocks.oauthRedirectFailureDiagnostics.mockResolvedValue({
+      clientIdHash: "hashed-client",
+    });
+    mocks.handler.mockResolvedValue(
+      Response.json({
+        redirect: true,
+        url: "https://portal.example/error?error=invalid_redirect",
+      }),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await GET(
+      new Request(
+        "https://portal.example/api/auth/oauth2/authorize?" +
+          new URLSearchParams({
+            client_id: "private-client",
+            redirect_uri: "http://127.0.0.1:52100/callback",
+          }),
+      ),
+    );
+
+    expect(mocks.oauthRedirectFailureDiagnostics).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledWith(
+      "better_auth_oauth_redirect_rejected",
+      expect.objectContaining({ diagnosticsAvailable: true }),
+    );
+  });
 });
 
 describe("anonymous sign-in", () => {
