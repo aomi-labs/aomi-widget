@@ -21,7 +21,10 @@ const DESCRIPTIONS: Record<string, string> = {
 
 export function OAuthConsentClient() {
   const params = useSearchParams();
-  const code = params.get("code") ?? params.get("consent_code");
+  // Better Auth redirects to the consent page with the complete signed OAuth
+  // request in its query string. The consent endpoint validates this value
+  // before it reads any user-selected fields.
+  const oauthQuery = params.toString();
   const scopes = useMemo(
     () =>
       consentScopes((params.get("scope") ?? "").split(/\s+/).filter(Boolean)),
@@ -32,7 +35,9 @@ export function OAuthConsentClient() {
 
   const decide = useCallback(
     async (accept: boolean) => {
-      if (!code) return setStatus("This authorization request is incomplete.");
+      if (!oauthQuery) {
+        return setStatus("This authorization request is incomplete.");
+      }
       setPending(true);
       const response = await fetch("/api/auth/oauth2/consent", {
         method: "POST",
@@ -40,8 +45,7 @@ export function OAuthConsentClient() {
         credentials: "include",
         body: JSON.stringify({
           accept,
-          code,
-          consent_code: code,
+          oauth_query: oauthQuery,
           // The signed request has already passed the canonical server policy.
           // Echo it unchanged; the route validates it again before minting.
           scope: scopes.join(" "),
@@ -57,7 +61,7 @@ export function OAuthConsentClient() {
       }
       window.location.assign(redirect);
     },
-    [code, scopes],
+    [oauthQuery, scopes],
   );
 
   return (
