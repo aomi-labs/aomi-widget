@@ -635,16 +635,18 @@ export function WalletPicker() {
     if (action.kind === "disconnect") {
       void runAction(
         actionKey,
-        () =>
-          adapter.disconnect!({
-            ...(account.family === "evm"
-              ? { accountId: account.id }
-              : { family: "svm" as const }),
-          }),
+        () => disconnectConnectedAccount(account),
         true,
       );
     }
   };
+
+  const disconnectConnectedAccount = (account: WalletModalRow) =>
+    adapter.disconnect!({
+      ...(account.family === "evm"
+        ? { accountId: account.id }
+        : { family: "svm" as const }),
+    });
 
   const renderConnectedAccount = (account: WalletModalRow) => {
     const provider = providerBackedAccountProvider(account);
@@ -742,9 +744,9 @@ export function WalletPicker() {
   );
   const showFinishPanel = Boolean(
     needsFirstWalletLink &&
-      connectedAccounts.length === 1 &&
-      finishAccount &&
-      finishLinkAction,
+    connectedAccounts.length === 1 &&
+    finishAccount &&
+    finishLinkAction,
   );
 
   const renderWalletActionRow = (wallet: WalletAction) => (
@@ -903,6 +905,14 @@ export function WalletPicker() {
                     pending={pending}
                     linkAction={finishLinkAction}
                     onLink={runConnectedAction}
+                    canDisconnect={Boolean(adapter.disconnect)}
+                    onDisconnect={() =>
+                      void runAction(
+                        `disconnect:${finishAccount.id}`,
+                        () => disconnectConnectedAccount(finishAccount),
+                        true,
+                      )
+                    }
                   />
                   {quickSignInSection}
                   {addWalletSection}
@@ -2090,6 +2100,8 @@ function FinishSignInPanel({
   pending,
   linkAction,
   onLink,
+  canDisconnect,
+  onDisconnect,
 }: {
   account: WalletModalRow;
   identity: AomiWalletKit["identity"];
@@ -2097,6 +2109,8 @@ function FinishSignInPanel({
   pending: string | null;
   linkAction?: WalletModalRow["actions"][number];
   onLink: (ref: ConnectedActionRef) => void;
+  canDisconnect: boolean;
+  onDisconnect: () => void;
 }) {
   const provider = providerBackedAccountProvider(account);
   const title = providerBackedWalletTitle(account);
@@ -2133,6 +2147,15 @@ function FinishSignInPanel({
                 .join(" · ")}
             </span>
           </span>
+          {canDisconnect ? (
+            <RowIconButton
+              icon={LogOutIcon}
+              ariaLabel={`Disconnect ${familyLabel(account.family)} wallet`}
+              disabled={pending !== null}
+              loading={pending === `disconnect:${account.id}`}
+              onClick={onDisconnect}
+            />
+          ) : null}
         </div>
         <div className="border-aomi-border bg-aomi-bg/35 border-t p-3">
           <button

@@ -857,6 +857,50 @@ describe("WalletPicker", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("disconnects without linking from the finish-sign-in panel", async () => {
+    const disconnect = vi.fn(async () => undefined);
+    const linkWallet = vi.fn(async () => undefined);
+    renderPicker(
+      makeAdapter({
+        accounts: [
+          {
+            id: "rabby-account",
+            family: "evm",
+            address: "0xBBBBBBBB",
+            walletName: "Rabby Wallet",
+            chainId: 1,
+            active: true,
+          },
+        ],
+        accountWallets: [],
+        disconnect,
+        linkWallet,
+        walletModalRows: [
+          {
+            id: "rabby-account",
+            family: "evm",
+            address: "0xBBBBBBBB",
+            walletName: "Rabby Wallet",
+            label: "0xBBBBBBBB",
+            chainId: 1,
+            source: "live",
+            status: "active",
+            actions: [{ kind: "link", label: "Link wallet" }],
+          },
+        ],
+      }),
+    );
+
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Disconnect Ethereum wallet" }),
+      );
+    });
+
+    expect(disconnect).toHaveBeenCalledWith({ accountId: "rabby-account" });
+    expect(linkWallet).not.toHaveBeenCalled();
+  });
+
   it("auto-links the first connected EVM wallet for an empty account", async () => {
     const linkWallet = vi.fn(async () => undefined);
     renderPicker(
