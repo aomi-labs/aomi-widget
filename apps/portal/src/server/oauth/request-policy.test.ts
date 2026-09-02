@@ -78,6 +78,18 @@ describe("OAuth request policy", () => {
     );
   });
 
+  it("allows a resource-bound refresh without repeating resource", async () => {
+    await expectContinue(
+      enforceAomiOAuthRequestPolicy(
+        new Request("https://portal.example/api/auth/oauth2/token", {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: "grant_type=refresh_token&refresh_token=opaque-refresh-token",
+        }),
+      ),
+    );
+  });
+
   it("limits unauthenticated DCR to an exact MCP resource", async () => {
     const register = (resource: string) =>
       enforceAomiOAuthRequestPolicy(
