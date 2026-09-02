@@ -238,22 +238,32 @@ function normalizeRegistrationRedirectUris(
         "redirect_uris must contain only absolute URIs",
       );
     }
+    const raw = candidate.trim();
     let url: URL;
     try {
-      url = new URL(candidate.trim());
+      url = new URL(raw);
     } catch {
       return oauthError(
         "invalid_redirect_uri",
         "redirect_uris must contain only absolute URIs",
       );
     }
-    if (url.username || url.password || url.hash) {
+    const authority = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i.exec(raw)?.[1];
+    if (
+      url.username ||
+      url.password ||
+      authority?.includes("@") ||
+      raw.includes("#")
+    ) {
       return oauthError(
         "invalid_redirect_uri",
         "redirect URIs must not contain credentials or fragments",
       );
     }
-    normalized.push(url.toString());
+    const canonical = url.toString();
+    normalized.push(
+      canonical.endsWith("?") ? canonical.slice(0, -1) : canonical,
+    );
   }
   return [...new Set(normalized)];
 }

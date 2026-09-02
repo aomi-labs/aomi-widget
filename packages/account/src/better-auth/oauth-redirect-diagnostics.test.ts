@@ -70,6 +70,64 @@ describe("OAuth redirect failure diagnostics", () => {
     expect(JSON.stringify(result)).not.toContain("secret");
   });
 
+  it.each([
+    ["empty userinfo", "http://@127.0.0.1:5100/callback", false, true],
+    ["empty fragment", "http://127.0.0.1:5100/callback#", true, false],
+  ])(
+    "detects raw %s delimiters",
+    async (_name, requested, credentialsAbsent, fragmentAbsent) => {
+      query.mockResolvedValue({
+        rows: [{ redirect_uris: ["http://127.0.0.1:4100/callback"] }],
+      });
+
+      const result = await oauthRedirectFailureDiagnostics("client", requested);
+
+      expect(result.credentialsAbsent).toBe(credentialsAbsent);
+      expect(result.fragmentAbsent).toBe(fragmentAbsent);
+      expect(result.loopbackMatch).toBe(false);
+    },
+  );
+
+  it("distinguishes an absent query from an empty query delimiter", async () => {
+    query.mockResolvedValue({
+      rows: [{ redirect_uris: ["http://127.0.0.1:4100/callback"] }],
+    });
+
+    const result = await oauthRedirectFailureDiagnostics(
+      "client",
+      "http://127.0.0.1:5100/callback?",
+    );
+
+    expect(result.queryMatch).toBe(false);
+    expect(result.loopbackMatch).toBe(false);
+  });
+
+  it("reports one coherent component vector for multiple redirects", async () => {
+    query.mockResolvedValue({
+      rows: [
+        {
+          redirect_uris: [
+            "http://127.0.0.1:4100/other?source=codex",
+            "https://example.com:5100/callback?source=other",
+          ],
+        },
+      ],
+    });
+
+    const result = await oauthRedirectFailureDiagnostics(
+      "client",
+      "http://127.0.0.1:5100/callback?source=codex",
+    );
+
+    expect(result).toMatchObject({
+      protocolMatch: true,
+      hostnameMatch: true,
+      portMatch: false,
+      pathMatch: false,
+      queryMatch: true,
+    });
+  });
+
   it("distinguishes a missing client from malformed storage", async () => {
     query.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({
       rows: [{ redirect_uris: { unexpected: true } }],

@@ -25,6 +25,18 @@ export type OAuthRedirectFailureDiagnostics = {
   queryMatch: boolean;
 };
 
+type ParsedRedirect = {
+  url: URL;
+  hasUserinfoDelimiter: boolean;
+  hasQueryDelimiter: boolean;
+  hasFragmentDelimiter: boolean;
+};
+
+type ComponentComparison = Pick<
+  OAuthRedirectFailureDiagnostics,
+  "protocolMatch" | "hostnameMatch" | "portMatch" | "pathMatch" | "queryMatch"
+>;
+
 /**
  * Explain a rejected redirect without returning any URL or client identifier.
  * This is observability only: Better Auth remains the authorization decision.
@@ -42,16 +54,17 @@ export async function oauthRedirectFailureDiagnostics(
   );
   const stored = result.rows[0]?.redirect_uris;
   const { redirects, shape } = redirectValues(stored);
-  const requested = parsedUrl(requestedRedirectUri);
-  const registered = redirects.map(parsedUrl).filter(isUrl);
+  const requested = parsedRedirect(requestedRedirectUri);
+  const registered = redirects.map(parsedRedirect).filter(isParsedRedirect);
   const credentialsAbsent = requested
-    ? !requested.username && !requested.password
+    ? !requested.url.username &&
+      !requested.url.password &&
+      !requested.hasUserinfoDelimiter
     : false;
-  const fragmentAbsent = requested ? !requested.hash : false;
-  const compare = (part: (url: URL) => string) =>
-    Boolean(
-      requested && registered.some((url) => part(url) === part(requested)),
-    );
+  const fragmentAbsent = requested
+    ? !requested.url.hash && !requested.hasFragmentDelimiter
+    : false;
+  const components = closestComponentComparison(registered, requested);
 
   return {
     clientIdHash: hashOAuthClientId(clientId),
@@ -67,22 +80,20 @@ export async function oauthRedirectFailureDiagnostics(
       credentialsAbsent &&
       fragmentAbsent &&
       registered.some(
-        (url) =>
-          isLoopbackIp(url.hostname) &&
-          url.hostname === requested.hostname &&
-          url.protocol === requested.protocol &&
-          url.pathname === requested.pathname &&
-          url.search === requested.search &&
-          !url.username &&
-          !url.password &&
-          !url.hash,
+        (registeredRedirect) =>
+          isLoopbackIp(registeredRedirect.url.hostname) &&
+          registeredRedirect.url.hostname === requested.url.hostname &&
+          registeredRedirect.url.protocol === requested.url.protocol &&
+          registeredRedirect.url.pathname === requested.url.pathname &&
+          sameQuery(registeredRedirect, requested) &&
+          !registeredRedirect.url.username &&
+          !registeredRedirect.url.password &&
+          !registeredRedirect.url.hash &&
+          !registeredRedirect.hasUserinfoDelimiter &&
+          !registeredRedirect.hasFragmentDelimiter,
       ),
     ),
-    protocolMatch: compare((url) => url.protocol),
-    hostnameMatch: compare((url) => url.hostname),
-    portMatch: compare((url) => url.port),
-    pathMatch: compare((url) => url.pathname),
-    queryMatch: compare((url) => url.search),
+    ...components,
   };
 }
 
@@ -123,16 +134,64 @@ function redirectValues(value: unknown): {
   return { redirects: [], shape: "invalid" };
 }
 
-function parsedUrl(value: string): URL | null {
+function parsedRedirect(value: string): ParsedRedirect | null {
   try {
-    return new URL(value);
+    const url = new URL(value);
+    const authority = /^[a-z][a-z0-9+.-]*:\/\/([^/?#]*)/i.exec(value)?.[1];
+    return {
+      url,
+      hasUserinfoDelimiter: authority?.includes("@") ?? false,
+      hasQueryDelimiter: value.includes("?"),
+      hasFragmentDelimiter: value.includes("#"),
+    };
   } catch {
     return null;
   }
 }
 
-function isUrl(value: URL | null): value is URL {
+function isParsedRedirect(
+  value: ParsedRedirect | null,
+): value is ParsedRedirect {
   return value !== null;
+}
+
+function closestComponentComparison(
+  registered: ParsedRedirect[],
+  requested: ParsedRedirect | null,
+): ComponentComparison {
+  const none: ComponentComparison = {
+    protocolMatch: false,
+    hostnameMatch: false,
+    portMatch: false,
+    pathMatch: false,
+    queryMatch: false,
+  };
+  if (!requested) return none;
+
+  let closest = none;
+  let closestScore = -1;
+  for (const candidate of registered) {
+    const comparison: ComponentComparison = {
+      protocolMatch: candidate.url.protocol === requested.url.protocol,
+      hostnameMatch: candidate.url.hostname === requested.url.hostname,
+      portMatch: candidate.url.port === requested.url.port,
+      pathMatch: candidate.url.pathname === requested.url.pathname,
+      queryMatch: sameQuery(candidate, requested),
+    };
+    const score = Object.values(comparison).filter(Boolean).length;
+    if (score > closestScore) {
+      closest = comparison;
+      closestScore = score;
+    }
+  }
+  return closest;
+}
+
+function sameQuery(left: ParsedRedirect, right: ParsedRedirect): boolean {
+  return (
+    left.url.search === right.url.search &&
+    left.hasQueryDelimiter === right.hasQueryDelimiter
+  );
 }
 
 function isLoopbackIp(hostname: string): boolean {

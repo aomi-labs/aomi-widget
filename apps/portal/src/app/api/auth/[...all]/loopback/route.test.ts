@@ -1,9 +1,9 @@
 // @vitest-environment node
 
 import type { Pool } from "pg";
+import { getMigrations } from "better-auth/db/migration";
 import {
   afterAll,
-  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -21,6 +21,11 @@ const CODEX_SCOPES =
   "custody:delegate pipeline:catalog pipeline:execute mcp:pipeline openid " +
   "profile email offline_access";
 const describeWithDatabase = DATABASE_URL ? describe : describe.skip;
+if (process.env.CI && !DATABASE_URL) {
+  throw new Error(
+    "CI must provide AOMI_AUTH_TEST_DATABASE_URL for the OAuth route integration suite",
+  );
+}
 const CLEANUP_TABLES = [
   "ba_oauth_access_tokens",
   "ba_oauth_refresh_tokens",
@@ -44,9 +49,10 @@ describeWithDatabase("production OAuth route loopback callbacks", () => {
   let GET: Route;
   let POST: Route;
   let pool: Pool;
-  let rowsBeforeTest = new Map<string, Set<string>>();
+  let resourceInserted = false;
 
   beforeAll(async () => {
+    assertDisposableDatabaseUrl(DATABASE_URL!);
     process.env = {
       ...originalEnv,
       NODE_ENV: "test",
@@ -54,7 +60,13 @@ describeWithDatabase("production OAuth route loopback callbacks", () => {
       BETTER_AUTH_URL: PORTAL_ORIGIN,
     };
     const database = await import("@aomi-labs/account/db/pool");
+    const account = await import("@aomi-labs/account/better-auth");
     pool = database.getPool();
+    const { runMigrations } = await getMigrations({
+      ...account.auth.options,
+      database: pool,
+    });
+    await runMigrations();
     await assertOAuthSchema(pool);
     const existingResource = await pool.query(
       `select 1 from ba_oauth_resources where identifier = $1`,
@@ -65,14 +77,10 @@ describeWithDatabase("production OAuth route loopback callbacks", () => {
         "AOMI_AUTH_TEST_DATABASE_URL must target a disposable database without the loopback test resource",
       );
     }
-    const route = await import("../route");
-    GET = route.GET;
-    POST = route.POST;
-    await pool.query(
+    const inserted = await pool.query(
       `insert into ba_oauth_resources
          (id, identifier, name, allowed_scopes, disabled, created_at, updated_at)
        values ($1, $2, $3, $4::jsonb, false, now(), now())
-       on conflict (identifier) do nothing
        returning id`,
       [
         TEST_RESOURCE_ID,
@@ -89,25 +97,53 @@ describeWithDatabase("production OAuth route loopback callbacks", () => {
         ]),
       ],
     );
+    resourceInserted = inserted.rows[0]?.id === TEST_RESOURCE_ID;
+    if (!resourceInserted)
+      throw new Error("Failed to create test OAuth resource");
+    const route = await import("../route");
+    GET = route.GET;
+    POST = route.POST;
   });
 
-  beforeEach(async () => {
-    rowsBeforeTest = await tableIds(pool);
+  beforeEach(() => {
     vi.spyOn(console, "info").mockImplementation(() => {});
     vi.spyOn(console, "warn").mockImplementation(() => {});
   });
 
-  afterEach(async () => {
-    await removeNewRows(pool, rowsBeforeTest);
-  });
-
   afterAll(async () => {
-    process.env = originalEnv;
-    if (pool) {
-      await pool.query(`delete from ba_oauth_resources where identifier = $1`, [
-        AGENT_MCP_RESOURCE,
-      ]);
-      await pool.end();
+    const failures: unknown[] = [];
+    try {
+      if (pool && resourceInserted) {
+        try {
+          await pool.query(
+            `delete from ba_oauth_resources where id = $1 and identifier = $2`,
+            [TEST_RESOURCE_ID, AGENT_MCP_RESOURCE],
+          );
+          const leftover = await pool.query(
+            `select 1 from ba_oauth_resources where id = $1 or identifier = $2`,
+            [TEST_RESOURCE_ID, AGENT_MCP_RESOURCE],
+          );
+          if (leftover.rowCount !== 0) {
+            failures.push(
+              new Error("Test OAuth resource cleanup was incomplete"),
+            );
+          }
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+      if (pool) {
+        try {
+          await pool.end();
+        } catch (error) {
+          failures.push(error);
+        }
+      }
+    } finally {
+      process.env = originalEnv;
+    }
+    if (failures.length > 0) {
+      throw new AggregateError(failures, "OAuth route suite cleanup failed");
     }
   });
 
@@ -135,16 +171,18 @@ describeWithDatabase("production OAuth route loopback callbacks", () => {
   ])(
     "accepts %s through the real handler",
     async (_name, registered, requested) => {
-      const clientId = await registerClient(POST, pool, registered, "native");
+      await withCleanTestRows(pool, async () => {
+        const clientId = await registerClient(POST, pool, registered, "native");
 
-      const response = await authorize(GET, clientId, requested);
+        const response = await authorize(GET, clientId, requested);
 
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location");
-      expect(location).toBeTruthy();
-      expect(new URL(location!, PORTAL_ORIGIN).pathname).toBe(
-        "/oauth/authorize",
-      );
+        expect(response.status).toBe(302);
+        const location = response.headers.get("location");
+        expect(location).toBeTruthy();
+        expect(new URL(location!, PORTAL_ORIGIN).pathname).toBe(
+          "/oauth/authorize",
+        );
+      });
     },
   );
 
@@ -186,9 +224,27 @@ describeWithDatabase("production OAuth route loopback callbacks", () => {
       "native",
     ],
     [
+      "empty userinfo",
+      "http://127.0.0.1:43110/callback",
+      "http://@127.0.0.1:53110/callback",
+      "native",
+    ],
+    [
       "fragment",
       "http://127.0.0.1:43108/callback",
       "http://127.0.0.1:53108/callback#complete",
+      "native",
+    ],
+    [
+      "empty fragment",
+      "http://127.0.0.1:43111/callback",
+      "http://127.0.0.1:53111/callback#",
+      "native",
+    ],
+    [
+      "empty query",
+      "http://127.0.0.1:43112/callback",
+      "http://127.0.0.1:53112/callback?",
       "native",
     ],
     [
@@ -200,26 +256,44 @@ describeWithDatabase("production OAuth route loopback callbacks", () => {
   ])(
     "rejects %s through the real handler",
     async (_name, registered, requested, applicationType) => {
-      const clientId = await registerClient(
-        POST,
-        pool,
-        registered,
-        applicationType,
-      );
+      await withCleanTestRows(pool, async () => {
+        const clientId = await registerClient(
+          POST,
+          pool,
+          registered,
+          applicationType,
+        );
 
-      const response = await authorize(GET, clientId, requested);
+        const response = await authorize(GET, clientId, requested);
 
-      expect(response.status).toBe(302);
-      const location = response.headers.get("location");
-      expect(location).toBeTruthy();
-      const error = new URL(location!, PORTAL_ORIGIN);
-      expect(error.pathname).toBe("/api/auth/error");
-      expect(error.searchParams.get("error")).toBe(
-        _name === "fragment" ? "invalid_request" : "invalid_redirect",
-      );
+        expect(response.status).toBe(302);
+        const location = response.headers.get("location");
+        expect(location).toBeTruthy();
+        const error = new URL(location!, PORTAL_ORIGIN);
+        expect(error.pathname).toBe("/api/auth/error");
+        expect(error.searchParams.get("error")).toBe(
+          _name === "fragment" || _name === "empty fragment"
+            ? "invalid_request"
+            : "invalid_redirect",
+        );
+      });
     },
   );
 });
+
+function assertDisposableDatabaseUrl(value: string): void {
+  const url = new URL(value);
+  const database = url.pathname.slice(1);
+  if (
+    !["postgres:", "postgresql:"].includes(url.protocol) ||
+    !["127.0.0.1", "localhost", "::1", "[::1]"].includes(url.hostname) ||
+    !/^aomi_auth_loopback_test(?:_|$)/.test(database)
+  ) {
+    throw new Error(
+      "AOMI_AUTH_TEST_DATABASE_URL must be a loopback PostgreSQL database named aomi_auth_loopback_test*",
+    );
+  }
+}
 
 async function registerClient(
   POST: Route,
@@ -297,20 +371,77 @@ async function tableIds(pool: Pool): Promise<Map<string, Set<string>>> {
   return ids;
 }
 
+async function withCleanTestRows<T>(
+  pool: Pool,
+  run: () => Promise<T>,
+): Promise<T> {
+  const before = await tableIds(pool);
+  let result: T | undefined;
+  let failure: unknown;
+  try {
+    result = await run();
+  } catch (error) {
+    failure = error;
+  } finally {
+    try {
+      await removeNewRows(pool, before);
+    } catch (cleanupError) {
+      failure = failure
+        ? new AggregateError(
+            [failure, cleanupError],
+            "OAuth route assertion and cleanup both failed",
+          )
+        : cleanupError;
+    }
+  }
+  if (failure) throw failure;
+  return result as T;
+}
+
 async function removeNewRows(
   pool: Pool,
   before: Map<string, Set<string>>,
 ): Promise<void> {
-  for (const table of CLEANUP_TABLES) {
-    const result = await pool.query(`select id from ${table}`);
-    const previous = before.get(table) ?? new Set<string>();
-    const created = result.rows
-      .map((row) => String(row.id))
-      .filter((id) => !previous.has(id));
-    if (created.length > 0) {
-      await pool.query(`delete from ${table} where id = any($1::text[])`, [
-        created,
-      ]);
+  const failures: unknown[] = [];
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    for (const table of CLEANUP_TABLES) {
+      try {
+        const previous = before.get(table);
+        if (!previous) throw new Error(`Missing cleanup baseline for ${table}`);
+        const result = await pool.query(`select id from ${table}`);
+        const created = result.rows
+          .map((row) => String(row.id))
+          .filter((id) => !previous.has(id));
+        if (created.length > 0) {
+          await pool.query(`delete from ${table} where id = any($1::text[])`, [
+            created,
+          ]);
+        }
+      } catch (error) {
+        failures.push(error);
+      }
     }
+  }
+  for (const table of CLEANUP_TABLES) {
+    try {
+      const previous = before.get(table);
+      if (!previous) throw new Error(`Missing cleanup baseline for ${table}`);
+      const result = await pool.query(`select id from ${table}`);
+      const leftovers = result.rows
+        .map((row) => String(row.id))
+        .filter((id) => !previous.has(id));
+      if (leftovers.length > 0) {
+        failures.push(
+          new Error(
+            `${table} retained ${leftovers.length} test-created row(s)`,
+          ),
+        );
+      }
+    } catch (error) {
+      failures.push(error);
+    }
+  }
+  if (failures.length > 0) {
+    throw new AggregateError(failures, "OAuth route row cleanup failed");
   }
 }

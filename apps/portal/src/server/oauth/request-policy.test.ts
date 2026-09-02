@@ -140,7 +140,9 @@ describe("OAuth request policy", () => {
     ["non-array", "http://127.0.0.1:49152/callback"],
     ["relative", ["/callback"]],
     ["credentials", ["http://user@127.0.0.1:49152/callback"]],
+    ["empty credentials", ["http://@127.0.0.1:49152/callback"]],
     ["fragment", ["http://127.0.0.1:49152/callback#done"]],
+    ["empty fragment", ["http://127.0.0.1:49152/callback#"]],
   ])(
     "rejects %s redirect metadata before persistence",
     async (_name, value) => {
@@ -160,6 +162,27 @@ describe("OAuth request policy", () => {
       );
     },
   );
+
+  it("removes an empty query delimiter while normalizing registration", async () => {
+    const request = await expectContinue(
+      enforceAomiOAuthRequestPolicy(
+        new Request("https://portal.example/api/auth/oauth2/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            redirect_uris: ["http://127.0.0.1:49152/callback?"],
+            grant_types: ["authorization_code", "refresh_token"],
+            response_types: ["code"],
+            token_endpoint_auth_method: "none",
+          }),
+        }),
+      ),
+    );
+
+    await expect(request.json()).resolves.toMatchObject({
+      redirect_uris: ["http://127.0.0.1:49152/callback"],
+    });
+  });
 
   // The scope list Codex actually sends, captured from a real `codex mcp login`.
   // It is the authorization server's whole `scopes_supported` — clients build
