@@ -116,12 +116,29 @@ describe("device-auth route error ownership", () => {
         state: VALID_STATE,
         codeChallenge: VALID_CHALLENGE,
         redirectUri: REDIRECT_URI,
+        provider: "para",
       }),
     );
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: "invalid_state" });
     expect(mocks.capture).not.toHaveBeenCalled();
+  });
+
+  it("requires a provider when issuing an ordinary grant", async () => {
+    const response = await grant(
+      post("/v1/account/device-auth/grant", {
+        state: VALID_STATE,
+        codeChallenge: VALID_CHALLENGE,
+        redirectUri: REDIRECT_URI,
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "invalid_request",
+    });
+    expect(mocks.issueGrant).not.toHaveBeenCalled();
   });
 
   it("leaves session failures to the framework error boundary", async () => {
@@ -247,6 +264,32 @@ describe("device-auth route error ownership", () => {
     expect(mocks.capture).toHaveBeenCalledWith(
       failure,
       expect.objectContaining({ status: 500 }),
+    );
+  });
+
+  it("returns a safe JSON failure when durable grant consumption fails", async () => {
+    const failure = new Error("private postgres connection detail");
+    mocks.exchangeGrant.mockRejectedValue(failure);
+
+    const response = await exchange(
+      post("/v1/account/device-auth/exchange", {
+        code: "code",
+        state: VALID_STATE,
+        codeVerifier: "verifier",
+        redirectUri: REDIRECT_URI,
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "device_auth_failed",
+    });
+    expect(mocks.capture).toHaveBeenCalledWith(
+      failure,
+      expect.objectContaining({
+        operation: "device_auth_grant_consume",
+        status: 500,
+      }),
     );
   });
 });

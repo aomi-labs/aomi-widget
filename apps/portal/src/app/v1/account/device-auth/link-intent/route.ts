@@ -31,10 +31,10 @@ export async function POST(req: Request): Promise<Response> {
   ) {
     return json(400, { error: "invalid_request" });
   }
-  const provider =
-    body.provider === "privy" || body.provider === "para"
-      ? (body.provider as DeviceAuthProvider)
-      : undefined;
+  if (body.provider !== "privy" && body.provider !== "para") {
+    return json(400, { error: "invalid_request" });
+  }
+  const provider = body.provider as DeviceAuthProvider;
 
   try {
     const intent = await issueDeviceAuthLinkIntent({

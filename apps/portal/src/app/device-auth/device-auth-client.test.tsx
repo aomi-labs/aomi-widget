@@ -5,6 +5,10 @@ const mocks = vi.hoisted(() => ({
   search:
     "state=state_1234567890abcdef&code_challenge=challenge_1234567890abcdefghijklmnop&redirect_uri=http%3A%2F%2F127.0.0.1%3A4173%2Fcallback",
   replace: vi.fn(),
+  wallet: {
+    connectSocial: vi.fn(),
+    getAccountCredential: vi.fn(),
+  },
 }));
 
 vi.mock("next/navigation", () => ({
@@ -13,11 +17,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
-  useAomiWalletKit: () => ({
-    connectSocial: vi.fn(),
-    getAccountCredential: vi.fn(),
-  }),
+  useAomiWalletKit: () => mocks.wallet,
 }));
+
+vi.mock("@portal/lib/device-auth-provider", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@portal/lib/device-auth-provider")>();
+  return { ...actual, providerConfigurationFailure: () => null };
+});
 
 vi.mock("@aomi-labs/widget-lib/providers/para", () => ({}));
 vi.mock("@aomi-labs/widget-lib/providers/privy", () => ({}));
@@ -29,6 +36,8 @@ describe("DeviceAuthClient provider ownership", () => {
     mocks.search =
       "state=state_1234567890abcdef&code_challenge=challenge_1234567890abcdefghijklmnop&redirect_uri=http%3A%2F%2F127.0.0.1%3A4173%2Fcallback";
     mocks.replace.mockReset();
+    mocks.wallet.connectSocial.mockReset();
+    mocks.wallet.getAccountCredential.mockReset();
   });
 
   it("navigates with the selected provider instead of nesting a provider", () => {
@@ -43,5 +52,24 @@ describe("DeviceAuthClient provider ownership", () => {
         "provider",
       ),
     ).toBe("para");
+  });
+
+  it("never renders a raw provider error after connect", async () => {
+    mocks.search =
+      "provider=para&state=state_1234567890abcdef&code_challenge=challenge_1234567890abcdefghijklmnop&redirect_uri=http%3A%2F%2F127.0.0.1%3A4173%2Fcallback";
+    mocks.wallet.connectSocial.mockResolvedValue(undefined);
+    mocks.wallet.getAccountCredential.mockRejectedValue(
+      new Error("private provider response containing a credential"),
+    );
+
+    render(<DeviceAuthClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Para" }));
+
+    expect(
+      await screen.findByText(/para_initialization_failed/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/private provider response/),
+    ).not.toBeInTheDocument();
   });
 });

@@ -4,6 +4,7 @@ import {
   narrowScopesForAomiResource,
   validateAomiResourceScopes,
 } from "./resources";
+import { bindAomiPublicClientResource } from "./client-resource-binding";
 
 type OAuthError =
   | "invalid_client_metadata"
@@ -88,6 +89,21 @@ export async function enforceAomiOAuthRequestPolicy(
   if (!aomiOAuthResourcePolicy(resources[0])) {
     return reject(oauthError("invalid_target", "Unknown Aomi resource"));
   }
+  const clientId = values.get("client_id")?.trim();
+  if (clientId) {
+    const binding = await bindAomiPublicClientResource({
+      clientId,
+      resource: resources[0],
+    });
+    if (binding === "resource_conflict") {
+      return reject(
+        oauthError(
+          "invalid_target",
+          "OAuth client is bound to another Aomi resource",
+        ),
+      );
+    }
+  }
   if ((isAuthorize || isDevice) && scopes.length === 0) {
     return reject(
       oauthError("invalid_scope", "Aomi resource scopes are required"),
@@ -164,7 +180,7 @@ async function enforceAomiRegistration(
   );
   if (redirectUris instanceof Response) return redirectUris;
   if (redirectUris) metadata.redirect_uris = redirectUris;
-  if (String(metadata.token_endpoint_auth_method ?? "none") !== "none") {
+  if (metadata.token_endpoint_auth_method !== "none") {
     return oauthError(
       "invalid_client_metadata",
       "Unauthenticated registration is limited to public clients",

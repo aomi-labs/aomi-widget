@@ -33,7 +33,12 @@ packageExtensions:
     peerDependencies:
       react: "*"
 
+# @better-auth/mcp 1.7.1 automatically adds its primary MCP endpoint to every
+# dynamically registered client's default resources. This widens Agent,
+# Pipeline, and REST clients even when they request one exact resource. Aomi
+# binds resource-less RFC 7591 clients on their first authorize request instead.
 patchedDependencies:
+  "@better-auth/mcp@1.7.1": patches/@better-auth__mcp@1.7.1.patch
   "@better-auth/oauth-provider@1.7.1": patches/@better-auth__oauth-provider@1.7.1.patch
   "next@16.1.0": patches/next@16.1.0.patch
 

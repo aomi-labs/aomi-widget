@@ -7,9 +7,13 @@ display the request before approve or deny, dynamic registration admits only
 the supported public MCP authorization-code and REST device-client shapes, and
 legacy CLI grants/link intents use encrypted five-minute one-time
 `ba_verifications` records instead of process-local maps. Portal lint,
-typecheck, all 454 tests, account typecheck, and account package dry-run pass;
-live provider credentials and staging were intentionally not exercised in this
-isolated implementation slice.
+typecheck, all 468 tests, 139 account tests, and six disposable-PostgreSQL
+integration tests pass, including real Agent REST and Pipeline REST Better
+Auth flows from DCR through authenticated claim, approval, and token. Public clients are exact-resource-bound without
+widening resource-less Codex registration, and provider/link records survive
+cross-instance exchange with atomic replay protection. Live provider
+credentials and staging were intentionally not exercised in this isolated
+implementation slice.
 
 Current session goal: **CLI AGENT CHAT AUTH, ORDER, AND TOOL TRACES VERIFIED
 2026-08-31** — anonymous Agent and Pipeline calls now receive a guest bearer
