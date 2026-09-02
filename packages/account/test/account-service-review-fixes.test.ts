@@ -8,6 +8,7 @@ const queryMocks = vi.hoisted(() => ({
   countLoginFactors: vi.fn(),
   createAomiUser: vi.fn(),
   deactivateAomiUser: vi.fn(),
+  deleteBetterAuthUsers: vi.fn(),
   deleteBetterAuthSiweWallet: vi.fn(),
   deleteBetterAuthSiwsWallet: vi.fn(),
   findAuthIdentityById: vi.fn(),
@@ -17,6 +18,7 @@ const queryMocks = vi.hoisted(() => ({
   findWalletById: vi.fn(),
   listBetterAuthSiweWallets: vi.fn(),
   listBetterAuthSiwsWallets: vi.fn(),
+  listBetterAuthUserIdsForAomiUser: vi.fn(),
   listWalletsForUser: vi.fn(),
   lockIdentityResolutionKeys: vi.fn(),
   logAccountEvent: vi.fn(),
@@ -35,10 +37,13 @@ const queryMocks = vi.hoisted(() => ({
   withTransaction: vi.fn(),
 }));
 
-vi.mock("../src/db/queries", () => queryMocks);
-vi.mock("../src/widget-auth/store", () => ({
+const widgetMocks = vi.hoisted(() => ({
   deleteWidgetSessionsForProviderIdentity: vi.fn(async () => undefined),
+  deleteWidgetSessionsForUser: vi.fn(async () => undefined),
 }));
+
+vi.mock("../src/db/queries", () => queryMocks);
+vi.mock("../src/widget-auth/store", () => widgetMocks);
 
 const tx = { tag: "transaction-client" };
 
@@ -202,6 +207,10 @@ describe("deactivateAomiAccount last-factor handling", () => {
     queryMocks.revokeAllAuthIdentitiesForUser.mockResolvedValue(1);
     queryMocks.revokeAllWalletsForUser.mockResolvedValue(0);
     queryMocks.deactivateAomiUser.mockResolvedValue(true);
+    queryMocks.listBetterAuthUserIdsForAomiUser.mockResolvedValue([
+      "ba-solo-user",
+    ]);
+    queryMocks.deleteBetterAuthUsers.mockResolvedValue(1);
 
     const { deactivateAomiAccount } =
       await import("../src/service/account-service");
@@ -214,6 +223,14 @@ describe("deactivateAomiAccount last-factor handling", () => {
       revokedWallets: 0,
     });
     expect(queryMocks.deactivateAomiUser).toHaveBeenCalled();
+    expect(queryMocks.deleteBetterAuthUsers).toHaveBeenCalledWith({
+      betterAuthUserIds: ["ba-solo-user"],
+      db: tx,
+    });
+    expect(widgetMocks.deleteWidgetSessionsForUser).toHaveBeenCalledWith({
+      userId: "solo-user",
+      db: tx,
+    });
   });
 });
 
@@ -262,6 +279,10 @@ describe("unlinkAuthIdentity last-factor handling", () => {
     });
     queryMocks.countLoginFactors.mockResolvedValue(2);
     queryMocks.revokeAuthIdentity.mockResolvedValue(true);
+    queryMocks.listBetterAuthUserIdsForAomiUser.mockResolvedValue([
+      "ba-user-a",
+    ]);
+    queryMocks.deleteBetterAuthUsers.mockResolvedValue(1);
 
     const { unlinkAuthIdentity } =
       await import("../src/service/account-service");
@@ -273,6 +294,18 @@ describe("unlinkAuthIdentity last-factor handling", () => {
     expect(queryMocks.revokeAuthIdentity).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "user-a", db: tx }),
     );
+    expect(queryMocks.clearAomiBetterAuthUserIds).toHaveBeenCalledWith({
+      userId: "user-a",
+      betterAuthUserIds: ["ba-user-a"],
+      db: tx,
+    });
+    expect(queryMocks.deleteBetterAuthUsers).toHaveBeenCalledWith({
+      betterAuthUserIds: ["ba-user-a"],
+      db: tx,
+    });
+    expect(
+      widgetMocks.deleteWidgetSessionsForProviderIdentity,
+    ).toHaveBeenCalledWith({ providerIdentityId: "para-row", db: tx });
   });
 });
 
@@ -303,6 +336,29 @@ describe("unlinkWallet last-factor handling", () => {
     expect(queryMocks.lockIdentityResolutionKeys).toHaveBeenCalledWith(
       ["aomi-login-factors:user-a"],
       tx,
+    );
+  });
+
+  it("allows removing an embedded provider wallet without treating it as a login factor", async () => {
+    queryMocks.withTransaction.mockImplementation(async (fn) => fn(tx));
+    queryMocks.lockIdentityResolutionKeys.mockResolvedValue(undefined);
+    queryMocks.findWalletById.mockResolvedValue({
+      id: "wallet-embedded",
+      userId: "user-a",
+      family: "evm",
+      address: "0x0000000000000000000000000000000000000002",
+      linkedVia: "para",
+    });
+    queryMocks.revokeWallet.mockResolvedValue(true);
+
+    const { unlinkWallet } = await import("../src/service/account-service");
+
+    await expect(
+      unlinkWallet({ userId: "user-a", walletId: "wallet-embedded" }),
+    ).resolves.toBe("revoked");
+    expect(queryMocks.countLoginFactors).not.toHaveBeenCalled();
+    expect(queryMocks.revokeWallet).toHaveBeenCalledWith(
+      expect.objectContaining({ walletId: "wallet-embedded", db: tx }),
     );
   });
 });

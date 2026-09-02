@@ -441,6 +441,41 @@ export async function clearAomiBetterAuthUserIds(input: {
   return (result.rowCount ?? 0) > 0;
 }
 
+/** Return every Better Auth carrier currently attached to one canonical user.
+ * The legacy spelling remains in persisted rows, so revocation deliberately
+ * matches both values while returning one canonical subject list. */
+export async function listBetterAuthUserIdsForAomiUser(
+  userId: AomiUserId,
+  db: Db = getPool(),
+): Promise<string[]> {
+  const result = await db.query(
+    `select distinct subject
+       from auth_providers
+      where user_id = $1
+        and provider = any($2::text[])
+      order by subject`,
+    [userId, [BETTER_AUTH_PROVIDER, "better_auth"]],
+  );
+  return result.rows
+    .map((row) => row.subject)
+    .filter((subject): subject is string => typeof subject === "string");
+}
+
+/** Delete Better Auth users only after their exact ids were resolved from the
+ * canonical account. Foreign-key cascades revoke all browser sessions, OAuth
+ * tokens/consents, wallet rows, and owned OAuth applications. */
+export async function deleteBetterAuthUsers(input: {
+  betterAuthUserIds: readonly string[];
+  db?: Db;
+}): Promise<number> {
+  if (input.betterAuthUserIds.length === 0) return 0;
+  const result = await (input.db ?? getPool()).query(
+    `delete from ba_users where id = any($1::text[])`,
+    [[...new Set(input.betterAuthUserIds)]],
+  );
+  return result.rowCount ?? 0;
+}
+
 export async function upsertWallet(input: {
   userId: AomiUserId;
   family: WalletFamily;

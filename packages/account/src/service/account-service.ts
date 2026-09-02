@@ -6,6 +6,7 @@ import {
   clearAomiBetterAuthUserIds,
   countLoginFactors,
   deactivateAomiUser,
+  deleteBetterAuthUsers,
   deleteBetterAuthSiweWallet,
   deleteBetterAuthSiwsWallet,
   findAuthIdentityById,
@@ -15,6 +16,7 @@ import {
   findWalletById,
   listBetterAuthSiweWallets,
   listBetterAuthSiwsWallets,
+  listBetterAuthUserIdsForAomiUser,
   listWalletsForUser,
   lockIdentityResolutionKeys,
   logAccountEvent,
@@ -58,7 +60,10 @@ import {
   lockSignalRefs,
   resolveVerifiedProviderIdentity,
 } from "./identity-resolution";
-import { deleteWidgetSessionsForProviderIdentity } from "../widget-auth/store";
+import {
+  deleteWidgetSessionsForProviderIdentity,
+  deleteWidgetSessionsForUser,
+} from "../widget-auth/store";
 
 // Historically this applied the portal-owned `aomi_*` schema. AUTH-001 moves
 // durable account state to the shared backend canonical tables, so the hook now
@@ -894,14 +899,28 @@ export async function unlinkAuthIdentity(input: {
       subject: identity.subject,
       db,
     });
-    return revoked
-      ? { status: "revoked" as const, identity }
-      : { status: "not_found" as const };
+    if (!revoked) return { status: "not_found" as const };
+
+    // Provider sessions are carriers, not independent login factors. Removing
+    // a provider must also remove every carrier that could otherwise recover
+    // the canonical account from the provider's email or embedded wallets.
+    const betterAuthUserIds = await listBetterAuthUserIdsForAomiUser(
+      input.userId,
+      db,
+    );
+    await clearAomiBetterAuthUserIds({
+      userId: input.userId,
+      betterAuthUserIds,
+      db,
+    });
+    await deleteBetterAuthUsers({ betterAuthUserIds, db });
+    await deleteWidgetSessionsForProviderIdentity({
+      providerIdentityId: identity.id,
+      db,
+    });
+    return { status: "revoked" as const, identity };
   });
   if (result.status !== "revoked") return result.status;
-  await deleteWidgetSessionsForProviderIdentity({
-    providerIdentityId: result.identity.id,
-  });
   await logAccountEvent({
     userId: input.userId,
     eventType: "identity.revoked",
@@ -975,11 +994,13 @@ export async function unlinkWallet(input: {
     );
     const wallet = await findWalletById(input.walletId, db);
     if (!wallet || wallet.userId !== input.userId) return "not_found" as const;
-    const factorCount = await countLoginFactors(input.userId, db);
-    if (factorCount <= 1) return "last_factor" as const;
+    const walletSubject = walletIdentitySubject(wallet);
+    if (walletSubject) {
+      const factorCount = await countLoginFactors(input.userId, db);
+      if (factorCount <= 1) return "last_factor" as const;
+    }
     const revoked = await revokeWallet({ ...input, db });
     if (!revoked) return "not_found" as const;
-    const walletSubject = walletIdentitySubject(wallet);
     if (!walletSubject) return "revoked" as const;
 
     await revokeAuthIdentity({
@@ -1058,45 +1079,54 @@ export async function deactivateAomiAccount(input: {
   userId: AomiUserId;
 }): Promise<DeactivateAomiAccountResult> {
   await ensureAccountSchema();
-  return withTransaction(async (db) => {
-    const user = await findAomiUserById(input.userId, db);
-    if (!user) return { status: "not_found" };
-    // Last-factor protection guards *unlinking* an individual identity/wallet
-    // (see `unlinkAuthIdentity`/`unlinkWallet`), not full account deletion.
-    // Deleting an account is meant to revoke every remaining factor, so a
-    // Para-only/SIWE-only single-factor user must still be able to delete.
+  const result: DeactivateAomiAccountResult = await withTransaction(
+    async (db) => {
+      const user = await findAomiUserById(input.userId, db);
+      if (!user) return { status: "not_found" as const };
+      // Last-factor protection guards *unlinking* an individual identity/wallet
+      // (see `unlinkAuthIdentity`/`unlinkWallet`), not full account deletion.
+      // Deleting an account is meant to revoke every remaining factor, so a
+      // Para-only/SIWE-only single-factor user must still be able to delete.
 
-    const revokedIdentities = await revokeAllAuthIdentitiesForUser({
-      userId: input.userId,
-      db,
-    });
-    const revokedWallets = await revokeAllWalletsForUser({
-      userId: input.userId,
-      db,
-    });
-    const deactivated = await deactivateAomiUser({
-      userId: input.userId,
-      db,
-    });
-    if (!deactivated) return { status: "not_found" };
+      const betterAuthUserIds = await listBetterAuthUserIdsForAomiUser(
+        input.userId,
+        db,
+      );
+      const revokedIdentities = await revokeAllAuthIdentitiesForUser({
+        userId: input.userId,
+        db,
+      });
+      const revokedWallets = await revokeAllWalletsForUser({
+        userId: input.userId,
+        db,
+      });
+      await deleteBetterAuthUsers({ betterAuthUserIds, db });
+      await deleteWidgetSessionsForUser({ userId: input.userId, db });
+      const deactivated = await deactivateAomiUser({
+        userId: input.userId,
+        db,
+      });
+      if (!deactivated) return { status: "not_found" as const };
 
-    await logAccountEvent({
-      userId: input.userId,
-      actorUserId: input.userId,
-      eventType: "account.deactivated",
-      data: {
+      await logAccountEvent({
+        userId: input.userId,
+        actorUserId: input.userId,
+        eventType: "account.deactivated",
+        data: {
+          revokedIdentities,
+          revokedWallets,
+          hadBetterAuthUserId: Boolean(user.betterAuthUserId),
+        },
+        db,
+      });
+      return {
+        status: "deactivated" as const,
         revokedIdentities,
         revokedWallets,
-        hadBetterAuthUserId: Boolean(user.betterAuthUserId),
-      },
-      db,
-    });
-    return {
-      status: "deactivated",
-      revokedIdentities,
-      revokedWallets,
-    };
-  });
+      };
+    },
+  );
+  return result;
 }
 
 function signalEventType(signal: SignalRef, suffix: string): string {

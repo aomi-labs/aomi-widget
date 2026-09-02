@@ -31,7 +31,6 @@ import type {
   WidgetProviderPolicy,
 } from "../providers/descriptor";
 import {
-  betterAuthWalletSignals,
   ensureAccountSchema,
   fetchAttestedProviderWallets,
   isIdentityAlreadyLinkedError,
@@ -87,21 +86,9 @@ export async function signInWithVerifiedProviderCredential(input: {
 }): Promise<ProviderLinkResult> {
   await ensureAccountSchema();
   const prepared = await prepareVerifiedCredential(input.verified);
-  const betterAuthSignals = await betterAuthWalletSignals(
-    input.betterAuthUserId,
-  );
-  const betterAuthIdentity: SignalRef = {
-    type: "identity",
-    provider: "better_auth",
-    issuerEnvironment: "aomi",
-    tenantId: "portal",
-    subject: input.betterAuthUserId,
-  };
-
   const resolution = await signInWithVerifiedProviderIdentity({
     identity: prepared.identity,
     policy: nativeProviderResolutionPolicy(prepared.identity.provider),
-    additionalRecoverySignals: [betterAuthIdentity, ...betterAuthSignals],
     wallets: prepared.wallets,
     displayName: input.name ?? input.email,
     onResolved: async (user, db) => {
@@ -131,7 +118,6 @@ export async function signInWithVerifiedProviderIdentity(input: {
   identity: VerifiedProviderIdentity;
   policy: Pick<WidgetProviderPolicy, "subjectIsEnvironmentGlobal">;
   wallets?: readonly AttestedWallet[];
-  additionalRecoverySignals?: readonly SignalRef[];
   displayName?: string | null;
   onResolved?: (user: DbAomiUser, db: import("pg").PoolClient) => Promise<void>;
 }): Promise<ProviderSignInResult> {
@@ -141,10 +127,11 @@ export async function signInWithVerifiedProviderIdentity(input: {
     const resolution = await resolveVerifiedProviderIdentity({
       identity: input.identity,
       policy: input.policy,
-      recoverySignals: [
-        ...(input.additionalRecoverySignals ?? []),
-        ...providerRecoverySignals(input.identity, wallets),
-      ],
+      // Login ownership comes only from the exact verified provider subject.
+      // Shared email and embedded-wallet claims are useful profile/capability
+      // data, but may attach a provider only through the authenticated link
+      // flow below; otherwise an unlinked provider can silently recover access.
+      recoverySignals: [],
       displayName: input.displayName ?? input.identity.email?.value,
       onResolved: async (result, db) => {
         await input.onResolved?.(result.user, db);

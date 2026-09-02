@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   countLoginFactors,
   claimTelegramSessionOwner,
+  deleteBetterAuthUsers,
+  listBetterAuthUserIdsForAomiUser,
   revokeAuthIdentity,
   updateWalletLabel,
   upsertWallet,
@@ -31,6 +33,33 @@ function fakeDb(
 }
 
 describe("canonical account queries", () => {
+  it("lists and deletes only the Better Auth carriers attached to one canonical user", async () => {
+    const { db, calls } = fakeDb((call) =>
+      call.sql.includes("select distinct subject")
+        ? { rows: [{ subject: "ba-a" }, { subject: "ba-b" }] }
+        : { rows: [], rowCount: 2 },
+    );
+
+    const ids = await listBetterAuthUserIdsForAomiUser(
+      "canonical-user",
+      db as never,
+    );
+    await expect(
+      deleteBetterAuthUsers({
+        betterAuthUserIds: ids,
+        db: db as never,
+      }),
+    ).resolves.toBe(2);
+
+    expect(ids).toEqual(["ba-a", "ba-b"]);
+    expect(calls[0]?.params).toEqual([
+      "canonical-user",
+      ["betterauth", "better_auth"],
+    ]);
+    expect(calls[1]?.sql).toContain("delete from ba_users");
+    expect(calls[1]?.params).toEqual([["ba-a", "ba-b"]]);
+  });
+
   it("resolves a Telegram session only through the same canonical owner", async () => {
     const { db, calls } = fakeDb(() => ({
       rows: [{ user_id: "canonical-user" }],
