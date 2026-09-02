@@ -12,6 +12,7 @@ export {
   getOrCreateAomiUserForSiwe,
   getOrCreateAomiUserForSiws,
   getOrCreateAomiUserForBetterAuthSession,
+  linkAnonymousCanonicalAccount,
   linkProviderIdentity,
   renameAuthIdentity,
   renameWallet,

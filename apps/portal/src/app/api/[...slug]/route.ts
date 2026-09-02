@@ -2,8 +2,7 @@ import { createBackendProxy, type AllowedRoute } from "@aomi-labs/account";
 import { resolveCanonicalUserId } from "@portal/server/canonical-session";
 import { launchConfig } from "@portal/server/bff/launch/config";
 import { portalFailures } from "@portal/server/bff/failures";
-import { widgetPreflight, widgetRoute } from "@portal/lib/widget-auth/response";
-import { requireCrossOriginWidgetSession } from "@portal/lib/widget-auth/principal";
+import { widgetPreflight, widgetRoute } from "@portal/server/widget-auth/response";
 
 export const ALLOWED_ROUTES: AllowedRoute[] = [
   {
@@ -15,49 +14,8 @@ export const ALLOWED_ROUTES: AllowedRoute[] = [
     methods: new Set(["GET"]),
     auth: "optional",
   },
-  {
-    pattern: /^\/api\/thread\/state$/,
-    methods: new Set(["GET"]),
-    auth: "none",
-  },
-  {
-    pattern: /^\/api\/thread\/chat$/,
-    methods: new Set(["POST"]),
-    auth: "optional",
-  },
-  { pattern: /^\/api\/system$/, methods: new Set(["POST"]), auth: "optional" },
-  {
-    pattern: /^\/api\/thread\/interrupt$/,
-    methods: new Set(["POST"]),
-    auth: "optional",
-  },
   { pattern: /^\/api\/secrets$/, methods: new Set(["GET", "POST", "DELETE"]) },
   { pattern: /^\/api\/secrets\/[^/]+$/, methods: new Set(["DELETE"]) },
-  {
-    pattern: /^\/api\/thread\/updates$/,
-    methods: new Set(["GET"]),
-    auth: "none",
-  },
-  {
-    pattern: /^\/api\/threads$/,
-    methods: new Set(["GET", "POST"]),
-    auth: "optional",
-  },
-  {
-    pattern: /^\/api\/threads\/[^/]+$/,
-    methods: new Set(["GET", "PATCH", "DELETE"]),
-    auth: "optional",
-  },
-  {
-    pattern: /^\/api\/threads\/[^/]+\/(archive|unarchive)$/,
-    methods: new Set(["POST"]),
-    auth: "optional",
-  },
-  {
-    pattern: /^\/api\/thread\/events$/,
-    methods: new Set(["GET"]),
-    auth: "optional",
-  },
   {
     pattern: /^\/api\/thread\/apps$/,
     methods: new Set(["GET"]),
@@ -115,34 +73,6 @@ export const ALLOWED_ROUTES: AllowedRoute[] = [
   },
 ];
 
-function rewriteLegacyThreadPath(upstreamUrl: URL): void {
-  if (upstreamUrl.pathname === "/api/sessions") {
-    upstreamUrl.pathname = "/api/threads";
-    return;
-  }
-
-  if (upstreamUrl.pathname.startsWith("/api/sessions/")) {
-    upstreamUrl.pathname = `/api/threads/${upstreamUrl.pathname.slice(
-      "/api/sessions/".length,
-    )}`;
-    return;
-  }
-
-  if (upstreamUrl.pathname === "/api/session/apps") {
-    upstreamUrl.pathname = "/api/thread/apps";
-    return;
-  }
-
-  if (upstreamUrl.pathname === "/api/session/models") {
-    upstreamUrl.pathname = "/api/thread/models";
-    return;
-  }
-
-  if (upstreamUrl.pathname === "/api/session/model") {
-    upstreamUrl.pathname = "/api/thread/model";
-  }
-}
-
 const proxy = createBackendProxy({
   allowedRoutes: ALLOWED_ROUTES,
   resolveCanonicalUserId,
@@ -150,7 +80,6 @@ const proxy = createBackendProxy({
     portalFailures.handle({ source: "proxy", failure });
   },
   applyDefaults: (upstreamUrl) => {
-    rewriteLegacyThreadPath(upstreamUrl);
     if (
       upstreamUrl.pathname !== "/api/thread/apps" ||
       upstreamUrl.searchParams.has("platform")
@@ -163,16 +92,7 @@ const proxy = createBackendProxy({
   },
 });
 
-async function guardedGet(...args: Parameters<typeof proxy.GET>) {
-  const [request] = args;
-  const pathname = new URL(request.url).pathname;
-  if (pathname === "/api/thread/state" || pathname === "/api/thread/updates") {
-    await requireCrossOriginWidgetSession(request);
-  }
-  return proxy.GET(...args);
-}
-
-export const GET = widgetRoute(guardedGet, "proxy.request");
+export const GET = widgetRoute(proxy.GET, "proxy.request");
 export const POST = widgetRoute(proxy.POST, "proxy.request");
 export const PUT = widgetRoute(proxy.PUT, "proxy.request");
 export const PATCH = widgetRoute(proxy.PATCH, "proxy.request");

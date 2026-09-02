@@ -15,9 +15,9 @@ test("Para login resolves the canonical Aomi account", async () => {
   assert.match(providers, /oAuthMethods: \["GOOGLE", "TELEGRAM"\]/);
   assert.match(canonicalAccount, /createProviderCredentialAdapter/);
   assert.match(canonicalAccount, /paraClient\.issueJwt/);
-  assert.match(canonicalAccount, /createWidgetSessionProvider/);
-  assert.match(canonicalAccount, /\/api\/aomi\/telegram\/exchange/);
-  assert.match(canonicalAccount, /\/api\/aomi\/account/);
+  assert.match(canonicalAccount, /createAccountSessionProvider/);
+  assert.match(canonicalAccount, /\/api\/auth\/widget\/telegram\/exchange/);
+  assert.match(canonicalAccount, /\/v1\/account/);
 });
 
 test("Telegram launches are verified before a production wallet flow", async () => {
@@ -36,22 +36,23 @@ test("Telegram launches are verified before a production wallet flow", async () 
   assert.doesNotMatch(verifier, /BOT_TOKEN|bot token/i);
 });
 
-test("the Mini App uses canonical wallet requests and acknowledgements", async () => {
-  const [walletSession, executor] = await Promise.all([
-    read("src/hooks/use-aomi-wallet-request.ts"),
-    read("src/hooks/use-wallet-executor.ts"),
+test("the Mini App consumes canonical Actions and submits Action results", async () => {
+  const [actionSession, control] = await Promise.all([
+    read("src/hooks/use-aomi-action.ts"),
+    read("src/hooks/use-action-control.ts"),
   ]);
 
-  assert.match(walletSession, /new Session/);
-  assert.match(walletSession, /wallet_requests_changed/);
-  assert.match(walletSession, /fetchCurrentState/);
-  assert.match(executor, /toAAWalletCalls/);
-  assert.match(executor, /toViemSignTypedDataArgs/);
-  assert.match(executor, /toViemSignMessageArgs/);
-  assert.match(executor, /session\.resolve/);
-  assert.match(executor, /session\.reject/);
-  assert.match(executor, /strict_account_abstraction_is_backend_only/);
-  assert.match(executor, /waitForTransactionReceipt/);
+  assert.match(actionSession, /new Session/);
+  assert.match(actionSession, /session\.subscribe/);
+  assert.match(actionSession, /session\.getSnapshot/);
+  assert.match(actionSession, /fetchCurrentState/);
+  assert.match(control, /walletCapabilities/);
+  assert.match(control, /EvmWallet/);
+  assert.match(control, /toViemSignTypedDataArgs/);
+  assert.match(control, /toViemSignMessageArgs/);
+  assert.match(control, /handler\s*\.execute/);
+  assert.match(control, /handler\s*\.reject/);
+  assert.match(control, /waitForTransactionReceipt/);
 });
 
 test("Para and the app share one React Query context", async () => {
@@ -71,28 +72,28 @@ test("the legacy relay and multi-page wallet are absent", async () => {
   assert.doesNotMatch(page, /\/api\/operation|Swap assets|Review & sign/i);
 });
 
-test("signing is gated behind an explicit approval of a rendered request", async () => {
-  const [executor, page, describe] = await Promise.all([
-    read("src/hooks/use-wallet-executor.ts"),
+test("signing is gated behind explicit approval of a rendered Action", async () => {
+  const [control, page, describe] = await Promise.all([
+    read("src/hooks/use-action-control.ts"),
     read("src/app/page.tsx"),
-    read("src/lib/wallet-request.ts"),
+    read("src/lib/action.ts"),
   ]);
 
   // The Telegram button only opens the app; the user must read the request and
   // approve it here. Para signs headlessly, so this screen is the only place a
   // Telegram user ever sees what they are signing.
-  assert.match(executor, /approve: \(\) => void/);
-  assert.match(executor, /reject: \(\) => void/);
+  assert.match(control, /approve: \(\) => void/);
+  assert.match(control, /reject: \(\) => void/);
   assert.match(page, /onClick=\{execution\.approve\}/);
   assert.match(page, /onClick=\{execution\.reject\}/);
-  assert.match(page, /describeRequest/);
-  assert.match(describe, /export function describeRequest/);
+  assert.match(page, /describeAction/);
+  assert.match(describe, /export function describeAction/);
 
-  // sendTransaction must be reachable only from the approve callback.
-  const approveIndex = executor.indexOf("const approve = useCallback");
+  // The approval callback delegates to the one session-owned ActionHandler.
+  const approveIndex = control.indexOf("const approve = useCallback");
   assert.ok(approveIndex > 0, "approve callback is present");
   assert.ok(
-    executor.indexOf("sendTransaction") > approveIndex,
-    "sendTransaction is only called after the user approves",
+    control.indexOf("handler.execute", approveIndex) > approveIndex,
+    "wallet execution is reached through ActionHandler after approval",
   );
 });

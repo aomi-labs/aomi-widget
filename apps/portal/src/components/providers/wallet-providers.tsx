@@ -2,7 +2,15 @@
 
 import "@aomi-labs/widget-lib/providers/para";
 import "@aomi-labs/widget-lib/providers/privy";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  Component,
+  type ErrorInfo,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   mainnet,
   arbitrum,
@@ -30,10 +38,19 @@ import {
   E2EWalletProvider,
   type E2EWalletSeedClient,
 } from "@portal/components/providers/e2e-wallet-provider";
+import {
+  isDeviceAuthRoute,
+  classifyProviderInitializationFailure,
+  providerConfigurationFailure,
+  providerFailureText,
+  requestedDeviceAuthProvider,
+  type DeviceAuthProvider,
+} from "@portal/lib/device-auth-provider";
 
 const paraApiKey = process.env.NEXT_PUBLIC_PARA_API_KEY?.trim() ?? "";
-const paraEnvironment =
-  process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD" ? "PROD" : "BETA";
+const paraEnvironmentSetting =
+  process.env.NEXT_PUBLIC_PARA_ENVIRONMENT?.trim() ?? "";
+const paraEnvironment = paraEnvironmentSetting === "PROD" ? "PROD" : "BETA";
 const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "";
 
 const walletConnectProjectId =
@@ -117,6 +134,8 @@ function getBrowserAuthOrigin(): BrowserAuthOrigin | null {
 }
 
 export function WalletProviders({ children, e2eWallet }: Props) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [browserAuthOrigin, setBrowserAuthOrigin] =
     useState<BrowserAuthOrigin | null>(() => getBrowserAuthOrigin());
   useEffect(() => {
@@ -141,17 +160,28 @@ export function WalletProviders({ children, e2eWallet }: Props) {
     typeof window !== "undefined" && walletConnectProjectId
       ? (["metamask", "rabby", "coinbase", "walletconnect"] as const)
       : (["metamask", "rabby", "coinbase"] as const);
-  const auth = privyAppId
-    ? ({
-        provider: "privy",
-        methods: ["email", "google"],
-      } as const)
-    : paraApiKey.length > 0
-      ? ({
-          provider: "para",
-          methods: ["email", "google"],
-        } as const)
-      : false;
+  const routeProvider = requestedDeviceAuthProvider(pathname, searchParams);
+  const routeProviderFailure = routeProvider
+    ? providerConfigurationFailure(routeProvider, {
+        paraApiKey,
+        paraEnvironment: paraEnvironmentSetting,
+        privyAppId,
+      })
+    : null;
+  const selectedProvider = isDeviceAuthRoute(pathname)
+    ? routeProviderFailure
+      ? null
+      : routeProvider
+    : privyAppId
+      ? "privy"
+      : paraApiKey
+        ? "para"
+        : null;
+  const auth = selectedProvider
+    ? selectedProvider === "privy"
+      ? ({ provider: "privy" } as const)
+      : ({ provider: "para", methods: ["email", "google"] } as const)
+    : false;
 
   if (e2eWallet) {
     return (
@@ -165,8 +195,9 @@ export function WalletProviders({ children, e2eWallet }: Props) {
     );
   }
 
-  return (
+  const providerTree = (
     <AomiWalletKitProvider
+      key={selectedProvider ?? "no-auth-provider"}
       auth={auth}
       account={account}
       providers={{
@@ -198,7 +229,7 @@ export function WalletProviders({ children, e2eWallet }: Props) {
         },
       }}
     >
-      {privyAppId ? (
+      {selectedProvider === "privy" ? (
         <PrivyDelegationProvider>
           <FullTestnetWalletRouter
             enabled={fullTestnetEnabled}
@@ -221,4 +252,64 @@ export function WalletProviders({ children, e2eWallet }: Props) {
       )}
     </AomiWalletKitProvider>
   );
+  return isDeviceAuthRoute(pathname) && selectedProvider ? (
+    <DeviceAuthProviderErrorBoundary
+      key={`${pathname}:${selectedProvider}`}
+      provider={selectedProvider}
+    >
+      {providerTree}
+    </DeviceAuthProviderErrorBoundary>
+  ) : (
+    providerTree
+  );
 }
+
+class DeviceAuthProviderErrorBoundary extends Component<
+  { children: ReactNode; provider: DeviceAuthProvider },
+  { error: unknown | null }
+> {
+  state: { error: unknown | null } = { error: null };
+
+  static getDerivedStateFromError(error: unknown) {
+    return { error };
+  }
+
+  componentDidCatch(error: unknown, _info: ErrorInfo) {
+    const failure = classifyProviderInitializationFailure(
+      this.props.provider,
+      error,
+      providerConfiguration,
+    );
+    console.error("device_auth_provider_initialization_failed", {
+      provider: this.props.provider,
+      code: failure.code,
+    });
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    const failure = classifyProviderInitializationFailure(
+      this.props.provider,
+      this.state.error,
+      providerConfiguration,
+    );
+    return (
+      <main className="bg-background text-foreground flex min-h-screen items-center justify-center p-6">
+        <section className="w-full max-w-sm">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Sign in to Aomi CLI
+          </h1>
+          <p className="text-muted-foreground mt-3 text-sm">
+            {providerFailureText(failure)}
+          </p>
+        </section>
+      </main>
+    );
+  }
+}
+
+const providerConfiguration = {
+  paraApiKey,
+  paraEnvironment: paraEnvironmentSetting,
+  privyAppId,
+};

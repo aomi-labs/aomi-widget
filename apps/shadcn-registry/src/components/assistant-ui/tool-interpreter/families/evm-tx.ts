@@ -10,7 +10,6 @@ import {
   humanize,
   selectorFact,
   statusFact,
-  txOutcomeStatus,
   uniqueFacts,
 } from "../normalize";
 import type { ToolFact, ToolMatcher, ToolOperation } from "../types";
@@ -65,7 +64,7 @@ export const matchStagedTx: ToolMatcher = ({ rawLabel, resultRecord }) => {
           source: "result",
         }
       : null,
-    statusFact(txOutcomeStatus(resultRecord) ?? resultRecord.current_lifecycle),
+    statusFact(resultRecord.current_lifecycle),
   ]);
 };
 
@@ -172,6 +171,9 @@ export const matchEvmPendingApproval: ToolMatcher = ({
           source: "result",
         }
       : null,
-    statusFact(txOutcomeStatus(resultRecord) ?? resultRecord.status),
+    // The canonical model rewrites the tool result on resolution, so a record
+    // still shaped as pending_approval is pending; an inline tx_outcome only
+    // appears on pre-cutover persisted results and still wins when present.
+    statusFact(outcome?.status ?? resultRecord.status ?? "pending_approval"),
   ]);
 };

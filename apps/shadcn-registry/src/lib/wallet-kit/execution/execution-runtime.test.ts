@@ -7,6 +7,9 @@ describe("buildEvmExecutionRuntime", () => {
   it("does not switch again when the caller already selected the transaction chain", async () => {
     const sendTransactionAsync = vi.fn().mockResolvedValue("0x111");
     const switchChainAsync = vi.fn();
+    const waitForTransactionReceipt = vi
+      .fn()
+      .mockResolvedValue({ status: "success" });
     const evm = {
       activeConnector: { id: "wallet" },
       activeEvmConnection: { chainId: 8453 },
@@ -21,7 +24,9 @@ describe("buildEvmExecutionRuntime", () => {
       walletClient: undefined,
     } as unknown as EvmWalletRuntime;
 
-    const runtime = buildEvmExecutionRuntime(evm);
+    const runtime = buildEvmExecutionRuntime(evm, {
+      waitForTransactionReceipt,
+    });
     await runtime.sendTransaction?.(
       {
         to: "0x1111111111111111111111111111111111111111",

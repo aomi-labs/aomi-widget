@@ -7,7 +7,7 @@ import {
   x402EvmChainId,
 } from "./payment-fetch";
 
-const CHAT_URL = "https://chat-staging.aomi.dev/api/thread/chat";
+const CHAT_URL = "https://chat-staging.aomi.dev/v1/agent/chat";
 
 function paymentRequiredHeader(): string {
   return btoa(

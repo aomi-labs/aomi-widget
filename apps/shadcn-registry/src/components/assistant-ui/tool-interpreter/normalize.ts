@@ -159,23 +159,6 @@ export const amountFact = (
   };
 };
 
-/**
- * Async wallet verdict reconciled onto a staged tool result by the runtime
- * (packages/react `collectTxOutcomes`): staged results are frozen at
- * queued/pending_approval, so when `tx_outcome` is present it is the truth —
- * matchers feed it to `statusFact` ahead of the recorded lifecycle, which
- * flips the chip to Success/Failed and (via `isFailedStatus`) the red-X
- * step marker.
- */
-export const txOutcomeStatus = (
-  record: Record<string, unknown>,
-): string | null => {
-  const outcome = record.tx_outcome;
-  if (typeof outcome !== "object" || outcome === null) return null;
-  const status = (outcome as { status?: unknown }).status;
-  return status === "success" || status === "failed" ? status : null;
-};
-
 export const statusFact = (
   value: unknown,
   source: FactSource = "result",

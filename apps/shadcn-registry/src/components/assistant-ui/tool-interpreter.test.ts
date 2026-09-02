@@ -585,87 +585,6 @@ describe("tool interpreter", () => {
     expect(step.chips[2].icon).toBeTypeOf("object");
   });
 
-  it("flips an SVM pending-approval step when the solana callback failed", () => {
-    const step = interpretToolStep({
-      toolName: "Stage Jupiter swap bundle",
-      result: {
-        chain_kind: "svm",
-        svm_ix_ids: [1, 2],
-        status: "pending_approval",
-        pending_solana_id: 1,
-        tx_outcome: { status: "failed", error: "Request rejected" },
-      },
-    });
-
-    expect(labelsFor(step.chips)).toEqual(["Solana", "2 txs", "Failed"]);
-    expect(step.failed).toBe(true);
-  });
-
-  it("flips an SVM pending-approval step to Success on submission", () => {
-    const step = interpretToolStep({
-      toolName: "Stage Jupiter swap bundle",
-      result: {
-        chain_kind: "svm",
-        svm_ix_ids: [1, 2],
-        status: "pending_approval",
-        pending_solana_id: 1,
-        tx_outcome: { status: "success", txHash: "5xSig" },
-      },
-    });
-
-    expect(labelsFor(step.chips)).toEqual([
-      "Solana",
-      "2 txs",
-      "5xSig",
-      "Success",
-    ]);
-    expect(step.failed).toBe(false);
-  });
-
-  it("flips a staged tx to Failed and marks the step when the callback failed", () => {
-    // The runtime attaches `tx_outcome` from a later wallet:tx_complete echo —
-    // without it this step would read "Queued ✓" forever on a failed run.
-    const step = interpretToolStep({
-      toolName: "Stage transfer of 0.1 ETH",
-      result: {
-        chain_id: 1,
-        kind: "native_transfer",
-        pending_tx_id: 1,
-        current_lifecycle: "queued",
-        tx_outcome: { status: "failed", error: "HTTP 400: Bad Request" },
-      },
-    });
-
-    expect(labelsFor(step.chips)).toEqual([
-      "Ethereum",
-      "Native transfer",
-      "1 tx",
-      "Failed",
-    ]);
-    expect(step.failed).toBe(true);
-  });
-
-  it("flips a staged tx to Success when the callback confirmed it", () => {
-    const step = interpretToolStep({
-      toolName: "Stage transfer of 0.1 ETH",
-      result: {
-        chain_id: 1,
-        kind: "native_transfer",
-        pending_tx_id: 1,
-        current_lifecycle: "queued",
-        tx_outcome: { status: "success", txHash: "0xabc" },
-      },
-    });
-
-    expect(labelsFor(step.chips)).toEqual([
-      "Ethereum",
-      "Native transfer",
-      "1 tx",
-      "Success",
-    ]);
-    expect(step.failed).toBe(false);
-  });
-
   it("capitalizes staged ERC-20 approval labels and uses action and tx icons", () => {
     const step = interpretToolStep({
       toolName: "Stage exact USDC approval for Aerodrome swap",
@@ -778,7 +697,7 @@ describe("tool interpreter", () => {
     expect(labelsFor(step.chips)).toEqual(["1 tx", "Success"]);
   });
 
-  it("shows an EVM commit as pending confirmation", () => {
+  it("recognizes pending wallet approval", () => {
     const step = interpretToolStep({
       toolName: "Commit Aerodrome USDC to AERO swap batch",
       result: {
@@ -788,42 +707,16 @@ describe("tool interpreter", () => {
       },
     });
 
-    expect(step.title).toBe("Commit transactions");
+    expect(step.title).toBe("Await wallet approval");
     expect(labelsFor(step.chips)).toEqual([
       "Base",
       "2 txs",
-      "Pending confirmation",
+      "Pending approval",
     ]);
     expect(step.chips[0].icon).toBeTypeOf("function");
     expect(step.chips[1].icon).toBeTypeOf("object");
     expect(step.chips[2].icon).toBeTypeOf("object");
     expect(step.chips[2].dot).toBeUndefined();
-  });
-
-  it("resolves a live EVM commit's chain from its staged transaction", () => {
-    const step = interpretToolStep({
-      toolName: "evm_commit_txs",
-      argsText: JSON.stringify({ tx_ids: [1] }),
-      result: {
-        status: "pending_approval",
-        timestamp: 1_777_000_000,
-        tx_ids: [1],
-      },
-      relatedResults: [
-        {
-          chain_id: 8453,
-          pending_tx_id: 1,
-          current_lifecycle: "queued",
-        },
-      ],
-    });
-
-    expect(step.title).toBe("Commit transactions");
-    expect(labelsFor(step.chips)).toEqual([
-      "Base",
-      "1 tx",
-      "Pending confirmation",
-    ]);
   });
 
   it("shows the Solana transaction count while awaiting wallet approval", () => {
@@ -838,31 +731,8 @@ describe("tool interpreter", () => {
       },
     });
 
-    expect(step.title).toBe("Commit transactions");
-    expect(labelsFor(step.chips)).toEqual([
-      "Solana",
-      "6 txs",
-      "Pending confirmation",
-    ]);
-  });
-
-  it("distinguishes Solana devnet commits", () => {
-    const step = interpretToolStep({
-      toolName: "svm_commit_txs",
-      result: {
-        status: "pending_approval",
-        chain_kind: "svm",
-        svm_ix_ids: [7],
-        unsigned_tx: "AQAAAAAAAA",
-        cluster: "solana:devnet",
-      },
-    });
-
-    expect(labelsFor(step.chips)).toEqual([
-      "Solana Devnet",
-      "1 tx",
-      "Pending confirmation",
-    ]);
+    expect(step.title).toBe("Await wallet approval");
+    expect(labelsFor(step.chips)).toEqual(["6 txs", "Pending approval"]);
   });
   it("recognizes a delegated task with the child label and staged count", () => {
     const step = interpretToolStep({

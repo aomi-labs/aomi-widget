@@ -116,6 +116,7 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/registry/store.ts",
       "lib/wallet-kit/registry/selectors.ts",
       "lib/wallet-kit/use-wallet-activation-guard.ts",
+      "lib/wallet-kit/use-action-capabilities.ts",
       "lib/wallet-identity.ts",
     ],
     dependencies: [
@@ -312,7 +313,7 @@ export const registry: RegistryComponent[] = [
     dependencies: ["@aomi-labs/react", "lucide-react"],
     registryDependencies: [aomi("aomi-wallet-kit"), "button", "dialog"],
     description:
-      "Executes wallet transaction and EIP-712 signing requests from the AI backend through the active wallet kit.",
+      "Presents attended Actions and delegates execution to the runtime ActionHandler.",
   },
   {
     name: "aomi-para-provider",
@@ -321,6 +322,7 @@ export const registry: RegistryComponent[] = [
       "lib/wallet-kit/providers/para/para-brand.ts",
       "lib/wallet-kit/providers/para/para-plugin.tsx",
       "lib/wallet-kit/providers/para/ParaPluginProvider.tsx",
+      "lib/wallet-kit/providers/para/para-evm-session.ts",
       "lib/wallet-kit/providers/para/para-evm-runtime-provider.tsx",
       "lib/wallet-kit/providers/para/para-message-signing.ts",
       "lib/wallet-kit/providers/para/para-auth.ts",

@@ -40,22 +40,20 @@ function mergeRecords(
 
 function dropWalletBlocks(state: UserState): UserState {
   const chainId = UserState.chainId(state);
-  return (
-    UserState.normalize({
-      connection: { is_connected: false },
-      evm: chainId === undefined ? undefined : { chain_id: chainId },
-      pending: state.pending,
-      ext: state.ext,
-      preferences: state.preferences,
-    }) ?? { connection: { is_connected: false } }
-  );
+  return {
+    connection: { is_connected: false },
+    ...(chainId === undefined ? {} : { evm: { chain_id: chainId } }),
+    ...(state.ext === undefined ? {} : { ext: state.ext }),
+    ...(state.preferences === undefined
+      ? {}
+      : { preferences: state.preferences }),
+  };
 }
 
 function dropAddressScopedState(state: UserState): UserState {
   const evm = asRecord(state.evm);
   const nextEvm = evm ? { ...evm } : undefined;
   if (nextEvm) {
-    delete nextEvm.aa;
     delete nextEvm.ens_name;
   }
 
@@ -65,11 +63,11 @@ function dropAddressScopedState(state: UserState): UserState {
   } else {
     delete next.evm;
   }
-  return UserState.normalize(next) ?? {};
+  return next;
 }
 
 function stableStateString(state: UserState): string {
-  return JSON.stringify(UserState.normalize(state) ?? {});
+  return JSON.stringify(state);
 }
 
 type UserContextValue = {
@@ -78,7 +76,6 @@ type UserContextValue = {
   addExtValue: (key: string, value: unknown) => void;
   removeExtValue: (key: string) => void;
   getUserState: () => UserState;
-  onUserStateChange: (callback: (user: UserState) => void) => () => void;
 };
 
 const UserContext = createContext<UserContextValue | undefined>(undefined);
@@ -95,7 +92,6 @@ export function useUser() {
     addExtValue: context.addExtValue,
     removeExtValue: context.removeExtValue,
     getUserState: context.getUserState,
-    onUserStateChange: context.onUserStateChange,
   };
 }
 
@@ -106,7 +102,7 @@ export function useUser() {
  * children straight through. Otherwise mount a fresh store.
  *
  * The widget layers (`AomiFrame.Root` / `AomiRuntime`) and the wallet-kit
- * layers (`AomiParaProvider` / `AomiBaseAccountProvider`) both want to be
+ * wallet-kit layers may both want to be
  * usable standalone. Each historically wrapped with `<ExtUserProvider>` —
  * but when they nest, the inner provider created a *second* store that
  * shadowed the outer. The chat composer would read from one store while
@@ -132,30 +128,11 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
   const userRef = useRef(user);
   userRef.current = user;
 
-  // Store callbacks in a ref
-  const StateChangeCallbacks = useRef<Set<(user: UserState) => void>>(
-    new Set(),
-  );
-
-  const notifyStateChange = useCallback((next: UserState) => {
-    queueMicrotask(() => {
-      StateChangeCallbacks.current.forEach((callback) => {
-        callback(next);
-      });
-    });
-  }, []);
-
   const setUser = useCallback(
     (data: Partial<UserState>) => {
       setUserState((prev) => {
-        const normalizedData = UserState.normalize(data) ?? {};
-        const merged =
-          UserState.normalize(
-            mergeRecords(
-              UserState.normalize(prev) ?? {},
-              normalizedData,
-            ) as UserState,
-          ) ?? prev;
+        const incoming = data as UserState;
+        const merged = mergeRecords(prev, incoming) as UserState;
 
         // Wallet-context fields belong to a specific connected session. On
         // disconnect we wipe identity, AA, and sponsorship so that the next
@@ -163,7 +140,7 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
         // selected chain is a wallet-independent read preference, so keep it
         // available to chat and read-only tools while disconnected.
         let next: UserState;
-        if (UserState.isConnected(normalizedData) === false) {
+        if (UserState.isConnected(incoming) === false) {
           next = dropWalletBlocks(merged);
         } else {
           // Address change while staying connected (wallet switch in place):
@@ -182,23 +159,20 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
           return prev;
         }
 
-        notifyStateChange(next);
-
         return next;
       });
     },
-    [notifyStateChange],
+    [],
   );
 
   const addExtValue = useCallback(
     (key: string, value: unknown) => {
       setUserState((prev) => {
         const next = UserState.withExt(prev, key, value);
-        notifyStateChange(next);
         return next;
       });
     },
-    [notifyStateChange],
+    [],
   );
 
   const removeExtValue = useCallback(
@@ -219,28 +193,14 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
           ...prev,
           ext: Object.keys(nextExt).length > 0 ? nextExt : undefined,
         };
-        notifyStateChange(next);
         return next;
       });
     },
-    [notifyStateChange],
+    [],
   );
 
   // Stable getters that runtime classes can call
   const getUserState = useCallback(() => userRef.current, []);
-
-  // Subscribe to user state changes
-  const onUserStateChange = useCallback(
-    (callback: (user: UserState) => void) => {
-      StateChangeCallbacks.current.add(callback);
-
-      // Return unsubscribe function
-      return () => {
-        StateChangeCallbacks.current.delete(callback);
-      };
-    },
-    [],
-  );
 
   return (
     <UserContext.Provider
@@ -250,7 +210,6 @@ function ExtUserProviderImpl({ children }: { children: ReactNode }) {
         addExtValue,
         removeExtValue,
         getUserState,
-        onUserStateChange,
       }}
     >
       {children}

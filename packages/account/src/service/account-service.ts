@@ -150,6 +150,58 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
   return resolution.user;
 }
 
+/** Preserve the canonical UUID when Better Auth upgrades an anonymous user. */
+export async function linkAnonymousCanonicalAccount(input: {
+  anonymousBetterAuthUserId: string;
+  newBetterAuthUserId: string;
+  newEmail?: string | null;
+  newEmailVerified?: boolean;
+  newName?: string | null;
+  newAvatarUrl?: string | null;
+}): Promise<AomiUserId> {
+  const anonymous = await getOrCreateAomiUserForBetterAuthSession({
+    betterAuthUserId: input.anonymousBetterAuthUserId,
+  });
+  const newSignal: SignalRef = {
+    type: "identity",
+    provider: "better_auth",
+    ...IDENTITY_SCOPES.betterAuth,
+    subject: input.newBetterAuthUserId,
+  };
+  return withTransaction(async (db) => {
+    await lockIdentityResolutionKeys(
+      [
+        `identity:better_auth:${input.anonymousBetterAuthUserId}`,
+        `identity:better_auth:${input.newBetterAuthUserId}`,
+      ],
+      db,
+    );
+    const newOwner = await findSignalOwner(newSignal, db);
+    if (newOwner && newOwner !== anonymous.id) {
+      throw new Error("anonymous_account_merge_required");
+    }
+    await revokeAuthIdentity({
+      userId: anonymous.id,
+      provider: "better_auth",
+      ...IDENTITY_SCOPES.betterAuth,
+      subject: input.anonymousBetterAuthUserId,
+      db,
+    });
+    await upsertAuthIdentity({
+      userId: anonymous.id,
+      provider: "better_auth",
+      ...IDENTITY_SCOPES.betterAuth,
+      subject: input.newBetterAuthUserId,
+      email:
+        input.newEmail && input.newEmailVerified ? input.newEmail : undefined,
+      displayLabel: input.newName,
+      providerMetadata: { source: "betterauth_anonymous_link" },
+      db,
+    });
+    return anonymous.id;
+  });
+}
+
 export function isIdentityAlreadyLinkedError(error: unknown): boolean {
   return (
     error instanceof Error &&

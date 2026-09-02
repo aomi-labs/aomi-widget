@@ -2,6 +2,47 @@
 
 ## Last Updated
 
+2026-09-03 — CLI DEVICE-AUTH HANDOFF vs PARA JWT BACKOFF (branch
+  `codex/auth-provider-device`, PR #561). Live Para login on
+  `/device-auth` succeeded in the browser but the CLI never got its loopback
+  callback: `createParaCredentialGetter` arms a 30 s cooldown on the first
+  `issueJwt` 401/403 after login and returns `null` silently, while the page's
+  credential wait was also 30 s, so the page always expired just before the
+  getter's first permitted retry. Fixes: `getAccountCredential({ fresh: true })`
+  (new `AomiAccountCredentialOptions`) bypasses the Para backoff for one-shot
+  handoffs while polling widgets keep it; a shared
+  `apps/portal/src/lib/device-auth-handoff.ts` waits up to 90 s at 1.5 s
+  intervals and throws `DeviceAuthHandoffError` with stable codes
+  (`provider_credential_timeout`, `provider_account_conflict` for HTTP 409,
+  `provider_exchange_rate_limited`, `device_grant_failed`, ...) that
+  `classifyProviderInitializationFailure` passes through instead of the
+  catch-all `para_initialization_failed`; the page tracks attempts so a
+  getter identity change cannot start a second exchange, and shows Cancel
+  while waiting because Para's `login()` resolves when its modal opens and a
+  dismissed modal had no signal. `/oauth/device` now reads the wallet kit
+  through a ref (its click-time closure could never see the getter that
+  appears after Para authenticates) and uses the same waiter with a 180 s
+  budget. Known, not fixed here: the provider exchange endpoint still reuses
+  the Better Auth user by email, so a second provider with the same email as
+  an existing account gets 409 (now surfaced as `provider_account_conflict`);
+  and the CLI still receives the browser's own Better Auth session token from
+  the grant, so logout on either side ends both.
+
+2026-08-26 — AUTH STACK CLEAN-SLATE CUTOVER (branch
+  `codex/unified-auth-provider`, committed and pushed; pairs with
+  product-mono `codex/unified-auth-schema`). The Better Auth 1.7 stack now
+  cuts over instead of running parallel stores: token/consent models map to
+  canonical `ba_oauth_access_tokens`/`ba_oauth_consents` (the `_17_` tables
+  and the legacy-window design are gone), the dead `oauthApplication` mapping
+  is removed (no such model in the 1.7 mcp plugin), SIWS writes
+  `createLocalAccountIssuer(SIWS_PROVIDER_ID)` matching core's
+  `local:<provider_id>` issuer convention (which the schema migration also
+  backfills), and portal client lookups read `ba_oauth_clients.redirect_uris`
+  (jsonb) instead of the dropped `ba_oauth_applications`. At cutover MCP
+  clients re-register via DCR/CIMD and users re-consent once; sessions and
+  canonical identity are untouched. Downstream `codex/unified-auth-*` and
+  release branches carry the merge.
+
 2026-08-26 — Two Privy bugs reported from #builders (Waves): the automatic-
 signing toggle always answered "Open a chat thread before enabling automatic
 signing." with a chat open, and a swap's approve never popped a Privy prompt.
@@ -624,7 +665,7 @@ NOTE: this worktree's landing dev server runs on port 3001, not 3000.
   `provider-plugin.ts` includes `signalType` in the error body (better-call
   types it as `{message?,code?,cause?} & Record<string,any>`, so extra fields
   serialize), and `AomiAccountRequestError` carries it into one of three
-  specific messages. `/api/aomi/provider/exchange` already spread it via
+  specific messages. `/v1/account/provider/exchange` already spread it via
   `...result`. NOTE: this is the first `packages/account` file in PR #7 — one
   additive error field, but it breaks the "UI-only" property.
 
@@ -3099,7 +3140,7 @@ components (widget + `general-settings`/`bots`/`apps-settings`/`app-keys`) that
 minted an `Authorization: Bearer` header — but in same-origin proxy mode
 (`NEXT_PUBLIC_BACKEND_URL=/`, the shipped default) the BFF proxy mints the bearer
 server-side from the `better-auth.session_token` cookie and strips that header, so the whole
-machine was dead weight (latency + `/api/aomi/account-bearer` 401 spam + a duplicate
+machine was dead weight (latency + `/v1/account/bearer` 401 spam + a duplicate
 `providerExchange` owner).
 
 - **Not deleted outright — made conditional.** It is still load-bearing in
@@ -3110,7 +3151,7 @@ machine was dead weight (latency + `/api/aomi/account-bearer` 401 spam + a dupli
   SSR and only builds a real provider when `getBackendUrl()` is cross-origin.
   This also collapsed the ~30 duplicated lines across the 5 components into one
   call. The shared `@aomi-labs/client` `createAccountAccessTokenProvider` +
-  `@aomi-labs/account` `createBearerTokenRoute` (`/api/aomi/account-bearer`) are kept
+  `@aomi-labs/account` `createBearerTokenRoute` (`/v1/account/bearer`) are kept
   intact as the documented direct-to-backend seam (used by out-of-repo
   base/landing and the CLI-less direct path).
 - **User decision:** deployment topology was "not sure — play it safe", so the
@@ -3249,7 +3290,7 @@ when there's no account, link when one exists); SIWE was already ungated.
 - `aomi-backend-runtime.ts`: dropped `signInPolicy` from
   `AomiBackendAccountConfig` + the hook input + effect deps; the exchange
   endpoint no longer branches on a policy (`account.user` → link via
-  `/api/aomi/provider/exchange`, else create via
+  `/v1/account/provider/exchange`, else create via
   `/api/auth/aomi/provider/exchange`).
 - Removed `signInPolicy` from `config/types.ts` `AccountConfig` and from all
   three runtime call sites (`AomiWalletKitProvider`, `ParaPluginProvider`,
@@ -3266,7 +3307,7 @@ when there's no account, link when one exists); SIWE was already ungated.
   the full account sign-out path (`disconnect({ family: "all" })` +
   `account.signOut`) instead of only disconnecting the provider row.
 - Dev E2E harness fix: `linkSecondTestWallet` now fetches the link nonce, signs
-  a message containing it, and posts the nonce back to `/api/aomi/wallets/link`.
+  a message containing it, and posts the nonce back to `/v1/account/wallets/link`.
 
 ### Account manager: collapse Privy/Para EVM+SVM into one row (2026-06-19)
 

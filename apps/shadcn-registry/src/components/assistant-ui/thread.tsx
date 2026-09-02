@@ -35,15 +35,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
-import {
-  AssistantTurnParts,
-  useWorkingGrace,
-} from "@/components/assistant-ui/working-trace";
+import { AssistantTurnParts } from "@/components/assistant-ui/working-trace";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 
 import {
   cn,
-  useCurrentThreadMetadata,
+  useOptionalAomiRuntime,
   useThreadContext,
   useThreadTaskRuns,
 } from "@aomi-labs/react";
@@ -287,6 +284,7 @@ const Composer: FC = () => {
 
 const ComposerAction: FC = () => {
   const composerControl = useComposerControl();
+  const aomiRuntime = useOptionalAomiRuntime();
   const controlBarProps = composerControl.controlBarProps ?? {};
   const hideModel = controlBarProps.hideModel ?? false;
   const hideApp = controlBarProps.hideApp ?? false;
@@ -333,6 +331,14 @@ const ComposerAction: FC = () => {
               size="icon"
               className="aui-composer-cancel bg-aomi-fg text-aomi-bg hover:bg-aomi-fg mr-2 size-8 shrink-0 rounded-full transition-opacity hover:opacity-90 md:mr-2.5"
               aria-label="Stop generating"
+              onClick={
+                aomiRuntime
+                  ? (event) => {
+                      event.preventDefault();
+                      aomiRuntime.cancelGeneration();
+                    }
+                  : undefined
+              }
             >
               <Square className="aui-composer-cancel-icon fill-aomi-bg size-3" />
             </Button>
@@ -407,7 +413,7 @@ const AssistantMessage: FC = () => {
   const isEmpty = useMessage((state) => state.content.length === 0);
   const isRunning = useMessage((state) => state.status?.type === "running");
   const isLast = useMessage((state) => state.isLast);
-  const turnPhase = useCurrentThreadMetadata()?.control.turnPhase ?? "idle";
+  const runtime = useOptionalAomiRuntime();
   const notice = useMessage((state) => state.metadata?.custom) as
     | { aomiNoticeKind?: string; aomiNoticeTitle?: string }
     | undefined;
@@ -417,28 +423,16 @@ const AssistantMessage: FC = () => {
   const noticeKind = notice?.aomiNoticeKind;
   const isNotice = noticeKind === "payment_required" || noticeKind === "error";
   const isErrorNotice = noticeKind === "error";
-  // A live delegation must always reach AssistantTurnParts (which renders the
-  // agent row from the taskRuns sidecar even with no transcript parts). The
-  // turnPhase gate alone is not enough: on a thread whose metadata is not
-  // registered yet, updateTurnPhase no-ops and the phase reads "idle" for the
-  // whole run — the dot would sit on top of a fully-streaming delegation.
   const taskRuns = useThreadTaskRuns();
   const hasLiveTaskRun = Object.values(taskRuns).some(
     (run) => run.status === "running",
   );
-  // Component-local submitting→working clock. The store's turnPhase is meant
-  // to make this transition, but its write can be dropped (fresh thread with
-  // unregistered metadata, control sync racing the send) — and then the dot
-  // sits for the whole pre-stream wait. After the grace, swap to the Working
-  // chip no matter what the store says.
-  const workingGrace = useWorkingGrace(isEmpty && isRunning && isLast);
   const showLoadingDot =
     isEmpty &&
     isRunning &&
     isLast &&
-    turnPhase !== "working" &&
-    !hasLiveTaskRun &&
-    !workingGrace;
+    Boolean(runtime?.isSubmitting) &&
+    !hasLiveTaskRun;
   const showFinishedEmptyMessage = isEmpty && !isRunning;
 
   return (
@@ -488,7 +482,7 @@ const AssistantMessage: FC = () => {
                 {showLoadingDot ? (
                   <AssistantLoadingDot />
                 ) : (
-                  <AssistantTurnParts workingFallback={workingGrace} />
+                  <AssistantTurnParts />
                 )}
                 <MessageError />
               </div>

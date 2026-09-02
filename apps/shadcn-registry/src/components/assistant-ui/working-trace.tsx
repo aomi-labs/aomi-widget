@@ -11,8 +11,7 @@ import { CheckIcon, ChevronDownIcon, MoreHorizontalIcon } from "lucide-react";
 
 import {
   cn,
-  readTaskPartAgentId,
-  useCurrentThreadMetadata,
+  useOptionalAomiRuntime,
   useThreadTaskRuns,
   type TaskRunState,
 } from "@aomi-labs/react";
@@ -539,27 +538,6 @@ const MinimalWorkingTrace: FC = () => (
   </div>
 );
 
-/**
- * True once `active` has held for the submitting→working grace window. The
- * runtime flips `turnPhase` on the same 300ms timer, but that write can be
- * lost — a fresh thread has no registered metadata yet, and a control sync
- * racing the send can rebuild it — so the trace keeps its own clock instead
- * of leaving the user staring at a bare dot until the first backend event.
- */
-const WORKING_GRACE_MS = 300;
-export function useWorkingGrace(active: boolean): boolean {
-  const [elapsed, setElapsed] = useState(false);
-  useEffect(() => {
-    if (!active) {
-      setElapsed(false);
-      return;
-    }
-    const timer = setTimeout(() => setElapsed(true), WORKING_GRACE_MS);
-    return () => clearTimeout(timer);
-  }, [active]);
-  return elapsed;
-}
-
 const collectText = (parts: TextMessagePart[]): string =>
   parts
     .map((part) => part.text)
@@ -661,17 +639,11 @@ export const ProgressiveRenderedText: FC<{
  * from the `taskRuns` sidecar and hands over to the transcript part (same key,
  * same row) once that lands. See `WorkingAgent`.
  */
-export const AssistantTurnParts: FC<{
-  /** Rendered parent saw the working grace elapse; show the chip even if the
-   * store's turnPhase write was lost (see useWorkingGrace). */
-  workingFallback?: boolean;
-}> = ({ workingFallback = false }) => {
+export const AssistantTurnParts: FC = () => {
   const content = useMessage((s) => s.content);
   const running = useMessage((s) => s.status?.type === "running");
   const isLast = useMessage((s) => s.isLast);
-  const turnPhase =
-    useCurrentThreadMetadata()?.control.turnPhase ??
-    (running ? "working" : "idle");
+  const runtime = useOptionalAomiRuntime();
   const taskRuns = useThreadTaskRuns();
   // Only animate a turn observed live in this component. Completed messages
   // restored from history render immediately instead of replaying the effect.
@@ -710,25 +682,9 @@ export const AssistantTurnParts: FC<{
   // Build the trace rows in order, merging consecutive talk into one note.
   // Empty when the turn has neither tool calls nor a live delegation.
   const items: TraceItem[] = [];
-  const joinedAgentIds = new Set<string>();
   let agentOrder = 0;
   content.slice(0, traceEnd).forEach((part, i) => {
     if (part.type === "tool-call") {
-      const agentId = readTaskPartAgentId(part);
-      if (agentId) {
-        // The transcript part renders the row now; its sidecar (when we still
-        // have one) supplies the steps and the summary line.
-        joinedAgentIds.add(agentId);
-        items.push({
-          kind: "agent",
-          agentId,
-          tool: part,
-          run: taskRuns[agentId],
-          order: agentOrder++,
-          key: `agent-${agentId}`,
-        });
-        return;
-      }
       items.push({
         kind: "tool",
         tool: part,
@@ -747,7 +703,6 @@ export const AssistantTurnParts: FC<{
   // agent id, so when the transcript part lands React keeps the same row (and
   // its open/user-toggled state) instead of remounting it.
   for (const run of liveDelegations) {
-    if (joinedAgentIds.has(run.agentId)) continue;
     items.push({
       kind: "agent",
       agentId: run.agentId,
@@ -811,7 +766,7 @@ export const AssistantTurnParts: FC<{
     // Before the first tool call, text is provisional: a later tool can move it
     // into the Working trace. Keep it buffered until the turn settles.
     if (running) {
-      return turnPhase === "working" || workingFallback ? (
+      return runtime?.turnState === "processing" ? (
         <MinimalWorkingTrace />
       ) : null;
     }

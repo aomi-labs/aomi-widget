@@ -1,5 +1,62 @@
 # Canonical Landing
 
+Current session goal: **PROVIDER AND DEVICE AUTH RECOVERY LOCALLY VERIFIED
+2026-09-02** — `/device-auth` and `/oauth/device` now select Para or Privy at
+the single root wallet-provider boundary, OAuth device decisions claim and
+display the request before approve or deny, dynamic registration admits only
+the supported public MCP authorization-code and REST device-client shapes, and
+legacy CLI grants/link intents use encrypted five-minute one-time
+`ba_verifications` records instead of process-local maps. Portal lint,
+typecheck, all 468 tests, 139 account tests, and six disposable-PostgreSQL
+integration tests pass, including real Agent REST and Pipeline REST Better
+Auth flows from DCR through authenticated claim, approval, and token. Public clients are exact-resource-bound without
+widening resource-less Codex registration, and provider/link records survive
+cross-instance exchange with atomic replay protection. Live provider
+credentials and staging were intentionally not exercised in this isolated
+implementation slice.
+
+Current session goal: **CLI AGENT CHAT AUTH, ORDER, AND TOOL TRACES VERIFIED
+2026-08-31** — anonymous Agent and Pipeline calls now receive a guest bearer
+even while additive account auth is configured, the CLI persists that guest
+identity across processes, and resumed chats skip prior-turn output. Current
+wire-format `message` tool results render in both React and verbose CLI output
+without duplicating future typed tool events. Device-only OAuth registration no
+longer declares an unused redirect flow. Client and React builds, typecheck,
+lint, formatting, 259 focused package tests, 44 Rust runtime tests, and repeated
+live staging CLI tool calls pass with message, tool, answer, and terminal order.
+
+Current session goal: **GUEST SELF-CUSTODY API AND SDK FIXES VERIFIED
+2026-08-30** — guest Agent sessions can resolve their own staged actions and
+guest Pipeline sessions can execute self-custodial operations without gaining
+delegated custody or payment authority. Node clients now reuse Better Auth's
+opaque guest bearer directly, local widget origins can bootstrap against hosted
+Portal environments, third-party widget origins no longer conflict with the
+internal anonymous sign-in, and the Portal exposes the Pipeline root, OpenAPI,
+and API catalog routes backed by api-server. Client/account/Portal typechecks,
+scoped lint, the client build, 431 tests, and a live staging guest Agent plus
+Pipeline catalog smoke pass.
+
+Current session goal: **LEGACY AGENT TOOL TRACE PROJECTION VERIFIED
+2026-08-30** — React now projects the Agent ledger's current tool-bearing
+`message` events into Assistant UI tool-call parts with the backend tool name,
+arguments, and parsed result. Typed `tool_complete` events take precedence for
+the turn, so the compatibility path does not duplicate traces after the backend
+cutover. Focused React tests, library typecheck, lint, formatting, build, and
+package dry-run inspection pass.
+
+Current session goal: **PRIVY LOGIN POLICY DRIFT FIXED 2026-08-30** — the
+portal no longer hard-codes login methods into Privy's modal. The Privy app
+configuration is now the single authority, so disabled providers such as
+Google cannot be advertised and fail with `disallowed_login_method`. The
+portal suite, typecheck, lint, and a focused provider-config regression pass.
+
+Current session goal: **FULL-BLEED FOOTER BOUNDARY VERIFIED 2026-08-30** — the
+blue footer now stays flush with every viewport edge and the decorative
+atmosphere layer ends at the real landing-content boundary instead of extending
+the document below the footer. Playwright checks at 390px, 1440px, 2048px, and
+3090px confirm zero visible bottom or side gaps, no horizontal overflow, clean
+console output, and retained animated canvases.
+
 Current session goal: **HOMEPAGE PRIORITY COPY AND LINK AUDIT VERIFIED
 2026-08-29** — applied the approved homepage language updates from the latest
 `main`, routed the primary conversation CTA and team CTA to Contact, and removed
@@ -285,6 +342,104 @@ TypeScript, scoped ESLint, Prettier, `git diff --check`, and browser checks for
 toggle persistence, route continuity, contrast, and console errors pass.
 
 # Auth BFF BetterAuth Cleanup Goal
+
+## Mainline reconciliation
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-30** —
+reconcile the canonical Agent/Event, managed OAuth, and wallet
+cutover with current `main` without restoring retired chat adapters, generated
+distributions, React-side lifecycle reducers, or UserState transaction
+recovery. Mainline EIP-5792 export now reads complete pending EVM `Action`
+records, and the retained Privy embedded-wallet lane executes through the
+shared primitive wallet boundary beneath `ActionHandler`. Same-origin Agent
+traffic now preserves an existing Better Auth session and creates an anonymous
+cookie only after a real 401; cross-origin widgets retain their explicit bearer
+flow. Exact Agent and Pipeline roots receive OAuth like their child routes.
+Auto model selection now remains server-owned on Agent starts; only an explicit
+manual model is sent, so guest sessions cannot drift against backend model
+vocabulary. A fresh guest and the controlled logged-in Chrome profile both
+complete an exact `hello` turn without returning to the start page.
+The isolated FE/BFF/backend stack passed the direct Agent protocol, Pipeline API
+and built CLI discovery, and rendered Action approval through a mined Anvil
+transaction, terminal resume, and A-to-B-to-A session restoration. The complete
+workspace check passed 1,287 tests with two intentional skips; AA passed 17
+focused tests and the Para/Privy/shared execution matrix passed 64.
+
+## Managed OAuth and canonical wallet salvage
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-30** — retain
+the useful SDK/auth work from the retired cumulative release stack on top of
+the canonical Agent/Event architecture. `Aomi` now owns lazy, refreshable,
+resource-specific OAuth through `aomi.auth`; `new Aomi({ wallet })` exposes
+the primitive wallet facade while the existing `ActionHandler` remains the
+only Action lifecycle owner. Cross-origin guests receive origin-bound widget
+sessions, managed widgets use a one-time WST/PKCE-bound OAuth bootstrap, and
+the runnable examples exercise the canonical Agent, Pipeline, OAuth, and
+Action APIs. No legacy wallet controller, auth route alias, compatibility
+projection, or tracked generated distribution was restored.
+
+## TypeScript SDK and developer surfaces
+
+Current session goal: **IMPLEMENTED AND CI VERIFIED 2026-08-25** — ship the
+final frontend/client API package on the
+unified public Agent/Pipeline transport. `AomiClient` now exposes stateless,
+chain-specific EVM/SVM Build lifecycles plus filesystem discovery and
+runtime-schema-driven app/skill operations. The new high-level `Aomi` facade
+adds fluent review-before-commit Builds, an awaitable/event-driven Agent run,
+one shared EVM/SVM wallet controller, compatible action/simulation
+presentation, and the `raw` escape hatch. Deprecated flat Pipeline methods
+remain only for migration parity; arbitrary Catalog operation generation stays
+an explicit later capability. The publishable client is patch-bumped to
+`@aomi-labs/client@0.6.6`; focused negative type checks, all 271 client tests,
+client lint/build, and packed-tarball inspection pass locally. Stacked PR #531
+passed package CI, the complete deployed-app matrix, aggregate Frontend CI,
+workflow security, and all five Vercel previews.
+
+## Canonical Agent/Pipeline ownership cleanup
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-25** — make
+Rust api-server the only public Agent/Pipeline protocol owner. Portal now limits
+Pipeline MCP to exact-resource OAuth/DPoP authentication, principal narrowing,
+and a thin proxy; its parallel registry, projection, payment, and execution
+implementation is gone. The shared client, CLI, and React runtime use only the
+generated Agent v1 transport and session API, with old chat/state/interrupt,
+thread CRUD, SSE, rollback selectors, DTOs, and callbacks removed. Client and
+React are patch-bumped to `0.6.5`, required distributable output is rebuilt,
+and the generated contract is pinned to the cumulative backend stack head.
+Client, React, Portal, Landing, and Telegram typechecks; package builds; 340
+retained client/React/Portal tests (with 15 existing integration skips); lint;
+and the Agent API drift check pass. The final integrated gate additionally ran
+all 1,330 retained workspace tests (16 intentional skips), production builds
+for Portal, Landing, and Telegram, rendered Portal/BFF smoke, both authenticated
+MCP protocols, and the built CLI lifecycle. That CLI run found and fixed a
+session persistence bug: creating a second session now retains the first record
+instead of overwriting it, so resume and delete work across both sessions.
+
+## Codex worktree local environment parity
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-23** — copy
+ignored `.env*` files from the local checkout into Codex-managed worktrees via
+the repository-native `.worktreeinclude`, and keep TypeScript setup portable by
+removing the machine-specific source checkout path. Dependency setup continues
+to use pnpm's shared content-addressed store rather than copying branch-specific
+`node_modules`, `.next`, or other generated build outputs. A fresh detached
+worktree completed install and library build, then Portal rendered `/` and
+`/settings` against a fresh backend worktree with local BFF model, app, and
+thread requests returning 200.
+
+## Canonical Agent working trace
+
+Current session goal: **IMPLEMENTED AND LOCALLY VERIFIED 2026-08-21** — restore
+progressive tool activity in Portal turns using only the canonical Rust Agent
+transport. The durable projection now preserves tool metadata and advances its
+cursor only through returned backend events; the generated client contract and
+`ClientSession` carry those fields into React. Focused Rust, client, React, and
+Portal regressions pass, and an isolated SIWE-authenticated Playwright run showed
+a live `Search web` step before the final answer with zero interrupt requests.
+Follow-up reconciliation rebased both Agent branches onto current main, retained
+remote thread creation and bearer/challenge protections, and made uncertain
+Agent start retries reuse their operation key. The publishable client is
+patch-bumped to `@aomi-labs/client@0.6.1`.
 
 ## Application-scoped discovery regressions
 
@@ -572,15 +727,20 @@ through the canonical Session contract.
 
 ## MCP Chat Parity
 
-Current session goal: **IMPLEMENTED AND LIVE-CHAIN VERIFIED 2026-08-13** — make
-the OAuth MCP surface supervise the same asynchronous Aomi
-agent turns as the TS CLI. `/api/mcp` now has four chat/session tools with rich
-cursor deltas, task/tool narration, wallet-request handoff, and account-wallet
-hydration; the prior direct tool funnel remains at `/api/mcp/direct` behind the
-same OAuth resource metadata. SIWE → dynamic registration → PKCE/consent →
-refresh-token OAuth, real agent replies, resume/list/interrupt, a locally
-staged manual-wallet transaction, and the browser handoff into its exact
-conversation are all covered by the local smoke.
+Current session goal: **UNIFIED AUTH IMPLEMENTED AND LOCALLY VERIFIED
+2026-08-24** — the Agent and Pipeline MCP surfaces now use one Better Auth 1.7
+issuer at the canonical versioned `/v1/agent/mcp` and `/v1/pipeline/mcp` resources.
+The former `/api/mcp` and `/api/mcp/direct` paths are absent. The same issuer,
+WalletKit-capable login/consent UI, exact resource policy, anonymous identity,
+refresh/revocation, and device authorization also serve developer and guest
+REST under `/v1/agent/*` and `/v1/pipeline/*`. Public tokens stop at the portal;
+only downscoped internal Aomi bearers cross the Rust trust boundary.
+
+The earlier live-chain parity evidence remains relevant to the frozen MCP tool
+schemas and Gate F business behavior. The 2026-08-24 cutover adds focused local
+auth, scope, DPoP, CSRF, guest-linking, SDK, migration, and backend enforcement
+coverage; shared-environment deployment and real-client canary checks remain
+explicitly outside this implementation session.
 The funded-wallet follow-up attached the local OAuth server to a fresh Codex
 process, made progress cursors self-contained after that client exposed a
 missing-session retry loop, imported the account-owned MCP thread into the CLI,
@@ -1160,7 +1320,7 @@ USDC` for the canonical mainnet mint, or just the visible UI amount with the
 
 - Removed runtime `/api/bff/auth/siwe/*`, `/api/bff/auth/exchange`, and
   `/api/bff/auth/token` mounts from portal, base, and landing.
-- Added `/api/aomi/account-bearer` for direct AccountBearer minting from an
+- Added `/v1/account/bearer` for direct AccountBearer minting from an
   existing BetterAuth session.
 - Inverted `@aomi-labs/account` so portal supplies the BetterAuth-backed
   canonical-user resolver.

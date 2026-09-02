@@ -151,9 +151,7 @@ describe("ControlContextProvider", () => {
     });
 
     await waitFor(() => {
-      expect(getControl().state.byokKeys.openai?.apiKey).toBe(
-        "sk-openai-123",
-      );
+      expect(getControl().state.byokKeys.openai?.apiKey).toBe("sk-openai-123");
     });
 
     await act(async () => {
@@ -224,11 +222,12 @@ describe("ControlContextProvider", () => {
       await getControl().onModelSelect("gpt-5", { mode: "manual" });
     });
 
-    expect(setModel).toHaveBeenCalledWith(
-      "session-1",
-      "gpt-5",
-      expect.objectContaining({ app: "default" }),
-    );
+    expect(setModel).not.toHaveBeenCalled();
+    expect(threadMetadata.get("session-1")?.control).toMatchObject({
+      model: "gpt-5",
+      modelMode: "manual",
+      controlDirty: true,
+    });
     expect(
       JSON.parse(globalThis.localStorage.getItem("aomi_model_selection")!),
     ).toMatchObject({ mode: "manual", model: "gpt-5" });
@@ -265,18 +264,12 @@ describe("ControlContextProvider", () => {
       });
     });
 
-    await act(async () => {
-      await getControl().syncCurrentThreadControl();
+    expect(setModel).not.toHaveBeenCalled();
+    expect(threadMetadata.get("session-1")?.control).toMatchObject({
+      model: "gpt-4o-mini",
+      modelMode: "auto",
+      controlDirty: true,
     });
-
-    expect(setModel).toHaveBeenCalledWith(
-      "session-1",
-      "gpt-4o-mini",
-      expect.objectContaining({ app: "default" }),
-    );
-    expect(setModel.mock.calls.some(([, model]) => model === "old-model")).toBe(
-      false,
-    );
   });
 
   it("does not seed fresh threads with a stored manual model before models load", async () => {
@@ -300,10 +293,6 @@ describe("ControlContextProvider", () => {
       model: null,
       modelMode: "auto",
       controlDirty: false,
-    });
-
-    await act(async () => {
-      await getControl().syncCurrentThreadControl();
     });
 
     expect(setModel).not.toHaveBeenCalled();
@@ -348,7 +337,7 @@ describe("ControlContextProvider", () => {
     expect(threadMetadata.get("session-1")?.control).toMatchObject({
       model: "gpt-4o-mini",
       modelMode: "auto",
-      controlDirty: false,
+      controlDirty: true,
     });
     expect(
       JSON.parse(globalThis.localStorage.getItem("aomi_model_selection")!),
@@ -390,10 +379,9 @@ describe("ControlContextProvider", () => {
     });
   });
 
-  it("keeps model selection dirty when the app changes during backend sync", async () => {
-    const setModelResult = createDeferred<Record<string, never>>();
+  it("keeps model selection dirty when the app changes before send", async () => {
     const threadMetadata = createThreadMetadata();
-    const setModel = vi.fn(() => setModelResult.promise);
+    const setModel = vi.fn(async () => ({}));
     const { getControl } = renderControlContext(
       {
         getApps: vi.fn(async () => [{ name: "default" }, { name: "docs" }]),
@@ -408,110 +396,23 @@ describe("ControlContextProvider", () => {
       expect(getControl().state.availableModels).toContain("gpt-5");
     });
 
-    let selectionPromise!: Promise<void>;
     await act(async () => {
-      selectionPromise = getControl().onModelSelect("gpt-5", {
+      await getControl().onModelSelect("gpt-5", {
         mode: "manual",
       });
     });
 
-    expect(setModel).toHaveBeenCalledWith(
-      "session-1",
-      "gpt-5",
-      expect.objectContaining({ app: "default" }),
-    );
-
-    await act(async () => {
-      getControl().onAppSelect("docs");
-    });
-
-    await act(async () => {
-      setModelResult.resolve({});
-      await selectionPromise;
-    });
-
-    expect(threadMetadata.get("session-1")?.control).toMatchObject({
-      model: "gpt-5",
-      app: "docs",
-      controlDirty: true,
-    });
-  });
-
-  it("keeps pending thread control dirty when the app changes during sync", async () => {
-    const setModelResult = createDeferred<Record<string, never>>();
-    const threadMetadata = createThreadMetadata();
-    threadMetadata.set("session-1", {
-      ...threadMetadata.get("session-1")!,
-      control: {
-        ...initThreadControl(),
-        model: "gpt-5",
-        modelMode: "manual",
-        controlDirty: true,
-      },
-    });
-
-    const setModel = vi.fn(() => setModelResult.promise);
-    const { getControl } = renderControlContext(
-      {
-        getApps: vi.fn(async () => [{ name: "default" }, { name: "docs" }]),
-        getModels: vi.fn(async () => ["gpt-4o-mini", "gpt-5"]),
-        setModel,
-      },
-      threadMetadata,
-    );
-
-    await waitFor(() => {
-      expect(getControl().state.authorizedApps).toContain("docs");
-    });
-
-    let syncPromise!: Promise<void>;
-    await act(async () => {
-      syncPromise = getControl().syncCurrentThreadControl();
-    });
-
-    expect(setModel).toHaveBeenCalledWith(
-      "session-1",
-      "gpt-5",
-      expect.objectContaining({ app: "default" }),
-    );
-
-    await act(async () => {
-      getControl().onAppSelect("docs");
-    });
-
-    await act(async () => {
-      setModelResult.resolve({});
-      await syncPromise;
-    });
-
-    expect(threadMetadata.get("session-1")?.control).toMatchObject({
-      model: "gpt-5",
-      app: "docs",
-      controlDirty: true,
-    });
-  });
-
-  it("does not update controls while the current thread is processing", async () => {
-    const threadMetadata = createThreadMetadata();
-    threadMetadata.set("session-1", {
-      ...threadMetadata.get("session-1")!,
-      control: {
-        ...initThreadControl(),
-        isProcessing: true,
-      },
-    });
-    const setModel = vi.fn(async () => ({}));
-    const { getControl } = renderControlContext({ setModel }, threadMetadata);
-
-    await act(async () => {
-      await getControl().onModelSelect("gpt-5", { mode: "manual" });
-    });
-
     expect(setModel).not.toHaveBeenCalled();
+
+    await act(async () => {
+      getControl().onAppSelect("docs");
+    });
+
     expect(threadMetadata.get("session-1")?.control).toMatchObject({
-      model: null,
-      modelMode: "auto",
-      isProcessing: true,
+      model: "gpt-5",
+      app: "docs",
+      controlDirty: true,
     });
   });
+
 });
