@@ -6,6 +6,7 @@ import {
   providerConfigurationFailure,
   requestedDeviceAuthProvider,
 } from "./device-auth-provider";
+import { DeviceAuthHandoffError } from "./device-auth-handoff";
 
 const configured = {
   paraApiKey: "para-public-key",
@@ -46,6 +47,23 @@ describe("device auth provider selection", () => {
         paraEnvironment: "staging",
       }),
     ).toMatchObject({ code: "para_configuration_invalid" });
+  });
+
+  it("keeps the stable code of a typed handoff failure", () => {
+    expect(
+      classifyProviderInitializationFailure(
+        "para",
+        new DeviceAuthHandoffError("provider_account_conflict", 409),
+        configured,
+      ),
+    ).toMatchObject({ code: "provider_account_conflict" });
+    expect(
+      classifyProviderInitializationFailure(
+        "privy",
+        new DeviceAuthHandoffError("provider_credential_timeout"),
+        configured,
+      ),
+    ).toMatchObject({ code: "provider_credential_timeout" });
   });
 
   it("separates Para origin rejection from other initialization failures", () => {

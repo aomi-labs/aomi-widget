@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   search:
@@ -31,10 +31,6 @@ vi.mock("@portal/lib/device-auth-provider", async (importOriginal) => {
   return {
     ...actual,
     providerConfigurationFailure: () => null,
-    classifyProviderInitializationFailure: () => ({
-      code: "para_initialization_failed",
-      message: "Para authentication could not start.",
-    }),
   };
 });
 
@@ -43,6 +39,21 @@ vi.mock("@aomi-labs/widget-lib/providers/privy", () => ({}));
 
 import { DeviceAuthClient } from "./device-auth-client";
 
+const PARA_SEARCH =
+  "provider=para&state=state_1234567890abcdef&code_challenge=challenge_1234567890abcdefghijklmnop&redirect_uri=http%3A%2F%2F127.0.0.1%3A4173%2Fcallback";
+
+function mockHandoffResponses() {
+  return vi
+    .spyOn(globalThis, "fetch")
+    .mockResolvedValueOnce(Response.json({}))
+    .mockResolvedValueOnce(
+      Response.json({
+        code: "one-time-code",
+        state: "state_1234567890abcdef",
+      }),
+    );
+}
+
 describe("DeviceAuthClient provider ownership", () => {
   beforeEach(() => {
     mocks.search =
@@ -50,6 +61,11 @@ describe("DeviceAuthClient provider ownership", () => {
     mocks.replace.mockReset();
     mocks.wallet.connectSocial.mockReset();
     mocks.getAccountCredential = vi.fn<() => Promise<unknown>>();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("navigates with the selected provider instead of nesting a provider", () => {
@@ -147,5 +163,136 @@ describe("DeviceAuthClient provider ownership", () => {
       fetchMock.mockRestore();
       vi.useRealTimers();
     }
+  });
+
+  it("outlasts a provider credential cooldown of 30 seconds", async () => {
+    vi.useFakeTimers();
+    const fetchMock = mockHandoffResponses();
+    mocks.search = PARA_SEARCH;
+    mocks.wallet.connectSocial.mockResolvedValue(undefined);
+    const startedAt = Date.now();
+    const credential = { provider: "para", token: "provider-credential" };
+    // Para's getter answers null while its 30-second backoff is armed. The
+    // page must keep asking (with `fresh`) until the credential appears.
+    const getCredential = vi.fn(async (options?: { fresh?: boolean }) => {
+      expect(options).toEqual({ fresh: true });
+      return Date.now() - startedAt < 31_000 ? null : credential;
+    });
+    mocks.getAccountCredential = getCredential;
+
+    render(<DeviceAuthClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Para" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(29_000);
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Continue with Para" }),
+    ).toBeDisabled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(getCredential.mock.calls.length).toBeGreaterThan(15);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/auth/aomi/provider/exchange",
+      expect.objectContaining({ body: JSON.stringify(credential) }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/v1/account/device-auth/grant",
+      expect.any(Object),
+    );
+    expect(
+      screen.getByText("Authentication complete. Returning to the CLI..."),
+    ).toBeInTheDocument();
+  });
+
+  it("reports a stable timeout code when no credential is ever issued", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    mocks.search = PARA_SEARCH;
+    mocks.wallet.connectSocial.mockResolvedValue(undefined);
+    mocks.getAccountCredential = vi.fn(async () => null);
+
+    render(<DeviceAuthClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Para" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(95_000);
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByText(/provider_credential_timeout/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Continue with Para" }),
+    ).toBeEnabled();
+  });
+
+  it("lets the user cancel a dismissed provider modal and try again", async () => {
+    vi.useFakeTimers();
+    const fetchMock = mockHandoffResponses();
+    mocks.search = PARA_SEARCH;
+    mocks.wallet.connectSocial.mockResolvedValue(undefined);
+    mocks.getAccountCredential = undefined;
+
+    const view = render(<DeviceAuthClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Para" }));
+    await act(async () => {});
+    expect(
+      screen.getByRole("button", { name: "Continue with Para" }),
+    ).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(
+      screen.getByRole("button", { name: "Continue with Para" }),
+    ).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+
+    // A credential surfacing after cancellation must not start a handoff.
+    const credential = { provider: "para", token: "late-credential" };
+    mocks.getAccountCredential = vi.fn(async () => credential);
+    view.rerender(<DeviceAuthClient />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Para" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(
+      screen.getByText("Authentication complete. Returning to the CLI..."),
+    ).toBeInTheDocument();
+  });
+
+  it("names an account conflict instead of a generic provider failure", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json(
+          { message: "already_linked_to_another_account" },
+          { status: 409 },
+        ),
+      );
+    mocks.search = PARA_SEARCH;
+    mocks.wallet.connectSocial.mockResolvedValue(undefined);
+    mocks.getAccountCredential = vi.fn(async () => ({
+      provider: "para",
+      token: "provider-credential",
+    }));
+
+    render(<DeviceAuthClient />);
+    fireEvent.click(screen.getByRole("button", { name: "Continue with Para" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/provider_account_conflict/)).toBeInTheDocument();
+    expect(screen.queryByText(/already_linked/)).toBeNull();
   });
 });

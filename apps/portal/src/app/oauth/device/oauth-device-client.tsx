@@ -11,6 +11,10 @@ import {
   providerFailureText,
   type DeviceAuthProvider,
 } from "@portal/lib/device-auth-provider";
+import {
+  providerExchangeFailure,
+  waitForProviderCredential,
+} from "@portal/lib/device-auth-handoff";
 
 type DeviceVerification = {
   user_code: string;
@@ -31,6 +35,14 @@ export function OAuthDeviceClient() {
   const params = useSearchParams();
   const provider = normalizeDeviceAuthProvider(params.get("provider"));
   const wallet = useAomiWalletKit();
+  // The credential getter appears only after the provider reports
+  // authentication, which happens after `signIn` has already started. Read it
+  // through a ref so the running handoff sees the current wallet kit instead
+  // of the one captured at click time.
+  const walletRef = useRef(wallet);
+  useEffect(() => {
+    walletRef.current = wallet;
+  }, [wallet]);
   const { data: session } = authClient.useSession();
   const initialCode = params.get("user_code") ?? "";
   const [code, setCode] = useState(initialCode);
@@ -89,25 +101,25 @@ export function OAuthDeviceClient() {
     if (!provider) return;
     setPending(true);
     try {
+      setStatus(`Finish signing in with ${providerLabel(provider)}.`);
       await wallet.connectSocial?.("google");
-      for (let attempt = 0; attempt < 100; attempt += 1) {
-        const credential = await wallet
-          .getAccountCredential?.()
-          .catch(() => null);
-        if (credential) {
-          const response = await fetch("/api/auth/aomi/provider/exchange", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(credential),
-          });
-          if (!response.ok) throw new Error("provider_exchange_failed");
-          window.location.reload();
-          return;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-      throw new Error("provider_credential_timeout");
+      // Para resolves as soon as its modal opens, so the budget here also
+      // covers the time the user spends inside the provider's login UI.
+      const credential = await waitForProviderCredential(
+        (options) =>
+          walletRef.current.getAccountCredential?.(options) ??
+          Promise.resolve(null),
+        { budgetMs: 180_000 },
+      );
+      const response = await fetch("/api/auth/aomi/provider/exchange", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(credential),
+      });
+      if (!response.ok) throw providerExchangeFailure(response.status);
+      window.location.reload();
+      return;
     } catch (error) {
       setStatus(
         providerFailureText(
@@ -318,6 +330,10 @@ function parseDeviceVerification(value: unknown): DeviceVerification | null {
     scope: typeof record.scope === "string" ? record.scope : undefined,
     resource: resource as string | string[] | undefined,
   };
+}
+
+function providerLabel(provider: DeviceAuthProvider): string {
+  return provider === "para" ? "Para" : "Privy";
 }
 
 function normalizedUserCode(value: string): string {

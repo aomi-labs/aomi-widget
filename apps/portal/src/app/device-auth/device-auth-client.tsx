@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -17,6 +18,11 @@ import {
   providerFailureText,
   type DeviceAuthProvider,
 } from "@portal/lib/device-auth-provider";
+import {
+  deviceGrantFailure,
+  providerExchangeFailure,
+  waitForProviderCredential,
+} from "@portal/lib/device-auth-handoff";
 
 type GrantResponse = {
   code?: unknown;
@@ -96,6 +102,8 @@ export function DeviceAuthClient() {
   );
 }
 
+type HandoffPhase = "idle" | "provider" | "handoff" | "complete";
+
 function DeviceAuthProviderPanel({
   mode,
   provider,
@@ -113,23 +121,23 @@ function DeviceAuthProviderPanel({
   const walletKit = useAomiWalletKit();
   const connectSocial = walletKit.connectSocial;
   const getAccountCredential = walletKit.getAccountCredential;
+  const label = providerLabels[provider];
   const [status, setStatus] = useState(
-    `Continue with ${providerLabels[provider]} to ${
+    `Continue with ${label} to ${
       mode === "link" ? "link this login method." : "connect your CLI."
     }`,
   );
-  const [pending, setPending] = useState(false);
-  const [complete, setComplete] = useState(false);
-  const [exchangeRequested, setExchangeRequested] = useState(false);
+  const [phase, setPhase] = useState<HandoffPhase>("idle");
+  // Every click starts a new attempt. Cancelling or restarting bumps the
+  // counter so an older attempt's async work can no longer touch the page.
+  const attemptRef = useRef(0);
+  // The attempt whose handoff (credential wait, exchange, grant) is running.
+  // One handoff per attempt: the provider's getter identity can change while
+  // a handoff is in flight, and that must not start a second exchange.
+  const handoffAttemptRef = useRef<number | null>(null);
 
-  const startProviderLogin = useCallback(async () => {
-    setPending(true);
-    setStatus(`Opening ${providerLabels[provider]}...`);
-    try {
-      await connectSocial?.("google");
-      setStatus("Waiting for provider credential...");
-      setExchangeRequested(true);
-    } catch (error) {
+  const fail = useCallback(
+    (error: unknown) => {
       setStatus(
         providerFailureText(
           classifyProviderInitializationFailure(
@@ -139,14 +147,45 @@ function DeviceAuthProviderPanel({
           ),
         ),
       );
-      setPending(false);
+      setPhase("idle");
+    },
+    [provider],
+  );
+
+  const startProviderLogin = useCallback(async () => {
+    const attempt = ++attemptRef.current;
+    handoffAttemptRef.current = null;
+    setPhase("provider");
+    setStatus(`Opening ${label}...`);
+    try {
+      // Para resolves as soon as its modal opens; Privy resolves once login
+      // completes. Either way the handoff below starts only when the provider
+      // exposes an authenticated credential getter.
+      await connectSocial?.("google");
+      if (attemptRef.current !== attempt) return;
+      setStatus(
+        `Finish signing in with ${label}. This page returns to the CLI on its own.`,
+      );
+    } catch (error) {
+      if (attemptRef.current !== attempt) return;
+      fail(error);
     }
-  }, [connectSocial, provider]);
+  }, [connectSocial, fail, label]);
+
+  const cancel = useCallback(() => {
+    attemptRef.current += 1;
+    handoffAttemptRef.current = null;
+    setPhase("idle");
+    setStatus(`Sign-in cancelled. Continue with ${label} to try again.`);
+  }, [label]);
 
   useEffect(() => {
-    if (!exchangeRequested || complete || !pending || !getAccountCredential)
-      return;
-    let cancelled = false;
+    if (phase !== "provider" || !getAccountCredential) return;
+    const attempt = attemptRef.current;
+    if (handoffAttemptRef.current === attempt) return;
+    handoffAttemptRef.current = attempt;
+    const live = () => attemptRef.current === attempt;
+    setPhase("handoff");
     const run = async () => {
       try {
         setStatus(
@@ -154,8 +193,11 @@ function DeviceAuthProviderPanel({
             ? "Preparing account link..."
             : "Creating Aomi session...",
         );
-        const credential = await waitForCredential(getAccountCredential);
-        if (cancelled) return;
+        const credential = await waitForProviderCredential(
+          getAccountCredential,
+          { isCancelled: () => !live() },
+        );
+        if (!live()) return;
         if (mode === "link") {
           const grantResponse = await fetch(
             "/v1/account/device-auth/link-grant",
@@ -172,6 +214,7 @@ function DeviceAuthProviderPanel({
               }),
             },
           );
+          if (!live()) return;
           const grant = (await grantResponse
             .json()
             .catch(() => null)) as GrantResponse | null;
@@ -180,11 +223,9 @@ function DeviceAuthProviderPanel({
             typeof grant?.code !== "string" ||
             grant.state !== request.state
           ) {
-            throw new Error(
-              `Device auth link failed: HTTP ${grantResponse.status}`,
-            );
+            throw deviceGrantFailure(grantResponse.status, "link");
           }
-          setComplete(true);
+          setPhase("complete");
           setStatus("Account link complete. Returning to the CLI...");
           redirectToCli({
             code: grant.code,
@@ -202,10 +243,9 @@ function DeviceAuthProviderPanel({
             body: JSON.stringify(credential),
           },
         );
+        if (!live()) return;
         if (!exchangeResponse.ok) {
-          throw new Error(
-            `Provider exchange failed: HTTP ${exchangeResponse.status}`,
-          );
+          throw providerExchangeFailure(exchangeResponse.status);
         }
         const grantResponse = await fetch("/v1/account/device-auth/grant", {
           method: "POST",
@@ -218,6 +258,7 @@ function DeviceAuthProviderPanel({
             provider,
           }),
         });
+        if (!live()) return;
         const grant = (await grantResponse
           .json()
           .catch(() => null)) as GrantResponse | null;
@@ -226,11 +267,9 @@ function DeviceAuthProviderPanel({
           typeof grant?.code !== "string" ||
           grant.state !== request.state
         ) {
-          throw new Error(
-            `Device auth grant failed: HTTP ${grantResponse.status}`,
-          );
+          throw deviceGrantFailure(grantResponse.status, "login");
         }
-        setComplete(true);
+        setPhase("complete");
         setStatus("Authentication complete. Returning to the CLI...");
         redirectToCli({
           code: grant.code,
@@ -238,49 +277,39 @@ function DeviceAuthProviderPanel({
           state: request.state,
         });
       } catch (error) {
-        if (cancelled) return;
-        setStatus(
-          providerFailureText(
-            classifyProviderInitializationFailure(
-              provider,
-              error,
-              providerConfiguration,
-            ),
-          ),
-        );
-        setPending(false);
+        if (!live()) return;
+        fail(error);
       }
     };
     void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    complete,
-    exchangeRequested,
-    pending,
-    mode,
-    provider,
-    request,
-    getAccountCredential,
-  ]);
+  }, [phase, getAccountCredential, mode, provider, request, fail]);
 
+  const busy = phase === "provider" || phase === "handoff";
   return (
     <DeviceAuthLayout status={status}>
-      <div className="mt-6">
+      <div className="mt-6 grid gap-3">
         <button
           className="bg-foreground text-background flex h-11 w-full items-center justify-center gap-2 rounded-md px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={pending || complete}
+          disabled={busy || phase === "complete"}
           onClick={() => void startProviderLogin()}
           type="button"
         >
-          {complete ? (
+          {phase === "complete" ? (
             <CheckCircle2 className="h-4 w-4" />
-          ) : pending ? (
+          ) : busy ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : null}
-          Continue with {providerLabels[provider]}
+          Continue with {label}
         </button>
+        {busy ? (
+          <button
+            className="border-border h-11 w-full rounded-md border px-4 text-sm font-medium"
+            onClick={cancel}
+            type="button"
+          >
+            Cancel
+          </button>
+        ) : null}
       </div>
     </DeviceAuthLayout>
   );
@@ -315,18 +344,6 @@ function redirectToCli(input: {
   redirect.searchParams.set("code", input.code);
   redirect.searchParams.set("state", input.state);
   window.location.assign(redirect.toString());
-}
-
-async function waitForCredential(
-  getCredential: () => Promise<unknown> | undefined,
-): Promise<unknown> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < 30_000) {
-    const credential = await getCredential();
-    if (credential) return credential;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  throw new Error("Provider did not return an exchangeable credential");
 }
 
 function isApprovedCliLoopbackRedirectUri(redirectUri: string): boolean {

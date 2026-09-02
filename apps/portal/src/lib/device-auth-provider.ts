@@ -1,3 +1,8 @@
+import {
+  isDeviceAuthHandoffError,
+  type DeviceAuthHandoffCode,
+} from "./device-auth-handoff";
+
 export type DeviceAuthProvider = "privy" | "para";
 
 type SearchParams = {
@@ -17,7 +22,8 @@ export type ProviderInitializationFailure = {
     | "para_origin_rejected"
     | "para_initialization_failed"
     | "privy_configuration_missing"
-    | "privy_initialization_failed";
+    | "privy_initialization_failed"
+    | DeviceAuthHandoffCode;
   message: string;
 };
 
@@ -82,6 +88,12 @@ export function classifyProviderInitializationFailure(
     configuration,
   );
   if (configurationFailure) return configurationFailure;
+
+  // Handoff failures already carry a stable, secret-safe code and a message
+  // with a next step. Everything else stays provider-scoped and generic.
+  if (isDeviceAuthHandoffError(error)) {
+    return { code: error.code, message: error.message };
+  }
 
   if (provider === "para") {
     const message = error instanceof Error ? error.message.toLowerCase() : "";
