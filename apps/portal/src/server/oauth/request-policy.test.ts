@@ -1,4 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  bindClientResource: vi.fn().mockResolvedValue("already_bound"),
+}));
+
+vi.mock("./client-resource-binding", () => ({
+  bindAomiPublicClientResource: mocks.bindClientResource,
+}));
+
 import {
   enforceAomiOAuthRequestPolicy,
   type AomiOAuthPolicyResult,
@@ -33,6 +42,7 @@ beforeEach(() => {
   vi.stubEnv("NODE_ENV", "test");
   vi.stubEnv("DATABASE_URL", "postgres://test.invalid/aomi");
   vi.stubEnv("BETTER_AUTH_URL", "https://portal.example");
+  mocks.bindClientResource.mockReset().mockResolvedValue("already_bound");
 });
 
 afterEach(() => vi.unstubAllEnvs());
@@ -136,6 +146,97 @@ describe("OAuth request policy", () => {
     });
   });
 
+  it("requires an explicit public token endpoint authentication method", async () => {
+    await expectReject(
+      enforceAomiOAuthRequestPolicy(
+        new Request("https://portal.example/api/auth/oauth2/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            grant_types: ["authorization_code", "refresh_token"],
+            response_types: ["code"],
+          }),
+        }),
+      ),
+    );
+  });
+
+  it.each([
+    ["agent", "https://portal.example/v1/agent", "agent:read offline_access"],
+    [
+      "pipeline",
+      "https://portal.example/v1/pipeline",
+      "pipeline:catalog offline_access",
+    ],
+  ])(
+    "accepts a public %s REST device client",
+    async (_name, resource, scope) => {
+      await expectContinue(
+        enforceAomiOAuthRequestPolicy(
+          new Request("https://portal.example/api/auth/oauth2/register", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              client_name: "Aomi CLI",
+              token_endpoint_auth_method: "none",
+              grant_types: [
+                "urn:ietf:params:oauth:grant-type:device_code",
+                "refresh_token",
+              ],
+              resources: [resource],
+              scope,
+            }),
+          }),
+        ),
+      );
+    },
+  );
+
+  it("rejects mixed grants, mixed resources, and confidential device clients", async () => {
+    const register = (body: Record<string, unknown>) =>
+      enforceAomiOAuthRequestPolicy(
+        new Request("https://portal.example/api/auth/oauth2/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            token_endpoint_auth_method: "none",
+            grant_types: [
+              "urn:ietf:params:oauth:grant-type:device_code",
+              "refresh_token",
+            ],
+            resources: ["https://portal.example/v1/agent"],
+            scope: "agent:read",
+            ...body,
+          }),
+        }),
+      );
+
+    await expectReject(
+      register({
+        grant_types: [
+          "authorization_code",
+          "urn:ietf:params:oauth:grant-type:device_code",
+          "refresh_token",
+        ],
+      }),
+      401,
+    );
+    await expectReject(
+      register({
+        resources: [
+          "https://portal.example/v1/agent",
+          "https://portal.example/v1/pipeline",
+        ],
+      }),
+    );
+    await expectReject(
+      register({ token_endpoint_auth_method: "client_secret_basic" }),
+    );
+    await expectReject(
+      register({ resources: ["https://portal.example/v1/agent/mcp"] }),
+    );
+  });
+
   it.each([
     ["non-array", "http://127.0.0.1:49152/callback"],
     ["relative", ["/callback"]],
@@ -233,6 +334,24 @@ describe("OAuth request policy", () => {
         "pipeline:execute",
       ].sort(),
     );
+  });
+
+  it("binds a resource-less public client on first authorize and rejects widening", async () => {
+    const request = new Request(
+      `https://portal.example/api/auth/oauth2/authorize?${new URLSearchParams({
+        client_id: "public-client",
+        resource: "https://portal.example/v1/pipeline/mcp",
+        scope: "pipeline:catalog mcp:pipeline",
+      })}`,
+    );
+    await expectContinue(enforceAomiOAuthRequestPolicy(request));
+    expect(mocks.bindClientResource).toHaveBeenCalledWith({
+      clientId: "public-client",
+      resource: "https://portal.example/v1/pipeline/mcp",
+    });
+
+    mocks.bindClientResource.mockResolvedValueOnce("resource_conflict");
+    await expectReject(enforceAomiOAuthRequestPolicy(request));
   });
 
   it("never lets a narrowed grant cross resources or carry identity scopes", async () => {

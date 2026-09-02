@@ -276,25 +276,23 @@ export const auth = betterAuth({
               : [],
             resourceSeedMode: "overwrite",
             scopes: [...AOMI_SCOPES],
-            // Both MCP resources are reachable by dynamic registration: Codex
-            // registers a separate client per MCP server, so an Agent client
-            // and a Pipeline client are distinct clients that each need their
-            // own resource. The mcp plugin appends its own `resource`
-            // (agentMcp) to the defaults, so naming pipelineMcp here is what
-            // makes the pair.
-            //
-            // Registration breadth does not decide what a grant carries. MCP
-            // clients build their scope request from this server's
-            // `scopes_supported`, which spans every resource it hosts, so the
-            // request is narrowed to the one resource it names at authorize —
-            // see narrowScopesForAomiResource.
-            clientRegistrationDefaultResources: seedOAuthResources
-              ? [resources.pipelineMcp]
-              : [],
+            // Do not attach server defaults to dynamic clients. Agent,
+            // Pipeline, and REST registrations must remain exact-resource.
+            // Codex's RFC 7591 payload omits the non-standard `resources`
+            // extension, so the Portal transactionally binds that client to
+            // the one resource named by its first authorize request.
+            clientRegistrationDefaultResources: [],
             clientRegistrationAllowedResources: seedOAuthResources
-              ? [resources.agentMcp, resources.pipelineMcp]
+              ? [
+                  resources.agentMcp,
+                  resources.pipelineMcp,
+                  resources.agentRest,
+                  resources.pipelineRest,
+                ]
               : [],
-            clientRegistrationDefaultScopes: [...MCP_CLIENT_REGISTRATION_SCOPES],
+            clientRegistrationDefaultScopes: [
+              ...MCP_CLIENT_REGISTRATION_SCOPES,
+            ],
             // What a client may ASK for at registration. Better Auth fails a
             // registration outright on any requested scope missing from this
             // list, and MCP clients do request `openid` — Codex does — so
