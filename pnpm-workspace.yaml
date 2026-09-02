@@ -35,6 +35,7 @@ packageExtensions:
 
 patchedDependencies:
   "@better-auth/oauth-provider@1.7.1": patches/@better-auth__oauth-provider@1.7.1.patch
+  "next@16.1.0": patches/next@16.1.0.patch
 
 onlyBuiltDependencies:
   - "@parcel/watcher"
