@@ -244,6 +244,15 @@ export type AomiTransactionExecution = {
 export type AomiAccountCredential =
   import("@aomi-labs/client").ProviderCredential;
 
+export type AomiAccountCredentialOptions = {
+  /**
+   * Ask the provider for a credential now, skipping any transient-failure
+   * backoff the getter keeps for polling callers. One-shot login handoffs
+   * (CLI device auth) set this; widgets that poll on every request must not.
+   */
+  fresh?: boolean;
+};
+
 export type AomiWalletKit = {
   identity: AomiSessionIdentity;
   isReady: boolean;
@@ -376,7 +385,9 @@ export type AomiWalletKit = {
    * Return an upstream wallet-provider credential that the portal can exchange
    * for a short-lived Aomi bearer.
    */
-  getAccountCredential?: () => Promise<AomiAccountCredential | null>;
+  getAccountCredential?: (
+    options?: AomiAccountCredentialOptions,
+  ) => Promise<AomiAccountCredential | null>;
   getAccountBearer?: import("@aomi-labs/client").GetAccountBearer;
   solanaRpcHttpUrl?: string;
   solanaRpcWsUrl?: string;
