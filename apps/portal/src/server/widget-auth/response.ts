@@ -1,4 +1,7 @@
-import { IdentityConflictError } from "@aomi-labs/account/account";
+import {
+  AccountSessionInvalidError,
+  IdentityConflictError,
+} from "@aomi-labs/account/account";
 import {
   WidgetAuthError,
   type WidgetChallenge,
@@ -40,7 +43,8 @@ export function identifyWidgetAuthFailure(
 ): FailureInput {
   if (
     error instanceof WidgetAuthError ||
-    error instanceof PortalPrincipalError
+    error instanceof PortalPrincipalError ||
+    error instanceof AccountSessionInvalidError
   ) {
     return {
       source: "expected",

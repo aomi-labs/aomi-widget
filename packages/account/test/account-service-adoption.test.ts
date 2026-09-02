@@ -11,6 +11,7 @@ const queryMocks = vi.hoisted(() => ({
   deleteBetterAuthSiweWallet: vi.fn(),
   deleteBetterAuthSiwsWallet: vi.fn(),
   findAuthIdentityById: vi.fn(),
+  findAuthIdentityForSubject: vi.fn(),
   findAomiUserById: vi.fn(),
   findAomiUserByBetterAuthId: vi.fn(),
   findLegacyBackendUserIdByWallet: vi.fn(),
@@ -20,6 +21,7 @@ const queryMocks = vi.hoisted(() => ({
   listBetterAuthSiweWallets: vi.fn(),
   listBetterAuthSiwsWallets: vi.fn(),
   listWalletsForUser: vi.fn(),
+  lockBetterAuthUser: vi.fn(),
   lockIdentityResolutionKeys: vi.fn(),
   logAccountEvent: vi.fn(),
   revokeAllAuthIdentitiesForUser: vi.fn(),
@@ -81,6 +83,7 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
     queryMocks.runAomiAuthSchema.mockResolvedValue(undefined);
     queryMocks.withTransaction.mockImplementation(async (fn) => fn(db));
     queryMocks.findProviderSubjectOwners.mockResolvedValue([]);
+    queryMocks.lockBetterAuthUser.mockResolvedValue(true);
     queryMocks.findAomiUserByBetterAuthId.mockResolvedValue(null);
     queryMocks.listBetterAuthSiweWallets.mockResolvedValue([
       {
@@ -128,6 +131,7 @@ describe("getOrCreateAomiUserForBetterAuthSession adoption", () => {
     queryMocks.runAomiAuthSchema.mockResolvedValue(undefined);
     queryMocks.withTransaction.mockImplementation(async (fn) => fn(db));
     queryMocks.findProviderSubjectOwners.mockResolvedValue([]);
+    queryMocks.lockBetterAuthUser.mockResolvedValue(true);
     queryMocks.findAomiUserByBetterAuthId.mockResolvedValue(null);
     queryMocks.listBetterAuthSiweWallets.mockResolvedValue([]);
     queryMocks.listBetterAuthSiwsWallets.mockResolvedValue([

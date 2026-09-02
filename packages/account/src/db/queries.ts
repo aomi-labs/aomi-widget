@@ -197,6 +197,21 @@ export async function listBetterAuthSiwsWallets(
   }
 }
 
+/** Confirm that a Better Auth carrier still exists while holding a row lock for
+ * the rest of the canonical-account resolution transaction. This closes the
+ * delete race where a session was read immediately before its Better Auth user
+ * was removed: no canonical identity may be (re)created for a missing carrier. */
+export async function lockBetterAuthUser(
+  betterAuthUserId: string,
+  db: Db,
+): Promise<boolean> {
+  const result = await db.query(
+    `select 1 from ba_users where id = $1 for key share`,
+    [betterAuthUserId],
+  );
+  return (result.rowCount ?? result.rows.length) > 0;
+}
+
 export async function touchAomiUser(
   userId: AomiUserId,
   db: Db = getPool(),
@@ -299,7 +314,7 @@ export async function countLoginFactors(
     `select count(*)::int as count
        from auth_providers
       where user_id = $1
-        and provider not in ('betterauth', 'better_auth', 'wallet')`,
+        and provider not in ('betterauth', 'better_auth', 'email', 'wallet')`,
     [userId],
   );
   return Number(result.rows[0]?.count ?? 0);
@@ -462,15 +477,20 @@ export async function listBetterAuthUserIdsForAomiUser(
 }
 
 /** Delete Better Auth users only after their exact ids were resolved from the
- * canonical account. Foreign-key cascades revoke all browser sessions, OAuth
- * tokens/consents, wallet rows, and owned OAuth applications. */
+ * canonical account. Foreign-key cascades revoke browser sessions, OAuth
+ * tokens/consents, wallet rows, and owned OAuth applications. Better Auth's
+ * device-code user column has no FK, so remove those grants explicitly in the
+ * same statement. */
 export async function deleteBetterAuthUsers(input: {
   betterAuthUserIds: readonly string[];
   db?: Db;
 }): Promise<number> {
   if (input.betterAuthUserIds.length === 0) return 0;
   const result = await (input.db ?? getPool()).query(
-    `delete from ba_users where id = any($1::text[])`,
+    `with deleted_device_codes as (
+       delete from ba_oauth_device_codes where user_id = any($1::text[])
+     )
+     delete from ba_users where id = any($1::text[])`,
     [[...new Set(input.betterAuthUserIds)]],
   );
   return result.rowCount ?? 0;
@@ -630,6 +650,30 @@ export async function findAuthIdentityById(
   const result = await db.query(
     `select * from auth_providers where id = $1 limit 1`,
     [Number(identityId)],
+  );
+  return result.rows[0] ? mapIdentity(result.rows[0]) : null;
+}
+
+export async function findAuthIdentityForSubject(input: {
+  userId: AomiUserId;
+  provider: AuthIdentityProvider;
+  issuerEnvironment: string;
+  tenantId: string;
+  subject: string;
+  db?: Db;
+}): Promise<DbAomiAuthIdentity | null> {
+  const result = await (input.db ?? getPool()).query(
+    `select * from auth_providers
+      where user_id = $1 and provider = $2
+        and issuer_environment = $3 and tenant_id = $4 and subject = $5
+      limit 1`,
+    [
+      input.userId,
+      canonicalProvider(input.provider),
+      input.issuerEnvironment,
+      input.tenantId,
+      input.subject,
+    ],
   );
   return result.rows[0] ? mapIdentity(result.rows[0]) : null;
 }

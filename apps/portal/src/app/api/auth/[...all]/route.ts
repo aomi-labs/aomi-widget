@@ -5,6 +5,7 @@ import {
   guestScopesForAomiResource,
   hashOAuthClientId,
   oauthRedirectFailureDiagnostics,
+  validateAomiResourceScopes,
 } from "@aomi-labs/account/better-auth";
 
 import {
@@ -92,6 +93,17 @@ async function handleAuth(request: Request) {
           );
         }
         const resource = consentResources[0];
+        const validation = validateAomiResourceScopes(resource, requested);
+        if (!validation.ok) {
+          return Response.json(
+            {
+              error: validation.error,
+              error_description:
+                "Guest consent contains a scope outside the signed resource policy",
+            },
+            { status: 400 },
+          );
+        }
         const bounded = guestScopesForAomiResource(resource, requested);
         if (bounded.length === 0) {
           return Response.json(

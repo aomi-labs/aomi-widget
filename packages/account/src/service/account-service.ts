@@ -10,6 +10,7 @@ import {
   deleteBetterAuthSiweWallet,
   deleteBetterAuthSiwsWallet,
   findAuthIdentityById,
+  findAuthIdentityForSubject,
   findAomiUserById,
   claimTelegramSessionOwner as claimTelegramSessionOwnerQuery,
   findSignalOwner,
@@ -18,6 +19,7 @@ import {
   listBetterAuthSiwsWallets,
   listBetterAuthUserIdsForAomiUser,
   listWalletsForUser,
+  lockBetterAuthUser,
   lockIdentityResolutionKeys,
   logAccountEvent,
   revokeAllAuthIdentitiesForUser,
@@ -74,6 +76,16 @@ let accountSchemaReady: Promise<void> | null = null;
 // provider-token expiry; this sentinel marks them non-expiring for the
 // resolver's freshness checks.
 const NON_EXPIRING_IDENTITY_EXPIRES_AT = Number.MAX_SAFE_INTEGER;
+
+export class AccountSessionInvalidError extends Error {
+  readonly code = "account_session_invalid";
+  readonly status = 401;
+
+  constructor() {
+    super("account_session_invalid");
+    this.name = "AccountSessionInvalidError";
+  }
+}
 
 export async function ensureAccountSchema(): Promise<void> {
   if (!accountSchemaReady) {
@@ -133,19 +145,19 @@ export async function getOrCreateAomiUserForBetterAuthSession(input: {
     // `identity_already_linked_to_another_account`; because that is a
     // non-recoverable error the whole transaction rolls back, so a failed email
     // link can never leave a freshly created user orphaned.
-    onResolved:
-      verifiedEmail || input.onResolved
-        ? async (result, db) => {
-            if (verifiedEmail) {
-              await upsertEmailIdentity({
-                userId: result.user.id,
-                email: verifiedEmail,
-                db,
-              });
-            }
-            await input.onResolved?.(result.user, db);
-          }
-        : undefined,
+    onResolved: async (result, db) => {
+      if (!(await lockBetterAuthUser(input.betterAuthUserId, db))) {
+        throw new AccountSessionInvalidError();
+      }
+      if (verifiedEmail) {
+        await upsertEmailIdentity({
+          userId: result.user.id,
+          email: verifiedEmail,
+          db,
+        });
+      }
+      await input.onResolved?.(result.user, db);
+    },
   });
   await logAccountEvent({
     userId: resolution.user.id,
@@ -871,7 +883,7 @@ function walletKeyString(family: WalletFamily, address: string): string {
 export async function unlinkAuthIdentity(input: {
   userId: AomiUserId;
   identityId: string;
-}): Promise<"revoked" | "not_found" | "last_factor" | "protected"> {
+}): Promise<"revoked" | "not_found" | "protected"> {
   const result = await withTransaction(async (db) => {
     await lockIdentityResolutionKeys(
       [`aomi-login-factors:${input.userId}`],
@@ -889,8 +901,6 @@ export async function unlinkAuthIdentity(input: {
     ) {
       return { status: "protected" as const };
     }
-    const factorCount = await countLoginFactors(input.userId, db);
-    if (factorCount <= 1) return { status: "last_factor" as const };
     const revoked = await revokeAuthIdentity({
       userId: input.userId,
       provider: identity.provider,
@@ -995,6 +1005,15 @@ export async function unlinkWallet(input: {
     const wallet = await findWalletById(input.walletId, db);
     if (!wallet || wallet.userId !== input.userId) return "not_found" as const;
     const walletSubject = walletIdentitySubject(wallet);
+    const walletIdentity = walletSubject
+      ? await findAuthIdentityForSubject({
+          userId: input.userId,
+          provider: walletSubject.provider,
+          ...IDENTITY_SCOPES[walletSubject.provider],
+          subject: walletSubject.subject,
+          db,
+        })
+      : null;
     if (walletSubject) {
       const factorCount = await countLoginFactors(input.userId, db);
       if (factorCount <= 1) return "last_factor" as const;
@@ -1033,6 +1052,16 @@ export async function unlinkWallet(input: {
       betterAuthUserIds: detached.betterAuthUserIds,
       db,
     });
+    await deleteBetterAuthUsers({
+      betterAuthUserIds: detached.betterAuthUserIds,
+      db,
+    });
+    if (walletIdentity) {
+      await deleteWidgetSessionsForProviderIdentity({
+        providerIdentityId: walletIdentity.id,
+        db,
+      });
+    }
     return "revoked" as const;
   });
   if (status !== "revoked") return status;

@@ -1,5 +1,20 @@
 # Canonical Landing
 
+Current session goal: **IDENTITY REVOCATION RACES AND CONSENT BOUNDARIES
+LOCALLY VERIFIED 2026-09-02** — canonical account resolution now locks and
+revalidates the backing Better Auth user inside its transaction, so a browser
+session read concurrently with provider unlink or account deletion cannot
+recreate an identity binding for a deleted carrier. Provider identities remain
+unlinkable, while last-factor protection applies only to actual SIWE/SIWS
+wallet removal and ignores non-login email rows. Guest consent preserves the
+server-approved scopes but rejects unknown scopes before guest narrowing. The
+real Better Auth migration cascade was exercised in a disposable local
+PostgreSQL database across two browser sessions, access and refresh tokens,
+consent, an approved device code, and WST storage. All 465 Portal and 149
+account tests pass locally;
+the database integration adds one passing test when its disposable URL is set,
+and no provider credentials or staging services were used.
+
 Current session goal: **PROVIDER AND DEVICE AUTH RECOVERY LOCALLY VERIFIED
 2026-09-02** — `/device-auth` and `/oauth/device` now select Para or Privy at
 the single root wallet-provider boundary, OAuth device decisions claim and
