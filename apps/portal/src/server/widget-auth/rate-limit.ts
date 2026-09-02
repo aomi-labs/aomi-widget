@@ -5,18 +5,13 @@ import {
 } from "@aomi-labs/account/widget-auth";
 
 /**
- * Vercel overwrites this header at its public edge, unlike a caller-provided
- * forwarding chain. Local development may use x-real-ip; absent a verified
- * address all callers deliberately share a conservative fallback bucket.
+ * Vercel calculates x-real-ip after its verified-proxy layer, including when
+ * Cloudflare fronts a custom domain. Never fall back to caller-controlled
+ * forwarding headers; absent one valid address, callers share a conservative
+ * bucket.
  */
-export function widgetClientAddress(
-  request: Request,
-  env: NodeJS.ProcessEnv = process.env,
-): string {
-  const raw = env.VERCEL
-    ? request.headers.get("x-vercel-forwarded-for")
-    : request.headers.get("x-real-ip");
-  const address = raw?.trim() ?? "";
+export function widgetClientAddress(request: Request): string {
+  const address = request.headers.get("x-real-ip")?.trim() ?? "";
   return isIP(address) ? address : "unknown";
 }
 
