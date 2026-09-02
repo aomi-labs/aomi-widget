@@ -8,6 +8,7 @@ const mockState = vi.hoisted(() => ({
   attachError: null as Error | null,
   resolvedUserId: "user-a",
   ownerId: "user-a" as string | null,
+  recoverySignals: null as unknown[] | null,
 }));
 
 const serviceMocks = vi.hoisted(() => ({
@@ -75,6 +76,7 @@ vi.mock("../src/service/identity-resolution", async (importOriginal) => {
     ...actual,
     resolveVerifiedProviderIdentity: vi.fn(async (input) => {
       if (mockState.resolveError) throw mockState.resolveError;
+      mockState.recoverySignals = input.recoverySignals ?? null;
       const result = {
         user: { id: mockState.resolvedUserId },
         identity: { id: "provider-row" },
@@ -132,6 +134,7 @@ describe("provider sign-in and linking", () => {
     mockState.attachError = null;
     mockState.resolvedUserId = "user-a";
     mockState.ownerId = "user-a";
+    mockState.recoverySignals = null;
     serviceMocks.mergeProviderWalletAttestations.mockImplementation(
       (_primary, fallback) => fallback ?? [],
     );
@@ -181,6 +184,8 @@ describe("provider sign-in and linking", () => {
     expect(serviceMocks.syncProviderWallets).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "user-a", db: { tx: true } }),
     );
+    expect(serviceMocks.betterAuthWalletSignals).not.toHaveBeenCalled();
+    expect(mockState.recoverySignals).toEqual([]);
   });
 
   it("creates a new account only when no signal has an owner", async () => {
@@ -195,6 +200,49 @@ describe("provider sign-in and linking", () => {
       status: "linked",
       user: { id: "new-user" },
     });
+  });
+
+  it("cannot recover a removed provider through its former account email", async () => {
+    mockState.resolvedUserId = "new-user";
+    queryMocks.upsertEmailIdentity.mockRejectedValueOnce(
+      new Error("identity_already_linked_to_another_account"),
+    );
+
+    await expect(
+      signInWithVerifiedProviderCredential({
+        betterAuthUserId: "ba-recreated",
+        verified: verifiedCredential(),
+      }),
+    ).resolves.toEqual({
+      status: "conflict",
+      reason: "already_linked_to_another_account",
+      signalType: "identity",
+    });
+    expect(mockState.recoverySignals).toEqual([]);
+  });
+
+  it("lets an exact still-linked provider return to its canonical account", async () => {
+    mockState.resolvedUserId = "original-account";
+
+    await expect(
+      signInWithVerifiedProviderCredential({
+        betterAuthUserId: "ba-new-carrier",
+        verified: {
+          ...verifiedCredential(),
+          provider: "privy",
+          walletAttestationProvider: "privy",
+          token: {
+            ...verifiedCredential().token,
+            subject: "still-linked-privy-user",
+            walletAttestations: [],
+          },
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: "linked",
+      user: { id: "original-account" },
+    });
+    expect(mockState.recoverySignals).toEqual([]);
   });
 
   it("does not transfer a provider or wallet during authenticated linking", async () => {

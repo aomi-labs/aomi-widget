@@ -187,6 +187,24 @@ export async function deleteWidgetSessionsForProviderIdentity(input: {
   return result.rowCount ?? 0;
 }
 
+/** Revoke every widget session for a deleted canonical account. The guarded
+ * JSON cast mirrors provider-identity revocation and cannot be tripped by an
+ * unrelated or malformed verification row. */
+export async function deleteWidgetSessionsForUser(input: {
+  userId: string;
+  db?: Db;
+}): Promise<number> {
+  const result = await (input.db ?? getPool()).query(
+    `delete from ba_verifications
+      where identifier like $1
+        and (case when value ~ '^\\s*\\{'
+                  then value::jsonb ->> 'userId'
+             end) = $2`,
+    [`${WIDGET_SESSION_NAMESPACE}%`, input.userId],
+  );
+  return result.rowCount ?? 0;
+}
+
 function parseTicket(value: string | undefined): WidgetAuthTicket | null {
   if (!value) return null;
   try {

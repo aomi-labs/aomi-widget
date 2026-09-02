@@ -3,7 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   handler: vi.fn(),
+  guestScopesForAomiResource: vi.fn(),
   oauthRedirectFailureDiagnostics: vi.fn(),
+  validateAomiResourceScopes: vi.fn(),
 }));
 
 vi.mock("@aomi-labs/account/better-auth", () => ({
@@ -14,7 +16,8 @@ vi.mock("@aomi-labs/account/better-auth", () => ({
   aomiOAuthResources: () => ({
     portalOrigin: "https://portal.example",
   }),
-  guestScopesForAomiResource: (_resource: string, scopes: string[]) => scopes,
+  guestScopesForAomiResource: mocks.guestScopesForAomiResource,
+  validateAomiResourceScopes: mocks.validateAomiResourceScopes,
   BETTER_AUTH_OAUTH_PROVIDER_VERSION: "1.7.1",
   hashOAuthClientId: () => "hashed-client",
   oauthRedirectFailureDiagnostics: mocks.oauthRedirectFailureDiagnostics,
@@ -41,7 +44,11 @@ import { GET, POST } from "./route";
 beforeEach(() => {
   mocks.getSession.mockReset();
   mocks.handler.mockReset().mockResolvedValue(Response.json({ ok: true }));
+  mocks.guestScopesForAomiResource
+    .mockReset()
+    .mockImplementation((_resource: string, scopes: string[]) => scopes);
   mocks.oauthRedirectFailureDiagnostics.mockReset();
+  mocks.validateAomiResourceScopes.mockReset().mockReturnValue({ ok: true });
 });
 
 describe("OAuth redirect rejection diagnostics", () => {
@@ -182,5 +189,129 @@ describe("anonymous sign-in", () => {
 
     expect(response.status).toBe(200);
     expect(mocks.handler).toHaveBeenCalledWith(request);
+  });
+});
+
+describe("guest OAuth consent", () => {
+  it.each([
+    [
+      "Agent actions",
+      "https://portal.example/v1/agent",
+      "agent:read agent:actions:resolve custody:delegate",
+      ["agent:read", "agent:actions:resolve"],
+    ],
+    [
+      "Pipeline execution",
+      "https://portal.example/v1/pipeline",
+      "pipeline:catalog pipeline:execute custody:delegate",
+      ["pipeline:catalog", "pipeline:execute"],
+    ],
+  ])(
+    "bounds anonymous %s authorization before Better Auth creates consent",
+    async (_story, resource, requested, expected) => {
+      mocks.getSession.mockResolvedValue({
+        session: { id: "session-1" },
+        user: { id: "guest-1", isAnonymous: true },
+      });
+      mocks.guestScopesForAomiResource.mockReturnValue(expected);
+
+      const response = await GET(
+        new Request(
+          "https://portal.example/api/auth/oauth2/authorize?" +
+            new URLSearchParams({ resource, scope: requested }),
+        ),
+      );
+
+      expect(response.status).toBe(200);
+      const forwarded = mocks.handler.mock.calls[0]?.[0] as Request;
+      expect(new URL(forwarded.url).searchParams.get("scope")).toBe(
+        expected.join(" "),
+      );
+    },
+  );
+
+  it("submits the server-approved action scope unchanged", async () => {
+    mocks.getSession.mockResolvedValue({
+      session: { id: "session-1" },
+      user: { id: "guest-1", isAnonymous: true },
+    });
+    const scope = "agent:read agent:actions:resolve";
+
+    const response = await POST(
+      new Request("https://portal.example/api/auth/oauth2/consent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          code: "consent-code",
+          scope,
+          oauth_query: new URLSearchParams({
+            resource: "https://portal.example/v1/agent",
+          }).toString(),
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    const forwarded = mocks.handler.mock.calls[0]?.[0] as Request;
+    await expect(forwarded.clone().json()).resolves.toMatchObject({ scope });
+  });
+
+  it("rejects a scope outside the signed resource policy", async () => {
+    mocks.getSession.mockResolvedValue({
+      session: { id: "session-1" },
+      user: { id: "guest-1", isAnonymous: true },
+    });
+    mocks.validateAomiResourceScopes.mockReturnValue({
+      ok: false,
+      error: "invalid_scope",
+    });
+
+    const response = await POST(
+      new Request("https://portal.example/api/auth/oauth2/consent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          code: "consent-code",
+          scope: "agent:read unknown:scope",
+          oauth_query: new URLSearchParams({
+            resource: "https://portal.example/v1/agent",
+          }).toString(),
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "invalid_scope",
+    });
+    expect(mocks.handler).not.toHaveBeenCalled();
+  });
+
+  it("rejects a resource-valid scope outside the guest ceiling", async () => {
+    mocks.getSession.mockResolvedValue({
+      session: { id: "session-1" },
+      user: { id: "guest-1", isAnonymous: true },
+    });
+    mocks.guestScopesForAomiResource.mockReturnValue(["agent:read"]);
+
+    const response = await POST(
+      new Request("https://portal.example/api/auth/oauth2/consent", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          code: "consent-code",
+          scope: "agent:read custody:delegate",
+          oauth_query: new URLSearchParams({
+            resource: "https://portal.example/v1/agent",
+          }).toString(),
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "invalid_scope",
+    });
+    expect(mocks.handler).not.toHaveBeenCalled();
   });
 });

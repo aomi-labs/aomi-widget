@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   countLoginFactors,
   claimTelegramSessionOwner,
+  deleteBetterAuthUsers,
+  listBetterAuthUserIdsForAomiUser,
   revokeAuthIdentity,
   updateWalletLabel,
   upsertWallet,
@@ -31,6 +33,34 @@ function fakeDb(
 }
 
 describe("canonical account queries", () => {
+  it("lists and deletes only the Better Auth carriers attached to one canonical user", async () => {
+    const { db, calls } = fakeDb((call) =>
+      call.sql.includes("select distinct subject")
+        ? { rows: [{ subject: "ba-a" }, { subject: "ba-b" }] }
+        : { rows: [], rowCount: 2 },
+    );
+
+    const ids = await listBetterAuthUserIdsForAomiUser(
+      "canonical-user",
+      db as never,
+    );
+    await expect(
+      deleteBetterAuthUsers({
+        betterAuthUserIds: ids,
+        db: db as never,
+      }),
+    ).resolves.toBe(2);
+
+    expect(ids).toEqual(["ba-a", "ba-b"]);
+    expect(calls[0]?.params).toEqual([
+      "canonical-user",
+      ["betterauth", "better_auth"],
+    ]);
+    expect(calls[1]?.sql).toContain("delete from ba_users");
+    expect(calls[1]?.sql).toContain("delete from ba_oauth_device_codes");
+    expect(calls[1]?.params).toEqual([["ba-a", "ba-b"]]);
+  });
+
   it("resolves a Telegram session only through the same canonical owner", async () => {
     const { db, calls } = fakeDb(() => ({
       rows: [{ user_id: "canonical-user" }],
@@ -57,10 +87,22 @@ describe("canonical account queries", () => {
 
     await expect(countLoginFactors("user-1", db as never)).resolves.toBe(1);
     expect(calls[0]?.sql).not.toContain("public_keys");
-    expect(calls[0]?.sql).not.toContain("'email'");
+    expect(calls[0]?.sql).toContain("'email'");
     expect(calls[0]?.sql).not.toContain("'siwe'");
     expect(calls[0]?.sql).not.toContain("'siws'");
     expect(calls[0]?.sql).toContain("'betterauth'");
+  });
+
+  it("locks only a still-existing Better Auth carrier", async () => {
+    const { db, calls } = fakeDb(() => ({ rows: [{ exists: 1 }] }));
+    const { lockBetterAuthUser } = await import("../src/db/queries");
+
+    await expect(lockBetterAuthUser("ba-user-1", db as never)).resolves.toBe(
+      true,
+    );
+    expect(calls[0]?.sql).toContain("from ba_users");
+    expect(calls[0]?.sql).toContain("for key share");
+    expect(calls[0]?.params).toEqual(["ba-user-1"]);
   });
 
   it("links a SIWE wallet as an owned public key with SIWE provenance", async () => {

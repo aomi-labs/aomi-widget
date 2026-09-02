@@ -3,8 +3,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { authClient } from "@aomi-labs/account/better-auth/client";
 import { oauthConsentRedirect } from "./consent-response";
+import { consentScopes } from "./consent-scopes";
 
 const DESCRIPTIONS: Record<string, string> = {
   "agent:read": "Read your Agent sessions",
@@ -21,26 +21,14 @@ const DESCRIPTIONS: Record<string, string> = {
 
 export function OAuthConsentClient() {
   const params = useSearchParams();
-  const { data: session } = authClient.useSession();
   const code = params.get("code") ?? params.get("consent_code");
   const scopes = useMemo(
-    () => (params.get("scope") ?? "").split(/\s+/).filter(Boolean),
+    () =>
+      consentScopes((params.get("scope") ?? "").split(/\s+/).filter(Boolean)),
     [params],
   );
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-  const acceptedScopes = useMemo(() => {
-    if (session?.user.isAnonymous !== true) return scopes;
-    const ceiling = new Set([
-      "agent:read",
-      "agent:write",
-      "pipeline:catalog",
-      "mcp:agent",
-      "mcp:pipeline",
-      "offline_access",
-    ]);
-    return scopes.filter((scope) => ceiling.has(scope));
-  }, [scopes, session?.user.isAnonymous]);
 
   const decide = useCallback(
     async (accept: boolean) => {
@@ -54,7 +42,9 @@ export function OAuthConsentClient() {
           accept,
           code,
           consent_code: code,
-          scope: acceptedScopes.join(" "),
+          // The signed request has already passed the canonical server policy.
+          // Echo it unchanged; the route validates it again before minting.
+          scope: scopes.join(" "),
         }),
       });
       const redirect = oauthConsentRedirect(
@@ -67,7 +57,7 @@ export function OAuthConsentClient() {
       }
       window.location.assign(redirect);
     },
-    [acceptedScopes, code],
+    [code, scopes],
   );
 
   return (
@@ -79,7 +69,7 @@ export function OAuthConsentClient() {
           remain valid for at most five minutes.
         </p>
         <ul className="mt-5 grid gap-2">
-          {acceptedScopes.map((scope) => (
+          {scopes.map((scope) => (
             <li
               className="text-muted-foreground flex items-center gap-2 text-sm"
               key={scope}
@@ -89,12 +79,6 @@ export function OAuthConsentClient() {
             </li>
           ))}
         </ul>
-        {acceptedScopes.length !== scopes.length ? (
-          <p className="text-muted-foreground mt-4 text-sm">
-            Guest accounts receive only the guest-safe subset of the requested
-            access.
-          </p>
-        ) : null}
         {status ? (
           <p className="text-muted-foreground mt-4 text-sm">{status}</p>
         ) : null}

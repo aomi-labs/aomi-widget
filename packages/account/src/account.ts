@@ -4,6 +4,7 @@ export { validWalletAddress } from "./providers/wallet-attestation";
 
 export {
   ensureAccountSchema,
+  AccountSessionInvalidError,
   deactivateAomiAccount,
   fetchAttestedProviderWallets,
   claimTelegramSessionOwner,

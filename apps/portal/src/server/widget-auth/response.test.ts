@@ -20,6 +20,7 @@ vi.mock("@portal/server/bff/failures", () => {
 });
 
 import { PortalPrincipalError } from "./principal";
+import { AccountSessionInvalidError } from "@aomi-labs/account/account";
 import { widgetRoute } from "./response";
 
 function widgetRequest(): Request {
@@ -71,6 +72,16 @@ describe("widgetRoute error handling", () => {
         response: { status: 400, error: "invalid_request" },
       }),
     );
+  });
+
+  it("treats a deleted Better Auth carrier as an invalid session", async () => {
+    const response = await throwingRoute(new AccountSessionInvalidError())(
+      widgetRequest(),
+    );
+    expect(response.status).toBe(401);
+    expect(await bodyOf(response)).toEqual({
+      error: "account_session_invalid",
+    });
   });
 
   it("maps provider-token verification failures to 401 with the code", async () => {

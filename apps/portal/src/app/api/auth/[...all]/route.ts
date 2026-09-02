@@ -5,6 +5,7 @@ import {
   guestScopesForAomiResource,
   hashOAuthClientId,
   oauthRedirectFailureDiagnostics,
+  validateAomiResourceScopes,
 } from "@aomi-labs/account/better-auth";
 
 import {
@@ -41,6 +42,33 @@ async function handleAuth(request: Request) {
   const policy = await enforceAomiOAuthRequestPolicy(request);
   if (policy.kind === "reject") return policy.response;
   request = policy.request;
+  if (request.method === "GET" && path.endsWith("/oauth2/authorize")) {
+    const session = await auth.api.getSession({ headers: request.headers });
+    if (session?.user.isAnonymous === true) {
+      const url = new URL(request.url);
+      const resources = url.searchParams.getAll("resource");
+      if (resources.length === 1) {
+        const requested = String(url.searchParams.get("scope") ?? "")
+          .split(/\s+/)
+          .filter(Boolean);
+        const bounded = guestScopesForAomiResource(resources[0], requested);
+        if (bounded.length === 0) {
+          return Response.json(
+            {
+              error: "invalid_scope",
+              error_description: "No guest-safe scope selected",
+            },
+            { status: 400 },
+          );
+        }
+        url.searchParams.set("scope", bounded.join(" "));
+        request = new Request(url, {
+          method: request.method,
+          headers: request.headers,
+        });
+      }
+    }
+  }
   if (request.method === "POST" && path.endsWith("/sign-in/anonymous")) {
     const session = await auth.api.getSession({ headers: request.headers });
     if (session) {
@@ -92,6 +120,17 @@ async function handleAuth(request: Request) {
           );
         }
         const resource = consentResources[0];
+        const validation = validateAomiResourceScopes(resource, requested);
+        if (!validation.ok) {
+          return Response.json(
+            {
+              error: validation.error,
+              error_description:
+                "Guest consent contains a scope outside the signed resource policy",
+            },
+            { status: 400 },
+          );
+        }
         const bounded = guestScopesForAomiResource(resource, requested);
         if (bounded.length === 0) {
           return Response.json(
@@ -102,9 +141,16 @@ async function handleAuth(request: Request) {
             { status: 400 },
           );
         }
-        request = new Request(request, {
-          body: JSON.stringify({ ...body, scope: bounded.join(" ") }),
-        });
+        if (bounded.length !== requested.length) {
+          return Response.json(
+            {
+              error: "invalid_scope",
+              error_description:
+                "Guest consent contains a scope outside the guest policy",
+            },
+            { status: 400 },
+          );
+        }
       }
     }
   }

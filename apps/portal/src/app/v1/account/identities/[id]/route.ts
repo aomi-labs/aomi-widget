@@ -7,7 +7,10 @@ import {
   accountResponseForPrincipal,
   requirePortalPrincipal,
 } from "@portal/server/widget-auth/principal";
-import { widgetPreflight, widgetRoute } from "@portal/server/widget-auth/response";
+import {
+  widgetPreflight,
+  widgetRoute,
+} from "@portal/server/widget-auth/response";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,9 +51,6 @@ export const DELETE = widgetRoute(
       return json(404, { error: "identity_not_found" });
     if (result === "protected")
       return json(403, { error: "protected_identity" });
-    if (result === "last_factor") {
-      return json(409, { error: "cannot_unlink_last_login_factor" });
-    }
     return Response.json({ status: "revoked" });
   },
   "identity.unlink",
