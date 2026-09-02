@@ -144,7 +144,8 @@ function DeviceAuthProviderPanel({
   }, [connectSocial, provider]);
 
   useEffect(() => {
-    if (!exchangeRequested || complete || !pending) return;
+    if (!exchangeRequested || complete || !pending || !getAccountCredential)
+      return;
     let cancelled = false;
     const run = async () => {
       try {
@@ -153,9 +154,7 @@ function DeviceAuthProviderPanel({
             ? "Preparing account link..."
             : "Creating Aomi session...",
         );
-        const credential = await waitForCredential(() =>
-          getAccountCredential?.(),
-        );
+        const credential = await waitForCredential(getAccountCredential);
         if (cancelled) return;
         if (mode === "link") {
           const grantResponse = await fetch(
