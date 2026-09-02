@@ -45,7 +45,7 @@ export async function enforceAomiOAuthRequestPolicy(
 ): Promise<AomiOAuthPolicyResult> {
   const path = new URL(request.url).pathname;
   if (request.method === "POST" && path.endsWith("/oauth2/register")) {
-    const registration = await enforceMcpRegistration(request);
+    const registration = await enforceAomiRegistration(request);
     return registration instanceof Response
       ? reject(registration)
       : proceed(registration);
@@ -147,7 +147,9 @@ async function withScope(
   });
 }
 
-async function enforceMcpRegistration(
+const DEVICE_CODE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
+
+async function enforceAomiRegistration(
   request: Request,
 ): Promise<Request | Response> {
   const metadata = (await request
@@ -169,48 +171,79 @@ async function enforceMcpRegistration(
     );
   }
   const grants = stringArray(metadata.grant_types);
-  if (
-    grants.includes("client_credentials") ||
-    grants.some(
-      (grant) => !["authorization_code", "refresh_token"].includes(grant),
-    )
-  ) {
+  const authorizationCodeClient = exactStringSet(grants, [
+    "authorization_code",
+    "refresh_token",
+  ]);
+  const deviceCodeClient = exactStringSet(grants, [
+    DEVICE_CODE_GRANT,
+    "refresh_token",
+  ]);
+  if (!authorizationCodeClient && !deviceCodeClient) {
     return oauthError(
       "unauthorized_client",
-      "Registration is limited to authorization-code MCP clients",
+      "Registration is limited to public authorization-code or device clients",
     );
   }
-  // RFC 7591 client metadata has no resource field, and the MCP clients we
-  // support register without one: they bind the resource later, per RFC 8707,
-  // on authorize and token. Registration is client identity only, so requiring
-  // a resource here rejected every real client before it could reach the
-  // browser flow. `enforceAomiOAuthRequestPolicy` above is what holds the
-  // one-exact-resource invariant, on the requests that actually mint a grant.
-  // A client that does declare `resources` is still held to exactly one.
   const requestedResources = stringArray(metadata.resources);
-  if (requestedResources.length === 0) {
-    return withJsonBody(request, metadata);
-  }
   const resources = aomiOAuthResources();
-  if (
+  if (authorizationCodeClient) {
+    // RFC 7591 does not define a resource field and real MCP clients omit it;
+    // their one exact resource is enforced on authorize/token. If a client
+    // declares one, it must be exactly one MCP surface.
+    if (
+      requestedResources.length > 1 ||
+      (requestedResources.length === 1 &&
+        ![resources.agentMcp, resources.pipelineMcp].includes(
+          requestedResources[0] as typeof resources.agentMcp,
+        ))
+    ) {
+      return oauthError(
+        "invalid_target",
+        "Authorization-code registration is limited to one MCP resource",
+      );
+    }
+    const responseTypes = stringArray(metadata.response_types);
+    if (responseTypes.length > 0 && !exactStringSet(responseTypes, ["code"])) {
+      return oauthError(
+        "invalid_client_metadata",
+        "Authorization-code registration only supports the code response type",
+      );
+    }
+  } else if (
     requestedResources.length !== 1 ||
-    ![resources.agentMcp, resources.pipelineMcp].includes(
-      requestedResources[0] as typeof resources.agentMcp,
+    ![resources.agentRest, resources.pipelineRest].includes(
+      requestedResources[0] as typeof resources.agentRest,
     )
   ) {
     return oauthError(
       "invalid_target",
-      "Registration is limited to one MCP resource",
+      "Device registration requires exactly one REST resource",
     );
   }
   const scopes = splitScopes(
     typeof metadata.scope === "string" ? metadata.scope : null,
   );
-  const validated = validateAomiResourceScopes(requestedResources[0], scopes);
-  if (!validated.ok) {
-    return oauthError(validated.error, "Invalid MCP registration scopes");
+  if (requestedResources.length === 1 && scopes.length > 0) {
+    const validated = validateAomiResourceScopes(requestedResources[0], scopes);
+    if (!validated.ok) {
+      return oauthError(
+        validated.error,
+        authorizationCodeClient
+          ? "Invalid MCP registration scopes"
+          : "Invalid REST registration scopes",
+      );
+    }
   }
   return withJsonBody(request, metadata);
+}
+
+function exactStringSet(actual: string[], expected: string[]): boolean {
+  return (
+    actual.length === expected.length &&
+    new Set(actual).size === actual.length &&
+    expected.every((value) => actual.includes(value))
+  );
 }
 
 /**

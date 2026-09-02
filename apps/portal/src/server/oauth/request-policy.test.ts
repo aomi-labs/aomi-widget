@@ -137,6 +137,82 @@ describe("OAuth request policy", () => {
   });
 
   it.each([
+    ["agent", "https://portal.example/v1/agent", "agent:read offline_access"],
+    [
+      "pipeline",
+      "https://portal.example/v1/pipeline",
+      "pipeline:catalog offline_access",
+    ],
+  ])(
+    "accepts a public %s REST device client",
+    async (_name, resource, scope) => {
+      await expectContinue(
+        enforceAomiOAuthRequestPolicy(
+          new Request("https://portal.example/api/auth/oauth2/register", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              client_name: "Aomi CLI",
+              token_endpoint_auth_method: "none",
+              grant_types: [
+                "urn:ietf:params:oauth:grant-type:device_code",
+                "refresh_token",
+              ],
+              resources: [resource],
+              scope,
+            }),
+          }),
+        ),
+      );
+    },
+  );
+
+  it("rejects mixed grants, mixed resources, and confidential device clients", async () => {
+    const register = (body: Record<string, unknown>) =>
+      enforceAomiOAuthRequestPolicy(
+        new Request("https://portal.example/api/auth/oauth2/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            token_endpoint_auth_method: "none",
+            grant_types: [
+              "urn:ietf:params:oauth:grant-type:device_code",
+              "refresh_token",
+            ],
+            resources: ["https://portal.example/v1/agent"],
+            scope: "agent:read",
+            ...body,
+          }),
+        }),
+      );
+
+    await expectReject(
+      register({
+        grant_types: [
+          "authorization_code",
+          "urn:ietf:params:oauth:grant-type:device_code",
+          "refresh_token",
+        ],
+      }),
+      401,
+    );
+    await expectReject(
+      register({
+        resources: [
+          "https://portal.example/v1/agent",
+          "https://portal.example/v1/pipeline",
+        ],
+      }),
+    );
+    await expectReject(
+      register({ token_endpoint_auth_method: "client_secret_basic" }),
+    );
+    await expectReject(
+      register({ resources: ["https://portal.example/v1/agent/mcp"] }),
+    );
+  });
+
+  it.each([
     ["non-array", "http://127.0.0.1:49152/callback"],
     ["relative", ["/callback"]],
     ["credentials", ["http://user@127.0.0.1:49152/callback"]],

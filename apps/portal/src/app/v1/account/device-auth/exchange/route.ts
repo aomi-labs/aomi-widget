@@ -1,4 +1,4 @@
-import { exchangeDeviceAuthGrant } from "@portal/lib/device-auth-grants";
+import { exchangeDeviceAuthGrant } from "@portal/server/device-auth/grants";
 import { json } from "@portal/server/account/session";
 import { exchangeProviderForExistingSession } from "@aomi-labs/account/account";
 import type { AomiAccountCredential } from "@aomi-labs/account";
@@ -27,7 +27,7 @@ export async function POST(req: Request): Promise<Response> {
     return json(400, { error: "invalid_request" });
   }
 
-  const grant = exchangeDeviceAuthGrant({
+  const grant = await exchangeDeviceAuthGrant({
     code: body.code,
     state: body.state,
     codeVerifier: body.codeVerifier,
