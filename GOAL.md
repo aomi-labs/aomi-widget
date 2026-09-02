@@ -1,5 +1,18 @@
 # Canonical Landing
 
+Current session goal: **AUTH STACK STAGING HARDENING IN PROGRESS
+2026-09-02** — the exact stacked candidate completed Agent and Pipeline REST
+device authorization, token exchange, authenticated BFF reads, managed CORS,
+and staging-database cleanup. Live verification exposed two lower-layer gaps:
+the shared PostgreSQL rate counter lost concurrent increments because its lock
+and read shared a stale statement snapshot, and the hosted Better Auth bundle
+rejected IPv4 loopback callbacks while accepting IPv6. The counter now locks
+in a separate explicit transaction statement with a real 61-way PostgreSQL
+regression, and the narrow Better Auth patch owns the RFC 8252 IPv4/IPv6 check
+instead of its bundled helper. A cache-free exact-SHA staging rebuild and repeat
+matrix are the current merge gate; dedicated Para/Privy identities remain the
+separate credentialed-browser boundary.
+
 Current session goal: **COMPREHENSIVE AUTH RECOVERY STACK LOCALLY VERIFIED
 2026-09-02** — five focused changes now cover RFC 8252 loopback callbacks,
 single-owner Para/Privy device initialization, account-first CLI credentials,
