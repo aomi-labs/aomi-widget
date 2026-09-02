@@ -27,12 +27,22 @@ export async function POST(req: Request): Promise<Response> {
     return json(400, { error: "invalid_request" });
   }
 
-  const grant = await exchangeDeviceAuthGrant({
-    code: body.code,
-    state: body.state,
-    codeVerifier: body.codeVerifier,
-    redirectUri: body.redirectUri,
-  });
+  let grant: Awaited<ReturnType<typeof exchangeDeviceAuthGrant>>;
+  try {
+    grant = await exchangeDeviceAuthGrant({
+      code: body.code,
+      state: body.state,
+      codeVerifier: body.codeVerifier,
+      redirectUri: body.redirectUri,
+    });
+  } catch (error) {
+    return portalFailures.handle(
+      identifyDeviceAuthFailure(error, {
+        routeFamily: "/v1/account/device-auth/exchange",
+        operation: "device_auth_grant_consume",
+      }),
+    ).response;
+  }
   if (!grant) return json(400, { error: "invalid_or_expired_code" });
 
   if (grant.purpose === "link") {

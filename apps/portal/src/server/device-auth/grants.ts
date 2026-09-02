@@ -23,7 +23,7 @@ type DeviceAuthGrantBase = {
   codeChallenge: string;
   redirectUri: string;
   betterAuthUserId?: string;
-  provider?: DeviceAuthProvider;
+  provider: DeviceAuthProvider;
   createdAt: number;
 };
 
@@ -46,7 +46,7 @@ export type DeviceAuthLinkIntent = {
   codeChallenge: string;
   redirectUri: string;
   betterAuthUserId: string;
-  provider?: DeviceAuthProvider;
+  provider: DeviceAuthProvider;
   createdAt: number;
 };
 
@@ -78,6 +78,16 @@ export type DeviceAuthRecordStore = {
     expiresAt: Date;
   }): Promise<void>;
   consume(input: { identifier: string; now: Date }): Promise<string | null>;
+  replace<Result>(input: {
+    identifier: string;
+    now: Date;
+    replacement(value: string): {
+      identifier: string;
+      value: string;
+      expiresAt: Date;
+      result: Result;
+    };
+  }): Promise<Result | null>;
 };
 
 type IssueGrantInput = Omit<
@@ -86,8 +96,6 @@ type IssueGrantInput = Omit<
 >;
 
 const IDENTIFIER_PREFIX = "aomi:device-auth:";
-const GRANT_PREFIX = `${IDENTIFIER_PREFIX}grant:`;
-const LINK_INTENT_PREFIX = `${IDENTIFIER_PREFIX}link-intent:`;
 const GRANT_TTL_MS = 5 * 60 * 1000;
 const EXPIRED_SWEEP_PROBABILITY = 0.02;
 const ENVELOPE_VERSION = "v1";
@@ -96,34 +104,53 @@ export function createDeviceAuthGrantService(input: {
   secret: string;
   store: DeviceAuthRecordStore;
   now?: () => number;
+  ttlMs?: number;
+  identifierPrefix?: string;
 }) {
   if (!input.secret.trim()) throw new Error("device_auth_secret_required");
   const now = input.now ?? Date.now;
+  const ttlMs = input.ttlMs ?? GRANT_TTL_MS;
+  if (!Number.isSafeInteger(ttlMs) || ttlMs <= 0 || ttlMs > GRANT_TTL_MS) {
+    throw new Error("invalid_device_auth_ttl");
+  }
+  const identifierPrefix = validateIdentifierPrefix(
+    input.identifierPrefix ?? IDENTIFIER_PREFIX,
+  );
+  const grantPrefix = `${identifierPrefix}grant:`;
+  const linkIntentPrefix = `${identifierPrefix}link-intent:`;
   const key = createHash("sha256")
     .update("aomi-device-auth-records-v1\0")
     .update(input.secret)
     .digest();
 
-  async function issueGrant(grant: UnissuedGrant): Promise<DeviceAuthGrant> {
+  function prepareGrant(grant: UnissuedGrant) {
     validateState(grant.state);
     validateCodeChallenge(grant.codeChallenge);
     validateLoopbackRedirectUri(grant.redirectUri);
     const createdAt = now();
     const code = randomBytes(32).toString("base64url");
     const issued = { ...grant, code, createdAt } as DeviceAuthGrant;
-    const identifier = `${GRANT_PREFIX}${code}`;
+    const identifier = `${grantPrefix}${code}`;
     const record: StoredGrant = {
       version: 1,
       kind: "grant",
-      recordExpiresAt: createdAt + GRANT_TTL_MS,
+      recordExpiresAt: createdAt + ttlMs,
       grant: issued,
     };
-    await input.store.write({
-      identifier,
-      value: sealRecord(record, identifier, key),
-      expiresAt: new Date(record.recordExpiresAt),
-    });
-    return issued;
+    return {
+      issued,
+      write: {
+        identifier,
+        value: sealRecord(record, identifier, key),
+        expiresAt: new Date(record.recordExpiresAt),
+      },
+    };
+  }
+
+  async function issueGrant(grant: UnissuedGrant): Promise<DeviceAuthGrant> {
+    const prepared = prepareGrant(grant);
+    await input.store.write(prepared.write);
+    return prepared.issued;
   }
 
   return {
@@ -141,7 +168,7 @@ export function createDeviceAuthGrantService(input: {
       codeChallenge: string;
       redirectUri: string;
       betterAuthUserId: string;
-      provider?: DeviceAuthProvider;
+      provider: DeviceAuthProvider;
     }): Promise<DeviceAuthLinkIntent> {
       validateState(intentInput.state);
       validateCodeChallenge(intentInput.codeChallenge);
@@ -156,11 +183,11 @@ export function createDeviceAuthGrantService(input: {
         id,
         createdAt,
       };
-      const identifier = `${LINK_INTENT_PREFIX}${id}`;
+      const identifier = `${linkIntentPrefix}${id}`;
       const record: StoredLinkIntent = {
         version: 1,
         kind: "link_intent",
-        recordExpiresAt: createdAt + GRANT_TTL_MS,
+        recordExpiresAt: createdAt + ttlMs,
         intent,
       };
       await input.store.write({
@@ -178,35 +205,42 @@ export function createDeviceAuthGrantService(input: {
       provider: DeviceAuthProvider;
       credential: unknown;
     }): Promise<DeviceAuthLinkGrant> {
-      const identifier = `${LINK_INTENT_PREFIX}${grantInput.linkIntent}`;
-      const sealed = await input.store.consume({
+      const identifier = `${linkIntentPrefix}${grantInput.linkIntent}`;
+      const issued = await input.store.replace({
         identifier,
         now: new Date(now()),
+        replacement: (sealed) => {
+          const record = openRecord(sealed, identifier, key, now());
+          if (!record || record.kind !== "link_intent") {
+            throw new Error("invalid_or_expired_link_intent");
+          }
+          const intent = record.intent;
+          if (
+            !safeEqual(intent.state, grantInput.state) ||
+            intent.redirectUri !== grantInput.redirectUri ||
+            intent.provider !== grantInput.provider
+          ) {
+            throw new Error("invalid_link_intent");
+          }
+          if (!grantInput.credential) {
+            throw new Error("invalid_provider_credential");
+          }
+          const prepared = prepareGrant({
+            purpose: "link",
+            state: intent.state,
+            codeChallenge: intent.codeChallenge,
+            redirectUri: intent.redirectUri,
+            betterAuthUserId: intent.betterAuthUserId,
+            provider: grantInput.provider,
+            credential: grantInput.credential,
+          });
+          return { ...prepared.write, result: prepared.issued };
+        },
       });
-      const record = openRecord(sealed, identifier, key, now());
-      if (!record || record.kind !== "link_intent") {
+      if (!issued) {
         throw new Error("invalid_or_expired_link_intent");
       }
-      const intent = record.intent;
-      if (
-        !safeEqual(intent.state, grantInput.state) ||
-        intent.redirectUri !== grantInput.redirectUri ||
-        (intent.provider && intent.provider !== grantInput.provider)
-      ) {
-        throw new Error("invalid_link_intent");
-      }
-      if (!grantInput.credential) {
-        throw new Error("invalid_provider_credential");
-      }
-      return (await issueGrant({
-        purpose: "link",
-        state: intent.state,
-        codeChallenge: intent.codeChallenge,
-        redirectUri: intent.redirectUri,
-        betterAuthUserId: intent.betterAuthUserId,
-        provider: grantInput.provider,
-        credential: grantInput.credential,
-      })) as DeviceAuthLinkGrant;
+      return issued as DeviceAuthLinkGrant;
     },
 
     async exchangeDeviceAuthGrant(exchangeInput: {
@@ -215,7 +249,7 @@ export function createDeviceAuthGrantService(input: {
       codeVerifier: string;
       redirectUri: string;
     }): Promise<DeviceAuthGrant | null> {
-      const identifier = `${GRANT_PREFIX}${exchangeInput.code}`;
+      const identifier = `${grantPrefix}${exchangeInput.code}`;
       const sealed = await input.store.consume({
         identifier,
         now: new Date(now()),
@@ -259,7 +293,7 @@ export async function issueDeviceAuthLinkIntent(input: {
   codeChallenge: string;
   redirectUri: string;
   betterAuthUserId: string;
-  provider?: DeviceAuthProvider;
+  provider: DeviceAuthProvider;
 }): Promise<DeviceAuthLinkIntent> {
   return getDefaultService().issueDeviceAuthLinkIntent(input);
 }
@@ -283,9 +317,12 @@ export async function exchangeDeviceAuthGrant(input: {
   return getDefaultService().exchangeDeviceAuthGrant(input);
 }
 
-function createPostgresDeviceAuthRecordStore(
+export function createPostgresDeviceAuthRecordStore(
   db: Db = getPool(),
+  shouldSweep: () => boolean = () => Math.random() < EXPIRED_SWEEP_PROBABILITY,
+  identifierPrefix: string = IDENTIFIER_PREFIX,
 ): DeviceAuthRecordStore {
+  const ownedIdentifierPrefix = validateIdentifierPrefix(identifierPrefix);
   return {
     async write(input) {
       await db.query(
@@ -294,15 +331,11 @@ function createPostgresDeviceAuthRecordStore(
          values ($1, $2, $3, $4, now(), now())`,
         [randomUUID(), input.identifier, input.value, input.expiresAt],
       );
-      if (Math.random() < EXPIRED_SWEEP_PROBABILITY) {
-        await db
-          .query(
-            `delete from ba_verifications
-              where identifier like $1 and expires_at <= now()`,
-            [`${IDENTIFIER_PREFIX}%`],
-          )
-          .catch(() => undefined);
-      }
+      await sweepExpiredDeviceAuthRecords(
+        db,
+        shouldSweep,
+        ownedIdentifierPrefix,
+      );
     },
     async consume(input) {
       const result = await db.query<ValueRow>(
@@ -312,7 +345,74 @@ function createPostgresDeviceAuthRecordStore(
       );
       return result.rows[0]?.value ?? null;
     },
+    async replace(input) {
+      const client = await db.connect();
+      try {
+        await client.query("begin");
+        const current = await client.query<ValueRow>(
+          `select value from ba_verifications
+            where identifier = $1 and expires_at > $2
+            for update`,
+          [input.identifier, input.now],
+        );
+        const value = current.rows[0]?.value;
+        if (!value) {
+          await client.query("rollback");
+          return null;
+        }
+        const replacement = input.replacement(value);
+        await client.query(
+          `insert into ba_verifications
+             (id, identifier, value, expires_at, created_at, updated_at)
+           values ($1, $2, $3, $4, now(), now())`,
+          [
+            randomUUID(),
+            replacement.identifier,
+            replacement.value,
+            replacement.expiresAt,
+          ],
+        );
+        await client.query(
+          `delete from ba_verifications where identifier = $1`,
+          [input.identifier],
+        );
+        await client.query("commit");
+        await sweepExpiredDeviceAuthRecords(
+          db,
+          shouldSweep,
+          ownedIdentifierPrefix,
+        );
+        return replacement.result;
+      } catch (error) {
+        await client.query("rollback").catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
   };
+}
+
+async function sweepExpiredDeviceAuthRecords(
+  db: Db,
+  shouldSweep: () => boolean,
+  identifierPrefix: string,
+): Promise<void> {
+  if (!shouldSweep()) return;
+  await db
+    .query(
+      `delete from ba_verifications
+        where identifier like $1 and expires_at <= now()`,
+      [`${identifierPrefix}%`],
+    )
+    .catch(() => undefined);
+}
+
+function validateIdentifierPrefix(identifierPrefix: string): string {
+  if (!/^aomi:device-auth:(?:[A-Za-z0-9-]+:)*$/.test(identifierPrefix)) {
+    throw new Error("invalid_device_auth_identifier_prefix");
+  }
+  return identifierPrefix;
 }
 
 function sealRecord(
@@ -399,9 +499,7 @@ function isDeviceAuthGrant(value: unknown): value is DeviceAuthGrant {
     typeof grant.codeChallenge === "string" &&
     typeof grant.redirectUri === "string" &&
     typeof grant.createdAt === "number" &&
-    (grant.provider === undefined ||
-      grant.provider === "para" ||
-      grant.provider === "privy") &&
+    (grant.provider === "para" || grant.provider === "privy") &&
     (grant.purpose === "login"
       ? typeof grant.sessionToken === "string"
       : grant.credential !== undefined)
@@ -418,9 +516,7 @@ function isDeviceAuthLinkIntent(value: unknown): value is DeviceAuthLinkIntent {
     typeof intent.redirectUri === "string" &&
     typeof intent.betterAuthUserId === "string" &&
     typeof intent.createdAt === "number" &&
-    (intent.provider === undefined ||
-      intent.provider === "para" ||
-      intent.provider === "privy")
+    (intent.provider === "para" || intent.provider === "privy")
   );
 }
 

@@ -241,7 +241,13 @@ function DeviceAuthProviderPanel({
       } catch (error) {
         if (cancelled) return;
         setStatus(
-          error instanceof Error ? error.message : "Authentication failed",
+          providerFailureText(
+            classifyProviderInitializationFailure(
+              provider,
+              error,
+              providerConfiguration,
+            ),
+          ),
         );
         setPending(false);
       }

@@ -1,4 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  bindClientResource: vi.fn().mockResolvedValue("already_bound"),
+}));
+
+vi.mock("./client-resource-binding", () => ({
+  bindAomiPublicClientResource: mocks.bindClientResource,
+}));
+
 import {
   enforceAomiOAuthRequestPolicy,
   type AomiOAuthPolicyResult,
@@ -33,6 +42,7 @@ beforeEach(() => {
   vi.stubEnv("NODE_ENV", "test");
   vi.stubEnv("DATABASE_URL", "postgres://test.invalid/aomi");
   vi.stubEnv("BETTER_AUTH_URL", "https://portal.example");
+  mocks.bindClientResource.mockReset().mockResolvedValue("already_bound");
 });
 
 afterEach(() => vi.unstubAllEnvs());
@@ -134,6 +144,21 @@ describe("OAuth request policy", () => {
     await expect(request.json()).resolves.toMatchObject({
       redirect_uris: ["http://127.0.0.1:49152/callback?x=1"],
     });
+  });
+
+  it("requires an explicit public token endpoint authentication method", async () => {
+    await expectReject(
+      enforceAomiOAuthRequestPolicy(
+        new Request("https://portal.example/api/auth/oauth2/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            grant_types: ["authorization_code", "refresh_token"],
+            response_types: ["code"],
+          }),
+        }),
+      ),
+    );
   });
 
   it.each([
@@ -309,6 +334,24 @@ describe("OAuth request policy", () => {
         "pipeline:execute",
       ].sort(),
     );
+  });
+
+  it("binds a resource-less public client on first authorize and rejects widening", async () => {
+    const request = new Request(
+      `https://portal.example/api/auth/oauth2/authorize?${new URLSearchParams({
+        client_id: "public-client",
+        resource: "https://portal.example/v1/pipeline/mcp",
+        scope: "pipeline:catalog mcp:pipeline",
+      })}`,
+    );
+    await expectContinue(enforceAomiOAuthRequestPolicy(request));
+    expect(mocks.bindClientResource).toHaveBeenCalledWith({
+      clientId: "public-client",
+      resource: "https://portal.example/v1/pipeline/mcp",
+    });
+
+    mocks.bindClientResource.mockResolvedValueOnce("resource_conflict");
+    await expectReject(enforceAomiOAuthRequestPolicy(request));
   });
 
   it("never lets a narrowed grant cross resources or carry identity scopes", async () => {

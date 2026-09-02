@@ -30,6 +30,27 @@ class MemoryRecordStore implements DeviceAuthRecordStore {
     return record.value;
   }
 
+  async replace<Result>(input: {
+    identifier: string;
+    now: Date;
+    replacement(value: string): {
+      identifier: string;
+      value: string;
+      expiresAt: Date;
+      result: Result;
+    };
+  }): Promise<Result | null> {
+    const record = this.records.get(input.identifier);
+    if (!record || record.expiresAt <= input.now.getTime()) return null;
+    const replacement = input.replacement(record.value);
+    this.records.set(replacement.identifier, {
+      value: replacement.value,
+      expiresAt: replacement.expiresAt.getTime(),
+    });
+    this.records.delete(input.identifier);
+    return replacement.result;
+  }
+
   identifier(suffix: string): string {
     const entry = [...this.records.keys()].find((key) => key.includes(suffix));
     if (!entry) throw new Error(`missing ${suffix} record`);
@@ -59,6 +80,16 @@ function service(
 }
 
 describe("database-backed device auth grants", () => {
+  it("rejects identifier namespaces that could widen expiry cleanup", () => {
+    expect(() =>
+      createDeviceAuthGrantService({
+        secret,
+        store: new MemoryRecordStore(),
+        identifierPrefix: "aomi:device-auth:test%:",
+      }),
+    ).toThrow("invalid_device_auth_identifier_prefix");
+  });
+
   it("exchanges a valid encrypted grant once across service instances", async () => {
     const store = new MemoryRecordStore();
     const issuer = service(store).grants;
@@ -107,6 +138,7 @@ describe("database-backed device auth grants", () => {
       redirectUri,
       sessionToken: "session-token",
       expiresAt: null,
+      provider: "para",
     });
     timestamp += 5 * 60 * 1000 + 1;
     await expect(
@@ -125,6 +157,7 @@ describe("database-backed device auth grants", () => {
       redirectUri,
       sessionToken: "session-token",
       expiresAt: null,
+      provider: "para",
     });
     const identifier = tampered.store.identifier("grant:");
     const record = tampered.store.records.get(identifier)!;
@@ -157,6 +190,7 @@ describe("database-backed device auth grants", () => {
       redirectUri,
       sessionToken: "session-token",
       expiresAt: null,
+      provider: "para",
     });
     const request = {
       code: grant.code,
@@ -241,6 +275,16 @@ describe("database-backed device auth grants", () => {
         ...changed,
       }),
     ).rejects.toThrow("invalid_link_intent");
+
+    await expect(
+      grants.issueDeviceAuthLinkGrant({
+        linkIntent: intent.id,
+        state,
+        redirectUri,
+        provider: "privy",
+        credential: { provider: "privy" },
+      }),
+    ).resolves.toMatchObject({ purpose: "link", provider: "privy" });
   });
 
   it("rejects records encrypted under another deployment secret", async () => {
@@ -252,6 +296,7 @@ describe("database-backed device auth grants", () => {
       redirectUri,
       sessionToken: "session-token",
       expiresAt: null,
+      provider: "para",
     });
     const otherProcess = service(
       store,
@@ -277,6 +322,7 @@ describe("database-backed device auth grants", () => {
         redirectUri: "https://example.com/callback",
         sessionToken: "session-token",
         expiresAt: null,
+        provider: "para",
       }),
     ).rejects.toThrow("invalid_redirect_uri");
     await expect(
@@ -286,6 +332,7 @@ describe("database-backed device auth grants", () => {
         redirectUri: "http://127.0.0.1:49152/not-callback",
         sessionToken: "session-token",
         expiresAt: null,
+        provider: "para",
       }),
     ).rejects.toThrow("invalid_redirect_uri");
   });
