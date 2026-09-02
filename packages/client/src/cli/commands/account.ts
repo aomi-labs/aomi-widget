@@ -13,7 +13,11 @@ import {
   signInWithDeviceProvider,
   type DeviceAuthProvider,
 } from "../device-auth";
-import { signInWithOAuthDevice } from "../oauth-device-auth";
+import {
+  revokeCliOAuthGrant,
+  signInWithOAuthDevice,
+} from "../oauth-device-auth";
+import type { CliOAuthGrant } from "../state";
 import {
   buildSignedWalletLink,
   requireAccountGraphClient,
@@ -33,6 +37,8 @@ export type AccountLoginOptions = {
   solana?: boolean;
   noBrowser?: boolean;
   resource?: string;
+  privateKeyFlag?: boolean;
+  solanaPrivateKeyFlag?: boolean;
 };
 
 export type AccountLinkOptions = {
@@ -58,52 +64,38 @@ export async function accountLoginCommand(
   const resource = normalizeResourceOption(options.resource);
   const wallet = Boolean(options.wallet || options.noBrowser);
   if (
-    [
-      Boolean(provider),
-      wallet,
-      Boolean(options.solana),
-      Boolean(resource),
-      Boolean(config.accountBearer),
-    ].filter(Boolean).length > 1
+    [Boolean(provider), wallet, Boolean(options.solana)].filter(Boolean)
+      .length > 1
   ) {
     fatal(
-      "Choose only one of `--provider`, `--wallet`/`--no-browser`, `--solana`, `--resource`, or `--account-bearer`.",
+      "Choose only one account login method: `--provider`, `--wallet`/`--no-browser`, or `--solana`.",
     );
+  }
+  if (resource && (wallet || options.solana)) {
+    fatal("`--resource` can only be combined with `--provider` browser login.");
   }
   if (config.accountBearer) {
     fatal(
       "`--account-bearer` is already an authenticated static credential; do not combine it with `account login`.",
     );
   }
-  if (resource) {
+  if (
+    (provider || resource || (!wallet && !options.solana)) &&
+    (options.privateKeyFlag || options.solanaPrivateKeyFlag)
+  ) {
+    fatal(
+      "Signing-key flags cannot be combined with browser or OAuth resource login. Use `--wallet --private-key` or `--solana --solana-private-key`.",
+    );
+  }
+  if (wallet && options.solanaPrivateKeyFlag) {
+    fatal("`--solana-private-key` cannot be combined with EVM wallet login.");
+  }
+  if (options.solana && options.privateKeyFlag) {
+    fatal("`--private-key` cannot be combined with Solana wallet login.");
+  }
+  if (resource && !provider) {
     const cli = loadMergedCli(config);
-    if (!cli.auth?.subject || cli.auth.expiresAt <= Date.now() + 30_000) {
-      fatal(
-        "OAuth resource access requires an active account session. Run `aomi account login` first.",
-      );
-    }
-    const origin = new URL(cli.baseUrl).origin;
-    const grants = resource === "all" ? ["agent", "pipeline"] : [resource];
-    for (const target of grants) {
-      const request =
-        target === "agent"
-          ? {
-              resource: `${origin}/v1/agent` as const,
-              scopes: ["agent:read", "agent:write", "offline_access"],
-            }
-          : {
-              resource: `${origin}/v1/pipeline` as const,
-              scopes: ["pipeline:catalog", "offline_access"],
-            };
-      const grant = await signInWithOAuthDevice({
-        baseUrl: cli.baseUrl,
-        resource: request.resource,
-        scopes: request.scopes,
-        expectedSubject: cli.auth.subject,
-        clientId: cli.oauthGrants[request.resource]?.clientId,
-      });
-      cli.setOAuthGrant(grant);
-    }
+    const grants = await acquireOAuthResources(cli, resource);
     if (config.json) {
       printJson({ status: "authorized", resources: grants });
     } else {
@@ -133,6 +125,31 @@ export async function accountLoginCommand(
     cli.setBaseUrl(result.auth.origin);
   }
   cli.setAuthSession(result.auth);
+
+  if (resource) {
+    const grants = await acquireOAuthResources(cli, resource);
+    if (config.json) {
+      printJson({
+        status: "signed_in",
+        provider: result.provider ?? null,
+        resources: grants,
+        baseUrl: cli.baseUrl,
+        expiresAt: new Date(result.auth.expiresAt).toISOString(),
+      });
+      return;
+    }
+    console.log(
+      `Signed in${result.provider ? ` with ${formatProvider(result.provider)}` : ""}`,
+    );
+    console.log(
+      `Authorized OAuth resource${grants.length > 1 ? "s" : ""}: ${grants.join(", ")}`,
+    );
+    console.log(
+      `Session expires at ${new Date(result.auth.expiresAt).toISOString()}`,
+    );
+    printDataFileLocation({ verbose: config.verbose });
+    return;
+  }
 
   if (config.json) {
     printJson({
@@ -244,54 +261,23 @@ function formatProvider(provider: DeviceAuthProvider): string {
 export async function accountWhoamiCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
   if (!cli) {
-    if (config.json) {
-      printJson({ active: false });
-      return;
-    }
-    console.log("No active session");
-    printDataFileLocation({ verbose: config.verbose });
-    return;
+    fatal(
+      "account_session_missing: No account session. Run `aomi account login` first.",
+    );
   }
   cli.mergeConfig(config);
-
-  if (cli.auth?.sessionToken) {
-    const account = await requireAccountGraphClient(cli).getAccount();
-    if (config.json) {
-      printJson(account);
-      return;
-    }
-    printAccountSummary(account);
-    printDataFileLocation({ verbose: config.verbose });
+  if (!cli.auth?.sessionToken) {
+    fatal(
+      "account_session_missing: No account session. Run `aomi account login` first.",
+    );
+  }
+  const account = await requireAccountGraphClient(cli).getAccount();
+  if (config.json) {
+    printJson(account);
     return;
   }
-
-  const session = cli.createClientSession();
-  try {
-    const account = await session.client.getAccount(cli.sessionId);
-    if (config.json) {
-      printJson(account);
-      return;
-    }
-    const user = account.user;
-    console.log(`Account:  ${user.user_id}`);
-    if (user.username) console.log(`Username: ${user.username}`);
-    if (user.verified_email) {
-      console.log(`Email:    ${user.verified_email}`);
-    }
-    if (user.tier) console.log(`Tier:     ${user.tier}`);
-    if (user.status) console.log(`Status:   ${user.status}`);
-    const wallets = account.identity_wallets ?? [];
-    console.log(`Wallets:  ${wallets.length}`);
-    for (const wallet of wallets) {
-      const walletId = wallet.wallet_id ? ` (${wallet.wallet_id})` : "";
-      console.log(
-        `- ${formatWalletChainType(wallet.chain_type)} [${wallet.wallet_provider}]: ${wallet.address}${walletId}`,
-      );
-    }
-    printDataFileLocation({ verbose: config.verbose });
-  } finally {
-    session.close();
-  }
+  printAccountSummary(account);
+  printDataFileLocation({ verbose: config.verbose });
 }
 
 export const whoamiCommand = accountWhoamiCommand;
@@ -506,17 +492,6 @@ export function accountSwitchCommand(selector: string): void {
   resumeSessionCommand(selector);
 }
 
-function formatWalletChainType(chainType: string): string {
-  const normalized = chainType.trim().toLowerCase();
-  if (normalized === "ethereum" || normalized === "evm") {
-    return "Ethereum";
-  }
-  if (normalized === "solana" || normalized === "svm") {
-    return "Solana";
-  }
-  return chainType;
-}
-
 export async function logoutCommand(config: CliConfig): Promise<void> {
   const cli = CliSession.load();
   if (!cli) {
@@ -532,7 +507,11 @@ export async function logoutCommand(config: CliConfig): Promise<void> {
     config.baseUrl &&
     new URL(config.baseUrl).origin !== new URL(cli.baseUrl).origin
   ) {
-    fatal("The requested backend does not match this session's auth origin.");
+    cli.clearCredentials();
+    cli.clearSigningKeys();
+    throw new Error(
+      "Signed out locally, but remote revocation was skipped because the requested backend does not match this session's auth origin.",
+    );
   }
 
   const origin = new URL(cli.baseUrl).origin;
@@ -618,6 +597,76 @@ function normalizeResourceOption(
     return normalized;
   }
   fatal('Unknown --resource value. Use "agent", "pipeline", or "all".');
+}
+
+async function acquireOAuthResources(
+  cli: CliSession,
+  resource: "agent" | "pipeline" | "all",
+): Promise<Array<"agent" | "pipeline">> {
+  if (!cli.auth?.subject || cli.auth.expiresAt <= Date.now() + 30_000) {
+    fatal(
+      "OAuth resource access requires an active account session. Run `aomi account login` first.",
+    );
+  }
+  const origin = new URL(cli.baseUrl).origin;
+  const targets: Array<"agent" | "pipeline"> =
+    resource === "all" ? ["agent", "pipeline"] : [resource];
+  const acquired: CliOAuthGrant[] = [];
+  try {
+    for (const target of targets) {
+      const request =
+        target === "agent"
+          ? {
+              resource: `${origin}/v1/agent` as const,
+              scopes: [
+                "agent:read",
+                "agent:write",
+                "agent:actions:resolve",
+                "payments:submit",
+                "custody:delegate",
+                "offline_access",
+              ],
+            }
+          : {
+              resource: `${origin}/v1/pipeline` as const,
+              scopes: [
+                "pipeline:catalog",
+                "pipeline:execute",
+                "payments:submit",
+                "custody:delegate",
+                "offline_access",
+              ],
+            };
+      acquired.push(
+        await signInWithOAuthDevice({
+          baseUrl: cli.baseUrl,
+          resource: request.resource,
+          scopes: request.scopes,
+          expectedSubject: cli.auth.subject,
+          clientId: cli.oauthGrants[request.resource]?.clientId,
+        }),
+      );
+    }
+    cli.setOAuthGrants(acquired);
+    return targets;
+  } catch (error) {
+    const rollback = await Promise.allSettled(
+      acquired.map((grant) =>
+        revokeCliOAuthGrant({ baseUrl: cli.baseUrl, grant }),
+      ),
+    );
+    const rollbackFailures = rollback.filter(
+      (result) => result.status === "rejected",
+    ).length;
+    if (rollbackFailures > 0) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `${message}; OAuth rollback failed for ${rollbackFailures} newly acquired grant${rollbackFailures === 1 ? "" : "s"}`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }
 
 function printAccountSummary(account: AccountGraphResponse): void {

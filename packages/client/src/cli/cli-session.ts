@@ -389,19 +389,27 @@ export class CliSession {
   }
 
   setOAuthGrant(grant: CliOAuthGrant): void {
-    if (
-      !this.state.auth ||
-      grant.origin !== this.state.auth.origin ||
-      grant.subject !== this.state.auth.subject ||
-      grant.origin !== originOf(this.state.baseUrl) ||
-      originOf(grant.issuer) !== grant.origin ||
-      originOf(grant.resource) !== grant.origin
-    ) {
-      throw new Error("OAuth grant does not match the active account session");
+    this.setOAuthGrants([grant]);
+  }
+
+  setOAuthGrants(grants: readonly CliOAuthGrant[]): void {
+    for (const grant of grants) {
+      if (
+        !this.state.auth ||
+        grant.origin !== this.state.auth.origin ||
+        grant.subject !== this.state.auth.subject ||
+        grant.origin !== originOf(this.state.baseUrl) ||
+        originOf(grant.issuer) !== grant.origin ||
+        originOf(grant.resource) !== grant.origin
+      ) {
+        throw new Error(
+          "OAuth grant does not match the active account session",
+        );
+      }
     }
     this.state.oauthGrants = {
       ...this.state.oauthGrants,
-      [grant.resource]: grant,
+      ...Object.fromEntries(grants.map((grant) => [grant.resource, grant])),
     };
     this.save();
   }

@@ -1,5 +1,5 @@
 import { privateKeyToAccount } from "viem/accounts";
-import { joinUrl, normalizeBaseUrl, safeResponseText } from "./auth";
+import { joinUrl, normalizeBaseUrl } from "./auth";
 import type { CliSession } from "./cli-session";
 import { fatal } from "./errors";
 import type { CliConfig } from "./types";
@@ -219,12 +219,17 @@ export class AccountGraphClient {
       },
     });
     if (!response.ok) {
+      const responseText = await response.text().catch(() => "");
+      let responseBody: unknown = null;
+      if (responseText) {
+        try {
+          responseBody = JSON.parse(responseText);
+        } catch {
+          responseBody = null;
+        }
+      }
       throw new Error(
-        formatAccountGraphError(
-          response.status,
-          await response.json().catch(() => null),
-          await safeResponseText(response).catch(() => ""),
-        ),
+        formatAccountGraphError(response.status, responseBody, responseText),
       );
     }
     return (await response.json().catch(() => ({}))) as T;
@@ -375,7 +380,8 @@ function formatAccountGraphError(
   if (status === 403 && code === "protected_identity") {
     return "This login identity is protected and cannot be edited directly.";
   }
-  return code ?? fallback ?? `Request failed: HTTP ${status}`;
+  const detail = code ?? fallback.trim();
+  return `Request failed: HTTP ${status}${detail ? ` ${detail}` : ""}`;
 }
 
 function extractErrorCode(body: unknown): string | null {

@@ -288,7 +288,7 @@ describe("CLI BetterAuth SIWE auth", () => {
   it("clears local credentials while reporting a failed remote revocation", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
       String(input).endsWith("/oauth2/revoke")
-        ? new Response(null, { status: 503 })
+        ? new Response(null, { status: 500 })
         : Response.json({ success: true }),
     );
     vi.stubGlobal("fetch", fetchMock);
@@ -320,7 +320,7 @@ describe("CLI BetterAuth SIWE auth", () => {
     });
 
     await expect(logoutCommand({ secrets: {} })).rejects.toThrow(
-      "Signed out locally, but remote revocation failed: OAuth revoke HTTP 503",
+      "Signed out locally, but remote revocation failed: OAuth revoke HTTP 500",
     );
     expect(readState()).toMatchObject({
       auth: undefined,
@@ -329,5 +329,89 @@ describe("CLI BetterAuth SIWE auth", () => {
       guestBearer: undefined,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("clears all local credential classes", async () => {
+    const guestFetch = vi.fn(async () =>
+      Response.json({ token: "guest-token", access_token: "guest-token" }),
+    );
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { logoutCommand } = await import("../../src/cli/commands/account");
+    const { readState } = await import("../../src/cli/state");
+    const cli = CliSession.create({
+      baseUrl: "https://portal.test",
+      apiKey: "api-key",
+      accountBearer: "account-bearer",
+      secrets: {},
+    });
+    await cli.createGuestProvider(guestFetch)();
+    cli.setWallet(PRIVATE_KEY, ACCOUNT.address);
+    cli.setSvmWallet("solana-secret", "solana-public");
+
+    await logoutCommand({ secrets: {} });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(readState()).toMatchObject({
+      apiKey: undefined,
+      apiKeyOrigin: undefined,
+      auth: undefined,
+      oauthGrants: undefined,
+      accountBearer: undefined,
+      accountBearerOrigin: undefined,
+      guestBearer: undefined,
+      privateKey: undefined,
+      svmPrivateKey: undefined,
+    });
+  });
+
+  it("never transmits credentials to a foreign logout origin but still clears locally", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { logoutCommand } = await import("../../src/cli/commands/account");
+    const { readState } = await import("../../src/cli/state");
+    const cli = CliSession.create({
+      baseUrl: "https://portal.test",
+      apiKey: "api-key",
+      secrets: {},
+    });
+    cli.setAuthSession({
+      sessionToken: "session-token",
+      expiresAt: Date.now() + 60_000,
+      origin: "https://portal.test",
+      subject: "user-1",
+    });
+    cli.setOAuthGrant({
+      clientId: "client-1",
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      expiresAt: Date.now() + 60_000,
+      issuer: "https://portal.test/api/auth",
+      origin: "https://portal.test",
+      subject: "user-1",
+      resource: "https://portal.test/v1/agent",
+      scopes: ["agent:read"],
+      tokenType: "Bearer",
+    });
+    cli.setWallet(PRIVATE_KEY, ACCOUNT.address);
+
+    await expect(
+      logoutCommand({
+        baseUrl: "https://other.test",
+        secrets: {},
+      }),
+    ).rejects.toThrow("Signed out locally, but remote revocation was skipped");
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(readState()).toMatchObject({
+      apiKey: undefined,
+      auth: undefined,
+      oauthGrants: undefined,
+      accountBearer: undefined,
+      guestBearer: undefined,
+      privateKey: undefined,
+    });
   });
 });

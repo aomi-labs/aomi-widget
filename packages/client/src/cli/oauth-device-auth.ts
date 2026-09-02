@@ -4,6 +4,7 @@ import {
   acquireAomiDeviceGrant,
   discoverAomiAuthorizationServer,
   refreshAomiOAuthGrant,
+  revokeAomiOAuthGrant,
 } from "../oauth";
 import { joinUrl, normalizeBaseUrl, requestJson } from "./auth";
 import type { CliOAuthGrant } from "./state";
@@ -78,30 +79,73 @@ export async function signInWithOAuthDevice(input: {
       ),
     now: input.now,
   });
-  requireBearerGrant(grant.tokenType);
-  const jwtExpiresAt = await verifyGrant(
-    fetchImpl,
-    metadata.jwks_uri,
-    grant.accessToken,
-    {
+  try {
+    requireBearerGrant(grant.tokenType);
+    const jwtExpiresAt = await verifyGrant(
+      fetchImpl,
+      metadata.jwks_uri,
+      grant.accessToken,
+      {
+        issuer: metadata.issuer,
+        resource: input.resource,
+        subject: input.expectedSubject,
+        now: input.now,
+      },
+    );
+    return {
+      clientId: grant.clientId,
+      accessToken: grant.accessToken,
+      refreshToken: grant.refreshToken,
+      expiresAt: Math.min(grant.expiresAt, jwtExpiresAt),
+      resource: grant.resource,
+      scopes: grant.scopes,
+      tokenType: grant.tokenType,
       issuer: metadata.issuer,
-      resource: input.resource,
+      origin: new URL(baseUrl).origin,
       subject: input.expectedSubject,
-      now: input.now,
-    },
-  );
-  return {
-    clientId: grant.clientId,
-    accessToken: grant.accessToken,
-    refreshToken: grant.refreshToken,
-    expiresAt: Math.min(grant.expiresAt, jwtExpiresAt),
-    resource: grant.resource,
-    scopes: grant.scopes,
-    tokenType: grant.tokenType,
-    issuer: metadata.issuer,
-    origin: new URL(baseUrl).origin,
-    subject: input.expectedSubject,
-  };
+    };
+  } catch (error) {
+    try {
+      await revokeAomiOAuthGrant({ metadata, grant, fetch: fetchImpl });
+    } catch (revocationError) {
+      throw new CliOAuthError(
+        error instanceof CliOAuthError ? error.code : "invalid_token",
+        `${errorMessage(error)}; issued token revocation failed: ${errorMessage(revocationError)}`,
+      );
+    }
+    throw error;
+  }
+}
+
+export async function revokeCliOAuthGrant(input: {
+  baseUrl: string;
+  grant: CliOAuthGrant;
+  fetch?: typeof fetch;
+}): Promise<void> {
+  const fetchImpl = input.fetch ?? fetch;
+  const origin = new URL(normalizeBaseUrl(input.baseUrl)).origin;
+  if (
+    input.grant.origin !== origin ||
+    new URL(input.grant.issuer).origin !== origin ||
+    new URL(input.grant.resource).origin !== origin
+  ) {
+    throw new CliOAuthError(
+      "invalid_grant",
+      "OAuth grant does not match the active Portal",
+    );
+  }
+  const metadata = await discoverAomiAuthorizationServer({
+    portalBaseUrl: input.baseUrl,
+    fetch: fetchImpl,
+  });
+  if (metadata.issuer !== input.grant.issuer) {
+    throw new CliOAuthError("invalid_grant", "OAuth grant issuer changed");
+  }
+  await revokeAomiOAuthGrant({
+    metadata,
+    grant: input.grant,
+    fetch: fetchImpl,
+  });
 }
 
 export async function refreshCliOAuthGrant(input: {
@@ -237,6 +281,10 @@ function requiredString(value: unknown, name: string): string {
     );
   }
   return value;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function openUrl(url: string) {

@@ -114,6 +114,40 @@ describe("aomi account link management", () => {
     );
   });
 
+  it("keeps one account identity through login, whoami, and links", async () => {
+    const deviceLogin = vi.fn(async () => ({
+      provider: "para" as const,
+      auth: {
+        sessionToken: "session-token",
+        expiresAt: Date.now() + 60_000,
+        origin: "https://portal.test",
+        subject: "aomi-user-1",
+      },
+    }));
+    vi.doMock("../../src/cli/device-auth", () => ({
+      signInWithDeviceProvider: deviceLogin,
+    }));
+    const { accountLinksCommand, accountLoginCommand, accountWhoamiCommand } =
+      await import("../../src/cli/commands/account");
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        expect(new Headers(init?.headers).get("Authorization")).toBe(
+          "Bearer session-token",
+        );
+        return Response.json(accountGraph);
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await accountLoginCommand(baseConfig, { provider: "para" });
+    await accountWhoamiCommand({ secrets: {} });
+    await accountLinksCommand({ secrets: {} });
+
+    expect(deviceLogin).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it("prints account links as JSON", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { accountLinksCommand } =

@@ -38,6 +38,8 @@ const accountLoginDef = defineCommand({
       solana: args.solana === true,
       noBrowser: args["no-browser"] === true,
       resource: typeof args.resource === "string" ? args.resource : undefined,
+      privateKeyFlag: typeof args["private-key"] === "string",
+      solanaPrivateKeyFlag: typeof args["solana-private-key"] === "string",
     });
   },
 });

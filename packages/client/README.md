@@ -245,10 +245,12 @@ The package includes an `aomi` CLI for scripting. When installed globally or
 in a project, the executable name is `aomi`. For one-off usage, run commands
 via `npx @aomi-labs/client ...`.
 
-`aomi account login` now uses Better Auth device authorization for both Agent
-and Pipeline resources, stores resource-bound rotating grants, and opens the
-shared portal login/consent page. `aomi account logout` revokes the saved
-refresh/access grants before clearing local state. Native SIWE/SIWS login
+`aomi account login` opens the Better Auth provider picker and stores one
+origin- and account-bound session. Resource access is explicit:
+`aomi account login --resource agent|pipeline|all` adds rotating OAuth grants
+to an existing account session, while `--provider para|privy --resource ...`
+performs both steps together. `aomi account logout` revokes every saved grant
+before clearing local auth and signing credentials. Native SIWE/SIWS login
 remains available through the wallet-specific options.
 
 Claude Code / Codex skills that drive this CLI live in the separate

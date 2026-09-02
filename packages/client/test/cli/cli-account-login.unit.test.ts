@@ -75,8 +75,21 @@ describe("aomi account login", () => {
       expiresAt: Date.parse("2031-01-02T03:04:05.000Z"),
       resource: input.resource,
       scopes: input.resource.endsWith("/v1/agent")
-        ? ["agent:read", "agent:write", "offline_access"]
-        : ["pipeline:catalog", "offline_access"],
+        ? [
+            "agent:read",
+            "agent:write",
+            "agent:actions:resolve",
+            "payments:submit",
+            "custody:delegate",
+            "offline_access",
+          ]
+        : [
+            "pipeline:catalog",
+            "pipeline:execute",
+            "payments:submit",
+            "custody:delegate",
+            "offline_access",
+          ],
       tokenType: "Bearer" as const,
       issuer: "http://unit.test/api/auth",
       origin: "http://unit.test",
@@ -106,14 +119,27 @@ describe("aomi account login", () => {
       {
         baseUrl: "http://unit.test",
         resource: "http://unit.test/v1/agent",
-        scopes: ["agent:read", "agent:write", "offline_access"],
+        scopes: [
+          "agent:read",
+          "agent:write",
+          "agent:actions:resolve",
+          "payments:submit",
+          "custody:delegate",
+          "offline_access",
+        ],
         expectedSubject: "user-1",
         clientId: undefined,
       },
       {
         baseUrl: "http://unit.test",
         resource: "http://unit.test/v1/pipeline",
-        scopes: ["pipeline:catalog", "offline_access"],
+        scopes: [
+          "pipeline:catalog",
+          "pipeline:execute",
+          "payments:submit",
+          "custody:delegate",
+          "offline_access",
+        ],
         expectedSubject: "user-1",
         clientId: undefined,
       },
@@ -125,6 +151,199 @@ describe("aomi account login", () => {
     expect(logSpy).toHaveBeenCalledWith(
       "Authorized OAuth resources: agent, pipeline",
     );
+  });
+
+  it("logs in with a normalized provider before acquiring a normalized resource", async () => {
+    const deviceLogin = vi.fn(async () => ({
+      provider: "para" as const,
+      auth: {
+        sessionToken: "account-session",
+        expiresAt: Date.now() + 60_000,
+        origin: "http://unit.test",
+        subject: "user-1",
+      },
+    }));
+    const oauthLogin = vi.fn(
+      async (input: { resource: string; scopes: string[] }) => ({
+        clientId: "agent-client",
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+        expiresAt: Date.now() + 60_000,
+        resource: input.resource,
+        scopes: input.scopes,
+        tokenType: "Bearer" as const,
+        issuer: "http://unit.test/api/auth",
+        origin: "http://unit.test",
+        subject: "user-1",
+      }),
+    );
+    vi.doMock("../../src/cli/device-auth", () => ({
+      signInWithDeviceProvider: deviceLogin,
+    }));
+    vi.doMock("../../src/cli/oauth-device-auth", () => ({
+      signInWithOAuthDevice: oauthLogin,
+      revokeCliOAuthGrant: vi.fn(),
+    }));
+    const { accountLoginCommand } =
+      await import("../../src/cli/commands/account");
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await accountLoginCommand(baseConfig, {
+      provider: " PARA ",
+      resource: " AGENT ",
+    });
+
+    expect(deviceLogin).toHaveBeenCalledWith({
+      baseUrl: "http://unit.test",
+      provider: "para",
+    });
+    expect(oauthLogin).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resource: "http://unit.test/v1/agent",
+        expectedSubject: "user-1",
+        scopes: expect.arrayContaining([
+          "agent:actions:resolve",
+          "payments:submit",
+        ]),
+      }),
+    );
+  });
+
+  it.each([
+    [
+      "provider plus EVM key",
+      { provider: "para", privateKeyFlag: true },
+      { privateKey: TEST_PRIVATE_KEY },
+    ],
+    [
+      "provider plus Solana key",
+      { provider: "privy", solanaPrivateKeyFlag: true },
+      { solanaPrivateKey: "solana-secret" },
+    ],
+    [
+      "resource plus EVM key",
+      { resource: "agent", privateKeyFlag: true },
+      { privateKey: TEST_PRIVATE_KEY },
+    ],
+    [
+      "resource plus Solana key",
+      { resource: "pipeline", solanaPrivateKeyFlag: true },
+      { solanaPrivateKey: "solana-secret" },
+    ],
+  ])(
+    "rejects conflicting signing-key flags for %s",
+    async (_name, options, config) => {
+      const deviceLogin = vi.fn();
+      const oauthLogin = vi.fn();
+      vi.doMock("../../src/cli/device-auth", () => ({
+        signInWithDeviceProvider: deviceLogin,
+      }));
+      vi.doMock("../../src/cli/oauth-device-auth", () => ({
+        signInWithOAuthDevice: oauthLogin,
+        revokeCliOAuthGrant: vi.fn(),
+      }));
+      const { accountLoginCommand } =
+        await import("../../src/cli/commands/account");
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await expect(
+        accountLoginCommand({ ...baseConfig, ...config }, options),
+      ).rejects.toMatchObject({ code: 1 });
+      expect(deviceLogin).not.toHaveBeenCalled();
+      expect(oauthLogin).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["provider and wallet", { provider: "para", wallet: true }],
+    ["provider and Solana", { provider: "privy", solana: true }],
+    ["wallet and Solana", { wallet: true, solana: true }],
+    ["resource and wallet", { resource: "agent", wallet: true }],
+    ["resource and Solana", { resource: "pipeline", solana: true }],
+  ])("rejects conflicting login modes for %s", async (_name, options) => {
+    const deviceLogin = vi.fn();
+    vi.doMock("../../src/cli/device-auth", () => ({
+      signInWithDeviceProvider: deviceLogin,
+    }));
+    const { accountLoginCommand } =
+      await import("../../src/cli/commands/account");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      accountLoginCommand(baseConfig, options),
+    ).rejects.toMatchObject({ code: 1 });
+    expect(deviceLogin).not.toHaveBeenCalled();
+  });
+
+  it("rolls back only grants acquired by a failed all-resource attempt", async () => {
+    const revokeGrant = vi.fn(async () => {});
+    const oauthLogin = vi
+      .fn()
+      .mockResolvedValueOnce({
+        clientId: "agent-client",
+        accessToken: "new-agent-access",
+        refreshToken: "new-agent-refresh",
+        expiresAt: Date.now() + 60_000,
+        resource: "http://unit.test/v1/agent",
+        scopes: ["agent:read"],
+        tokenType: "Bearer" as const,
+        issuer: "http://unit.test/api/auth",
+        origin: "http://unit.test",
+        subject: "user-1",
+      })
+      .mockRejectedValueOnce(new Error("pipeline authorization failed"));
+    vi.doMock("../../src/cli/oauth-device-auth", () => ({
+      signInWithOAuthDevice: oauthLogin,
+      revokeCliOAuthGrant: revokeGrant,
+    }));
+    const { accountLoginCommand } =
+      await import("../../src/cli/commands/account");
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+    const cli = CliSession.loadOrCreate(baseConfig);
+    cli.setAuthSession({
+      sessionToken: "account-session",
+      expiresAt: Date.now() + 60_000,
+      origin: "http://unit.test",
+      subject: "user-1",
+    });
+    const oldAgent = {
+      clientId: "agent-client",
+      accessToken: "old-agent-access",
+      refreshToken: "old-agent-refresh",
+      expiresAt: Date.now() + 60_000,
+      resource: "http://unit.test/v1/agent" as const,
+      scopes: ["agent:read"],
+      tokenType: "Bearer" as const,
+      issuer: "http://unit.test/api/auth",
+      origin: "http://unit.test",
+      subject: "user-1",
+    };
+    const oldPipeline = {
+      ...oldAgent,
+      clientId: "pipeline-client",
+      accessToken: "old-pipeline-access",
+      resource: "http://unit.test/v1/pipeline" as const,
+      scopes: ["pipeline:catalog"],
+    };
+    cli.setOAuthGrants([oldAgent, oldPipeline]);
+
+    await expect(
+      accountLoginCommand(baseConfig, { resource: "all" }),
+    ).rejects.toThrow("pipeline authorization failed");
+
+    expect(revokeGrant).toHaveBeenCalledTimes(1);
+    expect(revokeGrant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        grant: expect.objectContaining({ accessToken: "new-agent-access" }),
+      }),
+    );
+    expect(readState()?.oauthGrants).toMatchObject({
+      "http://unit.test/v1/agent": { accessToken: "old-agent-access" },
+      "http://unit.test/v1/pipeline": {
+        accessToken: "old-pipeline-access",
+      },
+    });
   });
 
   it("requires an account session before OAuth resource acquisition", async () => {

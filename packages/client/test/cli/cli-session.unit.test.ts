@@ -481,6 +481,86 @@ describe("CLI session lifecycle", () => {
     expect(readState()?.accountBearerOrigin).toBe("https://api.aomi.dev");
   });
 
+  it("makes a static bearer exclusive and higher precedence than account OAuth", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+    const cli = CliSession.create({
+      baseUrl: "https://chat.aomi.dev",
+      secrets: {},
+    });
+    cli.setAuthSession({
+      sessionToken: "account-session",
+      expiresAt: Date.now() + 60_000,
+      origin: "https://chat.aomi.dev",
+      subject: "user-1",
+    });
+    cli.setOAuthGrant({
+      clientId: "client-1",
+      accessToken: "oauth-access",
+      expiresAt: Date.now() + 60_000,
+      issuer: "https://chat.aomi.dev/api/auth",
+      origin: "https://chat.aomi.dev",
+      subject: "user-1",
+      resource: "https://chat.aomi.dev/v1/agent",
+      scopes: ["agent:read"],
+      tokenType: "Bearer",
+    });
+
+    cli.mergeConfig({ accountBearer: "static-bearer" });
+    const token = await cli.createOAuthProvider(vi.fn())?.({
+      resource: "https://chat.aomi.dev/v1/agent",
+      scopes: ["agent:read"],
+    });
+
+    expect(token?.accessToken).toBe("static-bearer");
+    expect(readState()).toMatchObject({
+      accountBearer: "static-bearer",
+      auth: undefined,
+      oauthGrants: undefined,
+      guestBearer: undefined,
+    });
+  });
+
+  it("rejects subject-mismatched grants and replaces grants on account switch", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+    const cli = CliSession.create({
+      baseUrl: "https://chat.aomi.dev",
+      secrets: {},
+    });
+    cli.setAuthSession({
+      sessionToken: "account-session-1",
+      expiresAt: Date.now() + 60_000,
+      origin: "https://chat.aomi.dev",
+      subject: "user-1",
+    });
+    const grant = {
+      clientId: "client-1",
+      accessToken: "access-token",
+      expiresAt: Date.now() + 60_000,
+      issuer: "https://chat.aomi.dev/api/auth",
+      origin: "https://chat.aomi.dev",
+      subject: "user-1",
+      resource: "https://chat.aomi.dev/v1/agent" as const,
+      scopes: ["agent:read"],
+      tokenType: "Bearer" as const,
+    };
+    cli.setOAuthGrant(grant);
+
+    expect(() => cli.setOAuthGrant({ ...grant, subject: "user-2" })).toThrow(
+      "OAuth grant does not match the active account session",
+    );
+    expect(readState()?.oauthGrants?.[grant.resource]?.subject).toBe("user-1");
+
+    cli.setAuthSession({
+      sessionToken: "account-session-2",
+      expiresAt: Date.now() + 60_000,
+      origin: "https://chat.aomi.dev",
+      subject: "user-2",
+    });
+    expect(readState()?.oauthGrants).toBeUndefined();
+  });
+
   it("clears every credential when the backend origin changes", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { readState } = await import("../../src/cli/state");

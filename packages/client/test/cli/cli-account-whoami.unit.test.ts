@@ -32,28 +32,38 @@ describe("aomi account whoami", () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { whoamiCommand } = await import("../../src/cli/commands/account");
 
-    CliSession.loadOrCreate({ ...baseConfig, accountBearer: "bearer-1" });
+    const cli = CliSession.loadOrCreate(baseConfig);
+    cli.setAuthSession({
+      sessionToken: "account-session",
+      expiresAt: Date.now() + 60_000,
+      origin: "http://unit.test",
+      subject: "user-1",
+    });
 
     const response = {
       ok: true,
       status: 200,
       statusText: "OK",
       json: vi.fn(async () => ({
-        user: { user_id: "user-1", verified_email: "a@b.c", tier: "free" },
-        identity_wallets: [
+        user: { id: "user-1", email: "a@b.c" },
+        linkedAccounts: [],
+        wallets: [
           {
-            wallet_id: "wallet-evm-1",
+            id: "wallet-evm-1",
             address: "0xabc",
-            chain_type: "ethereum",
-            wallet_provider: "privy",
+            family: "evm",
+            provider: "privy",
+            linkedVia: "privy",
           },
           {
-            wallet_id: "wallet-sol-1",
+            id: "wallet-sol-1",
             address: "So11111111111111111111111111111111111111112",
-            chain_type: "solana",
-            wallet_provider: "privy",
+            family: "svm",
+            provider: "privy",
+            linkedVia: "privy",
           },
         ],
+        session: { betterAuthUserId: "user-1" },
       })),
     } as unknown as Response;
     vi.stubGlobal(
@@ -66,35 +76,44 @@ describe("aomi account whoami", () => {
 
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("user-1"));
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("a@b.c"));
-    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("Wallets:  2"));
     expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Ethereum [privy]: 0xabc"),
-    );
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining(
-        "Solana [privy]: So11111111111111111111111111111111111111112",
-      ),
+      expect.stringContaining("Wallets:       2"),
     );
   });
 
-  it("surfaces backend identity failures instead of reporting a false anonymous state", async () => {
+  it("rejects whoami without an account session before making a request", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { whoamiCommand } = await import("../../src/cli/commands/account");
 
     CliSession.loadOrCreate(baseConfig);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const response = {
-      ok: false,
-      status: 400,
-      statusText: "Bad Request",
-      json: vi.fn(async () => ({})),
-    } as unknown as Response;
+    await expect(whoamiCommand(baseConfig)).rejects.toMatchObject({ code: 1 });
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("account_session_missing"),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("preserves an actionable non-JSON backend failure", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { whoamiCommand } = await import("../../src/cli/commands/account");
+    const cli = CliSession.loadOrCreate(baseConfig);
+    cli.setAuthSession({
+      sessionToken: "account-session",
+      expiresAt: Date.now() + 60_000,
+      origin: "http://unit.test",
+      subject: "user-1",
+    });
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => response),
+      vi.fn(async () => new Response("upstream unavailable", { status: 503 })),
     );
+
     await expect(whoamiCommand(baseConfig)).rejects.toThrow(
-      "Failed to fetch account: HTTP 400",
+      "Request failed: HTTP 503 upstream unavailable",
     );
   });
 });

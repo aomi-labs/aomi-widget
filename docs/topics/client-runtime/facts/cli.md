@@ -32,15 +32,16 @@ The `aomi` terminal client is published from `@aomi-labs/client` and shares its 
 
 ## OAuth account session
 
-- `aomi account login` dynamically registers a public PKCE client, obtains
-  Agent and Pipeline device grants, opens the shared portal approval page, and
-  polls the Better Auth device endpoint using the server-provided interval.
-- The state file keeps access/refresh expiry and exact resource/scope binding.
-  Refresh rotation is serialized and replaced atomically; logout calls the
-  official revocation endpoint before clearing local grants.
-- `--legacy` retains the old account-session ceremony during the measured
-  compatibility window. `AOMI_CLI_OAUTH_DEFAULT_ENABLED` reverses the default
-  without changing server issuance or REST/MCP routing.
+- `aomi account login` opens the Better Auth provider picker and stores an
+  origin- and account-bound session. `--provider para|privy` selects a provider
+  directly.
+- `--resource agent|pipeline|all` explicitly adds resource OAuth grants to an
+  existing account session. Combining `--provider` with `--resource` performs
+  account login first and resource authorization second.
+- The state file keeps access/refresh expiry and exact origin, subject,
+  resource, and scope binding. Refresh rotation is serialized and replaced
+  atomically; logout revokes every saved grant before clearing all local auth
+  and signing credentials.
 
 ## Role In The Repo
 

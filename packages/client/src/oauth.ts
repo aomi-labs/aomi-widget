@@ -450,15 +450,32 @@ export async function acquireAomiDeviceGrant(input: {
       }
       throw oauthResponseError(code, body);
     }
-    return tokenGrant({
-      body,
-      issuer: input.metadata.issuer,
-      clientId: input.clientId,
-      subject: input.subject,
-      resource: input.request.resource,
-      scopes: input.request.scopes,
-      now,
-    });
+    try {
+      return tokenGrant({
+        body,
+        issuer: input.metadata.issuer,
+        clientId: input.clientId,
+        subject: input.subject,
+        resource: input.request.resource,
+        scopes: input.request.scopes,
+        now,
+      });
+    } catch (error) {
+      try {
+        await revokeMalformedTokenResponse({
+          metadata: input.metadata,
+          clientId: input.clientId,
+          body,
+          fetch: fetchImpl,
+        });
+      } catch (revocationError) {
+        throw new AomiOAuthError(
+          error instanceof AomiOAuthError ? error.code : "invalid_response",
+          `${errorMessage(error)}; issued token revocation failed: ${errorMessage(revocationError)}`,
+        );
+      }
+      throw error;
+    }
   }
   throw new AomiOAuthError(
     now() >= expiresAt ? "expired_token" : "timeout",
@@ -551,38 +568,54 @@ function tokenGrant(input: {
   priorRefreshToken?: string;
   now: () => number;
 }): AomiOAuthGrant {
-  if (
-    input.body.token_type !== undefined &&
-    input.body.token_type !== "Bearer" &&
-    input.body.token_type !== "DPoP"
-  ) {
+  const accessToken = requiredString(input.body.access_token, "access_token");
+  const expiresIn = positiveNumber(input.body.expires_in, "expires_in");
+  const rawTokenType = requiredString(input.body.token_type, "token_type");
+  const normalizedTokenType = rawTokenType.toLowerCase();
+  if (normalizedTokenType !== "bearer" && normalizedTokenType !== "dpop") {
     throw new AomiOAuthError(
       "invalid_response",
       "OAuth response has unsupported token_type",
     );
   }
-  const responseScopes =
-    typeof input.body.scope === "string"
-      ? input.body.scope.split(/\s+/).filter(Boolean)
-      : [...input.scopes];
+  const responseScopes = requiredString(input.body.scope, "scope")
+    .split(/\s+/)
+    .filter(Boolean);
   if (responseScopes.some((scope) => !input.scopes.includes(scope))) {
     throw new AomiOAuthError("invalid_scope", "Token response expanded scopes");
+  }
+  if (
+    input.body.resource !== undefined &&
+    requiredString(input.body.resource, "resource") !== input.resource
+  ) {
+    throw new AomiOAuthError(
+      "invalid_target",
+      "OAuth token response resource does not match the requested resource",
+    );
+  }
+  if (
+    input.body.refresh_token !== undefined &&
+    (typeof input.body.refresh_token !== "string" ||
+      !input.body.refresh_token.trim())
+  ) {
+    throw new AomiOAuthError(
+      "invalid_response",
+      "OAuth response has invalid refresh_token",
+    );
   }
   return {
     issuer: input.issuer,
     clientId: input.clientId,
     subject: input.subject,
-    accessToken: requiredString(input.body.access_token, "access_token"),
+    accessToken,
     refreshToken:
       typeof input.body.refresh_token === "string"
         ? input.body.refresh_token
         : input.priorRefreshToken,
-    expiresAt:
-      input.now() +
-      positiveNumber(input.body.expires_in ?? 300, "expires_in") * 1000,
+    expiresAt: input.now() + expiresIn * 1000,
     resource: input.resource,
     scopes: responseScopes,
-    tokenType: input.body.token_type === "DPoP" ? "DPoP" : "Bearer",
+    tokenType: normalizedTokenType === "dpop" ? "DPoP" : "Bearer",
   };
 }
 
@@ -594,6 +627,38 @@ function oauthResponseError(
   const message =
     typeof body.error_description === "string" ? body.error_description : code;
   return new AomiOAuthError(code, message);
+}
+
+async function revokeMalformedTokenResponse(input: {
+  metadata: AomiAuthorizationServerMetadata;
+  clientId: string;
+  body: Record<string, unknown>;
+  fetch: typeof fetch;
+}): Promise<void> {
+  const token =
+    typeof input.body.refresh_token === "string" &&
+    input.body.refresh_token.trim()
+      ? input.body.refresh_token
+      : typeof input.body.access_token === "string" &&
+          input.body.access_token.trim()
+        ? input.body.access_token
+        : undefined;
+  if (!token) return;
+  const response = await input.fetch(input.metadata.revocation_endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ token, client_id: input.clientId }),
+  });
+  if (!response.ok) {
+    throw new AomiOAuthError(
+      "revoke_failed",
+      `OAuth revocation failed: HTTP ${response.status}`,
+    );
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 async function jsonRecord(
@@ -631,7 +696,7 @@ function optionalUrl(value: unknown): string | undefined {
 }
 
 function requiredString(value: unknown, name: string): string {
-  if (typeof value !== "string" || !value) {
+  if (typeof value !== "string" || !value.trim()) {
     throw new AomiOAuthError(
       "invalid_response",
       `OAuth response is missing ${name}`,
@@ -641,7 +706,7 @@ function requiredString(value: unknown, name: string): string {
 }
 
 function positiveNumber(value: unknown, name: string): number {
-  const number = Number(value);
+  const number = typeof value === "number" ? value : Number.NaN;
   if (!Number.isFinite(number) || number <= 0) {
     throw new AomiOAuthError(
       "invalid_response",

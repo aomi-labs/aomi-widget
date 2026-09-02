@@ -57,6 +57,7 @@ describe("CLI OAuth device authorization", () => {
       subject: SUBJECT,
       resource: AGENT_RESOURCE,
       scopes: ["agent:read", "offline_access"],
+      tokenType: "Bearer",
     });
     const registration = JSON.parse(
       String(fetchImpl.mock.calls[1]?.[1]?.body),
@@ -83,7 +84,8 @@ describe("CLI OAuth device authorization", () => {
       .mockResolvedValueOnce(metadataResponse())
       .mockResolvedValueOnce(deviceCodeResponse())
       .mockResolvedValueOnce(tokenResponse(accessToken))
-      .mockResolvedValueOnce(Response.json({ keys: [publicJwk] }));
+      .mockResolvedValueOnce(Response.json({ keys: [publicJwk] }))
+      .mockResolvedValueOnce(Response.json({ success: true }));
 
     const result = signInWithOAuthDevice({
       baseUrl: ORIGIN,
@@ -100,6 +102,9 @@ describe("CLI OAuth device authorization", () => {
     await expect(rejection).resolves.toMatchObject({
       code: "subject_mismatch",
     });
+    expect(String(fetchImpl.mock.calls[4]?.[0])).toBe(
+      `${ISSUER}/oauth2/revoke`,
+    );
   });
 
   it("rejects malformed successful token responses", async () => {
@@ -115,7 +120,8 @@ describe("CLI OAuth device authorization", () => {
           expires_in: 300,
           scope: "agent:read offline_access",
         }),
-      );
+      )
+      .mockResolvedValueOnce(Response.json({ success: true }));
 
     const result = signInWithOAuthDevice({
       baseUrl: ORIGIN,
@@ -133,7 +139,52 @@ describe("CLI OAuth device authorization", () => {
       code: "invalid_response",
       message: "OAuth response is missing access_token",
     });
+    expect(String(fetchImpl.mock.calls[3]?.[0])).toBe(
+      `${ISSUER}/oauth2/revoke`,
+    );
   });
+
+  it.each([
+    ["missing expires_in", { expires_in: undefined }, "invalid_response"],
+    ["missing token_type", { token_type: undefined }, "invalid_response"],
+    ["non-string scope", { scope: ["agent:read"] }, "invalid_response"],
+    ["expanded scope", { scope: "agent:read admin:*" }, "invalid_scope"],
+    [
+      "wrong response resource",
+      { resource: `${ORIGIN}/v1/pipeline` },
+      "invalid_target",
+    ],
+  ])(
+    "rejects %s and revokes the issued token",
+    async (_name, overrides, code) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2030-01-01T00:00:00.000Z"));
+      const accessToken = await signedAccessToken();
+      const fetchImpl = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(metadataResponse())
+        .mockResolvedValueOnce(deviceCodeResponse())
+        .mockResolvedValueOnce(tokenResponse(accessToken, overrides))
+        .mockResolvedValueOnce(Response.json({ success: true }));
+
+      const result = signInWithOAuthDevice({
+        baseUrl: ORIGIN,
+        clientId: "existing-client",
+        resource: AGENT_RESOURCE,
+        scopes: ["agent:read", "offline_access"],
+        expectedSubject: SUBJECT,
+        fetch: fetchImpl,
+        openBrowser: vi.fn(),
+      });
+      const rejection = result.catch((error: unknown) => error);
+      await vi.runAllTimersAsync();
+
+      await expect(rejection).resolves.toMatchObject({ code });
+      expect(String(fetchImpl.mock.calls[3]?.[0])).toBe(
+        `${ISSUER}/oauth2/revoke`,
+      );
+    },
+  );
 });
 
 function metadataResponse(): Response {
@@ -157,13 +208,17 @@ function deviceCodeResponse(): Response {
   });
 }
 
-function tokenResponse(accessToken: string): Response {
+function tokenResponse(
+  accessToken: string,
+  overrides: Record<string, unknown> = {},
+): Response {
   return Response.json({
     access_token: accessToken,
     refresh_token: "refresh-token",
     expires_in: 300,
     scope: "agent:read offline_access",
-    token_type: "Bearer",
+    token_type: "bearer",
+    ...overrides,
   });
 }
 
