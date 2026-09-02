@@ -30,6 +30,12 @@ export {
   readManagedOAuthClient,
   type ManagedOAuthClient,
 } from "./managed-clients";
+export {
+  BETTER_AUTH_OAUTH_PROVIDER_VERSION,
+  hashOAuthClientId,
+  oauthRedirectFailureDiagnostics,
+  type OAuthRedirectFailureDiagnostics,
+} from "./oauth-redirect-diagnostics";
 export { verifySiweMessage } from "./siwe";
 export {
   SIWS_CLUSTERS,

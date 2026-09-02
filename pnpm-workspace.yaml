@@ -33,6 +33,9 @@ packageExtensions:
     peerDependencies:
       react: "*"
 
+patchedDependencies:
+  "@better-auth/oauth-provider@1.7.1": patches/@better-auth__oauth-provider@1.7.1.patch
+
 onlyBuiltDependencies:
   - "@parcel/watcher"
   - "@reown/appkit"

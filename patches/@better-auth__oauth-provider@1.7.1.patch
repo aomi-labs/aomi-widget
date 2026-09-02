@@ -1,0 +1,19 @@
+diff --git a/dist/authorize-Crqw4_bR.mjs b/dist/authorize-Crqw4_bR.mjs
+index acdca49f49d0db30605560fb39ea6cd78ed79484..c53bc0a1dd79427d6ab35477a21482f4055cd15d 100644
+--- a/dist/authorize-Crqw4_bR.mjs
++++ b/dist/authorize-Crqw4_bR.mjs
+@@ -5384,11 +5384,12 @@ function findRegisteredRedirectUri(registered, requested) {
+ 	try {
+ 		req = new URL(requested);
+ 	} catch {}
++	if (!req || req.username || req.password || req.hash) return void 0;
+ 	return registered.find((url) => {
+-		if (url === requested) return true;
+-		if (!req) return false;
+ 		try {
+ 			const reg = new URL(url);
++			if (reg.username || reg.password || reg.hash) return false;
++			if (url === requested) return true;
+ 			return isLoopbackIP(reg.hostname) && reg.hostname === req.hostname && reg.pathname === req.pathname && reg.protocol === req.protocol && reg.search === req.search;
+ 		} catch {
+ 			return false;
