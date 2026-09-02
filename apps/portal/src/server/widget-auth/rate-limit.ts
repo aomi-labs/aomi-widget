@@ -1,19 +1,29 @@
-import { checkRateLimit, getClientIp } from "@portal/lib/rate-limit";
+import { isIP } from "node:net";
+import {
+  checkWidgetAuthRateLimit,
+  observedWidgetOrigin,
+} from "@aomi-labs/account/widget-auth";
 
 /**
- * Per-IP rate limit for the *unauthenticated* widget-auth endpoints
- * (`exchange`, `siwe|siws nonce/verify`). These run before any bearer exists,
- * yet each one writes a `ba_verifications` row and does signature crypto / JWKS
- * fetches — and `exchange` can create a canonical user — so an unthrottled
- * caller can spam rows and burn CPU. The small in-process limiter is scoped to
- * this public pre-authentication boundary and keyed per client IP.
- *
- * Returned as a plain 429 `Response`; callers return it from inside the
- * `widgetRoute` handler so the wrapper still applies the cross-origin CORS
- * headers. A rate-limited response carries no `Access-Control-Allow-Credentials`
- * and preserves `Vary: Origin`, exactly like every other widget response.
+ * Vercel calculates x-real-ip after its verified-proxy layer, including when
+ * Cloudflare fronts a custom domain. Never fall back to caller-controlled
+ * forwarding headers; absent one valid address, callers share a conservative
+ * bucket.
  */
-export function widgetAuthRateLimit(request: Request): Response | null {
-  if (checkRateLimit(getClientIp(request)).allowed) return null;
+export function widgetClientAddress(request: Request): string {
+  const address = request.headers.get("x-real-ip")?.trim() ?? "";
+  return isIP(address) ? address : "unknown";
+}
+
+/** Shared per-origin, per-client fixed-window quota for public widget-auth
+ * endpoints. The account package stores only a digest in ba_verifications. */
+export async function widgetAuthRateLimit(
+  request: Request,
+): Promise<Response | null> {
+  const result = await checkWidgetAuthRateLimit({
+    origin: observedWidgetOrigin(request) ?? "invalid",
+    clientAddress: widgetClientAddress(request),
+  });
+  if (result.allowed) return null;
   return Response.json({ error: "rate_limited" }, { status: 429 });
 }

@@ -132,13 +132,25 @@ function withSessionHeader(sessionId: string, init?: HeadersInit): HeadersInit {
 export function wrapFetchWithAccountBearer(
   fetchImpl: typeof fetch,
   getAccountBearer?: GetAccountBearer,
+  baseUrl?: string,
 ): typeof fetch {
   if (!getAccountBearer) return fetchImpl;
 
   return async (input, init) => {
     const request = input instanceof Request ? input : undefined;
-    const path = new URL(String(request?.url ?? input), "http://localhost")
-      .pathname;
+    const url = new URL(
+      String(request?.url ?? input),
+      baseUrl ? absoluteBase(baseUrl) : "http://localhost",
+    );
+    const path = url.pathname;
+    if (
+      (baseUrl && url.origin !== new URL(absoluteBase(baseUrl)).origin) ||
+      (!path.startsWith("/api/") &&
+        path !== "/v1/account" &&
+        !path.startsWith("/v1/account/"))
+    ) {
+      return fetchImpl(request ? request.clone() : input, init);
+    }
     if (path.startsWith("/v1/agent/") || path.startsWith("/v1/pipeline/")) {
       return fetchImpl(request ? request.clone() : input, init);
     }
@@ -174,15 +186,21 @@ export function wrapFetchWithPublicApiAuthorization(input: {
   fetch: typeof fetch;
   baseUrl: string;
   oauth?: AomiOAuthTokenProvider;
+  getAccountBearer?: GetAccountBearer;
   guest?: GuestSessionProvider;
 }): typeof fetch {
-  if (!input.oauth && !input.guest) return input.fetch;
+  if (!input.oauth && !input.getAccountBearer && !input.guest) {
+    return input.fetch;
+  }
   return async (requestInput, init) => {
     const request = requestInput instanceof Request ? requestInput : undefined;
     const url = new URL(
       String(request?.url ?? requestInput),
       absoluteBase(input.baseUrl),
     );
+    if (url.origin !== new URL(absoluteBase(input.baseUrl)).origin) {
+      return input.fetch(requestInput, init);
+    }
     const policy = publicApiPolicy(
       url,
       init?.method ?? request?.method ?? "GET",
@@ -190,37 +208,63 @@ export function wrapFetchWithPublicApiAuthorization(input: {
     );
     if (!policy) return input.fetch(requestInput, init);
     const baseHeaders = new Headers(init?.headers ?? request?.headers);
+    let selectedSource: "oauth" | "account" | "guest" | undefined;
     const attempt = async (forceRefresh: boolean, dpopNonce?: string) => {
       const headers = new Headers(baseHeaders);
-      if (input.oauth) {
+      if (input.oauth && (!selectedSource || selectedSource === "oauth")) {
         const token = await input.oauth({
           resource: policy.resource,
           scopes: policy.scopes,
           forceRefresh,
         });
-        if (!token)
+        if (!token && selectedSource === "oauth") {
           throw new Error(
             "No OAuth grant covers this Aomi resource and scope set",
           );
-        const tokenType = token.tokenType ?? "Bearer";
-        headers.set("authorization", `${tokenType} ${token.accessToken}`);
-        if (tokenType === "DPoP") {
-          if (!token.dpopProof) {
-            throw new Error("DPoP token provider returned no proof signer");
-          }
-          headers.set(
-            "dpop",
-            await token.dpopProof({
-              url: url.toString(),
-              method: policy.method,
-              accessToken: token.accessToken,
-              nonce: dpopNonce,
-            }),
-          );
         }
-      } else if (input.guest) {
+        if (token) {
+          selectedSource = "oauth";
+          const tokenType = token.tokenType ?? "Bearer";
+          headers.set("authorization", `${tokenType} ${token.accessToken}`);
+          if (tokenType === "DPoP") {
+            if (!token.dpopProof) {
+              throw new Error("DPoP token provider returned no proof signer");
+            }
+            headers.set(
+              "dpop",
+              await token.dpopProof({
+                url: url.toString(),
+                method: policy.method,
+                accessToken: token.accessToken,
+                nonce: dpopNonce,
+              }),
+            );
+          }
+        }
+      }
+      if (
+        input.getAccountBearer &&
+        (!selectedSource || selectedSource === "account")
+      ) {
+        let credential: string | null | undefined;
+        try {
+          credential = await input.getAccountBearer({ forceRefresh });
+        } catch (error) {
+          if (input.getAccountBearer.required) throw error;
+        }
+        if (credential) {
+          selectedSource = "account";
+          headers.set("authorization", `Bearer ${credential}`);
+        } else if (input.getAccountBearer.required) {
+          throw new Error("Required account bearer is unavailable");
+        }
+      }
+      if (input.guest && (!selectedSource || selectedSource === "guest")) {
         const credential = await input.guest({ forceRefresh });
-        if (credential) headers.set("authorization", `Bearer ${credential}`);
+        if (credential) {
+          selectedSource = "guest";
+          headers.set("authorization", `Bearer ${credential}`);
+        }
       }
       return input.fetch(request ? request.clone() : requestInput, {
         ...init,
@@ -229,7 +273,7 @@ export function wrapFetchWithPublicApiAuthorization(input: {
     };
     const response = await attempt(false);
     if (response.status !== 401 && response.status !== 403) return response;
-    if (input.guest && response.status === 403) return response;
+    if (selectedSource === "guest" && response.status === 403) return response;
     const dpopNonce = response.headers.get("dpop-nonce") ?? undefined;
     return attempt(!dpopNonce, dpopNonce);
   };
@@ -316,7 +360,7 @@ export class AomiClient {
     const guest =
       options.oauth ||
       options.guest === false ||
-      (options.getAccountBearer && options.guest === undefined)
+      options.getAccountBearer?.required === true
         ? undefined
         : typeof options.guest === "function"
           ? options.guest
@@ -329,18 +373,22 @@ export class AomiClient {
         fetch: fetchImpl,
         baseUrl: this.baseUrl,
         oauth: options.oauth,
+        getAccountBearer: options.getAccountBearer,
         guest,
       }),
       options.getAccountBearer,
+      this.baseUrl,
     );
     this.rawFetchImpl = wrapFetchWithAccountBearer(
       wrapFetchWithPublicApiAuthorization({
         fetch: rawFetchImpl,
         baseUrl: this.baseUrl,
         oauth: options.oauth,
+        getAccountBearer: options.getAccountBearer,
         guest,
       }),
       options.getAccountBearer,
+      this.baseUrl,
     );
     this.logger = options.logger;
     this.agent = new AgentTransport((method, path, requestOptions) =>

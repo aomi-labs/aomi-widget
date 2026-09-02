@@ -7,6 +7,10 @@ import {
   PIPELINE_SCOPES,
   aomiOAuthResources,
 } from "@portal/server/oauth/resources";
+import {
+  applyManagedWidgetOriginCors,
+  managedWidgetPreflight,
+} from "@portal/server/oauth/cors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +18,7 @@ export const maxDuration = 300;
 
 async function handle(request: Request): Promise<Response> {
   const resource = aomiOAuthResources().pipelineRest;
+  let response: Response;
   try {
     const requiredScopes = [
       request.method === "GET" ? "pipeline:catalog" : "pipeline:execute",
@@ -34,7 +39,7 @@ async function handle(request: Request): Promise<Response> {
     ) {
       delegatedScopes.push("custody:delegate");
     }
-    return await proxyAgentApi(request, {
+    response = await proxyAgentApi(request, {
       ...principal,
       scopes: delegatedScopes,
     });
@@ -45,19 +50,23 @@ async function handle(request: Request): Promise<Response> {
         error.message,
       )
     ) {
-      return apiAuthError(error, resource);
-    }
-    return Response.json(
-      {
-        error: {
-          code: "upstream_unavailable",
-          message: "Pipeline API unavailable",
+      response = apiAuthError(error, resource);
+    } else {
+      response = Response.json(
+        {
+          error: {
+            code: "upstream_unavailable",
+            message: "Pipeline API unavailable",
+          },
         },
-      },
-      { status: 502 },
-    );
+        { status: 502 },
+      );
+    }
   }
+  return applyManagedWidgetOriginCors({ request, response });
 }
 
 export const GET = handle;
 export const POST = handle;
+export const OPTIONS = (request: Request) =>
+  managedWidgetPreflight(request, ["GET", "POST", "OPTIONS"]);

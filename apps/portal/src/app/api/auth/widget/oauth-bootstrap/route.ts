@@ -30,7 +30,7 @@ const bootstrapBody = z.object({
 });
 
 export const POST = widgetRoute(async (request: Request) => {
-  const limited = widgetAuthRateLimit(request);
+  const limited = await widgetAuthRateLimit(request);
   if (limited) return limited;
 
   const origin = requireWidgetOrigin(request);

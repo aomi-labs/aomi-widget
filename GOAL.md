@@ -1,5 +1,33 @@
 # Canonical Landing
 
+Current session goal: **AUTH STACK STAGING HARDENING IN PROGRESS
+2026-09-02** — the exact stacked candidate completed Agent and Pipeline REST
+device authorization, token exchange, authenticated BFF reads, managed CORS,
+and staging-database cleanup. Live verification exposed two lower-layer gaps:
+the shared PostgreSQL rate counter lost concurrent increments because its lock
+and read shared a stale statement snapshot, and the hosted Better Auth bundle
+rejected IPv4 loopback callbacks while accepting IPv6. The counter now locks
+in a separate explicit transaction statement with a real 61-way PostgreSQL
+regression, and the narrow Better Auth patch owns the RFC 8252 IPv4/IPv6 check
+instead of its bundled helper. A cache-free exact-SHA staging rebuild and repeat
+matrix are the current merge gate; dedicated Para/Privy identities remain the
+separate credentialed-browser boundary.
+
+Current session goal: **COMPREHENSIVE AUTH RECOVERY STACK LOCALLY VERIFIED
+2026-09-02** — five focused changes now cover RFC 8252 loopback callbacks,
+single-owner Para/Privy device initialization, account-first CLI credentials,
+durable identity revocation, and cross-origin Agent/Pipeline widget auth. The
+stack reuses encrypted, short-lived `ba_verifications` records without a new
+table, keeps credentials bound to their origin and subject, applies one public
+API auth resolver and managed CORS, replaces the spoofable in-process widget
+limiter with a shared expiring counter, and preserves widget state across
+anonymous-to-authenticated transitions. On the exact stacked head, Portal is
+510/510, account is 158/158, and client is 299 passed with one pre-existing
+contract test skipped; client, React, and widget package builds plus all three
+typechecks pass. The remaining acceptance boundary is the explicitly required
+exact-SHA staging matrix with real dedicated Para/Privy test identities,
+followed by bottom-up merge and the `@aomi-labs/client` 0.6.10 release gates.
+
 Current session goal: **IDENTITY REVOCATION RACES AND CONSENT BOUNDARIES
 LOCALLY VERIFIED 2026-09-02** — canonical account resolution now locks and
 revalidates the backing Better Auth user inside its transaction, so a browser

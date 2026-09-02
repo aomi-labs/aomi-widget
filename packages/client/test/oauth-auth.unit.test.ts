@@ -3,10 +3,126 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { wrapFetchWithPublicApiAuthorization } from "../src/client";
 import { createGuestSessionProvider } from "../src/guest-auth";
 import type { AomiOAuthTokenRequest } from "../src/authorization";
+import type { GetAccountBearer } from "../src/types";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("public API OAuth transport", () => {
+  it("uses an account widget-session bearer for Agent routes when OAuth is absent", async () => {
+    const upstream = vi.fn(async () => new Response("{}", { status: 200 }));
+    const getAccountBearer = vi.fn(
+      async () => "aomi_wst_account",
+    ) as ReturnType<typeof vi.fn> & GetAccountBearer;
+    const authorized = wrapFetchWithPublicApiAuthorization({
+      fetch: upstream as typeof fetch,
+      baseUrl: "https://chat.aomi.dev",
+      getAccountBearer,
+    });
+
+    await authorized("https://chat.aomi.dev/v1/agent/sessions");
+
+    expect(getAccountBearer).toHaveBeenCalledWith({ forceRefresh: false });
+    expect(
+      new Headers(upstream.mock.calls[0]?.[1]?.headers).get("authorization"),
+    ).toBe("Bearer aomi_wst_account");
+  });
+
+  it("keeps OAuth ahead of account and guest authentication", async () => {
+    const upstream = vi.fn(async () => new Response("{}", { status: 200 }));
+    const oauth = vi.fn(async (request: AomiOAuthTokenRequest) => ({
+      accessToken: "oauth-token",
+      expiresAt: Date.now() + 60_000,
+      resource: request.resource,
+      scopes: request.scopes,
+    }));
+    const getAccountBearer = vi.fn(async () => "account-token");
+    const guest = vi.fn(async () => "guest-token");
+    const authorized = wrapFetchWithPublicApiAuthorization({
+      fetch: upstream as typeof fetch,
+      baseUrl: "https://chat.aomi.dev",
+      oauth,
+      getAccountBearer,
+      guest,
+    });
+
+    await authorized("https://chat.aomi.dev/v1/pipeline/tools");
+
+    expect(getAccountBearer).not.toHaveBeenCalled();
+    expect(guest).not.toHaveBeenCalled();
+    expect(
+      new Headers(upstream.mock.calls[0]?.[1]?.headers).get("authorization"),
+    ).toBe("Bearer oauth-token");
+  });
+
+  it("does not fall back to a guest identity when the account bearer is required", async () => {
+    const getAccountBearer = vi.fn(async () => null) as ReturnType<
+      typeof vi.fn
+    > &
+      GetAccountBearer;
+    getAccountBearer.required = true;
+    const guest = vi.fn(async () => "guest-token");
+    const authorized = wrapFetchWithPublicApiAuthorization({
+      fetch: vi.fn() as unknown as typeof fetch,
+      baseUrl: "https://chat.aomi.dev",
+      getAccountBearer,
+      guest,
+    });
+
+    await expect(
+      authorized("https://chat.aomi.dev/v1/agent/sessions"),
+    ).rejects.toThrow("Required account bearer is unavailable");
+    expect(guest).not.toHaveBeenCalled();
+  });
+
+  it("keeps one client identity per request while switching later polls from guest to account", async () => {
+    const seen: Array<string | null> = [];
+    const upstream = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        seen.push(new Headers(init?.headers).get("authorization"));
+        return new Response("{}", { status: 200 });
+      },
+    );
+    let accountToken: string | undefined;
+    const getAccountBearer = vi.fn(async () => accountToken);
+    const guest = vi.fn(async () => "guest-token");
+    const authorized = wrapFetchWithPublicApiAuthorization({
+      fetch: upstream as typeof fetch,
+      baseUrl: "https://chat.aomi.dev",
+      getAccountBearer,
+      guest,
+    });
+
+    await authorized("https://chat.aomi.dev/v1/agent/chat/thread-1", {
+      method: "GET",
+    });
+    accountToken = "aomi_wst_authenticated";
+    await authorized("https://chat.aomi.dev/v1/agent/chat/thread-1", {
+      method: "GET",
+    });
+
+    expect(seen).toEqual([
+      "Bearer guest-token",
+      "Bearer aomi_wst_authenticated",
+    ]);
+  });
+
+  it("never sends Aomi credentials to another origin", async () => {
+    const upstream = vi.fn(async () => new Response("{}", { status: 200 }));
+    const getAccountBearer = vi.fn(async () => "account-token");
+    const authorized = wrapFetchWithPublicApiAuthorization({
+      fetch: upstream as typeof fetch,
+      baseUrl: "https://chat.aomi.dev",
+      getAccountBearer,
+    });
+
+    await authorized("https://attacker.example/v1/agent/sessions");
+
+    expect(getAccountBearer).not.toHaveBeenCalled();
+    expect(
+      new Headers(upstream.mock.calls[0]?.[1]?.headers).has("authorization"),
+    ).toBe(false);
+  });
+
   it("requests the exact Agent resource and route scope", async () => {
     const upstream = vi.fn(
       async (_input: RequestInfo | URL, init?: RequestInit) => {
@@ -231,17 +347,15 @@ describe("Better Auth guest bootstrap", () => {
 
   it("falls back to the anonymous cookie when Better Auth refuses a second anonymous sign-in", async () => {
     vi.stubGlobal("location", { origin: "https://chat.aomi.dev" });
-    const fetchImpl = vi
-      .fn()
-      .mockResolvedValue(
-        Response.json(
-          {
-            code: "ANONYMOUS_USERS_CANNOT_SIGN_IN_AGAIN_ANONYMOUSLY",
-            message: "Anonymous users cannot sign in again anonymously",
-          },
-          { status: 400 },
-        ),
-      );
+    const fetchImpl = vi.fn().mockResolvedValue(
+      Response.json(
+        {
+          code: "ANONYMOUS_USERS_CANNOT_SIGN_IN_AGAIN_ANONYMOUSLY",
+          message: "Anonymous users cannot sign in again anonymously",
+        },
+        { status: 400 },
+      ),
+    );
     const guest = createGuestSessionProvider({
       baseUrl: "https://chat.aomi.dev",
       fetch: fetchImpl as typeof fetch,
