@@ -1,8 +1,5 @@
 "use client";
 
-import "@aomi-labs/widget-lib/providers/para";
-import "@aomi-labs/widget-lib/providers/privy";
-
 import {
   useCallback,
   useEffect,
@@ -11,10 +8,15 @@ import {
   type ReactNode,
 } from "react";
 import { CheckCircle2, Loader2 } from "lucide-react";
-import { useSearchParams } from "next/navigation";
-import { AomiWalletKitProvider, useAomiWalletKit } from "@aomi-labs/widget-lib";
-
-type Provider = "privy" | "para";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAomiWalletKit } from "@aomi-labs/widget-lib";
+import {
+  classifyProviderInitializationFailure,
+  normalizeDeviceAuthProvider,
+  providerConfigurationFailure,
+  providerFailureText,
+  type DeviceAuthProvider,
+} from "@portal/lib/device-auth-provider";
 
 type GrantResponse = {
   code?: unknown;
@@ -28,12 +30,10 @@ const providerLabels = {
 } as const;
 
 export function DeviceAuthClient() {
+  const router = useRouter();
   const params = useSearchParams();
-  const requestedProvider = normalizeProvider(params.get("provider"));
+  const provider = normalizeDeviceAuthProvider(params.get("provider"));
   const mode = params.get("mode") === "link" ? "link" : "login";
-  const [provider, setProvider] = useState<Provider | null>(
-    requestedProvider ?? null,
-  );
   const request = useMemo(
     () => ({
       state: params.get("state") ?? "",
@@ -60,14 +60,14 @@ export function DeviceAuthClient() {
         <div className="mt-6 grid gap-3">
           <button
             className="bg-foreground text-background h-11 rounded-md px-4 text-sm font-medium"
-            onClick={() => setProvider("privy")}
+            onClick={() => selectProvider(router, params, "privy")}
             type="button"
           >
             Continue with Privy
           </button>
           <button
             className="border-border h-11 rounded-md border px-4 text-sm font-medium"
-            onClick={() => setProvider("para")}
+            onClick={() => selectProvider(router, params, "para")}
             type="button"
           >
             Continue with Para
@@ -77,48 +77,22 @@ export function DeviceAuthClient() {
     );
   }
 
-  return (
-    <ProviderRuntime provider={provider}>
-      <DeviceAuthProviderPanel
-        mode={mode}
-        provider={provider}
-        request={request}
-      />
-    </ProviderRuntime>
+  const configurationFailure = providerConfigurationFailure(
+    provider,
+    providerConfiguration,
   );
-}
+  if (configurationFailure) {
+    return (
+      <DeviceAuthLayout status={providerFailureText(configurationFailure)} />
+    );
+  }
 
-function ProviderRuntime({
-  children,
-  provider,
-}: {
-  children: ReactNode;
-  provider: Provider;
-}) {
   return (
-    <AomiWalletKitProvider
-      auth={{
-        provider,
-        methods: provider === "privy" ? ["google", "email"] : ["google"],
-      }}
-      providers={{
-        para: {
-          apiKey: process.env.NEXT_PUBLIC_PARA_API_KEY,
-          environment:
-            process.env.NEXT_PUBLIC_PARA_ENVIRONMENT === "PROD"
-              ? "PROD"
-              : "BETA",
-          appName: "Aomi Labs",
-          appDescription: "Aomi CLI account login",
-        },
-        privy: {
-          appId: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
-          appName: "Aomi Labs",
-        },
-      }}
-    >
-      {children}
-    </AomiWalletKitProvider>
+    <DeviceAuthProviderPanel
+      mode={mode}
+      provider={provider}
+      request={request}
+    />
   );
 }
 
@@ -128,7 +102,7 @@ function DeviceAuthProviderPanel({
   request,
 }: {
   mode: "login" | "link";
-  provider: Provider;
+  provider: DeviceAuthProvider;
   request: {
     state: string;
     codeChallenge: string;
@@ -137,6 +111,8 @@ function DeviceAuthProviderPanel({
   };
 }) {
   const walletKit = useAomiWalletKit();
+  const connectSocial = walletKit.connectSocial;
+  const getAccountCredential = walletKit.getAccountCredential;
   const [status, setStatus] = useState(
     `Continue with ${providerLabels[provider]} to ${
       mode === "link" ? "link this login method." : "connect your CLI."
@@ -150,16 +126,22 @@ function DeviceAuthProviderPanel({
     setPending(true);
     setStatus(`Opening ${providerLabels[provider]}...`);
     try {
-      await walletKit.connectSocial?.("google");
+      await connectSocial?.("google");
       setStatus("Waiting for provider credential...");
       setExchangeRequested(true);
     } catch (error) {
       setStatus(
-        error instanceof Error ? error.message : "Authentication failed",
+        providerFailureText(
+          classifyProviderInitializationFailure(
+            provider,
+            error,
+            providerConfiguration,
+          ),
+        ),
       );
       setPending(false);
     }
-  }, [provider, walletKit]);
+  }, [connectSocial, provider]);
 
   useEffect(() => {
     if (!exchangeRequested || complete || !pending) return;
@@ -172,7 +154,7 @@ function DeviceAuthProviderPanel({
             : "Creating Aomi session...",
         );
         const credential = await waitForCredential(() =>
-          walletKit.getAccountCredential?.(),
+          getAccountCredential?.(),
         );
         if (cancelled) return;
         if (mode === "link") {
@@ -275,7 +257,7 @@ function DeviceAuthProviderPanel({
     mode,
     provider,
     request,
-    walletKit.getAccountCredential,
+    getAccountCredential,
   ]);
 
   return (
@@ -342,10 +324,6 @@ async function waitForCredential(
   throw new Error("Provider did not return an exchangeable credential");
 }
 
-function normalizeProvider(value: string | null): Provider | null {
-  return value === "privy" || value === "para" ? value : null;
-}
-
 function isApprovedCliLoopbackRedirectUri(redirectUri: string): boolean {
   let url: URL;
   try {
@@ -360,4 +338,20 @@ function isApprovedCliLoopbackRedirectUri(redirectUri: string): boolean {
   const port = Number(url.port);
   if (!Number.isInteger(port) || port <= 0 || port > 65_535) return false;
   return url.pathname === "/callback" && !url.search && !url.hash;
+}
+
+const providerConfiguration = {
+  paraApiKey: process.env.NEXT_PUBLIC_PARA_API_KEY?.trim() ?? "",
+  paraEnvironment: process.env.NEXT_PUBLIC_PARA_ENVIRONMENT?.trim() ?? "",
+  privyAppId: process.env.NEXT_PUBLIC_PRIVY_APP_ID?.trim() ?? "",
+};
+
+function selectProvider(
+  router: ReturnType<typeof useRouter>,
+  params: ReturnType<typeof useSearchParams>,
+  provider: DeviceAuthProvider,
+): void {
+  const next = new URLSearchParams(params.toString());
+  next.set("provider", provider);
+  router.replace(`/device-auth?${next.toString()}`);
 }

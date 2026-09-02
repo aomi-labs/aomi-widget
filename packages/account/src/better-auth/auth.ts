@@ -292,9 +292,16 @@ export const auth = betterAuth({
               ? [resources.pipelineMcp]
               : [],
             clientRegistrationAllowedResources: seedOAuthResources
-              ? [resources.agentMcp, resources.pipelineMcp]
+              ? [
+                  resources.agentMcp,
+                  resources.pipelineMcp,
+                  resources.agentRest,
+                  resources.pipelineRest,
+                ]
               : [],
-            clientRegistrationDefaultScopes: [...MCP_CLIENT_REGISTRATION_SCOPES],
+            clientRegistrationDefaultScopes: [
+              ...MCP_CLIENT_REGISTRATION_SCOPES,
+            ],
             // What a client may ASK for at registration. Better Auth fails a
             // registration outright on any requested scope missing from this
             // list, and MCP clients do request `openid` — Codex does — so

@@ -1,5 +1,16 @@
 # Canonical Landing
 
+Current session goal: **PROVIDER AND DEVICE AUTH RECOVERY LOCALLY VERIFIED
+2026-09-02** — `/device-auth` and `/oauth/device` now select Para or Privy at
+the single root wallet-provider boundary, OAuth device decisions claim and
+display the request before approve or deny, dynamic registration admits only
+the supported public MCP authorization-code and REST device-client shapes, and
+legacy CLI grants/link intents use encrypted five-minute one-time
+`ba_verifications` records instead of process-local maps. Portal lint,
+typecheck, all 454 tests, account typecheck, and account package dry-run pass;
+live provider credentials and staging were intentionally not exercised in this
+isolated implementation slice.
+
 Current session goal: **CLI AGENT CHAT AUTH, ORDER, AND TOOL TRACES VERIFIED
 2026-08-31** — anonymous Agent and Pipeline calls now receive a guest bearer
 even while additive account auth is configured, the CLI persists that guest

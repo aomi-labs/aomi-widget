@@ -17,7 +17,7 @@ vi.mock("@portal/server/account/session", async (importOriginal) => {
   return { ...actual, getBetterAuthSession: mocks.getSession };
 });
 
-vi.mock("@portal/lib/device-auth-grants", () => ({
+vi.mock("@portal/server/device-auth/grants", () => ({
   issueDeviceAuthGrant: mocks.issueGrant,
   issueDeviceAuthLinkIntent: mocks.issueLinkIntent,
   issueDeviceAuthLinkGrant: mocks.issueLinkGrant,
@@ -140,7 +140,7 @@ describe("device-auth route error ownership", () => {
     expect(mocks.capture).not.toHaveBeenCalled();
   });
 
-  it("preserves link-intent's broad 400 response contract", async () => {
+  it("keeps link-intent validation errors public and storage failures private", async () => {
     mocks.issueLinkIntent.mockImplementationOnce(() => {
       throw new Error("invalid_redirect_uri");
     });
@@ -164,14 +164,17 @@ describe("device-auth route error ownership", () => {
     const unexpected = await linkIntent(
       post("/v1/account/device-auth/link-intent", requestBody),
     );
-    expect(unexpected.status).toBe(400);
+    expect(unexpected.status).toBe(500);
     await expect(unexpected.json()).resolves.toEqual({
-      error: "private storage detail",
+      error: "device_auth_failed",
     });
-    expect(mocks.capture).not.toHaveBeenCalled();
+    expect(mocks.capture).toHaveBeenCalledWith(
+      failure,
+      expect.objectContaining({ status: 500 }),
+    );
   });
 
-  it("preserves link-grant's broad 400 response contract", async () => {
+  it("keeps link-grant validation errors public and crypto failures private", async () => {
     const requestBody = {
       linkIntent: "intent",
       state: VALID_STATE,
@@ -196,14 +199,17 @@ describe("device-auth route error ownership", () => {
     const unexpected = await linkGrant(
       post("/v1/account/device-auth/link-grant", requestBody),
     );
-    expect(unexpected.status).toBe(400);
+    expect(unexpected.status).toBe(500);
     await expect(unexpected.json()).resolves.toEqual({
-      error: "private crypto detail",
+      error: "device_auth_failed",
     });
-    expect(mocks.capture).not.toHaveBeenCalled();
+    expect(mocks.capture).toHaveBeenCalledWith(
+      failure,
+      expect.objectContaining({ status: 500 }),
+    );
   });
 
-  it("preserves provider exchange's broad 400 response contract", async () => {
+  it("keeps provider token errors public and provider configuration private", async () => {
     const requestBody = {
       code: "code",
       state: VALID_STATE,
@@ -234,10 +240,13 @@ describe("device-auth route error ownership", () => {
     const unexpected = await exchange(
       post("/v1/account/device-auth/exchange", requestBody),
     );
-    expect(unexpected.status).toBe(400);
+    expect(unexpected.status).toBe(500);
     await expect(unexpected.json()).resolves.toEqual({
-      error: "private provider configuration",
+      error: "provider_exchange_failed",
     });
-    expect(mocks.capture).not.toHaveBeenCalled();
+    expect(mocks.capture).toHaveBeenCalledWith(
+      failure,
+      expect.objectContaining({ status: 500 }),
+    );
   });
 });
