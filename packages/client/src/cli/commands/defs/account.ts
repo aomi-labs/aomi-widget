@@ -24,6 +24,11 @@ const accountLoginDef = defineCommand({
       type: "boolean",
       description: "Do not open provider auth; use native CLI SIWE",
     },
+    resource: {
+      type: "string",
+      description:
+        'Explicitly authorize an OAuth resource ("agent", "pipeline", or "all") after account login',
+    },
   },
   async run({ args }) {
     const { accountLoginCommand } = await import("../account");
@@ -32,6 +37,7 @@ const accountLoginDef = defineCommand({
       wallet: args.wallet === true,
       solana: args.solana === true,
       noBrowser: args["no-browser"] === true,
+      resource: typeof args.resource === "string" ? args.resource : undefined,
     });
   },
 });

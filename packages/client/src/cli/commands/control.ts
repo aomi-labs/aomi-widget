@@ -122,9 +122,7 @@ export async function modelsCommand(config: CliConfig): Promise<void> {
   const client = createControlClient(config);
   const cli = CliSession.load();
   const sessionId = cli?.sessionId ?? crypto.randomUUID();
-  const models = await client.getModels(sessionId, {
-    apiKey: config.apiKey ?? cli?.apiKey,
-  });
+  const models = await client.getModels(sessionId);
 
   if (models.length === 0) {
     console.log("No models available.");

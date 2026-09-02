@@ -15,6 +15,8 @@ import type { AomiOAuthResource } from "../authorization";
 export type CliAuthSession = {
   sessionToken: string;
   expiresAt: number;
+  origin: string;
+  subject: string;
   walletFamily?: "evm" | "svm";
   walletAddress?: string;
   chainId?: number;
@@ -30,6 +32,9 @@ export type CliOAuthGrant = {
   resource: AomiOAuthResource;
   scopes: readonly string[];
   tokenType?: "Bearer" | "DPoP";
+  issuer: string;
+  origin: string;
+  subject: string;
 };
 
 export type CliSessionState = {
@@ -41,9 +46,11 @@ export type CliSessionState = {
   /** Whether the active model has been pushed to the backend session. */
   modelSynced?: boolean;
   apiKey?: string;
+  apiKeyOrigin?: string;
   /** Aomi account bearer for authenticated requests. Persisted so a bearer
    * supplied once (via `--account-bearer`) survives across CLI invocations. */
   accountBearer?: string;
+  accountBearerOrigin?: string;
   /** Better Auth anonymous bearer owning guest Agent sessions. Stored in the
    * same private state file so a later CLI process can resume that identity. */
   guestBearer?: string;
@@ -124,7 +131,9 @@ function toCliSessionState(stored: StoredSessionState): CliSessionState {
     model: stored.model,
     modelSynced: stored.modelSynced,
     apiKey: stored.apiKey,
+    apiKeyOrigin: stored.apiKeyOrigin,
     accountBearer: stored.accountBearer,
+    accountBearerOrigin: stored.accountBearerOrigin,
     guestBearer: stored.guestBearer,
     publicKey: stored.publicKey,
     privateKey: stored.privateKey,
@@ -154,6 +163,23 @@ function readStoredSession(path: string): StoredSessionState | null {
     }
 
     const fallbackLocalId = parseSessionFileLocalId(basename(path)) ?? 0;
+    const baseOrigin = normalizedOrigin(parsed.baseUrl);
+    if (!baseOrigin) return null;
+    const accountBearer =
+      typeof parsed.accountBearer === "string" &&
+      parsed.accountBearer &&
+      parsed.accountBearerOrigin === baseOrigin
+        ? parsed.accountBearer
+        : undefined;
+    const auth = accountBearer
+      ? undefined
+      : normalizeAuthSession(parsed.auth, parsed.baseUrl);
+    const normalizedGrants = accountBearer
+      ? undefined
+      : normalizeOAuthGrants(parsed.oauthGrants, parsed.baseUrl);
+    const oauthGrants = auth
+      ? filterSubjectGrants(normalizedGrants, auth.subject)
+      : undefined;
     return {
       sessionId: parsed.sessionId,
       clientId: parsed.clientId,
@@ -161,8 +187,19 @@ function readStoredSession(path: string): StoredSessionState | null {
       app: parsed.app,
       model: parsed.model,
       modelSynced: parsed.modelSynced,
-      apiKey: parsed.apiKey,
-      accountBearer: parsed.accountBearer,
+      apiKey:
+        typeof parsed.apiKey === "string" && parsed.apiKeyOrigin === baseOrigin
+          ? parsed.apiKey
+          : undefined,
+      apiKeyOrigin:
+        typeof parsed.apiKey === "string" && parsed.apiKeyOrigin === baseOrigin
+          ? parsed.apiKeyOrigin
+          : undefined,
+      accountBearer,
+      accountBearerOrigin:
+        accountBearer && parsed.accountBearerOrigin === baseOrigin
+          ? parsed.accountBearerOrigin
+          : undefined,
       guestBearer:
         typeof parsed.guestBearer === "string" && parsed.guestBearer
           ? parsed.guestBearer
@@ -177,8 +214,8 @@ function readStoredSession(path: string): StoredSessionState | null {
       aaMode: parsed.aaMode,
       smartAccount: parsed.smartAccount,
       secretHandles: parsed.secretHandles,
-      auth: normalizeAuthSession(parsed.auth),
-      oauthGrants: normalizeOAuthGrants(parsed.oauthGrants),
+      auth,
+      oauthGrants,
       localId:
         typeof parsed.localId === "number" && parsed.localId > 0
           ? parsed.localId
@@ -197,20 +234,49 @@ function readStoredSession(path: string): StoredSessionState | null {
   }
 }
 
-function normalizeAuthSession(value: unknown): CliAuthSession | undefined {
+function filterSubjectGrants(
+  grants: Record<string, CliOAuthGrant> | undefined,
+  subject: string,
+): Record<string, CliOAuthGrant> | undefined {
+  if (!grants) return undefined;
+  const matching = Object.fromEntries(
+    Object.entries(grants).filter(([, grant]) => grant.subject === subject),
+  );
+  return Object.keys(matching).length > 0 ? matching : undefined;
+}
+
+function normalizeAuthSession(
+  value: unknown,
+  baseUrl: string,
+): CliAuthSession | undefined {
   if (!value || typeof value !== "object") return undefined;
   const auth = value as Partial<CliAuthSession>;
+  const baseOrigin = normalizedOrigin(baseUrl);
+  const legacySubject =
+    typeof auth.betterAuthUserId === "string" && auth.betterAuthUserId
+      ? auth.betterAuthUserId
+      : undefined;
+  const authOrigin =
+    normalizedOrigin(auth.origin) ??
+    (auth.origin === undefined && legacySubject ? baseOrigin : undefined);
   if (
     typeof auth.sessionToken !== "string" ||
     !auth.sessionToken ||
     typeof auth.expiresAt !== "number" ||
-    !Number.isFinite(auth.expiresAt)
+    !Number.isFinite(auth.expiresAt) ||
+    authOrigin !== baseOrigin ||
+    ((typeof auth.subject !== "string" || !auth.subject) && !legacySubject)
   ) {
     return undefined;
   }
   return {
     sessionToken: auth.sessionToken,
     expiresAt: auth.expiresAt,
+    origin: baseOrigin!,
+    // Legacy account sessions already persisted the Better Auth user id. It is
+    // the only safe subject migration because it came from the authenticated
+    // account response; unbound legacy OAuth/static tokens are discarded.
+    subject: auth.subject || legacySubject!,
     walletFamily: auth.walletFamily,
     walletAddress: auth.walletAddress,
     chainId: auth.chainId,
@@ -221,6 +287,7 @@ function normalizeAuthSession(value: unknown): CliAuthSession | undefined {
 
 function normalizeOAuthGrants(
   value: unknown,
+  baseUrl: string,
 ): Record<string, CliOAuthGrant> | undefined {
   if (!value || typeof value !== "object") return undefined;
   const grants: Record<string, CliOAuthGrant> = {};
@@ -236,6 +303,12 @@ function normalizeOAuthGrants(
       !Number.isFinite(candidate.expiresAt) ||
       typeof candidate.resource !== "string" ||
       !/\/v1\/(agent|pipeline)$/.test(candidate.resource) ||
+      normalizedOrigin(candidate.origin) !== normalizedOrigin(baseUrl) ||
+      normalizedOrigin(candidate.resource) !== normalizedOrigin(baseUrl) ||
+      typeof candidate.issuer !== "string" ||
+      normalizedOrigin(candidate.issuer) !== normalizedOrigin(baseUrl) ||
+      typeof candidate.subject !== "string" ||
+      !candidate.subject ||
       !Array.isArray(candidate.scopes) ||
       !candidate.scopes.every((scope) => typeof scope === "string") ||
       (candidate.tokenType !== undefined &&
@@ -248,6 +321,18 @@ function normalizeOAuthGrants(
     grants[grant.resource] = grant;
   }
   return Object.keys(grants).length > 0 ? grants : undefined;
+}
+
+function normalizedOrigin(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:"
+      ? url.origin
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function readActiveLocalId(): number | null {

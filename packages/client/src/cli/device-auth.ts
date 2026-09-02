@@ -114,6 +114,15 @@ export async function signInWithDeviceProvider({
       portalUrl,
       sessionToken,
     );
+    const subject =
+      typeof accountInfo?.session?.betterAuthUserId === "string"
+        ? accountInfo.session.betterAuthUserId
+        : typeof exchange.betterAuthUserId === "string"
+          ? exchange.betterAuthUserId
+          : undefined;
+    if (!subject) {
+      throw new Error("Device auth exchange did not return an account subject");
+    }
     return {
       provider:
         exchange.provider === "privy" || exchange.provider === "para"
@@ -125,6 +134,8 @@ export async function signInWithDeviceProvider({
           parseExpiresAt(exchange.expiresAt) ??
           parseExpiresAt(accountInfo?.session?.expiresAt) ??
           now() + DEFAULT_SESSION_TTL_MS,
+        origin: new URL(portalUrl).origin,
+        subject,
         betterAuthUserId:
           typeof accountInfo?.session?.betterAuthUserId === "string"
             ? accountInfo.session.betterAuthUserId

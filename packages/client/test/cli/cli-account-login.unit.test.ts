@@ -34,7 +34,38 @@ describe("aomi account login", () => {
     vi.restoreAllMocks();
   });
 
-  it("uses least-privilege OAuth device grants by default", async () => {
+  it("uses the account-first provider picker by default", async () => {
+    const deviceLogin = vi.fn(async () => ({
+      provider: "privy" as const,
+      auth: {
+        sessionToken: "account-session",
+        expiresAt: Date.parse("2031-01-02T03:04:05.000Z"),
+        origin: "http://unit.test",
+        subject: "user-1",
+      },
+    }));
+    vi.doMock("../../src/cli/device-auth", () => ({
+      signInWithDeviceProvider: deviceLogin,
+    }));
+    const { accountLoginCommand } =
+      await import("../../src/cli/commands/account");
+    const { readState } = await import("../../src/cli/state");
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    await accountLoginCommand(baseConfig);
+
+    expect(deviceLogin).toHaveBeenCalledWith({
+      baseUrl: "http://unit.test",
+      provider: undefined,
+    });
+    expect(readState()?.auth).toMatchObject({
+      sessionToken: "account-session",
+      subject: "user-1",
+    });
+    expect(readState()?.oauthGrants).toBeUndefined();
+  });
+
+  it("acquires explicit subject-bound OAuth resources after account login", async () => {
     const oauthLogin = vi.fn(async (input: { resource: string }) => ({
       clientId: input.resource.endsWith("/v1/agent")
         ? "agent-client"
@@ -47,16 +78,28 @@ describe("aomi account login", () => {
         ? ["agent:read", "agent:write", "offline_access"]
         : ["pipeline:catalog", "offline_access"],
       tokenType: "Bearer" as const,
+      issuer: "http://unit.test/api/auth",
+      origin: "http://unit.test",
+      subject: "user-1",
     }));
     vi.doMock("../../src/cli/oauth-device-auth", () => ({
       signInWithOAuthDevice: oauthLogin,
     }));
     const { accountLoginCommand } =
       await import("../../src/cli/commands/account");
+    const { CliSession } = await import("../../src/cli/cli-session");
     const { readState } = await import("../../src/cli/state");
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
-    await accountLoginCommand(baseConfig);
+    const cli = CliSession.loadOrCreate(baseConfig);
+    cli.setAuthSession({
+      sessionToken: "account-session",
+      expiresAt: Date.now() + 60_000,
+      origin: "http://unit.test",
+      subject: "user-1",
+    });
+
+    await accountLoginCommand(baseConfig, { resource: "all" });
 
     expect(oauthLogin).toHaveBeenCalledTimes(2);
     expect(oauthLogin.mock.calls.map(([input]) => input)).toEqual([
@@ -64,11 +107,15 @@ describe("aomi account login", () => {
         baseUrl: "http://unit.test",
         resource: "http://unit.test/v1/agent",
         scopes: ["agent:read", "agent:write", "offline_access"],
+        expectedSubject: "user-1",
+        clientId: undefined,
       },
       {
         baseUrl: "http://unit.test",
         resource: "http://unit.test/v1/pipeline",
         scopes: ["pipeline:catalog", "offline_access"],
+        expectedSubject: "user-1",
+        clientId: undefined,
       },
     ]);
     expect(Object.keys(readState()?.oauthGrants ?? {})).toEqual([
@@ -76,8 +123,38 @@ describe("aomi account login", () => {
       "http://unit.test/v1/pipeline",
     ]);
     expect(logSpy).toHaveBeenCalledWith(
-      "Signed in with OAuth device authorization",
+      "Authorized OAuth resources: agent, pipeline",
     );
+  });
+
+  it("requires an account session before OAuth resource acquisition", async () => {
+    const oauthLogin = vi.fn();
+    vi.doMock("../../src/cli/oauth-device-auth", () => ({
+      signInWithOAuthDevice: oauthLogin,
+    }));
+    const { accountLoginCommand } =
+      await import("../../src/cli/commands/account");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      accountLoginCommand(baseConfig, { resource: "agent" }),
+    ).rejects.toMatchObject({ code: 1 });
+    expect(oauthLogin).not.toHaveBeenCalled();
+  });
+
+  it("rejects static bearer login because it is an exclusive auth mode", async () => {
+    const deviceLogin = vi.fn();
+    vi.doMock("../../src/cli/device-auth", () => ({
+      signInWithDeviceProvider: deviceLogin,
+    }));
+    const { accountLoginCommand } =
+      await import("../../src/cli/commands/account");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      accountLoginCommand({ ...baseConfig, accountBearer: "static-token" }),
+    ).rejects.toMatchObject({ code: 1 });
+    expect(deviceLogin).not.toHaveBeenCalled();
   });
 
   it("passes an explicit provider to device auth", async () => {
@@ -86,6 +163,8 @@ describe("aomi account login", () => {
       auth: {
         sessionToken: "para-session",
         expiresAt: Date.parse("2031-01-02T03:04:05.000Z"),
+        origin: "http://unit.test",
+        subject: "user-1",
       },
     }));
     vi.doMock("../../src/cli/device-auth", () => ({
@@ -166,11 +245,14 @@ describe("aomi account login", () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
     try {
-      await accountLoginCommand({
-        ...baseConfig,
-        baseUrl: "https://chat.aomi.dev",
-        privateKey: TEST_PRIVATE_KEY,
-      });
+      await accountLoginCommand(
+        {
+          ...baseConfig,
+          baseUrl: "https://chat.aomi.dev",
+          privateKey: TEST_PRIVATE_KEY,
+        },
+        { wallet: true },
+      );
 
       expect(nativeFetch).toHaveBeenNthCalledWith(
         1,

@@ -98,6 +98,8 @@ describe("aomi account link management", () => {
     cli.setAuthSession({
       sessionToken: "session-token",
       expiresAt: Date.now() + 60_000,
+      origin: "https://portal.test",
+      subject: "aomi-user-1",
     });
 
     await accountLinksCommand({ secrets: {} });
@@ -125,6 +127,8 @@ describe("aomi account link management", () => {
     cli.setAuthSession({
       sessionToken: "session-token",
       expiresAt: Date.now() + 60_000,
+      origin: "https://portal.test",
+      subject: "aomi-user-1",
     });
 
     await accountLinksCommand({ secrets: {}, json: true });
@@ -177,6 +181,8 @@ describe("aomi account link management", () => {
     cli.setAuthSession({
       sessionToken: "session-token",
       expiresAt: Date.now() + 60_000,
+      origin: "https://portal.test",
+      subject: "aomi-user-1",
     });
 
     await accountLinkCommand(
@@ -235,6 +241,8 @@ describe("aomi account link management", () => {
     cli.setAuthSession({
       sessionToken: "session-token",
       expiresAt: Date.now() + 60_000,
+      origin: "https://portal.test",
+      subject: "aomi-user-1",
     });
 
     await accountLinkCommand(
@@ -271,6 +279,8 @@ describe("aomi account link management", () => {
     cli.setAuthSession({
       sessionToken: "session-token",
       expiresAt: Date.now() + 60_000,
+      origin: "https://portal.test",
+      subject: "aomi-user-1",
     });
 
     await accountLinkCommand(baseConfig, { provider: "privy" });
@@ -305,6 +315,8 @@ describe("aomi account link management", () => {
     cli.setAuthSession({
       sessionToken: "session-token",
       expiresAt: Date.now() + 60_000,
+      origin: "https://portal.test",
+      subject: "aomi-user-1",
     });
 
     await accountRenameCommand(baseConfig, "identity-privy", {
@@ -342,6 +354,8 @@ describe("aomi account link management", () => {
     cli.setAuthSession({
       sessionToken: "session-token",
       expiresAt: Date.now() + 60_000,
+      origin: "https://portal.test",
+      subject: "aomi-user-1",
     });
 
     await accountDeleteCommand(baseConfig, { yes: true });
@@ -358,6 +372,8 @@ describe("aomi account link management", () => {
     cli.setAuthSession({
       sessionToken: "session-token",
       expiresAt: Date.now() + 60_000,
+      origin: "https://portal.test",
+      subject: "aomi-user-1",
     });
 
     await expect(accountDeleteCommand(baseConfig)).rejects.toMatchObject({

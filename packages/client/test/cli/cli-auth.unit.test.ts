@@ -92,6 +92,8 @@ describe("CLI BetterAuth SIWE auth", () => {
     expect(result.auth).toEqual({
       sessionToken: "better-auth-session-token",
       expiresAt: Date.parse("2030-01-02T03:04:05.000Z"),
+      origin: "https://portal.test",
+      subject: "canonical-user",
       walletFamily: "evm",
       walletAddress: ACCOUNT.address,
       chainId: 8453,
@@ -104,9 +106,12 @@ describe("CLI BetterAuth SIWE auth", () => {
 
     const validProvider = createCliAuthTokenProvider(
       () => ({
+        baseUrl: "https://portal.test",
         auth: {
           sessionToken: "session-token",
           expiresAt: 60_000,
+          origin: "https://portal.test",
+          subject: "user-1",
         },
       }),
       () => 1_000,
@@ -115,9 +120,12 @@ describe("CLI BetterAuth SIWE auth", () => {
 
     const expiredProvider = createCliAuthTokenProvider(
       () => ({
+        baseUrl: "https://portal.test",
         auth: {
           sessionToken: "session-token",
           expiresAt: 10_000,
+          origin: "https://portal.test",
+          subject: "user-1",
         },
       }),
       () => 10_000,
@@ -186,6 +194,8 @@ describe("CLI BetterAuth SIWE auth", () => {
     expect(result.auth).toEqual({
       sessionToken: "siws-session-token",
       expiresAt: Date.parse("2030-01-02T03:04:05.000Z"),
+      origin: "https://portal.test",
+      subject: "better-auth-solana-user",
       walletFamily: "svm",
       walletAddress: keypair.publicKey.toBase58(),
       chainScope: "solana:devnet",
@@ -205,12 +215,14 @@ describe("CLI BetterAuth SIWE auth", () => {
           const body = JSON.parse(String(init?.body));
           expect(body.message).toContain("localhost:3000 wants you to sign in");
           return Response.json(
-            { success: true },
+            { success: true, user_id: "local-user" },
             { headers: { "set-auth-token": "better-auth-session-token" } },
           );
         }
         if (url.endsWith("/v1/account")) {
-          return Response.json({ session: null });
+          return Response.json({
+            session: { betterAuthUserId: "local-user" },
+          });
         }
         throw new Error(`Unexpected URL ${url}`);
       },
@@ -254,6 +266,8 @@ describe("CLI BetterAuth SIWE auth", () => {
     cli.setAuthSession({
       sessionToken: "session-token",
       expiresAt: Date.now() + 60_000,
+      origin: "https://portal.test",
+      subject: "user-1",
     });
     cli.setWallet(PRIVATE_KEY, ACCOUNT.address);
     cli.setSvmWallet("solana-secret", "solana-public");
@@ -269,5 +283,51 @@ describe("CLI BetterAuth SIWE auth", () => {
       }),
     );
     expect(logSpy).toHaveBeenCalledWith("Signed out");
+  });
+
+  it("clears local credentials while reporting a failed remote revocation", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
+      String(input).endsWith("/oauth2/revoke")
+        ? new Response(null, { status: 503 })
+        : Response.json({ success: true }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { logoutCommand } = await import("../../src/cli/commands/account");
+    const { readState } = await import("../../src/cli/state");
+    const cli = CliSession.loadOrCreate({
+      baseUrl: "https://portal.test",
+      secrets: {},
+    });
+    cli.setAuthSession({
+      sessionToken: "session-token",
+      expiresAt: Date.now() + 60_000,
+      origin: "https://portal.test",
+      subject: "user-1",
+    });
+    cli.setOAuthGrant({
+      clientId: "client-1",
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      expiresAt: Date.now() + 60_000,
+      issuer: "https://portal.test/api/auth",
+      origin: "https://portal.test",
+      subject: "user-1",
+      resource: "https://portal.test/v1/agent",
+      scopes: ["agent:read"],
+      tokenType: "Bearer",
+    });
+
+    await expect(logoutCommand({ secrets: {} })).rejects.toThrow(
+      "Signed out locally, but remote revocation failed: OAuth revoke HTTP 503",
+    );
+    expect(readState()).toMatchObject({
+      auth: undefined,
+      oauthGrants: undefined,
+      accountBearer: undefined,
+      guestBearer: undefined,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

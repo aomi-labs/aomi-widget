@@ -551,6 +551,16 @@ function tokenGrant(input: {
   priorRefreshToken?: string;
   now: () => number;
 }): AomiOAuthGrant {
+  if (
+    input.body.token_type !== undefined &&
+    input.body.token_type !== "Bearer" &&
+    input.body.token_type !== "DPoP"
+  ) {
+    throw new AomiOAuthError(
+      "invalid_response",
+      "OAuth response has unsupported token_type",
+    );
+  }
   const responseScopes =
     typeof input.body.scope === "string"
       ? input.body.scope.split(/\s+/).filter(Boolean)

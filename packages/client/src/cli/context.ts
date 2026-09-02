@@ -17,16 +17,23 @@ export function createControlClient(
   options: { payment?: boolean; onPayment?: CliPaymentListener } = {},
 ): AomiClient {
   const cli = CliSession.load();
-  const baseUrl = config.baseUrl ?? DEFAULT_CLI_BASE_URL;
+  const baseUrl = config.baseUrl ?? cli?.baseUrl ?? DEFAULT_CLI_BASE_URL;
+  const sameOrigin =
+    cli !== null && new URL(baseUrl).origin === new URL(cli.baseUrl).origin;
   const oauth: AomiOAuthTokenProvider | undefined = config.accountBearer
-    ? async ({ resource, scopes }) => ({
-        accessToken: config.accountBearer!,
-        expiresAt: Number.MAX_SAFE_INTEGER,
-        resource,
-        scopes,
-        tokenType: "Bearer",
-      })
-    : cli?.createOAuthProvider(fetch);
+    ? async ({ resource, scopes }) =>
+        new URL(resource).origin === new URL(baseUrl).origin
+          ? {
+              accessToken: config.accountBearer!,
+              expiresAt: Number.MAX_SAFE_INTEGER,
+              resource,
+              scopes,
+              tokenType: "Bearer",
+            }
+          : null
+    : sameOrigin
+      ? cli.createOAuthProvider(fetch)
+      : undefined;
   const authorizedFetch = oauth
     ? wrapFetchWithPublicApiAuthorization({ fetch, baseUrl, oauth })
     : fetch;
@@ -35,7 +42,7 @@ export function createControlClient(
     : undefined;
   return new AomiClient({
     baseUrl,
-    apiKey: config.apiKey,
+    apiKey: config.apiKey ?? (sameOrigin ? cli.apiKey : undefined),
     fetch: paymentFetch ?? fetch,
     // Payment settlement retries happen inside the x402 wrapper. Put OAuth
     // inside that wrapper so a newly-added Payment-Signature is authorized
@@ -44,7 +51,17 @@ export function createControlClient(
     guest: oauth ? false : (cli?.createGuestProvider(fetch, baseUrl) ?? true),
     getAccountBearer:
       createCliGetAccountBearer(config) ??
-      createCliAuthTokenProvider(() => readState() ?? {}),
+      (sameOrigin
+        ? createCliAuthTokenProvider(
+            () =>
+              readState() ?? {
+                baseUrl,
+                accountBearer: undefined,
+                accountBearerOrigin: undefined,
+                auth: undefined,
+              },
+          )
+        : undefined),
   });
 }
 

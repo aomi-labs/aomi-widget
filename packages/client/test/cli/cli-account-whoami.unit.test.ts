@@ -77,7 +77,7 @@ describe("aomi account whoami", () => {
     );
   });
 
-  it("reports an anonymous session and hints at the credential flags", async () => {
+  it("surfaces backend identity failures instead of reporting a false anonymous state", async () => {
     const { CliSession } = await import("../../src/cli/cli-session");
     const { whoamiCommand } = await import("../../src/cli/commands/account");
 
@@ -93,16 +93,8 @@ describe("aomi account whoami", () => {
       "fetch",
       vi.fn(async () => response),
     );
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-
-    await whoamiCommand(baseConfig);
-
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Not bound to an account"),
-    );
-    expect(logSpy).toHaveBeenCalledWith(
-      expect.stringContaining("--account-bearer"),
+    await expect(whoamiCommand(baseConfig)).rejects.toThrow(
+      "Failed to fetch account: HTTP 400",
     );
   });
-
 });

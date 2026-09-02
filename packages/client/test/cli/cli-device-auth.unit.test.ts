@@ -111,6 +111,8 @@ describe("CLI device provider auth", () => {
       expect(result.auth).toEqual({
         sessionToken: "better-auth-session",
         expiresAt: Date.parse("2032-03-04T05:06:07.000Z"),
+        origin: "https://chat-staging.aomi.dev",
+        subject: "ba-user",
         betterAuthUserId: "ba-user",
       });
     } finally {

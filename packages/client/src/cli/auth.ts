@@ -84,17 +84,31 @@ const AUTH_REFRESH_SKEW_MS = 30 * 1000;
 const SESSION_TOKEN_HEADERS = ["set-auth-token", "x-auth-token", "auth-token"];
 
 export function createCliAuthTokenProvider(
-  readState: () => Pick<CliSessionState, "accountBearer" | "auth">,
+  readState: () => Pick<
+    CliSessionState,
+    "baseUrl" | "accountBearer" | "accountBearerOrigin" | "auth"
+  >,
   now: () => number = Date.now,
 ): GetAccountBearer {
   return async () => {
     const state = readState();
+    const origin = originOf(state.baseUrl);
     const auth = state.auth;
-    if (auth?.sessionToken && auth.expiresAt > now() + AUTH_REFRESH_SKEW_MS) {
+    if (
+      auth?.sessionToken &&
+      auth.origin === origin &&
+      auth.expiresAt > now() + AUTH_REFRESH_SKEW_MS
+    ) {
       return auth.sessionToken;
     }
-    return state.accountBearer;
+    return state.accountBearerOrigin === origin
+      ? state.accountBearer
+      : undefined;
   };
+}
+
+function originOf(value: string): string {
+  return new URL(normalizeBaseUrl(value)).origin;
 }
 
 export async function signInWithCliSiwe({
@@ -182,6 +196,17 @@ export async function signInWithCliSiwe({
     portalUrl,
     sessionToken,
   );
+  const subject =
+    typeof accountInfo?.session?.betterAuthUserId === "string"
+      ? accountInfo.session.betterAuthUserId
+      : typeof verifyBody.user_id === "string"
+        ? verifyBody.user_id
+        : typeof verifyBody.user?.id === "string"
+          ? verifyBody.user.id
+          : undefined;
+  if (!subject) {
+    throw new Error("SIWE verification did not return an account subject");
+  }
   const expiresAt =
     parseExpiresAt(accountInfo?.session?.expiresAt) ??
     now() + DEFAULT_SESSION_TTL_MS;
@@ -191,6 +216,8 @@ export async function signInWithCliSiwe({
     auth: {
       sessionToken,
       expiresAt,
+      origin: new URL(portalUrl).origin,
+      subject,
       walletFamily: "evm",
       walletAddress:
         typeof verifyBody.user?.walletAddress === "string"
@@ -243,6 +270,13 @@ export async function signInWithCliSiws({
     normalizeBaseUrl(baseUrl),
     result.sessionToken,
   );
+  const subject =
+    typeof accountInfo?.session?.betterAuthUserId === "string"
+      ? accountInfo.session.betterAuthUserId
+      : result.betterAuthUserId;
+  if (!subject) {
+    throw new Error("SIWS verification did not return an account subject");
+  }
   const expiresAt =
     parseExpiresAt(accountInfo?.session?.expiresAt) ??
     now() + DEFAULT_SESSION_TTL_MS;
@@ -252,6 +286,8 @@ export async function signInWithCliSiws({
     auth: {
       sessionToken: result.sessionToken,
       expiresAt,
+      origin: new URL(normalizeBaseUrl(baseUrl)).origin,
+      subject,
       walletFamily: "svm",
       walletAddress: address,
       chainScope: chainId,

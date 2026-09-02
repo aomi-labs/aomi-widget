@@ -88,6 +88,8 @@ describe("CLI session lifecycle", () => {
     existing.setAuthSession({
       sessionToken: "bff-session-token",
       expiresAt: Date.now() + 60_000,
+      origin: "https://api.aomi.dev",
+      subject: "user-1",
       walletAddress: "0xFCAd0B19bB29D4674531d6f115237E16AfCE377c",
       chainId: 11155111,
     });
@@ -132,6 +134,8 @@ describe("CLI session lifecycle", () => {
     current.setAuthSession({
       sessionToken: "bff-session-token",
       expiresAt: Date.now() + 60_000,
+      origin: "https://chat.aomi.dev",
+      subject: "user-1",
     });
 
     await resumeSessionCommand("mcp-remote-thread");
@@ -221,6 +225,12 @@ describe("CLI session lifecycle", () => {
       scopes: ["agent:write"],
       tokenType: "Bearer",
     });
+    await expect(
+      oauth?.({
+        resource: "https://evil.example/v1/agent",
+        scopes: ["agent:write"],
+      }),
+    ).resolves.toBeNull();
   });
 
   it("uses an anonymous bearer for Agent requests without an OAuth grant", async () => {
@@ -468,5 +478,155 @@ describe("CLI session lifecycle", () => {
     });
 
     expect(readState()?.accountBearer).toBe("bearer-1");
+    expect(readState()?.accountBearerOrigin).toBe("https://api.aomi.dev");
+  });
+
+  it("clears every credential when the backend origin changes", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+    const cli = CliSession.create({
+      baseUrl: "https://chat.aomi.dev",
+      secrets: {},
+    });
+    cli.setAuthSession({
+      sessionToken: "account-session",
+      expiresAt: Date.now() + 60_000,
+      origin: "https://chat.aomi.dev",
+      subject: "user-1",
+    });
+    cli.setOAuthGrant({
+      clientId: "client-1",
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      expiresAt: Date.now() + 60_000,
+      issuer: "https://chat.aomi.dev/api/auth",
+      origin: "https://chat.aomi.dev",
+      subject: "user-1",
+      resource: "https://chat.aomi.dev/v1/agent",
+      scopes: ["agent:read"],
+      tokenType: "Bearer",
+    });
+
+    cli.setBaseUrl("https://chat-staging.aomi.dev");
+
+    expect(readState()).toMatchObject({
+      baseUrl: "https://chat-staging.aomi.dev",
+      auth: undefined,
+      oauthGrants: undefined,
+      accountBearer: undefined,
+      guestBearer: undefined,
+    });
+  });
+
+  it("never starts browser authorization implicitly for a missing OAuth grant", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const cli = CliSession.create({
+      baseUrl: "https://chat.aomi.dev",
+      secrets: {},
+    });
+    cli.setAuthSession({
+      sessionToken: "account-session",
+      expiresAt: Date.now() + 60_000,
+      origin: "https://chat.aomi.dev",
+      subject: "user-1",
+    });
+
+    expect(cli.createOAuthProvider(fetchMock)).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("evicts a refresh grant rejected with invalid_grant", async () => {
+    const { CliSession } = await import("../../src/cli/cli-session");
+    const { readState } = await import("../../src/cli/state");
+    const cli = CliSession.create({
+      baseUrl: "https://chat.aomi.dev",
+      secrets: {},
+    });
+    cli.setAuthSession({
+      sessionToken: "account-session",
+      expiresAt: Date.now() + 60_000,
+      origin: "https://chat.aomi.dev",
+      subject: "user-1",
+    });
+    cli.setOAuthGrant({
+      clientId: "client-1",
+      accessToken: "expired-access-token",
+      refreshToken: "rejected-refresh-token",
+      expiresAt: 0,
+      issuer: "https://chat.aomi.dev/api/auth",
+      origin: "https://chat.aomi.dev",
+      subject: "user-1",
+      resource: "https://chat.aomi.dev/v1/agent",
+      scopes: ["agent:read"],
+      tokenType: "Bearer",
+    });
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          issuer: "https://chat.aomi.dev/api/auth",
+          authorization_endpoint:
+            "https://chat.aomi.dev/api/auth/oauth2/authorize",
+          token_endpoint: "https://chat.aomi.dev/api/auth/oauth2/token",
+          revocation_endpoint: "https://chat.aomi.dev/api/auth/oauth2/revoke",
+          device_authorization_endpoint:
+            "https://chat.aomi.dev/api/auth/device/code",
+          jwks_uri: "https://chat.aomi.dev/api/auth/jwks",
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({ error: "invalid_grant" }, { status: 400 }),
+      );
+
+    await expect(
+      cli.createOAuthProvider(fetchMock)?.({
+        resource: "https://chat.aomi.dev/v1/agent",
+        scopes: ["agent:read"],
+        forceRefresh: true,
+      }),
+    ).rejects.toMatchObject({ code: "invalid_grant" });
+    expect(
+      readState()?.oauthGrants?.["https://chat.aomi.dev/v1/agent"],
+    ).toBeUndefined();
+  });
+
+  it("migrates only subject-bound legacy auth and drops unbound credentials", async () => {
+    const { SESSIONS_DIR, readState } = await import("../../src/cli/state");
+    mkdirSync(SESSIONS_DIR, { recursive: true });
+    writeFileSync(
+      join(SESSIONS_DIR, "session-1.json"),
+      JSON.stringify({
+        sessionId: "legacy-auth",
+        localId: 1,
+        baseUrl: "https://chat.aomi.dev",
+        accountBearer: "unbound-static-token",
+        auth: {
+          sessionToken: "legacy-session",
+          expiresAt: Date.now() + 60_000,
+          betterAuthUserId: "legacy-user",
+        },
+        oauthGrants: {
+          "https://chat.aomi.dev/v1/agent": {
+            clientId: "legacy-client",
+            accessToken: "unbound-oauth-token",
+            expiresAt: Date.now() + 60_000,
+            resource: "https://chat.aomi.dev/v1/agent",
+            scopes: ["agent:read"],
+          },
+        },
+      }),
+    );
+    writeFileSync(join(stateDir, "active-session.txt"), "1");
+
+    expect(readState()).toMatchObject({
+      accountBearer: undefined,
+      oauthGrants: undefined,
+      auth: {
+        sessionToken: "legacy-session",
+        subject: "legacy-user",
+        origin: "https://chat.aomi.dev",
+      },
+    });
   });
 });

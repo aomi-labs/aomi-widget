@@ -23,7 +23,7 @@ import { createCliAuthTokenProvider } from "./auth";
 import { DEFAULT_CLI_BASE_URL } from "./client-factory";
 import { createCliPaymentFetch, type CliPaymentListener } from "./payment";
 import type { AomiOAuthTokenProvider } from "../authorization";
-import { signInWithOAuthDevice } from "./oauth-device-auth";
+import { CliOAuthError, refreshCliOAuthGrant } from "./oauth-device-auth";
 import { wrapFetchWithPublicApiAuthorization } from "../client";
 import {
   createGuestSessionProvider,
@@ -97,14 +97,29 @@ export class CliSession {
     }
 
     const baseUrl = config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL;
+    const sameOrigin =
+      seed !== undefined && originOf(baseUrl) === originOf(seed.baseUrl);
+    const explicitBearer = config.accountBearer;
+    const explicitApiKey = config.apiKey;
     const state: CliSessionState = {
       sessionId,
       clientId: crypto.randomUUID(),
       baseUrl,
       app: config.app ?? seed?.app,
       model: config.model ?? seed?.model,
-      apiKey: config.apiKey ?? seed?.apiKey,
-      accountBearer: config.accountBearer ?? seed?.accountBearer,
+      apiKey: explicitApiKey ?? (sameOrigin ? seed?.apiKey : undefined),
+      apiKeyOrigin: explicitApiKey
+        ? originOf(baseUrl)
+        : sameOrigin
+          ? seed?.apiKeyOrigin
+          : undefined,
+      accountBearer:
+        explicitBearer ?? (sameOrigin ? seed?.accountBearer : undefined),
+      accountBearerOrigin: explicitBearer
+        ? originOf(baseUrl)
+        : sameOrigin
+          ? seed?.accountBearerOrigin
+          : undefined,
       guestBearer: baseUrl === seed?.baseUrl ? seed.guestBearer : undefined,
       publicKey: config.publicKey ?? seed?.publicKey,
       privateKey: seed?.privateKey,
@@ -117,8 +132,12 @@ export class CliSession {
       aaProvider: config.aaProvider ?? seed?.aaProvider,
       aaMode: config.aaMode ?? seed?.aaMode,
       secretHandles: seed?.secretHandles,
-      auth: seed?.auth,
-      oauthGrants: seed?.oauthGrants,
+      auth: explicitBearer ? undefined : sameOrigin ? seed?.auth : undefined,
+      oauthGrants: explicitBearer
+        ? undefined
+        : sameOrigin
+          ? seed?.oauthGrants
+          : undefined,
     };
     const cli = new CliSession(state);
     cli.ensureSvmClusterInvariant();
@@ -192,6 +211,12 @@ export class CliSession {
     if (config.baseUrl !== undefined && config.baseUrl !== this.state.baseUrl) {
       this.state.baseUrl = config.baseUrl;
       delete this.state.guestBearer;
+      delete this.state.apiKey;
+      delete this.state.apiKeyOrigin;
+      delete this.state.accountBearer;
+      delete this.state.accountBearerOrigin;
+      delete this.state.auth;
+      delete this.state.oauthGrants;
       changed = true;
     }
     if (config.app !== undefined && config.app !== this.state.app) {
@@ -200,6 +225,7 @@ export class CliSession {
     }
     if (config.apiKey !== undefined && config.apiKey !== this.state.apiKey) {
       this.state.apiKey = config.apiKey;
+      this.state.apiKeyOrigin = originOf(this.state.baseUrl);
       changed = true;
     }
     if (
@@ -207,6 +233,10 @@ export class CliSession {
       config.accountBearer !== this.state.accountBearer
     ) {
       this.state.accountBearer = config.accountBearer;
+      this.state.accountBearerOrigin = originOf(this.state.baseUrl);
+      delete this.state.auth;
+      delete this.state.oauthGrants;
+      delete this.state.guestBearer;
       changed = true;
     }
     if (
@@ -273,7 +303,13 @@ export class CliSession {
   }
 
   setBaseUrl(url: string): void {
-    if (url !== this.state.baseUrl) delete this.state.guestBearer;
+    if (url !== this.state.baseUrl) {
+      delete this.state.guestBearer;
+      delete this.state.accountBearer;
+      delete this.state.accountBearerOrigin;
+      delete this.state.auth;
+      delete this.state.oauthGrants;
+    }
     this.state.baseUrl = url;
     this.save();
   }
@@ -337,11 +373,32 @@ export class CliSession {
   }
 
   setAuthSession(auth: CliAuthSession): void {
+    if (auth.origin !== originOf(this.state.baseUrl) || !auth.subject) {
+      throw new Error("Account session does not match the active Portal");
+    }
+    delete this.state.accountBearer;
+    delete this.state.accountBearerOrigin;
+    if (
+      this.state.auth?.subject !== auth.subject ||
+      this.state.auth?.origin !== auth.origin
+    ) {
+      delete this.state.oauthGrants;
+    }
     this.state.auth = auth;
     this.save();
   }
 
   setOAuthGrant(grant: CliOAuthGrant): void {
+    if (
+      !this.state.auth ||
+      grant.origin !== this.state.auth.origin ||
+      grant.subject !== this.state.auth.subject ||
+      grant.origin !== originOf(this.state.baseUrl) ||
+      originOf(grant.issuer) !== grant.origin ||
+      originOf(grant.resource) !== grant.origin
+    ) {
+      throw new Error("OAuth grant does not match the active account session");
+    }
     this.state.oauthGrants = {
       ...this.state.oauthGrants,
       [grant.resource]: grant,
@@ -349,14 +406,14 @@ export class CliSession {
     this.save();
   }
 
-  clearOAuthGrants(): void {
-    delete this.state.oauthGrants;
-    this.save();
-  }
-
-  clearAuthSession(): void {
-    if (!this.state.auth) return;
+  clearCredentials(): void {
+    delete this.state.apiKey;
+    delete this.state.apiKeyOrigin;
     delete this.state.auth;
+    delete this.state.oauthGrants;
+    delete this.state.accountBearer;
+    delete this.state.accountBearerOrigin;
+    delete this.state.guestBearer;
     this.save();
   }
 
@@ -475,15 +532,22 @@ export class CliSession {
   createOAuthProvider(
     fetchImpl: typeof fetch,
   ): AomiOAuthTokenProvider | undefined {
-    if (this.state.accountBearer) {
+    if (
+      this.state.accountBearer &&
+      this.state.accountBearerOrigin === originOf(this.state.baseUrl)
+    ) {
       const bearer = this.state.accountBearer;
-      return async ({ resource, scopes }) => ({
-        accessToken: bearer,
-        expiresAt: Number.MAX_SAFE_INTEGER,
-        resource,
-        scopes,
-        tokenType: "Bearer",
-      });
+      const origin = originOf(this.state.baseUrl);
+      return async ({ resource, scopes }) =>
+        originOf(resource) === origin
+          ? {
+              accessToken: bearer,
+              expiresAt: Number.MAX_SAFE_INTEGER,
+              resource,
+              scopes,
+              tokenType: "Bearer",
+            }
+          : null;
     }
     if (
       !this.state.oauthGrants ||
@@ -493,28 +557,39 @@ export class CliSession {
     }
     const pendingByResource = new Map<string, Promise<CliOAuthGrant>>();
     return async ({ resource, scopes, forceRefresh }) => {
+      const auth = this.state.auth;
+      const origin = originOf(this.state.baseUrl);
+      if (!auth || auth.origin !== origin || !auth.subject) return null;
       let grant = this.state.oauthGrants?.[resource];
-      if (!grant || !scopes.every((scope) => grant?.scopes.includes(scope))) {
-        const expandedScopes = Array.from(
-          new Set([...(grant?.scopes ?? []), ...scopes, "offline_access"]),
-        );
-        const expandedGrant = await signInWithOAuthDevice({
-          baseUrl: this.state.baseUrl,
-          resource,
-          scopes: expandedScopes,
-          clientId: grant?.clientId,
-          fetch: fetchImpl,
-        });
-        this.setOAuthGrant(expandedGrant);
-        return expandedGrant;
-      }
+      if (
+        !grant ||
+        grant.origin !== origin ||
+        grant.subject !== auth.subject ||
+        !scopes.every((scope) => grant?.scopes.includes(scope))
+      )
+        return null;
       if (!forceRefresh && grant.expiresAt > Date.now() + 30_000) return grant;
       if (!grant.refreshToken) return null;
       let pending = pendingByResource.get(resource);
       if (!pending) {
-        pending = refreshCliGrant(fetchImpl, this.state.baseUrl, grant).finally(
-          () => pendingByResource.delete(resource),
-        );
+        pending = refreshCliOAuthGrant({
+          fetch: fetchImpl,
+          baseUrl: this.state.baseUrl,
+          grant,
+        })
+          .catch((error) => {
+            if (
+              error instanceof CliOAuthError &&
+              error.code === "invalid_grant"
+            ) {
+              if (this.state.oauthGrants) {
+                delete this.state.oauthGrants[resource];
+                this.save();
+              }
+            }
+            throw error;
+          })
+          .finally(() => pendingByResource.delete(resource));
         pendingByResource.set(resource, pending);
       }
       grant = await pending;
@@ -545,45 +620,6 @@ export class CliSession {
   }
 }
 
-async function refreshCliGrant(
-  fetchImpl: typeof fetch,
-  baseUrl: string,
-  grant: CliOAuthGrant,
-): Promise<CliOAuthGrant> {
-  const response = await fetchImpl(
-    `${baseUrl.replace(/\/+$/, "")}/api/auth/oauth2/token`,
-    {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "refresh_token",
-        refresh_token: grant.refreshToken ?? "",
-        client_id: grant.clientId,
-        resource: grant.resource,
-        scope: grant.scopes.join(" "),
-      }),
-    },
-  );
-  const body = (await response.json().catch(() => ({}))) as Record<
-    string,
-    unknown
-  >;
-  if (!response.ok || typeof body.access_token !== "string") {
-    throw new Error(
-      `OAuth refresh failed: ${String(body.error ?? response.status)}`,
-    );
-  }
-  return {
-    ...grant,
-    accessToken: body.access_token,
-    refreshToken:
-      typeof body.refresh_token === "string"
-        ? body.refresh_token
-        : grant.refreshToken,
-    expiresAt: Date.now() + Number(body.expires_in ?? 300) * 1000,
-    scopes: String(body.scope ?? grant.scopes.join(" "))
-      .split(/\s+/)
-      .filter(Boolean),
-    tokenType: body.token_type === "DPoP" ? "DPoP" : "Bearer",
-  };
+function originOf(value: string): string {
+  return new URL(value).origin;
 }
