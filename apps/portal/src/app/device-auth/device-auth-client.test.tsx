@@ -23,7 +23,14 @@ vi.mock("@aomi-labs/widget-lib", () => ({
 vi.mock("@portal/lib/device-auth-provider", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@portal/lib/device-auth-provider")>();
-  return { ...actual, providerConfigurationFailure: () => null };
+  return {
+    ...actual,
+    providerConfigurationFailure: () => null,
+    classifyProviderInitializationFailure: () => ({
+      code: "para_initialization_failed",
+      message: "Para authentication could not start.",
+    }),
+  };
 });
 
 vi.mock("@aomi-labs/widget-lib/providers/para", () => ({}));
