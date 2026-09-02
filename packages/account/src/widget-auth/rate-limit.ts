@@ -6,7 +6,7 @@ import { observeAccountInternalFailure } from "../observability";
 const RATE_LIMIT_NAMESPACE = "aomi:widget:rate:";
 const EXPIRED_SWEEP_PROBABILITY = 0.02;
 
-type Db = Pool | PoolClient;
+type Queryable = Pick<PoolClient, "query">;
 type RateLimitRow = QueryResultRow & { allowed: boolean };
 
 /**
@@ -20,7 +20,7 @@ export async function checkWidgetAuthRateLimit(input: {
   now?: Date;
   limit?: number;
   windowMs?: number;
-  db?: Db;
+  db?: Pool;
 }): Promise<{ allowed: boolean }> {
   const now = input.now ?? new Date();
   const limit = input.limit ?? 60;
@@ -38,17 +38,26 @@ export async function checkWidgetAuthRateLimit(input: {
     .update(`${input.origin}\n${input.clientAddress}\n${windowStart}`)
     .digest("hex");
   const identifier = `${RATE_LIMIT_NAMESPACE}${digest}`;
-  const db = input.db ?? getPool();
-
-  const result = await db.query<RateLimitRow>(
-    `with lock as materialized (
-       select pg_advisory_xact_lock(hashtextextended($1, 0))
-     ), current_count as materialized (
+  const pool = input.db ?? getPool();
+  const client = await pool.connect();
+  let transactionOpen = false;
+  try {
+    await client.query("begin isolation level read committed");
+    transactionOpen = true;
+    // The lock must be acquired in a statement before the counter read. Under
+    // READ COMMITTED, a statement takes its snapshot before a lock CTE waits,
+    // which can otherwise lose concurrent increments after the wait ends.
+    await client.query(
+      "select pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [identifier],
+    );
+    const result = await client.query<RateLimitRow>(
+      `with current_count as materialized (
        select coalesce(max(
          case when value ~ '^[0-9]+$' and length(value) <= 18
               then value::bigint else $5::bigint end
        ), 0)::bigint as count
-       from ba_verifications cross join lock
+       from ba_verifications
        where identifier = $1 and expires_at > $2
      ), removed as (
        delete from ba_verifications where identifier = $1 returning 1
@@ -61,14 +70,23 @@ export async function checkWidgetAuthRateLimit(input: {
        returning value::bigint as count
      )
      select count <= $5::bigint as allowed from inserted`,
-    [identifier, now, randomUUID(), expiresAt, limit],
-  );
-
-  await sweepExpiredRateLimits(db);
-  return { allowed: result.rows[0]?.allowed === true };
+      [identifier, now, randomUUID(), expiresAt, limit],
+    );
+    await client.query("commit");
+    transactionOpen = false;
+    await sweepExpiredRateLimits(client);
+    return { allowed: result.rows[0]?.allowed === true };
+  } catch (error) {
+    if (transactionOpen) {
+      await client.query("rollback").catch(() => undefined);
+    }
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
-async function sweepExpiredRateLimits(db: Db): Promise<void> {
+async function sweepExpiredRateLimits(db: Queryable): Promise<void> {
   if (Math.random() >= EXPIRED_SWEEP_PROBABILITY) return;
   try {
     await db.query(
