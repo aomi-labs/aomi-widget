@@ -186,9 +186,7 @@ async function oauthResponseError(response: Response): Promise<string | null> {
     .catch(() => null)) as { url?: unknown } | null;
   if (typeof body?.url !== "string") return null;
   try {
-    return new URL(body.url, "https://oauth.invalid").searchParams.get(
-      "error",
-    );
+    return new URL(body.url, "https://oauth.invalid").searchParams.get("error");
   } catch {
     return null;
   }
