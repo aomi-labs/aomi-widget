@@ -38,3 +38,4 @@ export {
   type WidgetAuthStore,
   type WidgetAuthTicket,
 } from "./store";
+export { checkWidgetAuthRateLimit } from "./rate-limit";

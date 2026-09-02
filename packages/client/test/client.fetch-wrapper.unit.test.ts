@@ -108,6 +108,22 @@ describe("wrapFetchWithAccountBearer", () => {
     expect(headers.has("authorization")).toBe(false);
   });
 
+  it("never sends an account bearer outside the configured Aomi origin", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 200 }));
+    const getBearer = bearerSource("account-token");
+    const wrapped = wrapFetchWithAccountBearer(
+      fetchMock as unknown as typeof fetch,
+      getBearer,
+      "https://chat.aomi.dev",
+    );
+
+    await wrapped("https://attacker.invalid/api/account");
+
+    expect(getBearer).not.toHaveBeenCalled();
+    const headers = new Headers(fetchMock.mock.calls[0]?.[1]?.headers);
+    expect(headers.has("authorization")).toBe(false);
+  });
+
   it("simulateBatch delivers its JSON body through the wrapped fetch", async () => {
     const fetchMock = vi.fn(
       async () =>

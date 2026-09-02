@@ -3,6 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   resolveApiPrincipal: vi.fn(),
   proxyAgentApi: vi.fn(),
+  applyCors: vi.fn(async ({ request, response }) => {
+    const origin = request.headers.get("origin");
+    if (origin) response.headers.set("access-control-allow-origin", origin);
+    return response;
+  }),
+  preflight: vi.fn(async () => new Response(null, { status: 204 })),
 }));
 
 vi.mock("@portal/server/oauth/principal", () => ({
@@ -12,6 +18,10 @@ vi.mock("@portal/server/oauth/principal", () => ({
 }));
 vi.mock("@portal/server/agent-api-proxy", () => ({
   proxyAgentApi: mocks.proxyAgentApi,
+}));
+vi.mock("@portal/server/oauth/cors", () => ({
+  applyManagedWidgetOriginCors: mocks.applyCors,
+  managedWidgetPreflight: mocks.preflight,
 }));
 vi.mock("@portal/server/oauth/resources", () => ({
   AGENT_SCOPES: [
@@ -27,7 +37,7 @@ vi.mock("@portal/server/oauth/resources", () => ({
   }),
 }));
 
-import { DELETE, GET, PATCH, POST } from "./route";
+import { DELETE, GET, OPTIONS, PATCH, POST } from "./route";
 
 describe("canonical Agent BFF route", () => {
   beforeEach(() => {
@@ -81,4 +91,31 @@ describe("canonical Agent BFF route", () => {
       });
     },
   );
+
+  it("applies managed-origin CORS to authenticated responses and preflights", async () => {
+    mocks.resolveApiPrincipal.mockResolvedValue({
+      canonicalUserId: "canonical-user",
+      scopes: ["agent:read"],
+      resource: "https://portal.example/v1/agent",
+      authSource: "session",
+      principalClass: "user",
+    });
+    mocks.proxyAgentApi.mockResolvedValue(new Response("ok"));
+    const request = new Request("https://portal.example/v1/agent/sessions", {
+      headers: { origin: "https://widget.example" },
+    });
+
+    const response = await GET(request);
+    expect(response.headers.get("access-control-allow-origin")).toBe(
+      "https://widget.example",
+    );
+    await expect(OPTIONS(request)).resolves.toHaveProperty("status", 204);
+    expect(mocks.preflight).toHaveBeenCalledWith(request, [
+      "GET",
+      "POST",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ]);
+  });
 });

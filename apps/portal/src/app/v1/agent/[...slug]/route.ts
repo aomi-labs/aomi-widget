@@ -7,6 +7,10 @@ import {
   AGENT_SCOPES,
   aomiOAuthResources,
 } from "@portal/server/oauth/resources";
+import {
+  applyManagedWidgetOriginCors,
+  managedWidgetPreflight,
+} from "@portal/server/oauth/cors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +18,7 @@ export const maxDuration = 300;
 
 async function handle(request: Request): Promise<Response> {
   const resource = aomiOAuthResources().agentRest;
+  let response: Response;
   try {
     const requiredScopes = agentRouteScopes(request);
     const principal = await resolveApiPrincipal({
@@ -29,7 +34,7 @@ async function handle(request: Request): Promise<Response> {
     ) {
       delegatedScopes.push("custody:delegate");
     }
-    return await proxyAgentApi(request, {
+    response = await proxyAgentApi(request, {
       ...principal,
       scopes: delegatedScopes,
     });
@@ -40,18 +45,20 @@ async function handle(request: Request): Promise<Response> {
         error.message,
       )
     ) {
-      return apiAuthError(error, resource);
-    }
-    return Response.json(
-      {
-        error: {
-          code: "upstream_unavailable",
-          message: "Agent API unavailable",
+      response = apiAuthError(error, resource);
+    } else {
+      response = Response.json(
+        {
+          error: {
+            code: "upstream_unavailable",
+            message: "Agent API unavailable",
+          },
         },
-      },
-      { status: 502 },
-    );
+        { status: 502 },
+      );
+    }
   }
+  return applyManagedWidgetOriginCors({ request, response });
 }
 
 function agentRouteScopes(request: Request): string[] {
@@ -68,3 +75,11 @@ export const GET = handle;
 export const POST = handle;
 export const PATCH = handle;
 export const DELETE = handle;
+export const OPTIONS = (request: Request) =>
+  managedWidgetPreflight(request, [
+    "GET",
+    "POST",
+    "PATCH",
+    "DELETE",
+    "OPTIONS",
+  ]);

@@ -1,6 +1,13 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
+import type { GetAccountBearer } from "@aomi-labs/client";
 import type { AomiClientOptions } from "@aomi-labs/react";
 import { AomiFrame, type AomiFrameControlBarProps } from "./aomi-frame";
 import { AomiWalletKitProvider, useAomiWalletKit } from "../lib/wallet-kit";
@@ -139,19 +146,23 @@ function WidgetFrame({
   initialThreadId,
 }: WidgetFrameProps) {
   const walletKit = useAomiWalletKit();
+  const getAccountBearer = useDelegatingAccountBearer(
+    walletKit.getAccountBearer,
+  );
+  const runtimeClientOptions = useMemo(
+    () => ({
+      ...clientOptions,
+      getAccountBearer,
+    }),
+    [clientOptions, getAccountBearer],
+  );
   return (
-    <BackendAaProvider
-      value={{ apiUrl, getAccountBearer: walletKit.getAccountBearer }}
-    >
+    <BackendAaProvider value={{ apiUrl, getAccountBearer }}>
       <AomiFrame.Root
-        key={walletKit.accountUser?.id ?? "anonymous"}
         backendUrl={apiUrl}
         applicationId={applicationId}
         accountSessionAvailable={Boolean(walletKit.accountUser)}
-        clientOptions={{
-          ...clientOptions,
-          getAccountBearer: walletKit.getAccountBearer,
-        }}
+        clientOptions={runtimeClientOptions}
         width={width}
         height={height}
         className={className}
@@ -179,6 +190,40 @@ function WidgetFrame({
       </AomiFrame.Root>
     </BackendAaProvider>
   );
+}
+
+/** Keep the AomiClient and every live thread session on one bearer function.
+ * The delegate appears after login and can rotate later without replacing the
+ * client captured by an already-running session. */
+function useDelegatingAccountBearer(
+  delegate: GetAccountBearer | undefined,
+): GetAccountBearer {
+  const delegateRef = useRef(delegate);
+  delegateRef.current = delegate;
+  const listenersRef = useRef(new Set<() => void>());
+  const provider = useMemo(() => {
+    const getBearer: GetAccountBearer = (options) =>
+      delegateRef.current?.(options) ?? Promise.resolve(undefined);
+    Object.defineProperty(getBearer, "required", {
+      configurable: false,
+      get: () => delegateRef.current?.required === true,
+    });
+    getBearer.subscribe = (listener) => {
+      listenersRef.current.add(listener);
+      return () => listenersRef.current.delete(listener);
+    };
+    return getBearer;
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = delegate?.subscribe?.(() => {
+      for (const listener of listenersRef.current) listener();
+    });
+    for (const listener of listenersRef.current) listener();
+    return unsubscribe;
+  }, [delegate]);
+
+  return provider;
 }
 
 function resolveWidgetAuth(auth: CrossOriginWidgetAuth): {
