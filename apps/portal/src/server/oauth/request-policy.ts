@@ -74,6 +74,17 @@ export async function enforceAomiOAuthRequestPolicy(
       ["openid", "profile", "email", "offline_access"].includes(scope),
     );
 
+  // A refresh grant inherits the resource that was bound when it was issued.
+  // Codex follows RFC 8707 and does not repeat `resource` on refresh, so let
+  // Better Auth resolve that stored binding instead of rejecting the request.
+  if (
+    isToken &&
+    values.get("grant_type") === "refresh_token" &&
+    resources.length === 0
+  ) {
+    return proceed(request);
+  }
+
   // OIDC-only authorization is a separate use case. Token callers make that
   // intent explicit with scope so an omitted Aomi resource cannot be confused
   // with an identity-only exchange.
