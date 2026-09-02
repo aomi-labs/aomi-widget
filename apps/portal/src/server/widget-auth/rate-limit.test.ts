@@ -58,10 +58,9 @@ describe("widgetAuthRateLimit", () => {
 
   it("uses only the Vercel-owned address header in a deployment", () => {
     expect(
-      widgetClientAddress(
-        requestFromIp("203.0.113.30", "192.0.2.1"),
-        { VERCEL: "1" },
-      ),
+      widgetClientAddress(requestFromIp("203.0.113.30", "192.0.2.1"), {
+        VERCEL: "1",
+      }),
     ).toBe("203.0.113.30");
   });
 
@@ -87,6 +86,8 @@ describe("widgetAuthRateLimit", () => {
       "http://localhost:3000",
     );
     expect(response?.headers.get("Vary")).toContain("Origin");
-    expect(response?.headers.get("Access-Control-Allow-Credentials")).toBeNull();
+    expect(
+      response?.headers.get("Access-Control-Allow-Credentials"),
+    ).toBeNull();
   });
 });

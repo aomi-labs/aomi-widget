@@ -76,10 +76,12 @@ describe("public API OAuth transport", () => {
 
   it("keeps one client identity per request while switching later polls from guest to account", async () => {
     const seen: Array<string | null> = [];
-    const upstream = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      seen.push(new Headers(init?.headers).get("authorization"));
-      return new Response("{}", { status: 200 });
-    });
+    const upstream = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        seen.push(new Headers(init?.headers).get("authorization"));
+        return new Response("{}", { status: 200 });
+      },
+    );
     let accountToken: string | undefined;
     const getAccountBearer = vi.fn(async () => accountToken);
     const guest = vi.fn(async () => "guest-token");
