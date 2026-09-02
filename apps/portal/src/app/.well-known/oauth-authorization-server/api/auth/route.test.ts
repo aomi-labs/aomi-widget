@@ -17,7 +17,10 @@ import { GET } from "./route";
 describe("path-scoped OAuth authorization-server discovery", () => {
   it("serves metadata for the /api/auth issuer", async () => {
     mocks.metadata.mockResolvedValue(
-      Response.json({ issuer: "https://chat.aomi.dev/api/auth" }),
+      Response.json({
+        issuer: "https://chat.aomi.dev/api/auth",
+        authorization_response_iss_parameter_supported: true,
+      }),
     );
     const request = new Request(
       "https://chat.aomi.dev/.well-known/oauth-authorization-server/api/auth",
@@ -28,6 +31,7 @@ describe("path-scoped OAuth authorization-server discovery", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       issuer: "https://chat.aomi.dev/api/auth",
+      authorization_response_iss_parameter_supported: false,
     });
     expect(mocks.metadata).toHaveBeenCalledWith(request);
   });
