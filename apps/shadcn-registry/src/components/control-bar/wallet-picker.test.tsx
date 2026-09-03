@@ -250,6 +250,7 @@ describe("WalletPicker", () => {
   it("uses the shared light blurred backdrop", () => {
     renderPicker(makeAdapter());
 
+    expect(screen.getByRole("dialog").parentElement).toBe(document.body);
     const backdrop = screen.getAllByRole("button", { name: "Close" })[0];
     expect(backdrop).toHaveAttribute("data-slot", "modal-backdrop");
     expect(backdrop.className).toContain("bg-black/20");

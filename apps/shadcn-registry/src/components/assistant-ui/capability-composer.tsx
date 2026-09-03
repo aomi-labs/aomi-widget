@@ -596,7 +596,7 @@ export const CapabilityMentionInput: FC<{
   return (
     <div className="relative">
       {!hasText ? (
-        <span className="text-aomi-muted pointer-events-none absolute left-4 top-1.5 z-10 text-[13px]">
+        <span className="text-aomi-muted pointer-events-none absolute left-4 top-1.5 text-[13px]">
           {placeholder}
         </span>
       ) : null}

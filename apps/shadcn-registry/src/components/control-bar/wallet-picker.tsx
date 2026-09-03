@@ -9,6 +9,7 @@ import {
   type FC,
   type SVGProps,
 } from "react";
+import { createPortal } from "react-dom";
 import {
   CheckIcon,
   CheckCircle2Icon,
@@ -845,7 +846,7 @@ export function WalletPicker() {
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -1033,7 +1034,8 @@ export function WalletPicker() {
           />
         ) : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

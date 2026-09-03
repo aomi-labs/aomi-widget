@@ -1,5 +1,10 @@
 # Canonical Landing
 
+Current session goal: **WALLET MODAL LAYERING VERIFIED 2026-09-04** — render
+the wallet manager through a document-level portal so it remains above the
+entire widget regardless of host stacking contexts, and keep the custom empty
+composer placeholder in normal paint order so it cannot leak over modal UI.
+
 Current session goal: **AGENT SIMULATION METADATA + REVIEW VIEWPORT VERIFIED 2026-09-04** —
 ensure the normal Agent action path enriches every decoded EVM asset with its
 on-chain name, ticker, and decimals just like the public Pipeline route. Keep
