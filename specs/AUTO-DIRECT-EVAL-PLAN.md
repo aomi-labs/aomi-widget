@@ -9,7 +9,7 @@ unrelated benchmark family.
 
 ## Color key
 
-- 🟩 **Required** — correctness or safety; any failure blocks the frontend port.
+- 🟩 **Required** — correctness or safety; any failure blocks every client port.
 - 🟦 **Comparison** — quantify overhead and cost; report distributions.
 - 🟨 **Diagnostic** — useful routing/latency signal, not correctness alone.
 - 🟥 **Forbidden** — this path must not occur.
@@ -18,6 +18,11 @@ unrelated benchmark family.
 
 Use `gpt-5.6-luna` for the primary matrix. Model choice belongs in the suite or
 CLI invocation, not individual durable specs.
+
+Run this matrix immediately after the backend Auto runtime passes its focused
+tests. The backend eval harness can select the new runtime directly, so SDK and
+CLI support are not prerequisites. After the first report, stop for product
+review; do not begin SDK, CLI, widget, or Portal implementation.
 
 Compare three paths with the same realistic prompts, wallet state, chain forks,
 provider configuration, and pass count:
@@ -174,10 +179,12 @@ parent adoption can lose chain identity independently of mother-only behavior.
 | G5  | explicit Direct without app         | pre-turn validation error                  |
 | G6  | explicit Direct with one app        | direct path, zero children                 |
 
-## SDK and CLI E2E criteria
+## Later SDK and CLI E2E criteria
 
-Before Portal work, run built artifacts—not source-only mocks—against the paired
-local backend:
+These criteria are intentionally deferred until the user approves the backend
+benchmark. They are retained here so the later client phase uses the same
+behavioral contract. Before Portal work, run built artifacts—not source-only
+mocks—against the paired local backend:
 
 - SDK `Aomi.agent.run()` defaults to Auto and emits the explicit mode field.
 - SDK Direct emits exactly one app identity.
@@ -224,5 +231,6 @@ being deleted.
 - exact commands, commits, dirty state, model, provider, test-env chains, and
   pass count.
 
-The frontend port is unblocked only when every required behavioral assertion is
-green and the cost report is available for review.
+After the first five-pass backend run, stop and present the report. SDK, CLI,
+widget, and frontend work is unblocked only by explicit user approval; green
+assertions alone do not authorize the next phase.

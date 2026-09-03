@@ -267,20 +267,29 @@ Rendering rules:
 
 ## Delivery order
 
-Implementation must stop at each green gate before moving to the next layer:
+Implementation must stop at each green gate before moving to the next layer.
+The first product checkpoint is deliberately early: prove the backend design,
+measure its model overhead, and stop before spending effort on client ports.
 
 1. **Backend/runtime** — Auto behavior, canonical pending/commit paths, chain
    scope, legacy compatibility, OpenAPI, and backend tests.
-2. **TypeScript SDK and CLI** — typed target contract, Auto default, explicit
-   Direct app, CLI persistence/help/errors, and real backend smoke.
-3. **Eval gate** — Luna behavior, routing, chain switching, commit ownership,
-   and token/cost comparison pass and are reported.
-4. **Frontend/widget** — port the already committed capability UI onto the
+2. **Backend benchmark gate** — as soon as Auto works through the backend/eval
+   harness, run the small Luna behavior and overhead matrix against the current
+   default and orchestrator baselines.
+3. **Stop for product review** — report success, routing quality, token/cost
+   impact, and any compromise. Do not begin SDK, CLI, widget, or Portal work
+   until the user explicitly accepts the result.
+4. **TypeScript SDK and CLI** — after approval, add the typed target contract,
+   Auto default, explicit Direct app, CLI persistence/help/errors, and real
+   backend smoke.
+5. **Frontend/widget** — after the SDK and CLI contract is verified, port the
+   already committed capability UI onto the
    verified SDK contract and add host routing configuration.
-5. **Manual Portal review** — the user verifies the final Portal behavior.
+6. **Manual Portal review** — the user verifies the final Portal behavior.
 
-No frontend routing implementation should be used as evidence that the backend
-or SDK contract works.
+The initial implementation task ends after step 3. No SDK, CLI, widget, or
+frontend routing implementation should be used as evidence that the backend
+design works.
 
 ## Definition of done
 

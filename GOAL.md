@@ -4,8 +4,8 @@ Current session goal: **AUTO/DIRECT BACKEND-FIRST PLAN READY FOR REVIEW 2026-09-
 replace the proposed user-facing Coordinate mode with default Auto plus explicit
 single-app Direct, converge mother and child staged work on canonical EVM/SVM
 commit paths, keep simulation optional, verify mother-only and child-assisted
-chain switching, and gate the Portal port on backend, TypeScript SDK/CLI, and
-GPT-5.6 Luna eval evidence.
+chain switching, then run GPT-5.6 Luna backend benchmarks and stop for product
+review before any TypeScript SDK, CLI, widget, or Portal implementation.
 
 Current session goal: **CAPABILITY LIBRARY AND COMPOSER ROUTING DESIGNED 2026-09-03** —
 replace the disconnected Packages and app-selector concepts with one Apps/Skills

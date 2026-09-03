@@ -140,7 +140,35 @@ Do not start the TypeScript port until all of these are true:
 - [ ] `cargo fmt --all -- --check` passes;
 - [ ] targeted Clippy runs with warnings denied.
 
-## 🟩 Phase 2 — TypeScript SDK
+## 🟩 Phase 2 — backend Luna benchmark and mandatory review stop
+
+As soon as the backend green gate passes, implement only the harness/spec work
+needed to run the backend through the matrix in
+[`AUTO-DIRECT-EVAL-PLAN.md`](./AUTO-DIRECT-EVAL-PLAN.md). Do not wait for the
+TypeScript SDK or CLI.
+
+- [ ] Capture current `default` and `orchestrator` baseline evidence from a
+      pinned pre-change backend commit or preserved reports.
+- [ ] Run the five-pass interleaved `gpt-5.6-luna` review matrix.
+- [ ] Cover Auto-local, Auto-child, parent adoption/commit, guard-driven skill
+      delegation, and mother-only plus child-assisted chain switching.
+- [ ] Report token, credit, request, child, tool, and latency distributions.
+- [ ] Identify any material compromise in cost, latency, routing reliability,
+      tool availability, or prompt size.
+- [ ] Write `output/eval/auto-direct-luna/report.md` with exact commands,
+      commits, environment, and failures.
+
+### Mandatory review stop
+
+After the first backend benchmark report:
+
+- [ ] stop implementation;
+- [ ] present the backend diff and Luna results to the user;
+- [ ] do not modify the TypeScript SDK, CLI, widget, or Portal;
+- [ ] resume only after explicit approval of the measured tradeoff or a
+      user-requested backend/prompt revision.
+
+## 🟩 Phase 3 — TypeScript SDK, only after review approval
 
 Expose a discriminated target while flattening it onto the wire contract:
 
@@ -187,7 +215,7 @@ Primary frontend ownership:
 - [ ] one updated SDK smoke against the local backend completes Auto-local and
       Direct-app turns.
 
-## 🟩 Phase 3 — TypeScript CLI
+## 🟩 Phase 4 — TypeScript CLI, only after review approval
 
 User surface:
 
@@ -228,18 +256,10 @@ introduce a chain-ID provider resolver rather than special-casing the eval.
       intended chains or records the missing provider resolver as a blocker;
 - [ ] SDK and CLI green gates are recorded before any Portal port begins.
 
-## 🟩 Phase 4 — eval gate
-
-Implement and run the matrix in
-[`AUTO-DIRECT-EVAL-PLAN.md`](./AUTO-DIRECT-EVAL-PLAN.md) with
-`gpt-5.6-luna`. Save JSON and `report.md` under `output/eval/`.
-
-No Portal port begins until the required behavioral assertions pass and the
-token/cost comparison is available for review.
-
 ## 🟩 Phase 5 — widget and Portal
 
-Port the committed UI foundation only after backend, SDK, CLI, and eval gates:
+Port the committed UI foundation only after the backend benchmark review is
+approved and the SDK and CLI gates pass:
 
 - [ ] replace Auto/Direct/Coordinate with Auto/Direct;
 - [ ] remove frontend `resolvedMode` routing and any deterministic partitioning;
