@@ -2,6 +2,12 @@
 
 Status: PROPOSED (2026-09-03)
 
+> **Execution update:** The Library and `@` mention design remains the UI
+> foundation, but its Auto/Direct/Coordinate mode model and delivery sequence
+> are superseded by
+> [`AUTO-DIRECT-EXECUTION-PLAN.md`](./AUTO-DIRECT-EXECUTION-PLAN.md). The current
+> proposal exposes only default Auto and explicit single-app Direct.
+
 This proposal replaces the user-facing idea that Basic, Orchestrator, and apps are
 peers in one selector. It keeps the existing runtime architecture: a direct turn
 runs against one app, while the orchestrator coordinates serial child tasks whose
