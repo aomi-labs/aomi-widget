@@ -4,12 +4,7 @@ import {
   unstable_useComposerInput,
   useComposerRuntime,
 } from "@assistant-ui/react";
-import {
-  AppWindowIcon,
-  BlocksIcon,
-  Globe2Icon,
-  WandSparklesIcon,
-} from "lucide-react";
+import { AppWindowIcon, Globe2Icon, WandSparklesIcon } from "lucide-react";
 import {
   createContext,
   useCallback,
@@ -27,14 +22,24 @@ import {
   SUPPORTED_CHAINS,
   useControl,
   useThreadContext,
+  type AgentMode,
 } from "@aomi-labs/react";
 import { getAppInfo } from "@/components/control-bar/app-metadata";
 import { getAppIcon, getChainIcon, SolanaIcon } from "@/components/icons";
 import { useOptionalAomiWalletNetworkPreferences } from "@/lib/wallet-kit/network-preferences";
 import { skillLabel, useSkillCatalog } from "@/lib/capabilities/skill-catalog";
+import {
+  normalizeAomiRouting,
+  sameDirectRoutingApp,
+  shouldShowDirectAppSelect,
+  toAgentTarget,
+  type AomiRoutingConfig,
+  type DirectRoutingApp,
+  type NormalizedAomiRouting,
+} from "./routing";
+import { buildCapabilityHintPayload } from "./capability-hint-payload";
 
-export type ExecutionPolicy = "auto" | "direct" | "coordinate";
-export type ResolvedExecutionMode = "direct" | "coordinate";
+export type ExecutionPolicy = AgentMode;
 export type CapabilityKind = "app" | "skill" | "chain";
 
 export type CapabilityMention = {
@@ -53,13 +58,16 @@ export type CapabilityMention = {
 type CapabilityComposerContextValue = {
   mentions: CapabilityMention[];
   policy: ExecutionPolicy;
-  resolvedMode: ResolvedExecutionMode;
-  conflict: string | null;
-  pickerRequest: number;
+  routing: NormalizedAomiRouting;
+  selectedDirectApp: DirectRoutingApp | null;
+  showModeSelect: boolean;
+  showDirectAppSelect: boolean;
+  hintsEnabled: boolean;
+  hostError: string | null;
   setPolicy: (policy: ExecutionPolicy) => void;
+  selectDirectApp: (target: DirectRoutingApp) => void;
   addMention: (mention: CapabilityMention) => void;
   retainMentions: (keys: ReadonlySet<string>) => void;
-  requestPicker: () => void;
   prepareSubmit: (event: FormEvent<HTMLFormElement>) => void;
   enabledAppIds?: readonly string[];
   allowAppMentions: boolean;
@@ -81,169 +89,191 @@ export function useCapabilityComposer(): CapabilityComposerContextValue {
 export function CapabilityComposerProvider({
   children,
   enabledAppIds,
-  allowAppMentions,
+  routing,
 }: {
   children: ReactNode;
   enabledAppIds?: readonly string[];
-  allowAppMentions: boolean;
+  routing?: AomiRoutingConfig;
 }) {
-  const {
-    state,
-    getAuthorizedApps,
-    getCurrentThreadApp,
-    getCurrentThreadApplicationId,
-    onAppSelect,
-  } = useControl();
-  const networkPreferences = useOptionalAomiWalletNetworkPreferences();
-  const { threadViewKey } = useThreadContext();
+  const { getAuthorizedApps, onAgentModeSelect, onAgentTargetSelect } =
+    useControl();
+  const threadContext = useThreadContext();
   const composerRuntime = useComposerRuntime();
-  const managedAppSelectionRef = useRef(false);
+  const normalizedRouting = useMemo(
+    () => normalizeAomiRouting(routing),
+    [routing],
+  );
+  if (normalizedRouting.error && process.env.NODE_ENV !== "production") {
+    throw new Error(`[AomiWidget] ${normalizedRouting.error}`);
+  }
+  const currentControl = threadContext.getThreadMetadata(
+    threadContext.currentThreadId,
+  )?.control;
+  const storedMode =
+    currentControl?.agentMode ??
+    (currentControl?.app || currentControl?.applicationId != null
+      ? "direct"
+      : undefined);
+  const policy: ExecutionPolicy =
+    storedMode && normalizedRouting.modes.includes(storedMode)
+      ? storedMode
+      : normalizedRouting.defaultMode;
+  const currentDirectApp: DirectRoutingApp | null =
+    currentControl?.applicationId != null &&
+    Number.isSafeInteger(Number(currentControl.applicationId))
+      ? {
+          applicationId: Number(currentControl.applicationId),
+          ...(currentControl.app ? { app: currentControl.app } : {}),
+        }
+      : currentControl?.app
+        ? { app: currentControl.app }
+        : null;
+  const selectedDirectApp =
+    (currentDirectApp
+      ? normalizedRouting.directApps.find((candidate) =>
+          sameDirectRoutingApp(candidate, currentDirectApp),
+        )
+      : undefined) ??
+    normalizedRouting.directApps[0] ??
+    null;
   const [mentions, setMentions] = useState<CapabilityMention[]>([]);
-  const [policy, setPolicy] = useState<ExecutionPolicy>("auto");
-  const [pickerRequest, setPickerRequest] = useState(0);
 
   useEffect(() => {
     void getAuthorizedApps();
   }, [getAuthorizedApps]);
 
   useEffect(() => {
-    managedAppSelectionRef.current = false;
     setMentions([]);
-    setPolicy("auto");
-  }, [threadViewKey]);
+  }, [policy, threadContext.threadViewKey]);
 
-  const appCount = new Set(
-    mentions.filter((item) => item.kind === "app").map((item) => item.id),
-  ).size;
-  const chainCount = new Set(
-    mentions.filter((item) => item.kind === "chain").map((item) => item.id),
-  ).size;
-  const autoNeedsCoordinate = appCount > 1 || chainCount > 1;
-  const resolvedMode: ResolvedExecutionMode =
-    policy === "coordinate" || (policy === "auto" && autoNeedsCoordinate)
-      ? "coordinate"
-      : "direct";
-  const orchestratorAvailable = state.authorizedApps.includes("orchestrator");
-  const conflict =
-    policy === "direct" && autoNeedsCoordinate
-      ? "Multiple apps or chains need Coordinate."
-      : resolvedMode === "coordinate" && !orchestratorAvailable
-        ? "Coordinate isn’t available for this account."
-        : null;
+  useEffect(() => {
+    if (normalizedRouting.error) return;
+    if (policy === "auto") {
+      if (storedMode && storedMode !== "auto") onAgentModeSelect("auto");
+      return;
+    }
+    if (
+      selectedDirectApp &&
+      (storedMode !== "direct" ||
+        !currentDirectApp ||
+        !sameDirectRoutingApp(selectedDirectApp, currentDirectApp))
+    ) {
+      onAgentTargetSelect(toAgentTarget(selectedDirectApp));
+    }
+  }, [
+    currentDirectApp,
+    normalizedRouting,
+    onAgentModeSelect,
+    onAgentTargetSelect,
+    policy,
+    selectedDirectApp,
+    storedMode,
+  ]);
+
+  const selectDirectApp = useCallback(
+    (target: DirectRoutingApp) => {
+      if (
+        !normalizedRouting.directApps.some((candidate) =>
+          sameDirectRoutingApp(candidate, target),
+        )
+      ) {
+        return;
+      }
+      setMentions([]);
+      onAgentTargetSelect(toAgentTarget(target));
+    },
+    [normalizedRouting.directApps, onAgentTargetSelect],
+  );
+
+  const setPolicy = useCallback(
+    (nextPolicy: ExecutionPolicy) => {
+      if (!normalizedRouting.modes.includes(nextPolicy)) return;
+      setMentions([]);
+      if (nextPolicy === "auto") {
+        onAgentModeSelect("auto");
+        return;
+      }
+      const target = selectedDirectApp ?? normalizedRouting.directApps[0];
+      if (target) {
+        onAgentTargetSelect(toAgentTarget(target));
+      }
+    },
+    [
+      normalizedRouting.directApps,
+      normalizedRouting.modes,
+      onAgentModeSelect,
+      onAgentTargetSelect,
+      selectedDirectApp,
+    ],
+  );
+
+  const hintsEnabled = policy === "auto";
 
   const addMention = useCallback(
     (mention: CapabilityMention) => {
+      if (!hintsEnabled) return;
       setMentions((current) =>
         current.some((item) => item.key === mention.key)
           ? current
           : [...current, mention],
       );
-      if (mention.chainTarget) {
-        networkPreferences?.selectTarget(mention.chainTarget);
-      }
     },
-    [networkPreferences],
+    [hintsEnabled],
   );
 
   const retainMentions = useCallback((keys: ReadonlySet<string>) => {
     setMentions((current) => current.filter((item) => keys.has(item.key)));
   }, []);
 
-  useEffect(() => {
-    if (!allowAppMentions || state.authorizedApps.length === 0) return;
-
-    const lastApp = mentions.findLast((item) => item.kind === "app");
-    const target = (() => {
-      if (resolvedMode === "coordinate") {
-        managedAppSelectionRef.current = true;
-        return (
-          state.appDescriptors.find((app) => app.name === "orchestrator") ?? {
-            name: "orchestrator",
-            applicationId: null,
-          }
-        );
-      }
-      if (lastApp) {
-        managedAppSelectionRef.current = true;
-        return {
-          name: lastApp.appName ?? lastApp.id,
-          applicationId: lastApp.applicationId ?? null,
-        };
-      }
-      if (!managedAppSelectionRef.current) return null;
-      managedAppSelectionRef.current = false;
-      return { name: "default", applicationId: null };
-    })();
-
-    if (!target) return;
-
-    if (
-      getCurrentThreadApp() === target.name &&
-      String(getCurrentThreadApplicationId() ?? "") ===
-        String(target.applicationId ?? "")
-    ) {
-      return;
-    }
-    onAppSelect(target.name, { applicationId: target.applicationId });
-  }, [
-    allowAppMentions,
-    getCurrentThreadApp,
-    getCurrentThreadApplicationId,
-    mentions,
-    onAppSelect,
-    resolvedMode,
-    state.appDescriptors,
-    state.authorizedApps,
-  ]);
-
   const prepareSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
-      if (conflict) {
+      if (normalizedRouting.error) {
         event.preventDefault();
         return;
       }
       const current = composerRuntime.getState().runConfig;
       const custom = { ...(current.custom ?? {}) };
-      if (mentions.length === 0) {
+      const payload = buildCapabilityHintPayload(policy, mentions);
+      if (!payload) {
         delete custom.aomiCapabilityHints;
       } else {
-        custom.aomiCapabilityHints = {
-          policy,
-          resolvedMode,
-          capabilities: mentions.map(({ kind, id }) => ({ kind, id })),
-        };
+        custom.aomiCapabilityHints = payload;
       }
       composerRuntime.setRunConfig({ ...current, custom });
     },
-    [composerRuntime, conflict, mentions, policy, resolvedMode],
+    [composerRuntime, mentions, normalizedRouting.error, policy],
   );
 
   const value = useMemo<CapabilityComposerContextValue>(
     () => ({
       mentions,
       policy,
-      resolvedMode,
-      conflict,
-      pickerRequest,
+      routing: normalizedRouting,
+      selectedDirectApp,
+      showModeSelect: normalizedRouting.modes.length > 1,
+      showDirectAppSelect: shouldShowDirectAppSelect(policy, normalizedRouting),
+      hintsEnabled,
+      hostError: normalizedRouting.error,
       setPolicy,
+      selectDirectApp,
       addMention,
       retainMentions,
-      requestPicker: () => setPickerRequest((value) => value + 1),
       prepareSubmit,
       enabledAppIds,
-      allowAppMentions,
+      allowAppMentions: hintsEnabled,
     }),
     [
       addMention,
-      allowAppMentions,
-      conflict,
       enabledAppIds,
+      hintsEnabled,
       mentions,
-      pickerRequest,
+      normalizedRouting,
       policy,
       prepareSubmit,
-      resolvedMode,
       retainMentions,
+      selectDirectApp,
+      selectedDirectApp,
+      setPolicy,
     ],
   );
 
@@ -296,30 +326,6 @@ function mentionKeysFromEditor(editor: HTMLDivElement): Set<string> {
   );
 }
 
-function appendTextAtCaret(editor: HTMLDivElement, text: string) {
-  editor.focus();
-  const selection = window.getSelection();
-  const range = document.createRange();
-  if (
-    selection?.rangeCount &&
-    editor.contains(selection.getRangeAt(0).commonAncestorContainer)
-  ) {
-    range.setStart(
-      selection.getRangeAt(0).startContainer,
-      selection.getRangeAt(0).startOffset,
-    );
-  } else {
-    range.selectNodeContents(editor);
-    range.collapse(false);
-  }
-  range.collapse(true);
-  const node = document.createTextNode(text);
-  range.insertNode(node);
-  range.setStartAfter(node);
-  selection?.removeAllRanges();
-  selection?.addRange(range);
-}
-
 export const CapabilityMentionInput: FC<{
   placeholder: string;
   className: string;
@@ -327,7 +333,6 @@ export const CapabilityMentionInput: FC<{
   const editorRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<TriggerRange | null>(null);
   const lastTextRef = useRef("");
-  const handledPickerRequestRef = useRef(0);
   const [query, setQuery] = useState<string | null>(null);
   const [highlighted, setHighlighted] = useState(0);
   const [hasText, setHasText] = useState(false);
@@ -336,9 +341,9 @@ export const CapabilityMentionInput: FC<{
     mentions,
     addMention,
     retainMentions,
-    pickerRequest,
     enabledAppIds,
     allowAppMentions,
+    hintsEnabled,
   } = useCapabilityComposer();
   const { state } = useControl();
   const networkPreferences = useOptionalAomiWalletNetworkPreferences();
@@ -421,7 +426,7 @@ export const CapabilityMentionInput: FC<{
   ]);
 
   const visibleGroups = useMemo(() => {
-    if (query === null) return [];
+    if (!hintsEnabled || query === null) return [];
     const needle = query.trim().toLowerCase();
     const selectedKeys = new Set(mentions.map((mention) => mention.key));
     const matching = items.filter(
@@ -446,7 +451,7 @@ export const CapabilityMentionInput: FC<{
           .slice(0, resultLimit),
       }))
       .filter((group) => group.items.length > 0);
-  }, [items, mentions, query]);
+  }, [hintsEnabled, items, mentions, query]);
 
   const visibleItems = useMemo(
     () => visibleGroups.flatMap((group) => group.items),
@@ -457,37 +462,38 @@ export const CapabilityMentionInput: FC<{
     const editor = editorRef.current;
     if (!editor) return;
     const text = textFromEditor(editor);
-    lastTextRef.current = text;
-    setHasText(text.length > 0);
-    setText(text);
+    const normalizedText = text.trim().length === 0 ? "" : text;
+    if (!normalizedText && editor.textContent) editor.textContent = "";
+    lastTextRef.current = normalizedText;
+    setHasText(normalizedText.length > 0);
+    setText(normalizedText);
     retainMentions(mentionKeysFromEditor(editor));
-    const trigger = detectTrigger();
+    const trigger = hintsEnabled ? detectTrigger() : null;
     triggerRef.current = trigger?.range ?? null;
     setQuery(trigger?.query ?? null);
     setHighlighted(0);
-  }, [retainMentions, setText]);
+  }, [hintsEnabled, retainMentions, setText]);
+
+  useEffect(() => {
+    if (hintsEnabled) return;
+    const editor = editorRef.current;
+    if (!editor) return;
+    editor
+      .querySelectorAll<HTMLElement>("[data-capability-key]")
+      .forEach((node) => node.remove());
+    triggerRef.current = null;
+    setQuery(null);
+    syncEditor();
+  }, [hintsEnabled, syncEditor]);
 
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor || value === lastTextRef.current) return;
     editor.textContent = value;
     lastTextRef.current = value;
-    setHasText(value.length > 0);
-    if (value.length === 0) retainMentions(new Set());
+    setHasText(value.trim().length > 0);
+    if (value.trim().length === 0) retainMentions(new Set());
   }, [retainMentions, value]);
-
-  useEffect(() => {
-    if (
-      pickerRequest === 0 ||
-      pickerRequest === handledPickerRequestRef.current ||
-      !editorRef.current
-    ) {
-      return;
-    }
-    handledPickerRequestRef.current = pickerRequest;
-    appendTextAtCaret(editorRef.current, "@");
-    syncEditor();
-  }, [pickerRequest, syncEditor]);
 
   const selectItem = useCallback(
     (item: PickerItem) => {
@@ -565,7 +571,7 @@ export const CapabilityMentionInput: FC<{
   return (
     <div className="relative">
       {!hasText ? (
-        <span className="text-aomi-muted pointer-events-none absolute left-4 top-1.5 text-[13px]">
+        <span className="text-aomi-muted pointer-events-none absolute left-4 top-1.5 z-10 text-[13px]">
           {placeholder}
         </span>
       ) : null}
@@ -581,13 +587,13 @@ export const CapabilityMentionInput: FC<{
         onInput={syncEditor}
         onKeyDown={handleKeyDown}
         onKeyUp={() => {
-          const trigger = detectTrigger();
+          const trigger = hintsEnabled ? detectTrigger() : null;
           triggerRef.current = trigger?.range ?? null;
           setQuery(trigger?.query ?? null);
         }}
         className={`${className} min-h-[30px]`}
       />
-      {query !== null ? (
+      {hintsEnabled && query !== null ? (
         <div
           role="listbox"
           aria-label="Apps, skills, and chains"
@@ -643,21 +649,5 @@ export const CapabilityMentionInput: FC<{
         </div>
       ) : null}
     </div>
-  );
-};
-
-export const CapabilityHintButton: FC = () => {
-  const { requestPicker } = useCapabilityComposer();
-  return (
-    <button
-      type="button"
-      onClick={requestPicker}
-      className="text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs transition-colors"
-      aria-label="Add an app, skill, or chain"
-      title="Add an app, skill, or chain"
-    >
-      <BlocksIcon className="size-3.5" />
-      <span className="hidden sm:inline">Add</span>
-    </button>
   );
 };

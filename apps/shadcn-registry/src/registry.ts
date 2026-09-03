@@ -23,13 +23,23 @@ export const registry: RegistryComponent[] = [
       "Shadcn-compatible theme variables (light + dark) for Aomi components.",
   },
   {
+    name: "agent-routing",
+    file: "components/assistant-ui/routing.ts",
+    dependencies: ["@aomi-labs/react"],
+    description: "Host-owned Auto and Direct routing contract for Aomi UI.",
+  },
+  {
     name: "aomi-widget",
     file: [
       "components/aomi-widget.tsx",
       "components/backend-aa-provisioner.tsx",
     ],
     dependencies: ["@aomi-labs/client", "@aomi-labs/react"],
-    registryDependencies: [aomi("aomi-frame"), aomi("aomi-wallet-kit")],
+    registryDependencies: [
+      aomi("agent-routing"),
+      aomi("aomi-frame"),
+      aomi("aomi-wallet-kit"),
+    ],
     description:
       "Embeddable Aomi widget with tenant-scoped provider or wallet authentication.",
   },
@@ -136,10 +146,10 @@ export const registry: RegistryComponent[] = [
     name: "control-bar",
     file: [
       "components/control-bar/index.tsx",
+      "components/control-bar/control-menu.tsx",
       "components/control-bar/model-select.tsx",
       "components/control-bar/model-metadata.ts",
       "components/control-bar/app-metadata.ts",
-      "components/control-bar/app-select.tsx",
       "components/control-bar/api-key-input.tsx",
       "components/control-bar/connect-button.tsx",
       "components/control-bar/network-select.tsx",
@@ -177,6 +187,7 @@ export const registry: RegistryComponent[] = [
       "wagmi",
     ],
     registryDependencies: [
+      aomi("agent-routing"),
       aomi("aomi-wallet-kit"),
       "button",
       "popover",
@@ -193,6 +204,11 @@ export const registry: RegistryComponent[] = [
     file: [
       "components/assistant-ui/thread.tsx",
       "components/assistant-ui/thread-loading.ts",
+      "components/assistant-ui/capability-composer.tsx",
+      "components/assistant-ui/capability-hint-payload.ts",
+      "components/control-bar/app-select.tsx",
+      "components/control-bar/mode-select.tsx",
+      "lib/capabilities/skill-catalog.ts",
       "components/assistant-ui/working-trace.tsx",
       "components/assistant-ui/working-trace-rows.tsx",
       "components/assistant-ui/working-agent.tsx",
@@ -227,6 +243,8 @@ export const registry: RegistryComponent[] = [
       "remark-gfm",
     ],
     registryDependencies: [
+      aomi("agent-routing"),
+      aomi("control-bar"),
       // From assistant-ui (unchanged)
       assistantUI("markdown-text"),
       assistantUI("tooltip-icon-button"),
@@ -236,6 +254,8 @@ export const registry: RegistryComponent[] = [
       aomi("assistant-tool-fallback"),
       // shadcn primitives
       "button",
+      "command",
+      "popover",
       "skeleton",
     ],
     description: "Chat surface built on @assistant-ui primitives.",

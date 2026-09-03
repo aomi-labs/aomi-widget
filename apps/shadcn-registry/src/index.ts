@@ -13,6 +13,11 @@ export {
   type CrossOriginWidgetAuth,
   type WalletPresentationConfig,
 } from "./components/aomi-widget";
+export type {
+  AomiRoutingConfig,
+  AomiRoutingTarget,
+  DirectRoutingApp,
+} from "./components/assistant-ui/routing";
 
 // Dual-wallet UI
 export {

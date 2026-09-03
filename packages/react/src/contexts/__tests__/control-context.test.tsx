@@ -410,9 +410,32 @@ describe("ControlContextProvider", () => {
 
     expect(threadMetadata.get("session-1")?.control).toMatchObject({
       model: "gpt-5",
+      agentMode: "direct",
       app: "docs",
       controlDirty: true,
     });
   });
 
+  it("defaults fresh threads to Auto and preserves an id-only Direct target", () => {
+    const threadMetadata = createThreadMetadata();
+    const { getControl } = renderControlContext({}, threadMetadata);
+
+    expect(getControl().getCurrentThreadTarget()).toEqual({ mode: "auto" });
+
+    act(() => {
+      getControl().onAgentTargetSelect({
+        mode: "direct",
+        applicationId: 2936682,
+      });
+    });
+    expect(getControl().getCurrentThreadTarget()).toEqual({
+      mode: "direct",
+      applicationId: 2936682,
+    });
+
+    act(() => {
+      getControl().onAgentModeSelect("auto");
+    });
+    expect(getControl().getCurrentThreadTarget()).toEqual({ mode: "auto" });
+  });
 });

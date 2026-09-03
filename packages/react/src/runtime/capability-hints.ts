@@ -9,8 +9,6 @@ type CapabilityHint = {
 };
 
 type CapabilityHintEnvelope = {
-  policy: "auto" | "direct" | "coordinate";
-  resolvedMode: "direct" | "coordinate";
   capabilities: CapabilityHint[];
 };
 
@@ -34,13 +32,7 @@ function parseHint(raw: unknown): CapabilityHint | null {
 function parseEnvelope(raw: unknown): CapabilityHintEnvelope | null {
   if (!raw || typeof raw !== "object") return null;
   const candidate = raw as Record<string, unknown>;
-  const policy = candidate.policy;
-  const resolvedMode = candidate.resolvedMode;
-  if (
-    (policy !== "auto" && policy !== "direct" && policy !== "coordinate") ||
-    (resolvedMode !== "direct" && resolvedMode !== "coordinate") ||
-    !Array.isArray(candidate.capabilities)
-  ) {
+  if (!Array.isArray(candidate.capabilities)) {
     return null;
   }
 
@@ -49,7 +41,7 @@ function parseEnvelope(raw: unknown): CapabilityHintEnvelope | null {
     .filter((hint): hint is CapabilityHint => hint !== null)
     .slice(0, 16);
   if (capabilities.length === 0) return null;
-  return { policy, resolvedMode, capabilities };
+  return { capabilities };
 }
 
 /**
@@ -71,15 +63,12 @@ export function appendCapabilityHints(text: string, raw: unknown): string {
   const lines = [
     HINTS_START,
     "These are capability preferences selected by the user in the Aomi UI.",
-    `Execution preference: ${envelope.policy}; resolved frontend mode: ${envelope.resolvedMode}.`,
   ];
   if (apps.length > 0) lines.push(`Preferred app ids: ${apps.join(", ")}.`);
   if (skills.length > 0) {
     lines.push(`Preferred skill ids: ${skills.join(", ")}.`);
     lines.push(
-      envelope.resolvedMode === "coordinate"
-        ? "Pass relevant skill ids to delegated tasks."
-        : "Activate the compatible preferred skills before solving the request.",
+      "Use compatible preferred skills where they help solve the request.",
     );
   }
   if (chains.length > 0) {

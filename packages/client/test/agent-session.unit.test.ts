@@ -72,6 +72,69 @@ describe("ClientSession Agent transport", () => {
     vi.useRealTimers();
   });
 
+  it("serializes Auto and Direct targets without rewriting legacy app callers", async () => {
+    const api = client();
+    const start = vi
+      .spyOn(api.agent, "start")
+      .mockImplementation(async (intent) =>
+        page([], { session_id: intent.sessionId ?? "session-agent" }),
+      );
+    const cases = [
+      { options: {}, expected: {} },
+      {
+        options: { target: { mode: "auto" as const } },
+        expected: { mode: "auto" },
+      },
+      {
+        options: { target: { mode: "direct" as const, app: "zerox" } },
+        expected: { mode: "direct", app: "zerox" },
+      },
+      {
+        options: {
+          target: {
+            mode: "direct" as const,
+            applicationId: 42,
+            app: "partner",
+          },
+        },
+        expected: { mode: "direct", applicationId: 42, app: "partner" },
+      },
+      { options: { app: "legacy" }, expected: { app: "legacy" } },
+    ];
+
+    for (const [index, testCase] of cases.entries()) {
+      const session = new Session(api, {
+        sessionId: `session-${index}`,
+        ...testCase.options,
+      });
+      await session.sendAsync("hello");
+      expect(start.mock.calls[index]?.[0]).toEqual({
+        sessionId: `session-${index}`,
+        clientId: expect.any(String),
+        message: "hello",
+        ...testCase.expected,
+      });
+      session.close();
+    }
+  });
+
+  it("rejects ambiguous or invalid Direct session targets before transport", () => {
+    const api = client();
+    expect(
+      () =>
+        new Session(api, {
+          target: { mode: "auto" },
+          app: "legacy",
+        }),
+    ).toThrow("target cannot be combined");
+    expect(
+      () =>
+        new Session(api, {
+          target: { mode: "direct", app: "" },
+        }),
+    ).toThrow("Direct mode requires an app or applicationId");
+  });
+
   it("reduces one ordered Event page into messages, title, and lifecycle", async () => {
     const api = client();
     vi.spyOn(api.agent, "start").mockResolvedValue(

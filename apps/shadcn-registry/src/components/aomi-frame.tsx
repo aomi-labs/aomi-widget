@@ -12,6 +12,7 @@ import {
   cn,
   useAomiRuntime,
   type AomiClientOptions,
+  type AgentTarget,
 } from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import {
@@ -74,6 +75,8 @@ type RootProps = {
   backendUrl?: string;
   /** Concrete hosted application used to isolate runtime and persisted threads. */
   applicationId?: number | string | null;
+  /** Optional host-fixed execution target. */
+  agentTarget?: AgentTarget;
   /** Optional runtime client overrides. */
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
   /** Whether an account session can load thread history without a wallet. */
@@ -135,6 +138,7 @@ const Root: FC<RootProps> = ({
   defaultSidebarOpen = true,
   backendUrl,
   applicationId,
+  agentTarget,
   clientOptions,
   accountSessionAvailable,
   persistThread,
@@ -154,6 +158,7 @@ const Root: FC<RootProps> = ({
       backendUrl={resolvedBackendUrl}
       actions={actions}
       applicationId={applicationId}
+      agentTarget={agentTarget}
       clientOptions={clientOptions}
       accountSessionAvailable={accountSessionAvailable}
       persistThread={persistThread}
@@ -286,15 +291,14 @@ const DefaultLayout: FC<DefaultLayoutProps> = ({
       showSidebar={showSidebar}
       {...props}
     >
-      <Header
+      <Header showSidebarTrigger={showSidebar} />
+      <Composer
         withControl
-        showSidebarTrigger={showSidebar}
         controlBarProps={{
           hideWallet: hideWalletInControlBar,
           hideNetwork: false,
         }}
       />
-      <Composer />
     </Root>
   );
 };

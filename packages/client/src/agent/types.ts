@@ -40,6 +40,24 @@ export type ActionRequest = Schemas["ActionRequest"];
 export type ActionResult = Schemas["ActionResult"];
 export type UserState = Schemas["UserState"];
 export type StartTurnIntent = Schemas["StartTurnIntent"];
+export type AgentMode = "auto" | "direct";
+export type AgentTarget =
+  | {
+      mode?: "auto";
+      app?: never;
+      applicationId?: never;
+    }
+  | {
+      mode: "direct";
+      app: string;
+      applicationId?: never;
+    }
+  | {
+      mode: "direct";
+      applicationId: number;
+      /** Optional exact-name consistency check for a hosted application. */
+      app?: string;
+    };
 export type InterruptIntent = Schemas["InterruptIntent"];
 export type RespondToActionIntent = Schemas["RespondToActionIntent"];
 export type Session = Schemas["Session"];

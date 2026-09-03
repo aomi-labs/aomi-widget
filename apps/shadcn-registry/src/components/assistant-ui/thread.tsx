@@ -48,6 +48,7 @@ import { useComposerControl } from "@/components/aomi-frame";
 import { AomiMark } from "@/components/aomi-mark";
 import { ModelSelect } from "@/components/control-bar/model-select";
 import { ModeSelect } from "@/components/control-bar/mode-select";
+import { AppSelect } from "@/components/control-bar/app-select";
 import { ApiKeyInput } from "@/components/control-bar/api-key-input";
 import { NetworkSelect } from "@/components/control-bar/network-select";
 import { ConnectButton } from "@/components/control-bar/connect-button";
@@ -56,7 +57,6 @@ import { shouldShowThreadLoadingSkeleton } from "@/components/assistant-ui/threa
 import { useThread, useComposerRuntime, useMessage } from "@assistant-ui/react";
 import {
   CapabilityComposerProvider,
-  CapabilityHintButton,
   CapabilityMentionInput,
   useCapabilityComposer,
 } from "@/components/assistant-ui/capability-composer";
@@ -78,7 +78,7 @@ export const Thread: FC = () => {
   return (
     <CapabilityComposerProvider
       enabledAppIds={controlBarProps.enabledAppIds}
-      allowAppMentions={!controlBarProps.hideApp}
+      routing={controlBarProps.routing}
     >
       <LazyMotion features={domAnimation}>
         <MotionConfig reducedMotion="user">
@@ -296,16 +296,41 @@ const Composer: FC = () => {
   );
 };
 
+/**
+ * Auto stays a single quiet policy control. Direct grows into two adjacent
+ * controls, keeping the target visibly attached to the routing policy without
+ * wrapping the pair in another visual container.
+ */
+const ExecutionControl: FC = () => {
+  const { policy, showModeSelect, showDirectAppSelect } =
+    useCapabilityComposer();
+  const joined = policy === "direct" && showModeSelect && showDirectAppSelect;
+
+  return (
+    <div className={cn("flex shrink-0 items-center", joined && "h-8 gap-0.5")}>
+      <ModeSelect
+        className={cn(
+          joined && "hover:bg-aomi-hover h-full rounded-lg pl-2.5 pr-2",
+        )}
+      />
+      <AppSelect
+        className={cn(
+          joined && "hover:bg-aomi-hover h-full rounded-lg pl-2 pr-2.5",
+        )}
+      />
+    </div>
+  );
+};
+
 const ComposerAction: FC = () => {
   const composerControl = useComposerControl();
   const aomiRuntime = useOptionalAomiRuntime();
   const controlBarProps = composerControl.controlBarProps ?? {};
   const hideModel = controlBarProps.hideModel ?? false;
-  const hideApp = controlBarProps.hideApp ?? false;
   const hideApiKey = controlBarProps.hideApiKey ?? false;
   const hideWallet = controlBarProps.hideWallet ?? true;
   const hideNetwork = controlBarProps.hideNetwork ?? false;
-  const { conflict } = useCapabilityComposer();
+  const { hostError } = useCapabilityComposer();
 
   return (
     <div className="aui-composer-action-wrapper relative mx-1 mb-3 mt-2 flex min-h-[38px] items-center gap-1">
@@ -314,8 +339,7 @@ const ComposerAction: FC = () => {
         <div className="aui-composer-action-scroll ml-1 flex min-w-0 flex-1 items-center gap-0 overflow-x-auto md:ml-2 md:gap-2">
           {!hideNetwork && <NetworkSelect />}
           {!hideModel && <ModelSelect />}
-          {!hideApp && <ModeSelect />}
-          <CapabilityHintButton />
+          <ExecutionControl />
           {!hideWallet && <ConnectButton />}
           {!hideApiKey && <ApiKeyInput />}
         </div>
@@ -333,8 +357,8 @@ const ComposerAction: FC = () => {
               size="icon"
               className="aui-composer-send bg-aomi-fg text-aomi-bg hover:bg-aomi-fg mr-2 size-8 shrink-0 rounded-full p-1 transition-opacity hover:opacity-90 md:mr-2.5"
               aria-label="Send message"
-              disabled={Boolean(conflict)}
-              title={conflict ?? undefined}
+              disabled={Boolean(hostError)}
+              title={hostError ?? undefined}
             >
               <ArrowUpIcon className="aui-composer-send-icon size-4" />
             </Button>

@@ -1,5 +1,30 @@
 # Canonical Landing
 
+Current session goal: **AUTO/DIRECT COMPOSER AND COMPACT PICKER UI VERIFIED
+2026-09-03** — Auto is visually quiet with keyboard-only `@` hints, Direct is a
+borderless adjacent policy/app control, and model, network, execution, and
+Direct-app pickers share one compact menu and chevron system. Search and bounded
+scrolling remain functional, logos are unboxed, and hover never merges with an
+adjacent selected row. Menus use a dense 248px app-scale width with compact rows
+and 24px icon slots, and open neutrally until pointer or keyboard navigation
+begins. Search is integrated as the header instead of floating in a second
+labeled box, and scroll tracks are inset and rounded within the menu.
+Scrollable menus use a shorter five-row viewport with a visible draggable thumb.
+Every option reserves a fixed right-side status column so checks never reflow text.
+The stale Agent API and backend binaries were rebuilt; a real Auto request
+completed over Tailscale; focused tests, Portal typecheck, the widget package
+build, and live Chrome verification pass for widget 2.0.17.
+
+Current session goal: **AUTO/DIRECT CLIENT-TO-PORTAL IMPLEMENTATION VERIFIED
+2026-09-03** — make omitted Agent routing Auto across the TypeScript client,
+SDK, CLI, headless examples, widget, and Portal; retain legacy app options as
+Direct compatibility; expose one Auto/Direct selector with the app picker only
+inside Direct; keep `@` apps, skills, and chains as non-authoritative Auto
+hints; and remove all tag-driven app or chain switching. Client, React, widget,
+consumer, headless, focused routing registry, and Portal checks pass, and live
+local browser verification confirms the Auto-first UI and mode-specific hint
+behavior. The full registry suite retains four unrelated pre-existing failures.
+
 Current session goal: **AUTO/DIRECT BACKEND-FIRST PLAN READY FOR REVIEW 2026-09-03** —
 replace the proposed user-facing Coordinate mode with default Auto plus explicit
 single-app Direct, converge mother and child staged work on canonical EVM/SVM

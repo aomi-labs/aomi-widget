@@ -187,7 +187,11 @@
   /* Alpha tints — the accent/10 + accent/45 pair and the overlay hairline
      recurred across chips, tinted buttons and menus as ad-hoc opacities. */
   --aomi-accent-tint: color-mix(in srgb, var(--aomi-accent) 10%, transparent);
-  --aomi-accent-outline: color-mix(in srgb, var(--aomi-accent) 45%, transparent);
+  --aomi-accent-outline: color-mix(
+    in srgb,
+    var(--aomi-accent) 45%,
+    transparent
+  );
   --aomi-overlay-border: color-mix(in srgb, var(--aomi-muted) 30%, transparent);
 
   --aomi-danger: #d2495b; /* text + outline */
@@ -272,7 +276,11 @@
      Repeating them re-derives against the dark palette in either case. */
   --aomi-ring: var(--aomi-accent);
   --aomi-accent-tint: color-mix(in srgb, var(--aomi-accent) 10%, transparent);
-  --aomi-accent-outline: color-mix(in srgb, var(--aomi-accent) 45%, transparent);
+  --aomi-accent-outline: color-mix(
+    in srgb,
+    var(--aomi-accent) 45%,
+    transparent
+  );
   --aomi-overlay-border: color-mix(in srgb, var(--aomi-muted) 30%, transparent);
 }
 
@@ -288,7 +296,16 @@
   /* One focus ring for every interactive element. Wrapped in :where() so it
      contributes no specificity — any component that wants its own focus
      treatment still wins, but nothing falls through to the browser default. */
-  :where(a, button, input, select, textarea, summary, [role="switch"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  :where(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [role="switch"],
+    [tabindex]:not([tabindex="-1"])
+  ):focus-visible {
     outline: 2px solid var(--aomi-ring);
     outline-offset: 2px;
   }
@@ -361,10 +378,14 @@
   background-color: hsl(var(--muted-foreground) / 0.38);
 }
 
-/* Thin, subtle scrollbar for command list dropdowns */
-.aui-command-list {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--border) / 0.5) transparent;
+/* Thin, visible scrollbar for command list dropdowns. Keep Firefox's standard
+   properties out of Chromium so they do not replace the inset WebKit track. */
+@supports (-moz-appearance: none) {
+  .aui-command-list {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--aomi-muted) 45%, transparent)
+      transparent;
+  }
 }
 
 .aui-command-list::-webkit-scrollbar {
@@ -373,15 +394,16 @@
 
 .aui-command-list::-webkit-scrollbar-track {
   background: transparent;
+  margin-block: 6px;
 }
 
 .aui-command-list::-webkit-scrollbar-thumb {
-  background: hsl(var(--border) / 0.5);
+  background: color-mix(in srgb, var(--aomi-muted) 45%, transparent);
   border-radius: 9999px;
 }
 
 .aui-command-list::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--border));
+  background: color-mix(in srgb, var(--aomi-muted) 68%, transparent);
 }
 
 /* Match Aomi's editorial page titles. Hosts that load PT Serif through
@@ -432,8 +454,7 @@
   will-change: transform;
 }
 
-.aui-suggestions-marquee
-  .aui-thread-welcome-suggestions-track-secondary {
+.aui-suggestions-marquee .aui-thread-welcome-suggestions-track-secondary {
   display: flex;
   animation-duration: 72s;
   animation-delay: -17s;
@@ -478,8 +499,7 @@
     animation: none;
   }
 
-  .aui-suggestions-marquee
-    .aui-thread-welcome-suggestions-track-secondary {
+  .aui-suggestions-marquee .aui-thread-welcome-suggestions-track-secondary {
     display: flex;
   }
 

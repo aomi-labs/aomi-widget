@@ -1,4 +1,5 @@
 import type {
+  AgentTarget,
   Event,
   EventPage,
   MessageEvent,
@@ -40,7 +41,8 @@ export class ClientSession {
   readonly sessionId: string;
   readonly actions: ActionHandler;
 
-  private app: string;
+  private target?: AgentTarget;
+  private app?: string;
   private model?: string | null;
   private applicationId?: number | string | null;
   private getUserState?: SessionOptions["getUserState"];
@@ -88,9 +90,15 @@ export class ClientSession {
         ? clientOrOptions
         : new AomiClient(clientOrOptions);
     this.sessionId = sessionOptions?.sessionId ?? crypto.randomUUID();
-    this.app = sessionOptions?.app ?? "default";
+    this.target = normalizeTarget(sessionOptions?.target);
+    this.app = normalizeOptionalString(sessionOptions?.app);
     this.model = sessionOptions?.model;
     this.applicationId = sessionOptions?.applicationId;
+    assertTargetCompatibility({
+      target: this.target,
+      app: this.app,
+      applicationId: this.applicationId,
+    });
     this.getUserState = sessionOptions?.getUserState;
     this.clientId = sessionOptions?.clientId ?? crypto.randomUUID();
     this.pollIntervalMs = sessionOptions?.pollIntervalMs ?? 500;
@@ -162,7 +170,15 @@ export class ClientSession {
   }
 
   syncRuntimeOptions(options: SessionRuntimeOptions): void {
-    this.app = options.app;
+    const target = normalizeTarget(options.target);
+    const app = normalizeOptionalString(options.app);
+    assertTargetCompatibility({
+      target,
+      app,
+      applicationId: options.applicationId,
+    });
+    this.target = target;
+    this.app = app;
     this.model = options.model;
     this.applicationId = options.applicationId;
     this.clientId = options.clientId ?? this.clientId;
@@ -228,7 +244,6 @@ export class ClientSession {
     this.assertOpen();
     const text = message.trim();
     if (!text) throw new TypeError("message is required");
-    const applicationId = Number(this.applicationId);
     const operation =
       this.startOperation?.message === text
         ? this.startOperation
@@ -253,14 +268,17 @@ export class ClientSession {
     this.publish();
     try {
       const state = this.getUserState?.();
+      const target = startTargetFields({
+        target: this.target,
+        app: this.app,
+        applicationId: this.applicationId,
+      });
       const page = await this.client.agent.start(
         {
           sessionId: this.sessionId,
           clientId: this.clientId,
           message: text,
-          ...(Number.isSafeInteger(applicationId) && applicationId > 0
-            ? { applicationId }
-            : { app: this.app }),
+          ...target,
           ...(this.model ? { model: this.model } : {}),
           ...(state
             ? {
@@ -522,4 +540,88 @@ export class ClientSession {
   private assertOpen(): void {
     if (this.closed) throw new Error("Session is closed");
   }
+}
+
+function normalizeOptionalString(
+  value: string | undefined,
+): string | undefined {
+  const normalized = value?.trim();
+  return normalized || undefined;
+}
+
+function normalizeTarget(
+  target: AgentTarget | undefined,
+): AgentTarget | undefined {
+  if (!target) return undefined;
+  if (target.mode !== "direct") return { mode: "auto" };
+  const app = normalizeOptionalString(target.app);
+  if ("applicationId" in target && target.applicationId !== undefined) {
+    if (
+      !Number.isSafeInteger(target.applicationId) ||
+      target.applicationId <= 0
+    ) {
+      throw new TypeError("Direct applicationId must be a positive integer");
+    }
+    return {
+      mode: "direct",
+      applicationId: target.applicationId,
+      ...(app ? { app } : {}),
+    };
+  }
+  if (!app) throw new TypeError("Direct mode requires an app or applicationId");
+  return { mode: "direct", app };
+}
+
+function assertTargetCompatibility(options: {
+  target?: AgentTarget;
+  app?: string;
+  applicationId?: number | string | null;
+}): void {
+  if (
+    options.target &&
+    (normalizeOptionalString(options.app) ||
+      normalizeApplicationId(options.applicationId) !== undefined)
+  ) {
+    throw new TypeError(
+      "target cannot be combined with legacy app or applicationId options",
+    );
+  }
+}
+
+function normalizeApplicationId(
+  value: number | string | null | undefined,
+): number | undefined {
+  if (value === null || value === undefined || value === "") return undefined;
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new TypeError("applicationId must be a positive integer");
+  }
+  return parsed;
+}
+
+function startTargetFields(options: {
+  target?: AgentTarget;
+  app?: string;
+  applicationId?: number | string | null;
+}): Pick<StartTurnIntent, "mode" | "app" | "applicationId"> {
+  if (options.target?.mode === "direct") {
+    return "applicationId" in options.target &&
+      options.target.applicationId !== undefined
+      ? {
+          mode: "direct",
+          applicationId: options.target.applicationId,
+          ...(options.target.app ? { app: options.target.app } : {}),
+        }
+      : { mode: "direct", app: options.target.app };
+  }
+  if (options.target) return { mode: "auto" };
+
+  const applicationId = normalizeApplicationId(options.applicationId);
+  if (applicationId !== undefined) {
+    return {
+      applicationId,
+      ...(options.app ? { app: options.app } : {}),
+    };
+  }
+  return options.app ? { app: options.app } : {};
 }

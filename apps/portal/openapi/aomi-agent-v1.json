@@ -1673,6 +1673,11 @@
           "app": {
             "type": ["string", "null"]
           },
+          "mode": {
+            "type": ["string", "null"],
+            "enum": ["auto", "direct", null],
+            "description": "Execution policy. Omit for Auto unless app or applicationId selects a Direct target."
+          },
           "model": {
             "type": ["string", "null"]
           },

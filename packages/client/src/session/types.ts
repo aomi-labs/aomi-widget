@@ -1,5 +1,6 @@
 import type {
   Action,
+  AgentTarget,
   Event,
   EventPage,
   MessageEvent,
@@ -37,8 +38,12 @@ export type SessionSnapshot = Readonly<{
 
 export type SessionOptions = {
   sessionId?: string;
+  /** Typed execution target. Omission is Auto. */
+  target?: AgentTarget;
+  /** @deprecated Use `target: { mode: "direct", app }`. */
   app?: string;
   model?: string | null;
+  /** @deprecated Use `target: { mode: "direct", applicationId }`. */
   applicationId?: number | string | null;
   getUserState?: () => UserState | undefined;
   clientId?: string;
@@ -48,8 +53,11 @@ export type SessionOptions = {
 };
 
 export type SessionRuntimeOptions = {
-  app: string;
+  target?: AgentTarget;
+  /** @deprecated Legacy Direct app selection. */
+  app?: string;
   model?: string | null;
+  /** @deprecated Legacy Direct hosted-app selection. */
   applicationId?: number | string | null;
   clientId?: string;
   getUserState?: () => UserState | undefined;

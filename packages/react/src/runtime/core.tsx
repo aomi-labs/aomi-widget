@@ -11,6 +11,7 @@ import {
 import {
   AgentApiError,
   type ActionCapabilities,
+  type AgentTarget,
   type AomiClient,
 } from "@aomi-labs/client";
 import { useControl } from "../contexts/control-context";
@@ -67,7 +68,7 @@ function appendMessageText(message: AppendMessage): string {
 export type AomiRuntimeCoreProps = {
   children: ReactNode;
   aomiClient: AomiClient;
-  applicationId?: number | string | null;
+  agentTarget?: AgentTarget;
   actions?: ActionCapabilities;
   accountSessionAvailable?: boolean;
   restoredThreadId?: string;
@@ -81,7 +82,7 @@ export type AomiRuntimeCoreProps = {
 export function AomiRuntimeCore({
   children,
   aomiClient,
-  applicationId,
+  agentTarget,
   actions: actionCapabilities,
   accountSessionAvailable = false,
   restoredThreadId,
@@ -93,8 +94,7 @@ export function AomiRuntimeCore({
   const {
     getControlState,
     getCurrentThreadControl,
-    getCurrentThreadApplicationId,
-    getCurrentThreadApp,
+    getCurrentThreadTarget,
     getPreferredThreadControl,
     markControlSynced,
   } = useControl();
@@ -115,12 +115,11 @@ export function AomiRuntimeCore({
     aomiClientRef,
   } = useRuntimeOrchestrator(aomiClient, {
     getUserState,
-    getApp: getCurrentThreadApp,
+    getTarget: () => agentTarget ?? getCurrentThreadTarget(),
     getModel: () => {
       const control = getCurrentThreadControl();
       return control.modelMode === "manual" ? control.model : null;
     },
-    getApplicationId: () => getCurrentThreadApplicationId() ?? applicationId,
     getClientId: () => getControlState().clientId ?? undefined,
     getActions: () => actionCapabilities,
     onSendSuccess: (threadId) => {

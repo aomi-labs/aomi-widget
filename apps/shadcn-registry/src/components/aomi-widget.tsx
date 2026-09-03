@@ -11,6 +11,11 @@ import type {
 } from "../lib/wallet-kit/config/types";
 import { BackendAaProvider } from "../lib/wallet-kit/execution/backend-aa-context";
 import { BackendAaProvisioner } from "./backend-aa-provisioner";
+import {
+  normalizeAomiRouting,
+  toAgentTarget,
+  type AomiRoutingConfig,
+} from "./assistant-ui/routing";
 
 export type CrossOriginWidgetAuth =
   | { kind: "browser_wallet" }
@@ -45,6 +50,8 @@ export type AomiWidgetProps = {
   showSidebar?: boolean;
   showHeader?: boolean;
   controlBarProps?: Omit<AomiFrameControlBarProps, "children">;
+  /** Execution modes and Direct apps available in this widget. Defaults to Auto only. */
+  routing?: AomiRoutingConfig;
   clientOptions?: Omit<AomiClientOptions, "baseUrl" | "getAccountBearer">;
   persistThread?: boolean;
   threadPersistenceKey?: string;
@@ -91,6 +98,7 @@ export function AomiWidget(props: AomiWidgetProps) {
         showSidebar={props.showSidebar}
         showHeader={props.showHeader}
         controlBarProps={props.controlBarProps}
+        routing={props.routing}
         clientOptions={props.clientOptions}
         persistThread={props.persistThread}
         threadPersistenceKey={props.threadPersistenceKey}
@@ -113,6 +121,7 @@ type WidgetFrameProps = Pick<
   | "showSidebar"
   | "showHeader"
   | "controlBarProps"
+  | "routing"
   | "clientOptions"
   | "persistThread"
   | "threadPersistenceKey"
@@ -132,6 +141,7 @@ function WidgetFrame({
   showSidebar = true,
   showHeader = true,
   controlBarProps,
+  routing,
   clientOptions,
   persistThread,
   threadPersistenceKey,
@@ -139,6 +149,14 @@ function WidgetFrame({
   initialThreadId,
 }: WidgetFrameProps) {
   const walletKit = useAomiWalletKit();
+  const resolvedRouting = routing ?? controlBarProps?.routing;
+  const normalizedRouting = normalizeAomiRouting(resolvedRouting);
+  const fixedAgentTarget =
+    normalizedRouting.modes.length === 1 &&
+    normalizedRouting.modes[0] === "direct" &&
+    normalizedRouting.directApps.length === 1
+      ? toAgentTarget(normalizedRouting.directApps[0]!)
+      : undefined;
   return (
     <BackendAaProvider
       value={{ apiUrl, getAccountBearer: walletKit.getAccountBearer }}
@@ -147,6 +165,7 @@ function WidgetFrame({
         key={walletKit.accountUser?.id ?? "anonymous"}
         backendUrl={apiUrl}
         applicationId={applicationId}
+        agentTarget={fixedAgentTarget}
         accountSessionAvailable={Boolean(walletKit.accountUser)}
         clientOptions={{
           ...clientOptions,
@@ -174,6 +193,7 @@ function WidgetFrame({
             hideApiKey: true,
             hideNetwork: false,
             ...controlBarProps,
+            routing: resolvedRouting,
           }}
         />
       </AomiFrame.Root>

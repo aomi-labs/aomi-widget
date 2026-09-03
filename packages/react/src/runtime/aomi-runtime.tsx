@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import {
   AomiClient,
   type ActionCapabilities,
+  type AgentTarget,
   type AomiClientOptions,
   type AomiPlatformFilter,
 } from "@aomi-labs/client";
@@ -30,6 +31,8 @@ export type AomiRuntimeProviderProps = {
   children: ReactNode;
   backendUrl?: string;
   applicationId?: number | string | null;
+  /** Optional host-fixed target. Omit to use the per-thread Auto/Direct control. */
+  agentTarget?: AgentTarget;
   appPlatforms?: AomiPlatformFilter;
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
   actions?: ActionCapabilities;
@@ -53,6 +56,7 @@ export function AomiRuntimeProvider({
   children,
   backendUrl = "http://127.0.0.1:8080",
   applicationId,
+  agentTarget,
   appPlatforms,
   clientOptions,
   actions,
@@ -112,6 +116,7 @@ export function AomiRuntimeProvider({
           <AomiRuntimeInner
             aomiClient={aomiClient}
             applicationId={applicationId}
+            agentTarget={agentTarget}
             appPlatforms={appPlatforms}
             accountSessionAvailable={accountSessionAvailable}
             actions={actions}
@@ -134,6 +139,7 @@ type AomiRuntimeInnerProps = {
   children: ReactNode;
   aomiClient: AomiClient;
   applicationId?: number | string | null;
+  agentTarget?: AgentTarget;
   appPlatforms?: AomiPlatformFilter;
   accountSessionAvailable: boolean;
   actions?: ActionCapabilities;
@@ -145,6 +151,7 @@ function AomiRuntimeInner({
   children,
   aomiClient,
   applicationId,
+  agentTarget,
   appPlatforms,
   accountSessionAvailable,
   actions,
@@ -164,7 +171,7 @@ function AomiRuntimeInner({
     >
       <AomiRuntimeCore
         aomiClient={aomiClient}
-        applicationId={applicationId}
+        agentTarget={agentTarget}
         accountSessionAvailable={accountSessionAvailable}
         actions={actions}
         restoredThreadId={restoredThreadId}

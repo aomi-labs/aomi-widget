@@ -171,11 +171,15 @@ export function usePerThreadControl(): {
   return {
     actions: {
       getCurrentThreadControl: ctx.getCurrentThreadControl,
+      getCurrentThreadAgentMode: ctx.getCurrentThreadAgentMode,
+      getCurrentThreadTarget: ctx.getCurrentThreadTarget,
       getCurrentThreadApp: ctx.getCurrentThreadApp,
       getCurrentThreadApplicationId: ctx.getCurrentThreadApplicationId,
       getPreferredThreadControl: ctx.getPreferredThreadControl,
       onModelSelect: ctx.onModelSelect,
       onAppSelect: ctx.onAppSelect,
+      onAgentTargetSelect: ctx.onAgentTargetSelect,
+      onAgentModeSelect: ctx.onAgentModeSelect,
       markControlSynced: ctx.markControlSynced,
     },
   };

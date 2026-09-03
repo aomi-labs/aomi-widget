@@ -9,7 +9,8 @@
 // in state.ts because they operate across all sessions, not on one instance.
 
 import { ClientSession } from "../session";
-import type { CliConfig } from "./types";
+import type { AgentTarget } from "../agent/types";
+import type { CliAgentMode, CliConfig } from "./types";
 import {
   readState,
   writeState,
@@ -97,11 +98,23 @@ export class CliSession {
     }
 
     const baseUrl = config.baseUrl ?? seed?.baseUrl ?? DEFAULT_CLI_BASE_URL;
+    const configuredTarget = config.app ?? config.applicationId;
+    const seededMode =
+      seed?.agentMode ??
+      (seed?.app || seed?.applicationId ? "direct" : undefined);
+    const agentMode =
+      config.agentMode ??
+      (configuredTarget ? "direct" : (seededMode ?? "auto"));
     const state: CliSessionState = {
       sessionId,
       clientId: crypto.randomUUID(),
       baseUrl,
-      app: config.app ?? seed?.app,
+      agentMode,
+      app: agentMode === "auto" ? undefined : (config.app ?? seed?.app),
+      applicationId:
+        agentMode === "auto"
+          ? undefined
+          : (config.applicationId ?? seed?.applicationId),
       model: config.model ?? seed?.model,
       apiKey: config.apiKey ?? seed?.apiKey,
       accountBearer: config.accountBearer ?? seed?.accountBearer,
@@ -138,6 +151,15 @@ export class CliSession {
   }
   get app(): string | undefined {
     return this.state.app;
+  }
+  get agentMode(): CliAgentMode {
+    return (
+      this.state.agentMode ??
+      (this.state.app || this.state.applicationId ? "direct" : "auto")
+    );
+  }
+  get applicationId(): string | undefined {
+    return this.state.applicationId;
   }
   get model(): string | undefined {
     return this.state.model;
@@ -194,8 +216,51 @@ export class CliSession {
       delete this.state.guestBearer;
       changed = true;
     }
+    if (config.agentMode === "auto") {
+      if (
+        this.state.agentMode !== "auto" ||
+        this.state.app !== undefined ||
+        this.state.applicationId !== undefined
+      ) {
+        this.state.agentMode = "auto";
+        delete this.state.app;
+        delete this.state.applicationId;
+        changed = true;
+      }
+    } else if (
+      config.agentMode === "direct" &&
+      this.state.agentMode !== "direct"
+    ) {
+      this.state.agentMode = "direct";
+      changed = true;
+    }
     if (config.app !== undefined && config.app !== this.state.app) {
       this.state.app = config.app;
+      this.state.agentMode = "direct";
+      changed = true;
+    }
+    if (
+      config.app !== undefined &&
+      config.applicationId === undefined &&
+      this.state.applicationId !== undefined
+    ) {
+      delete this.state.applicationId;
+      changed = true;
+    }
+    if (
+      config.applicationId !== undefined &&
+      config.applicationId !== this.state.applicationId
+    ) {
+      this.state.applicationId = config.applicationId;
+      this.state.agentMode = "direct";
+      changed = true;
+    }
+    if (
+      config.applicationId !== undefined &&
+      config.app === undefined &&
+      this.state.app !== undefined
+    ) {
+      delete this.state.app;
       changed = true;
     }
     if (config.apiKey !== undefined && config.apiKey !== this.state.apiKey) {
@@ -264,6 +329,27 @@ export class CliSession {
   setModel(model: string): void {
     this.state.model = model;
     this.state.modelSynced = true;
+    this.save();
+  }
+
+  setAgentRouting(
+    mode: CliAgentMode,
+    target?: { app?: string; applicationId?: string },
+  ): void {
+    this.state.agentMode = mode;
+    if (mode === "auto") {
+      delete this.state.app;
+      delete this.state.applicationId;
+    } else {
+      if (target?.app !== undefined) {
+        this.state.app = target.app;
+        if (target.applicationId === undefined) delete this.state.applicationId;
+      }
+      if (target?.applicationId !== undefined) {
+        this.state.applicationId = target.applicationId;
+        if (target.app === undefined) delete this.state.app;
+      }
+    }
     this.save();
   }
 
@@ -404,6 +490,7 @@ export class CliSession {
       options?.onPayment,
       authorizedFetch,
     );
+    const target = this.resolveAgentTarget(config);
     const session = new ClientSession(
       {
         baseUrl: this.state.baseUrl,
@@ -418,9 +505,8 @@ export class CliSession {
       {
         sessionId: this.state.sessionId,
         clientId: this.state.clientId,
-        app: this.state.app,
+        target,
         model: config?.model ?? this.state.model,
-        applicationId: config?.applicationId,
         getUserState: () =>
           buildCliUserState(this.state.publicKey, this.state.chainId, {
             svmAddress: this.state.svmPublicKey,
@@ -430,6 +516,40 @@ export class CliSession {
       },
     );
     return session;
+  }
+
+  private resolveAgentTarget(config?: Partial<CliConfig>): AgentTarget {
+    const requestedApp = config?.app ?? this.state.app;
+    const requestedApplicationId =
+      config?.applicationId ?? this.state.applicationId;
+    const mode =
+      config?.agentMode ??
+      (config?.app || config?.applicationId ? "direct" : this.agentMode);
+    if (mode === "auto") {
+      if (requestedApp || requestedApplicationId) {
+        throw new TypeError(
+          "Auto mode cannot be combined with an app or applicationId target",
+        );
+      }
+      return { mode: "auto" };
+    }
+    if (requestedApplicationId) {
+      const applicationId = Number(requestedApplicationId);
+      if (!Number.isSafeInteger(applicationId) || applicationId <= 0) {
+        throw new TypeError("Direct applicationId must be a positive integer");
+      }
+      return {
+        mode: "direct",
+        applicationId,
+        ...(requestedApp ? { app: requestedApp } : {}),
+      };
+    }
+    if (!requestedApp) {
+      throw new TypeError(
+        "Direct mode requires `--app <name>` or `--application-id <id>`",
+      );
+    }
+    return { mode: "direct", app: requestedApp };
   }
 
   createGuestProvider(
