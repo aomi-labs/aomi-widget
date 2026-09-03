@@ -74,6 +74,11 @@ export interface PipelineCommitOptions {
 export type PipelineSimulation = Schemas["PipelineSimulation"];
 export type PipelineSimulationStatus = PipelineSimulation["status"];
 export type PipelineBalanceChange = Schemas["PipelineBalanceChange"];
+export type PipelineAssetStandard = NonNullable<
+  PipelineBalanceChange["standard"]
+>;
+export type PipelineApprovalChange = Schemas["PipelineApprovalChange"];
+export type PipelineApprovalKind = PipelineApprovalChange["kind"];
 export type PipelineFeeEstimate = Schemas["PipelineFeeEstimate"];
 export type PipelineGuardResult = Schemas["PipelineGuardResult"];
 export type PipelineGasEstimate = Schemas["PipelineGasEstimate"];

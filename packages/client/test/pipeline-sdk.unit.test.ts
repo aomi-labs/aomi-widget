@@ -65,10 +65,38 @@ const evmSimulated: EvmSimulatedBuild = {
   simulation: {
     status: "passed",
     balanceChanges: [
-      { asset: "USDC", amount: "100", direction: "out", chainId: 1 },
+      {
+        asset: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        amount: "100",
+        direction: "out",
+        chainId: 1,
+        standard: "erc20",
+        symbol: "USDC",
+        decimals: 6,
+        step: 1,
+      },
+    ],
+    approvals: [
+      {
+        account: "0x1111111111111111111111111111111111111111",
+        spender: "0x2222222222222222222222222222222222222222",
+        asset: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+        kind: "allowance",
+        amount: "100",
+        approved: true,
+        unlimited: false,
+        standard: "erc20",
+        symbol: "USDC",
+        decimals: 6,
+        chainId: 1,
+        step: 1,
+      },
     ],
     fees: [{ asset: "ETH", amount: "0.0001" }],
     warnings: [],
+    guards: [{ name: "batch_execution", status: "passed" }],
+    gas: { units: "21000" },
+    logs: [],
   },
 };
 
@@ -99,8 +127,12 @@ const svmSimulated: SvmSimulatedBuild = {
   simulation: {
     status: "passed",
     balanceChanges: [],
+    approvals: [],
     fees: [{ asset: "SOL", amount: "0.000005" }],
     warnings: [],
+    guards: [{ name: "simulation", status: "passed" }],
+    gas: null,
+    logs: [],
   },
 };
 
@@ -315,7 +347,12 @@ describe("Pipeline SDK lifecycle", () => {
 
     expect(build).toBeInstanceOf(EvmBuild);
     expect(build.summary?.title).toBe("Supply USDC");
-    expect(build.simulation.balanceChanges[0]?.asset).toBe("USDC");
+    expect(build.balanceChanges[0]?.symbol).toBe("USDC");
+    expect(build.approvals[0]).toMatchObject({
+      kind: "allowance",
+      amount: "100",
+      unlimited: false,
+    });
     await expect(build.commit()).resolves.toMatchObject({
       status: "committed",
     });

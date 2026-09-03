@@ -8,6 +8,8 @@ import type {
   EvmSimulatedBuild,
   EvmStagedBuild,
   PipelineActionSummary,
+  PipelineApprovalChange,
+  PipelineBalanceChange,
   PipelineCommitOptions,
   PipelineSimulation,
   SvmCommitResult,
@@ -82,6 +84,16 @@ export class EvmBuild {
 
   get simulation(): PipelineSimulation {
     return this.raw.simulation;
+  }
+
+  /** Wallet asset movements decoded from successful simulation steps. */
+  get balanceChanges(): PipelineBalanceChange[] {
+    return this.raw.simulation.balanceChanges;
+  }
+
+  /** Allowance, token, and operator permissions changed by the build. */
+  get approvals(): PipelineApprovalChange[] {
+    return this.raw.simulation.approvals;
   }
 
   get digest(): string {

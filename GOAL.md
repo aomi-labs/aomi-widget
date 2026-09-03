@@ -1,5 +1,13 @@
 # Canonical Landing
 
+Current session goal: **TYPED EVM SIMULATION EFFECTS IN PROGRESS 2026-09-03** —
+consume the backend's wallet-focused native/ERC-20/ERC-721/ERC-1155 movement
+and permission evidence through the generated public API contract, expose it
+ergonomically from the client SDK, then render every effect class in a compact
+transaction review with development-only fixtures for wallet-free visual QA.
+The backend checkpoint is committed as `51271c008`; live Pipeline API smokes
+passed for a Base USDC transfer, exact allowance approval, and native transfer.
+
 Current session goal: **WORKING TRACE RECOVERY ORDER VERIFIED 2026-09-03** —
 remove the internal Orchestrator badge from the user-facing trace header and
 reconcile delegated task sidecar state into its matching transcript row. Failed

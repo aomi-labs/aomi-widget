@@ -127,7 +127,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["agent:write"]
+            "aomiOAuth": [
+              "agent:write"
+            ]
           }
         ]
       }
@@ -182,7 +184,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["agent:read"]
+            "aomiOAuth": [
+              "agent:read"
+            ]
           }
         ]
       }
@@ -231,7 +235,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["agent:write"]
+            "aomiOAuth": [
+              "agent:write"
+            ]
           }
         ]
       }
@@ -267,7 +273,9 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["action"],
+                  "required": [
+                    "action"
+                  ],
                   "properties": {
                     "action": {
                       "$ref": "#/components/schemas/Action"
@@ -289,7 +297,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["agent:actions:resolve"]
+            "aomiOAuth": [
+              "agent:actions:resolve"
+            ]
           }
         ]
       }
@@ -324,7 +334,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["mcp:agent"]
+            "aomiOAuth": [
+              "mcp:agent"
+            ]
           }
         ]
       }
@@ -373,7 +385,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["agent:read"]
+            "aomiOAuth": [
+              "agent:read"
+            ]
           }
         ]
       }
@@ -409,7 +423,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["agent:read"]
+            "aomiOAuth": [
+              "agent:read"
+            ]
           }
         ]
       },
@@ -453,7 +469,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["agent:write"]
+            "aomiOAuth": [
+              "agent:write"
+            ]
           }
         ]
       },
@@ -480,7 +498,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["agent:write"]
+            "aomiOAuth": [
+              "agent:write"
+            ]
           }
         ]
       }
@@ -514,7 +534,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       }
@@ -538,7 +560,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       }
@@ -562,7 +586,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       }
@@ -586,7 +612,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       }
@@ -618,7 +646,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       }
@@ -647,7 +677,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       }
@@ -682,7 +714,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       }
@@ -714,7 +748,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       },
@@ -747,7 +783,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:execute"]
+            "aomiOAuth": [
+              "pipeline:execute"
+            ]
           }
         ]
       }
@@ -779,7 +817,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       }
@@ -808,7 +848,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       }
@@ -844,7 +886,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       }
@@ -873,7 +917,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       }
@@ -905,7 +951,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       },
@@ -938,7 +986,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:execute"]
+            "aomiOAuth": [
+              "pipeline:execute"
+            ]
           }
         ]
       }
@@ -984,7 +1034,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["mcp:pipeline"]
+            "aomiOAuth": [
+              "mcp:pipeline"
+            ]
           }
         ]
       }
@@ -1008,7 +1060,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       },
@@ -1049,7 +1103,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:execute"]
+            "aomiOAuth": [
+              "pipeline:execute"
+            ]
           }
         ]
       }
@@ -1073,7 +1129,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       },
@@ -1114,7 +1172,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:execute"]
+            "aomiOAuth": [
+              "pipeline:execute"
+            ]
           }
         ]
       }
@@ -1138,7 +1198,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       },
@@ -1179,7 +1241,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:execute"]
+            "aomiOAuth": [
+              "pipeline:execute"
+            ]
           }
         ]
       }
@@ -1203,7 +1267,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       },
@@ -1248,7 +1314,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:execute"]
+            "aomiOAuth": [
+              "pipeline:execute"
+            ]
           }
         ]
       }
@@ -1272,7 +1340,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       },
@@ -1313,7 +1383,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:execute"]
+            "aomiOAuth": [
+              "pipeline:execute"
+            ]
           }
         ]
       }
@@ -1337,7 +1409,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       },
@@ -1378,7 +1452,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:execute"]
+            "aomiOAuth": [
+              "pipeline:execute"
+            ]
           }
         ]
       }
@@ -1402,7 +1478,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       },
@@ -1443,7 +1521,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:execute"]
+            "aomiOAuth": [
+              "pipeline:execute"
+            ]
           }
         ]
       }
@@ -1467,7 +1547,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:catalog"]
+            "aomiOAuth": [
+              "pipeline:catalog"
+            ]
           }
         ]
       },
@@ -1512,7 +1594,9 @@
         },
         "security": [
           {
-            "aomiOAuth": ["pipeline:execute"]
+            "aomiOAuth": [
+              "pipeline:execute"
+            ]
           }
         ]
       }
@@ -1656,11 +1740,16 @@
     "schemas": {
       "StartTurnIntent": {
         "type": "object",
-        "required": ["message"],
+        "required": [
+          "message"
+        ],
         "additionalProperties": false,
         "properties": {
           "sessionId": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "message": {
             "type": "string",
@@ -1668,18 +1757,34 @@
             "maxLength": 32000
           },
           "applicationId": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "app": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "mode": {
-            "type": ["string", "null"],
-            "enum": ["auto", "direct", null],
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "auto",
+              "direct",
+              null
+            ],
             "description": "Execution policy. Omit for Auto unless app or applicationId selects a Direct target."
           },
           "model": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "userState": {
             "oneOf": [
@@ -1692,13 +1797,18 @@
             ]
           },
           "clientId": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
       "InterruptIntent": {
         "type": "object",
-        "required": ["turnId"],
+        "required": [
+          "turnId"
+        ],
         "additionalProperties": false,
         "properties": {
           "turnId": {
@@ -1708,7 +1818,10 @@
       },
       "RespondToActionIntent": {
         "type": "object",
-        "required": ["revision", "result"],
+        "required": [
+          "revision",
+          "result"
+        ],
         "additionalProperties": false,
         "properties": {
           "revision": {
@@ -1752,13 +1865,22 @@
             "type": "boolean"
           },
           "provider": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "provider_label": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "auth_method": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -1767,14 +1889,23 @@
         "additionalProperties": false,
         "properties": {
           "address": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "chain_id": {
-            "type": ["integer", "null"],
+            "type": [
+              "integer",
+              "null"
+            ],
             "minimum": 1
           },
           "ens_name": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -1783,16 +1914,28 @@
         "additionalProperties": false,
         "properties": {
           "address": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "cluster": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "wallet_name": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "transport": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "capabilities": {
             "type": "array",
@@ -1804,7 +1947,12 @@
       },
       "EventPage": {
         "type": "object",
-        "required": ["session_id", "cursor", "events", "has_more"],
+        "required": [
+          "session_id",
+          "cursor",
+          "events",
+          "has_more"
+        ],
         "additionalProperties": false,
         "properties": {
           "session_id": {
@@ -1826,7 +1974,13 @@
       },
       "EventMeta": {
         "type": "object",
-        "required": ["event_id", "sequence", "turn_id", "occurred_at", "type"],
+        "required": [
+          "event_id",
+          "sequence",
+          "turn_id",
+          "occurred_at",
+          "type"
+        ],
         "properties": {
           "event_id": {
             "type": "string"
@@ -1836,7 +1990,10 @@
             "minimum": 1
           },
           "turn_id": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "occurred_at": {
             "type": "integer"
@@ -1906,16 +2063,28 @@
           },
           {
             "type": "object",
-            "required": ["type", "sender", "content"],
+            "required": [
+              "type",
+              "sender",
+              "content"
+            ],
             "properties": {
               "type": {
                 "const": "message"
               },
               "message_key": {
-                "type": ["string", "null"]
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "sender": {
-                "enum": ["user", "agent", "system", "notice"]
+                "enum": [
+                  "user",
+                  "agent",
+                  "system",
+                  "notice"
+                ]
               },
               "content": {
                 "type": "string"
@@ -1934,7 +2103,10 @@
           },
           {
             "type": "object",
-            "required": ["type", "state"],
+            "required": [
+              "type",
+              "state"
+            ],
             "properties": {
               "type": {
                 "const": "turn_state_changed"
@@ -1959,7 +2131,12 @@
           },
           {
             "type": "object",
-            "required": ["type", "id", "tool_name", "result"],
+            "required": [
+              "type",
+              "id",
+              "tool_name",
+              "result"
+            ],
             "properties": {
               "type": {
                 "const": "tool_update"
@@ -1968,7 +2145,10 @@
                 "type": "string"
               },
               "call_id": {
-                "type": ["string", "null"]
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "tool_name": {
                 "type": "string"
@@ -1985,7 +2165,12 @@
           },
           {
             "type": "object",
-            "required": ["type", "id", "tool_name", "result"],
+            "required": [
+              "type",
+              "id",
+              "tool_name",
+              "result"
+            ],
             "properties": {
               "type": {
                 "const": "tool_complete"
@@ -1994,7 +2179,10 @@
                 "type": "string"
               },
               "call_id": {
-                "type": ["string", "null"]
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "tool_name": {
                 "type": "string"
@@ -2030,7 +2218,10 @@
                 "type": "string"
               },
               "label": {
-                "type": ["string", "null"]
+                "type": [
+                  "string",
+                  "null"
+                ]
               },
               "app": {
                 "type": "string"
@@ -2204,7 +2395,12 @@
                 "type": "string"
               },
               "status": {
-                "enum": ["completed", "failed", "stalled", "cancelled"]
+                "enum": [
+                  "completed",
+                  "failed",
+                  "stalled",
+                  "cancelled"
+                ]
               },
               "message": {
                 "type": "string"
@@ -2232,7 +2428,10 @@
           },
           {
             "type": "object",
-            "required": ["type", "title"],
+            "required": [
+              "type",
+              "title"
+            ],
             "properties": {
               "type": {
                 "const": "title_changed"
@@ -2251,7 +2450,10 @@
           },
           {
             "type": "object",
-            "required": ["type", "message"],
+            "required": [
+              "type",
+              "message"
+            ],
             "properties": {
               "type": {
                 "const": "error"
@@ -2317,7 +2519,10 @@
                 "type": "integer"
               },
               "expires_at": {
-                "type": ["integer", "null"]
+                "type": [
+                  "integer",
+                  "null"
+                ]
               }
             }
           }
@@ -2327,7 +2532,11 @@
         "oneOf": [
           {
             "type": "object",
-            "required": ["type", "transactions", "simulation"],
+            "required": [
+              "type",
+              "transactions",
+              "simulation"
+            ],
             "additionalProperties": false,
             "properties": {
               "type": {
@@ -2347,7 +2556,11 @@
           },
           {
             "type": "object",
-            "required": ["type", "transactions", "simulation"],
+            "required": [
+              "type",
+              "transactions",
+              "simulation"
+            ],
             "additionalProperties": false,
             "properties": {
               "type": {
@@ -2372,7 +2585,9 @@
               },
               {
                 "type": "object",
-                "required": ["type"],
+                "required": [
+                  "type"
+                ],
                 "properties": {
                   "type": {
                     "const": "sign"
@@ -2388,7 +2603,14 @@
       },
       "AssembledEvmTransaction": {
         "type": "object",
-        "required": ["chain_id", "from", "to", "data", "label", "kind"],
+        "required": [
+          "chain_id",
+          "from",
+          "to",
+          "data",
+          "label",
+          "kind"
+        ],
         "additionalProperties": false,
         "properties": {
           "chain_id": {
@@ -2488,7 +2710,10 @@
             "type": "string"
           },
           "chainFamily": {
-            "enum": ["evm", "svm"]
+            "enum": [
+              "evm",
+              "svm"
+            ]
           },
           "executionKind": {
             "type": "string"
@@ -2548,7 +2773,10 @@
         "oneOf": [
           {
             "type": "object",
-            "required": ["kind", "message"],
+            "required": [
+              "kind",
+              "message"
+            ],
             "properties": {
               "kind": {
                 "const": "evm_personal"
@@ -2560,7 +2788,10 @@
           },
           {
             "type": "object",
-            "required": ["kind", "typed_data"],
+            "required": [
+              "kind",
+              "typed_data"
+            ],
             "properties": {
               "kind": {
                 "const": "evm_typed_data"
@@ -2572,7 +2803,10 @@
           },
           {
             "type": "object",
-            "required": ["kind", "message_base64"],
+            "required": [
+              "kind",
+              "message_base64"
+            ],
             "properties": {
               "kind": {
                 "const": "svm_message"
@@ -2584,7 +2818,10 @@
           },
           {
             "type": "object",
-            "required": ["kind", "transaction_base64"],
+            "required": [
+              "kind",
+              "transaction_base64"
+            ],
             "properties": {
               "kind": {
                 "const": "svm_transaction"
@@ -2600,7 +2837,10 @@
         "oneOf": [
           {
             "type": "object",
-            "required": ["status", "legs"],
+            "required": [
+              "status",
+              "legs"
+            ],
             "properties": {
               "status": {
                 "const": "submitted"
@@ -2615,7 +2855,10 @@
           },
           {
             "type": "object",
-            "required": ["status", "outputs"],
+            "required": [
+              "status",
+              "outputs"
+            ],
             "properties": {
               "status": {
                 "const": "signed"
@@ -2630,7 +2873,10 @@
           },
           {
             "type": "object",
-            "required": ["status", "reason"],
+            "required": [
+              "status",
+              "reason"
+            ],
             "properties": {
               "status": {
                 "const": "rejected"
@@ -2648,13 +2894,21 @@
       },
       "TransactionResult": {
         "type": "object",
-        "required": ["id", "status"],
+        "required": [
+          "id",
+          "status"
+        ],
         "properties": {
           "id": {
             "type": "string"
           },
           "status": {
-            "enum": ["submitted", "rejected", "failed", "skipped"]
+            "enum": [
+              "submitted",
+              "rejected",
+              "failed",
+              "skipped"
+            ]
           },
           "transactionId": {
             "type": "string"
@@ -2669,7 +2923,9 @@
       },
       "SigningResult": {
         "type": "object",
-        "required": ["id"],
+        "required": [
+          "id"
+        ],
         "properties": {
           "id": {
             "type": "string"
@@ -2684,13 +2940,20 @@
       },
       "Session": {
         "type": "object",
-        "required": ["id", "updatedAt", "archived"],
+        "required": [
+          "id",
+          "updatedAt",
+          "archived"
+        ],
         "properties": {
           "id": {
             "type": "string"
           },
           "title": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "updatedAt": {
             "type": "integer"
@@ -2702,7 +2965,9 @@
       },
       "SessionPage": {
         "type": "object",
-        "required": ["sessions"],
+        "required": [
+          "sessions"
+        ],
         "properties": {
           "sessions": {
             "type": "array",
@@ -2711,7 +2976,10 @@
             }
           },
           "nextCursor": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -2720,23 +2988,35 @@
         "additionalProperties": false,
         "properties": {
           "title": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "archived": {
-            "type": ["boolean", "null"]
+            "type": [
+              "boolean",
+              "null"
+            ]
           }
         }
       },
       "ErrorEnvelope": {
         "type": "object",
-        "required": ["error"],
+        "required": [
+          "error"
+        ],
         "properties": {
           "error": {}
         }
       },
       "PipelineDirectory": {
         "type": "object",
-        "required": ["kind", "path", "entries"],
+        "required": [
+          "kind",
+          "path",
+          "entries"
+        ],
         "additionalProperties": false,
         "properties": {
           "kind": {
@@ -2749,7 +3029,11 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["name", "kind", "href"],
+              "required": [
+                "name",
+                "kind",
+                "href"
+              ],
               "properties": {
                 "name": {
                   "type": "string"
@@ -2764,14 +3048,22 @@
             }
           },
           "next": {
-            "type": ["string", "null"],
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Opaque continuation link for the next deterministic catalog page."
           }
         }
       },
       "PipelineOperationDescriptor": {
         "type": "object",
-        "required": ["kind", "name", "method", "href"],
+        "required": [
+          "kind",
+          "name",
+          "method",
+          "href"
+        ],
         "additionalProperties": true,
         "properties": {
           "kind": {
@@ -2797,13 +3089,22 @@
       },
       "PipelineBuild": {
         "type": "object",
-        "required": ["version", "status", "actions", "provenance", "digest"],
+        "required": [
+          "version",
+          "status",
+          "actions",
+          "provenance",
+          "digest"
+        ],
         "properties": {
           "version": {
             "const": 1
           },
           "status": {
-            "enum": ["staged", "simulated"]
+            "enum": [
+              "staged",
+              "simulated"
+            ]
           },
           "actions": {
             "type": "array"
@@ -2826,6 +3127,7 @@
         "required": [
           "status",
           "balanceChanges",
+          "approvals",
           "fees",
           "warnings",
           "guards",
@@ -2835,12 +3137,21 @@
         "additionalProperties": false,
         "properties": {
           "status": {
-            "enum": ["passed", "failed"]
+            "enum": [
+              "passed",
+              "failed"
+            ]
           },
           "balanceChanges": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/PipelineBalanceChange"
+            }
+          },
+          "approvals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineApprovalChange"
             }
           },
           "fees": {
@@ -2881,11 +3192,17 @@
       },
       "PipelineBalanceChange": {
         "type": "object",
-        "required": ["asset", "amount"],
+        "required": [
+          "asset",
+          "amount"
+        ],
         "additionalProperties": false,
         "properties": {
           "account": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "asset": {
             "type": "string"
@@ -2894,29 +3211,179 @@
             "type": "string"
           },
           "direction": {
-            "enum": ["in", "out", null]
+            "enum": [
+              "in",
+              "out",
+              null
+            ]
           },
           "symbol": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "decimals": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "chainId": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "cluster": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "standard": {
+            "enum": [
+              "native",
+              "erc20",
+              "erc721",
+              "erc1155",
+              "erc721_or_erc1155",
+              null
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tokenId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "counterparty": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "step": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        }
+      },
+      "PipelineApprovalChange": {
+        "type": "object",
+        "required": [
+          "account",
+          "spender",
+          "asset",
+          "kind",
+          "standard"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "account": {
+            "type": "string"
+          },
+          "spender": {
+            "type": "string"
+          },
+          "asset": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "allowance",
+              "token",
+              "operator"
+            ]
+          },
+          "amount": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "approved": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "unlimited": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "tokenId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "standard": {
+            "enum": [
+              "native",
+              "erc20",
+              "erc721",
+              "erc1155",
+              "erc721_or_erc1155"
+            ]
+          },
+          "symbol": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decimals": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "chainId": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "step": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
           }
         }
       },
       "PipelineFeeEstimate": {
         "type": "object",
-        "required": ["asset", "amount"],
+        "required": [
+          "asset",
+          "amount"
+        ],
         "additionalProperties": false,
         "properties": {
           "account": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "asset": {
             "type": "string"
@@ -2925,35 +3392,60 @@
             "type": "string"
           },
           "symbol": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "decimals": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "chainId": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "cluster": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "kind": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
       "PipelineGuardResult": {
         "type": "object",
-        "required": ["name", "status"],
+        "required": [
+          "name",
+          "status"
+        ],
         "additionalProperties": false,
         "properties": {
           "name": {
             "type": "string"
           },
           "status": {
-            "enum": ["passed", "failed", "warning"]
+            "enum": [
+              "passed",
+              "failed",
+              "warning"
+            ]
           },
           "message": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -2962,26 +3454,45 @@
         "additionalProperties": false,
         "properties": {
           "units": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "priceWei": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "nativeCost": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
       "PipelineLog": {
         "type": "object",
-        "required": ["address", "topics", "data"],
+        "required": [
+          "address",
+          "topics",
+          "data"
+        ],
         "additionalProperties": false,
         "properties": {
           "chainId": {
-            "type": ["integer", "null"]
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "cluster": {
-            "type": ["string", "null"]
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "address": {
             "type": "string"
@@ -2994,6 +3505,13 @@
           },
           "data": {
             "type": "string"
+          },
+          "step": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
           }
         }
       }
