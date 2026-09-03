@@ -268,9 +268,11 @@ export function requireAccountGraphClient(
   cli: CliSession,
   fetchImpl?: typeof fetch,
 ): AccountGraphClient {
-  const sessionToken = cli.auth?.sessionToken;
+  const sessionToken = cli.accountBearer ?? cli.auth?.sessionToken;
   if (!sessionToken) {
-    fatal("No account session. Run `aomi account login` first.");
+    fatal(
+      "No account session. Run `aomi account login` first or pass `--account-bearer`.",
+    );
   }
   return new AccountGraphClient({
     baseUrl: cli.baseUrl,

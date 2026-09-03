@@ -647,11 +647,16 @@ export async function logoutCommand(config: CliConfig): Promise<void> {
 
 function loadMergedCli(config: CliConfig): CliSession {
   const cli = CliSession.load();
-  if (!cli) {
-    fatal("No active session. Run `aomi account login` first.");
+  if (cli) {
+    cli.mergeConfig(config);
+    return cli;
   }
-  cli!.mergeConfig(config);
-  return cli!;
+  if (config.accountBearer) {
+    return CliSession.loadOrCreate(config);
+  }
+  fatal(
+    "No active session. Run `aomi account login` first or pass `--account-bearer`.",
+  );
 }
 
 function normalizeProviderOption(

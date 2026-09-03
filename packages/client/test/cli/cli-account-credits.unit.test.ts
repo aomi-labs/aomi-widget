@@ -80,6 +80,31 @@ describe("aomi account credits", () => {
     );
   });
 
+  it("uses an explicit account bearer without a prior login session", async () => {
+    rmSync(stateDir, { recursive: true, force: true });
+    stateDir = mkdtempSync(join(tmpdir(), "aomi-cli-account-credits-bearer-"));
+    process.env.AOMI_STATE_DIR = stateDir;
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        expect(new Headers(init?.headers).get("authorization")).toBe(
+          "Bearer account-bearer",
+        );
+        return Response.json(position);
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const { accountCreditsShowCommand } =
+      await import("../../src/cli/commands/account");
+
+    await accountCreditsShowCommand(
+      { ...baseConfig, accountBearer: "account-bearer" },
+      { limit: "10" },
+    );
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
   it("sends a wallet-funded top-up with the active session and key", async () => {
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
