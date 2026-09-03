@@ -21,6 +21,8 @@ export type ControlBarProps = {
   hideModel?: boolean;
   /** Hide the App selector */
   hideApp?: boolean;
+  /** Account-enabled app names offered by the composer capability picker. */
+  enabledAppIds?: readonly string[];
   /** Hide the API key input */
   hideApiKey?: boolean;
   /** Hide the wallet connect button (default: true) */
@@ -65,9 +67,6 @@ export const ControlBar: FC<ControlBarProps> = ({
 export { ModelSelect, type ModelSelectProps } from "./model-select";
 export { AppSelect, type AppSelectProps } from "./app-select";
 export { ApiKeyInput, type ApiKeyInputProps } from "./api-key-input";
-export {
-  ConnectButton,
-  type ConnectButtonProps,
-} from "./connect-button";
+export { ConnectButton, type ConnectButtonProps } from "./connect-button";
 export { NetworkSelect, type NetworkSelectProps } from "./network-select";
 export { SecretInput, type SecretInputProps } from "./secret-input";

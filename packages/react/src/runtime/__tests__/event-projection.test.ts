@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Event } from "@aomi-labs/client";
 
 import { projectAssistantMessages, projectRuntimeMessages } from "../utils";
+import { appendCapabilityHints } from "../capability-hints";
 
 const meta = (
   sequence: number,
@@ -16,6 +17,32 @@ const meta = (
 });
 
 describe("projectAssistantMessages", () => {
+  it("keeps frontend capability hints out of optimistic and canonical user messages", () => {
+    const hinted = appendCapabilityHints("swap one eth", {
+      policy: "auto",
+      resolvedMode: "direct",
+      capabilities: [
+        { kind: "skill", id: "uniswap" },
+        { kind: "chain", id: "eip155:8453" },
+      ],
+    });
+
+    expect(projectRuntimeMessages([], hinted)[0]?.content).toEqual([
+      { type: "text", text: "swap one eth" },
+    ]);
+    expect(
+      projectAssistantMessages([
+        {
+          ...meta(1, "message", "turn-1"),
+          type: "message",
+          sender: "user",
+          content: hinted,
+          message_key: "user-1",
+        },
+      ])[0]?.content,
+    ).toEqual([{ type: "text", text: "swap one eth" }]);
+  });
+
   it("reconciles the optimistic user echo with the canonical event by id", () => {
     const optimistic = projectRuntimeMessages([], "hello");
     const canonical = projectRuntimeMessages([

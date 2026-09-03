@@ -12,6 +12,7 @@ import {
 
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { stripCapabilityHints } from "./capability-hints";
 
 /**
  * Utility function to merge Tailwind CSS classes with conflict resolution.
@@ -100,8 +101,10 @@ function buildInboundMessage(msg: MessageEvent): ThreadMessageLike | null {
   const role: ThreadMessageLike["role"] =
     msg.sender === "user" ? "user" : "assistant";
 
-  if (msg.content && msg.content.trim().length > 0) {
-    content.push({ type: "text" as const, text: msg.content });
+  const messageText =
+    role === "user" ? stripCapabilityHints(msg.content ?? "") : msg.content;
+  if (messageText && messageText.trim().length > 0) {
+    content.push({ type: "text" as const, text: messageText });
   }
 
   if (content.length === 0 && role === "assistant" && !msg.is_streaming) {
@@ -344,7 +347,7 @@ export function projectRuntimeMessages(
   projected.push({
     id: userMessageId(userMessageOrdinal),
     role: "user",
-    content: [{ type: "text", text: pendingUserMessage }],
+    content: [{ type: "text", text: stripCapabilityHints(pendingUserMessage) }],
     createdAt: new Date(),
   });
   return projected;

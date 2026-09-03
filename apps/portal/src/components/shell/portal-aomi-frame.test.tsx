@@ -93,6 +93,10 @@ vi.mock("@portal/lib/settings-api", () => ({
   getBackendUrl: () => "https://api.example.test",
 }));
 
+vi.mock("@portal/lib/account-overview", () => ({
+  useAccountOverview: () => null,
+}));
+
 vi.mock("@portal/components/shell/use-portal-wallet-account-menu", () => ({
   usePortalWalletAccountMenu: () => undefined,
 }));

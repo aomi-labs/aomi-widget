@@ -15,6 +15,7 @@ import {
 import { getBackendUrl } from "@portal/lib/settings-api";
 import { SvmWalletBindingGate } from "@portal/features/general/svm-wallet-binding-gate";
 import { usePortalWalletAccountMenu } from "@portal/components/shell/use-portal-wallet-account-menu";
+import { useAccountOverview } from "@portal/lib/account-overview";
 
 function AppSelectUrlBootstrap({
   requestedApp,
@@ -127,6 +128,7 @@ export function ThreadUrlBootstrap() {
 
 export function PortalAomiFrame() {
   const { accountStatus, accountUser } = useAomiWalletKit();
+  const accountOverview = useAccountOverview();
   const accountUserId = accountUser?.id;
   const [hasResolvedInitialAccount, setHasResolvedInitialAccount] = useState(
     accountStatus !== "loading",
@@ -226,6 +228,7 @@ export function PortalAomiFrame() {
           controlBarProps={{
             hideApiKey: true,
             hideApp: Boolean(lockedApp),
+            enabledAppIds: accountOverview?.user.apps ?? ["default"],
             // The network picker lives in the header pill (HeaderControls).
             hideNetwork: true,
           }}

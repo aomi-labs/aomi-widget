@@ -1,5 +1,10 @@
 # Canonical Landing
 
+Current session goal: **CAPABILITY LIBRARY AND COMPOSER ROUTING DESIGNED 2026-09-03** —
+replace the disconnected Packages and app-selector concepts with one Apps/Skills
+Library, structured per-turn `@` references for apps, skills, and chains, and a
+separate Auto/Direct/Coordinate execution policy grounded in the existing runtime.
+
 Current session goal: **THINKING TYPOGRAPHY AND SPACING MATCHED 2026-09-01** —
 add the final two pixels of trailing space and bind Thinking and Working to one
 shared status typography definition for identical size, weight, and line height.

@@ -1,6 +1,6 @@
 "use client";
 
-import { Moon, Package, Settings, Sun } from "lucide-react";
+import { LibraryBig, Moon, Settings, Sun } from "lucide-react";
 import { NetworkSelect } from "@aomi-labs/widget-lib";
 import { useSettings } from "@portal/lib/use-settings";
 
@@ -9,7 +9,7 @@ const headerButtonClass =
   "flex h-8 w-8 items-center justify-center rounded-lg text-aomi-muted transition-colors hover:bg-aomi-hover hover:text-aomi-fg";
 
 /**
- * Chat-header controls per the redesign: packages catalog, settings, and the
+ * Chat-header controls per the redesign: capability library, settings, and the
  * light/dark switch — settings and packages open as popups over the chat
  * instead of navigating away.
  */
@@ -39,9 +39,9 @@ export function HeaderControls({
         type="button"
         onClick={onOpenPackages}
         className={headerButtonClass}
-        aria-label="Browse packages"
+        aria-label="Open capability library"
       >
-        <Package size={18} />
+        <LibraryBig size={18} />
       </button>
       {showSettings ? (
         <button

@@ -30,7 +30,7 @@ describe("HeaderControls", () => {
       screen.queryByRole("button", { name: "Open settings" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Browse packages" }),
+      screen.getByRole("button", { name: "Open capability library" }),
     ).toBeInTheDocument();
   });
 

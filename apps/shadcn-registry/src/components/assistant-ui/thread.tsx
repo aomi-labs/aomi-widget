@@ -47,17 +47,25 @@ import {
 import { useComposerControl } from "@/components/aomi-frame";
 import { AomiMark } from "@/components/aomi-mark";
 import { ModelSelect } from "@/components/control-bar/model-select";
-import { AppSelect } from "@/components/control-bar/app-select";
+import { ModeSelect } from "@/components/control-bar/mode-select";
 import { ApiKeyInput } from "@/components/control-bar/api-key-input";
 import { NetworkSelect } from "@/components/control-bar/network-select";
 import { ConnectButton } from "@/components/control-bar/connect-button";
 import { PaymentRequiredGate } from "@/components/control-bar/payment-required-gate";
 import { shouldShowThreadLoadingSkeleton } from "@/components/assistant-ui/thread-loading";
 import { useThread, useComposerRuntime, useMessage } from "@assistant-ui/react";
+import {
+  CapabilityComposerProvider,
+  CapabilityHintButton,
+  CapabilityMentionInput,
+  useCapabilityComposer,
+} from "@/components/assistant-ui/capability-composer";
 
 export const Thread: FC = () => {
   const composerRuntime = useComposerRuntime();
   const { threadViewKey } = useThreadContext();
+  const composerControl = useComposerControl();
+  const controlBarProps = composerControl.controlBarProps ?? {};
 
   useEffect(() => {
     try {
@@ -68,43 +76,48 @@ export const Thread: FC = () => {
   }, [composerRuntime, threadViewKey]);
 
   return (
-    <LazyMotion features={domAnimation}>
-      <MotionConfig reducedMotion="user">
-        <ThreadPrimitive.Root
-          className="aui-root aui-thread-root @container bg-aomi-bg text-aomi-fg relative flex h-full flex-col"
-          style={{
-            ["--thread-max-width" as string]: "45rem",
-          }}
-        >
-          <PaymentRequiredGate />
-          <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 pt-2 md:px-6">
-            <ThreadPrimitive.If empty>
-              <ThreadWelcome />
-            </ThreadPrimitive.If>
+    <CapabilityComposerProvider
+      enabledAppIds={controlBarProps.enabledAppIds}
+      allowAppMentions={!controlBarProps.hideApp}
+    >
+      <LazyMotion features={domAnimation}>
+        <MotionConfig reducedMotion="user">
+          <ThreadPrimitive.Root
+            className="aui-root aui-thread-root @container bg-aomi-bg text-aomi-fg relative flex h-full flex-col"
+            style={{
+              ["--thread-max-width" as string]: "45rem",
+            }}
+          >
+            <PaymentRequiredGate />
+            <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 pt-2 md:px-6">
+              <ThreadPrimitive.If empty>
+                <ThreadWelcome />
+              </ThreadPrimitive.If>
 
-            <ThreadLoadingSkeleton />
+              <ThreadLoadingSkeleton />
 
-            <ThreadPrimitive.Messages
-              components={{
-                UserMessage,
-                EditComposer,
-                AssistantMessage,
-              }}
-            />
+              <ThreadPrimitive.Messages
+                components={{
+                  UserMessage,
+                  EditComposer,
+                  AssistantMessage,
+                }}
+              />
 
-            <ThreadPrimitive.If empty={false}>
-              <div className="aui-thread-viewport-spacer min-h-36 grow" />
-            </ThreadPrimitive.If>
-          </ThreadPrimitive.Viewport>
+              <ThreadPrimitive.If empty={false}>
+                <div className="aui-thread-viewport-spacer min-h-36 grow" />
+              </ThreadPrimitive.If>
+            </ThreadPrimitive.Viewport>
 
-          {/* The empty state carries its own hero composer (mock layout); the
+            {/* The empty state carries its own hero composer (mock layout); the
               docked composer appears once a conversation exists. */}
-          <ThreadPrimitive.If empty={false}>
-            <Composer />
-          </ThreadPrimitive.If>
-        </ThreadPrimitive.Root>
-      </MotionConfig>
-    </LazyMotion>
+            <ThreadPrimitive.If empty={false}>
+              <Composer />
+            </ThreadPrimitive.If>
+          </ThreadPrimitive.Root>
+        </MotionConfig>
+      </LazyMotion>
+    </CapabilityComposerProvider>
   );
 };
 
@@ -259,14 +272,15 @@ const ThreadSuggestions: FC = () => {
  * placement and placeholder differ.
  */
 const ComposerBox: FC<{ placeholder: string }> = ({ placeholder }) => {
+  const { prepareSubmit } = useCapabilityComposer();
   return (
-    <ComposerPrimitive.Root className="aui-composer-root border-aomi-border bg-aomi-surface relative flex w-full flex-col rounded-2xl border pt-3">
-      <ComposerPrimitive.Input
+    <ComposerPrimitive.Root
+      onSubmit={prepareSubmit}
+      className="aui-composer-root border-aomi-border bg-aomi-surface relative flex w-full flex-col rounded-2xl border pt-3"
+    >
+      <CapabilityMentionInput
         placeholder={placeholder}
         className="aui-composer-input text-aomi-fg placeholder:text-aomi-muted max-h-32 w-full resize-none overflow-x-hidden whitespace-pre-wrap break-words bg-transparent px-4 pb-2 pt-1.5 text-[13px] outline-none"
-        rows={1}
-        autoFocus
-        aria-label="Message input"
       />
       <ComposerAction />
     </ComposerPrimitive.Root>
@@ -291,6 +305,7 @@ const ComposerAction: FC = () => {
   const hideApiKey = controlBarProps.hideApiKey ?? false;
   const hideWallet = controlBarProps.hideWallet ?? true;
   const hideNetwork = controlBarProps.hideNetwork ?? false;
+  const { conflict } = useCapabilityComposer();
 
   return (
     <div className="aui-composer-action-wrapper relative mx-1 mb-3 mt-2 flex min-h-[38px] items-center gap-1">
@@ -299,7 +314,8 @@ const ComposerAction: FC = () => {
         <div className="aui-composer-action-scroll ml-1 flex min-w-0 flex-1 items-center gap-0 overflow-x-auto md:ml-2 md:gap-2">
           {!hideNetwork && <NetworkSelect />}
           {!hideModel && <ModelSelect />}
-          {!hideApp && <AppSelect />}
+          {!hideApp && <ModeSelect />}
+          <CapabilityHintButton />
           {!hideWallet && <ConnectButton />}
           {!hideApiKey && <ApiKeyInput />}
         </div>
@@ -317,6 +333,8 @@ const ComposerAction: FC = () => {
               size="icon"
               className="aui-composer-send bg-aomi-fg text-aomi-bg hover:bg-aomi-fg mr-2 size-8 shrink-0 rounded-full p-1 transition-opacity hover:opacity-90 md:mr-2.5"
               aria-label="Send message"
+              disabled={Boolean(conflict)}
+              title={conflict ?? undefined}
             >
               <ArrowUpIcon className="aui-composer-send-icon size-4" />
             </Button>

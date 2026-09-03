@@ -47,6 +47,32 @@ function installFetchRecorder() {
         installed = (JSON.parse(String(init?.body)) as { apps: string[] }).apps;
         return Response.json({ apps: installed });
       }
+      if (url.pathname === "/api/resource/skills" && method === "GET") {
+        return Response.json({
+          skills: [
+            {
+              id: "aave",
+              name: "aave",
+              description: "Supply and borrow through Aave V3.",
+              tags: ["lending"],
+              chain_ids: [1, 8453],
+              injected_tools: ["aave_position"],
+            },
+          ],
+        });
+      }
+      if (url.pathname === "/api/resource/skills/aave" && method === "GET") {
+        return Response.json({
+          id: "aave",
+          name: "aave",
+          description: "Supply and borrow through Aave V3.",
+          tags: ["lending"],
+          chain_ids: [1, 8453],
+          injected_tools: ["aave_position"],
+          tool_names: ["aomi_call_tool"],
+          instructions: "Use the Aave procedure.",
+        });
+      }
       return new Response(`Unexpected ${method} ${url.pathname}`, {
         status: 500,
       });
@@ -100,6 +126,27 @@ describe("packages modal wiring", () => {
     expect(screen.queryByLabelText("Remove Aomi Core")).toBeNull();
     expect(screen.getByText("Circle StableFX")).toBeTruthy();
     expect(screen.getByText("Arc only")).toBeTruthy();
+  });
+
+  it("separates apps and skills inside one library", async () => {
+    const { calls } = installFetchRecorder();
+
+    await renderModal();
+
+    expect(screen.getByRole("dialog", { name: "Library" })).toBeTruthy();
+    expect(screen.getByRole("tab", { name: "Apps" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
+    expect(await screen.findByText("Aave")).toBeTruthy();
+    expect(paths(calls)).toContain("GET /api/resource/skills");
+
+    fireEvent.click(screen.getByText("Aave"));
+    expect(await screen.findByText("Uses app tools")).toBeTruthy();
+    expect(await screen.findByText("aomi_call_tool")).toBeTruthy();
+    expect(paths(calls)).toContain("GET /api/resource/skills/aave");
   });
 
   it("uses the same full-frame modal geometry as settings", async () => {

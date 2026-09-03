@@ -28,6 +28,7 @@ import {
   writePersistedThreadId,
 } from "./thread-persistence";
 import { projectAssistantMessages, projectRuntimeMessages } from "./utils";
+import { appendCapabilityHints } from "./capability-hints";
 
 /** Deduplicate in-flight async work keyed by thread id. */
 async function runSingleFlight(
@@ -164,7 +165,8 @@ export function AomiRuntimeCore({
         notificationContext.showNotification({
           type: "error",
           title: "Conversation unavailable",
-          message: "This conversation is no longer accessible. Start a new chat and send your message again.",
+          message:
+            "This conversation is no longer accessible. Start a new chat and send your message again.",
         });
         return;
       }
@@ -183,7 +185,8 @@ export function AomiRuntimeCore({
   });
 
   const actions = useActions(currentSession);
-  const isRunning = snapshot.isSubmitting || snapshot.turnState === "processing";
+  const isRunning =
+    snapshot.isSubmitting || snapshot.turnState === "processing";
 
   // ---------------------------------------------------------------------------
   // Refs for stable access
@@ -269,11 +272,7 @@ export function AomiRuntimeCore({
     return () => {
       cancelled = true;
     };
-  }, [
-    ensureInitialState,
-    threadContext.currentThreadId,
-    warmThread,
-  ]);
+  }, [ensureInitialState, threadContext.currentThreadId, warmThread]);
 
   // The server's user event can trail the start response by a poll or two.
   // Echo it immediately with the same ordinal id the canonical projection will
@@ -332,7 +331,14 @@ export function AomiRuntimeCore({
       const text = appendMessageText(message);
       if (text) {
         try {
-          await orchestratorSendMessage(text, threadContext.currentThreadId);
+          const hintedText = appendCapabilityHints(
+            text,
+            message.runConfig?.custom?.aomiCapabilityHints,
+          );
+          await orchestratorSendMessage(
+            hintedText,
+            threadContext.currentThreadId,
+          );
         } catch (error) {
           console.error("Failed to send message:", error);
           restoreComposerTextRef.current(text);
