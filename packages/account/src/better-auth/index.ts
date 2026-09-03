@@ -10,6 +10,7 @@ export {
   AOMI_PRINCIPAL_CLASS_CLAIM,
   AOMI_SCOPES,
   AGENT_SCOPES,
+  MCP_CLIENT_REGISTRATION_SCOPES,
   AGENT_REST_SCOPES,
   PIPELINE_SCOPES,
   PIPELINE_REST_SCOPES,
@@ -17,6 +18,7 @@ export {
   aomiOAuthResourcePolicy,
   aomiOAuthResources,
   guestScopesForAomiResource,
+  narrowScopesForAomiResource,
   isMcpDpopRequired,
   validateAomiResourceScopes,
   type AomiOAuthResourceKind,
@@ -28,6 +30,12 @@ export {
   readManagedOAuthClient,
   type ManagedOAuthClient,
 } from "./managed-clients";
+export {
+  BETTER_AUTH_OAUTH_PROVIDER_VERSION,
+  hashOAuthClientId,
+  oauthRedirectFailureDiagnostics,
+  type OAuthRedirectFailureDiagnostics,
+} from "./oauth-redirect-diagnostics";
 export { verifySiweMessage } from "./siwe";
 export {
   SIWS_CLUSTERS,

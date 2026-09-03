@@ -39,6 +39,21 @@ export const PIPELINE_SCOPES = [
   "custody:delegate",
 ] as const;
 
+/**
+ * What a dynamically registered client is granted when it asks for nothing.
+ * Agent MCP is the documented primary path, and this set must stay valid for
+ * that one resource on its own, which a test pins.
+ *
+ * It does not constrain what a client may later request: MCP clients build
+ * their scope request from the authorization server's `scopes_supported`, and
+ * that request is narrowed to the resource it names at authorize — see
+ * `narrowScopesForAomiResource`.
+ */
+export const MCP_CLIENT_REGISTRATION_SCOPES = [
+  ...AGENT_SCOPES,
+  "offline_access",
+] as const;
+
 export const AGENT_REST_SCOPES = AGENT_SCOPES.filter(
   (scope) => scope !== "mcp:agent",
 );
@@ -148,6 +163,29 @@ export function guestScopesForAomiResource(
   if (!policy) return [];
   const ceiling = new Set(policy.guestScopes);
   return requestedScopes.filter((scope) => ceiling.has(scope));
+}
+
+/**
+ * Reduce a requested scope set to what this resource actually permits.
+ *
+ * MCP clients derive their scope request from the authorization server's
+ * `scopes_supported`, which spans every resource this server hosts, so a client
+ * targeting one resource still asks for all of them. RFC 6749 §3.3 allows the
+ * authorization server to grant a narrower scope than requested; doing so is
+ * what lets those clients complete a login without ever widening a grant.
+ *
+ * Returns an empty array when nothing requested is usable, which callers should
+ * treat as invalid_scope rather than as an unscoped grant.
+ */
+export function narrowScopesForAomiResource(
+  resource: string,
+  requestedScopes: readonly string[],
+  env: Record<string, string | undefined> = process.env,
+): string[] {
+  const policy = aomiOAuthResourcePolicy(resource, env);
+  if (!policy) return [];
+  const allowed = new Set([...policy.allowedScopes, "offline_access"]);
+  return [...new Set(requestedScopes)].filter((scope) => allowed.has(scope));
 }
 
 export function validateAomiResourceScopes(

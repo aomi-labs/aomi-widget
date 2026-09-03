@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { registry } from "../src/registry.js";
 
 const REGISTRY_NAME = "aomi";
-const REGISTRY_HOMEPAGE = "https://r.aomi.dev";
+const REGISTRY_HOMEPAGE = "https://aomi.dev";
 const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".css"];
 const IMPORT_EXPORT_RE =
   /(?:import|export)\s+(?:[^'";]+?\s+from\s+)?["']([^"']+)["']/g;

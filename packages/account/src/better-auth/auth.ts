@@ -16,6 +16,7 @@ import {
   AOMI_CANONICAL_USER_CLAIM,
   AOMI_PRINCIPAL_CLASS_CLAIM,
   AOMI_SCOPES,
+  MCP_CLIENT_REGISTRATION_SCOPES,
   aomiOAuthResourcePolicies,
   aomiOAuthResources,
 } from "./oauth-policy";
@@ -275,17 +276,28 @@ export const auth = betterAuth({
               : [],
             resourceSeedMode: "overwrite",
             scopes: [...AOMI_SCOPES],
+            // Do not attach server defaults to dynamic clients. Agent,
+            // Pipeline, and REST registrations must remain exact-resource.
+            // Codex's RFC 7591 payload omits the non-standard `resources`
+            // extension, so the Portal transactionally binds that client to
+            // the one resource named by its first authorize request.
             clientRegistrationDefaultResources: [],
             clientRegistrationAllowedResources: seedOAuthResources
-              ? [resources.agentMcp, resources.pipelineMcp]
+              ? [
+                  resources.agentMcp,
+                  resources.pipelineMcp,
+                  resources.agentRest,
+                  resources.pipelineRest,
+                ]
               : [],
             clientRegistrationDefaultScopes: [
-              "agent:read",
-              "agent:write",
-              "pipeline:catalog",
-              "mcp:agent",
-              "mcp:pipeline",
+              ...MCP_CLIENT_REGISTRATION_SCOPES,
             ],
+            // What a client may ASK for at registration. Better Auth fails a
+            // registration outright on any requested scope missing from this
+            // list, and MCP clients do request `openid` — Codex does — so
+            // refusing it here broke registration before the browser opened.
+            // Breadth here is safe because the grant is bounded at authorize.
             clientRegistrationAllowedScopes: [...AOMI_SCOPES],
             clientRegistrationRequirePKCE: true,
             allowDynamicClientRegistration: true,
