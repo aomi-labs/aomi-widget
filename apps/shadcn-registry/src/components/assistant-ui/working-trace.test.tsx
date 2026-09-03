@@ -1,5 +1,6 @@
 import { act, fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { ToolCallMessagePart } from "@assistant-ui/react";
 
 import type { TaskRunState } from "@aomi-labs/react";
 
@@ -16,6 +17,7 @@ vi.mock("@/components/assistant-ui/markdown-text", async () => {
 });
 
 import {
+  buildTraceItems,
   MinimalWorkingTrace,
   ProgressiveRenderedText,
   WorkingTrace,
@@ -69,12 +71,7 @@ describe("WorkingTrace", () => {
     const { getByRole } = render(
       <>
         <MinimalWorkingTrace />
-        <WorkingTrace
-          running={false}
-          items={[]}
-          revealed={0}
-          orchestrating={false}
-        />
+        <WorkingTrace running={false} items={[]} revealed={0} />
       </>,
     );
 
@@ -103,7 +100,6 @@ describe("WorkingTrace", () => {
           running
           items={[]}
           revealed={0}
-          orchestrating={false}
           startedAtMs={now - 6400}
         />,
       );
@@ -113,7 +109,6 @@ describe("WorkingTrace", () => {
           running={false}
           items={[]}
           revealed={0}
-          orchestrating={false}
           startedAtMs={now - 6400}
         />,
       );
@@ -150,9 +145,9 @@ describe("WorkingTrace", () => {
     }
   });
 
-  it("uses Working while the orchestrator badge identifies the mode", () => {
+  it("uses Working without exposing the internal execution mode", () => {
     const { container, getByText } = render(
-      <WorkingTrace running items={[]} revealed={0} orchestrating />,
+      <WorkingTrace running items={[]} revealed={0} />,
     );
 
     expect(container).toHaveTextContent("Working");
@@ -162,15 +157,14 @@ describe("WorkingTrace", () => {
       "leading-none",
       "aui-working-shimmer",
     );
-    expect(container).toHaveTextContent("orchestrator");
-    expect(container).not.toHaveTextContent("Orchestrating");
+    expect(container).not.toHaveTextContent(/orchestrat/i);
     expect(container.querySelector(".aui-working-live")).toBeTruthy();
     expect(container).not.toHaveTextContent("0 steps");
   });
 
   it("keeps the trace body mounted while animating it open and closed", () => {
     const { container, getByRole } = render(
-      <WorkingTrace running items={[]} revealed={0} orchestrating={false} />,
+      <WorkingTrace running items={[]} revealed={0} />,
     );
     const toggle = getByRole("button", { name: /Working/ });
     const body = container.querySelector<HTMLElement>(
@@ -197,13 +191,7 @@ describe("WorkingTrace", () => {
     vi.useFakeTimers();
     try {
       const { getByRole, rerender } = render(
-        <WorkingTrace
-          running
-          items={[]}
-          revealed={0}
-          collapseReady={false}
-          orchestrating={false}
-        />,
+        <WorkingTrace running items={[]} revealed={0} collapseReady={false} />,
       );
 
       rerender(
@@ -212,7 +200,6 @@ describe("WorkingTrace", () => {
           items={[]}
           revealed={0}
           collapseReady={false}
-          orchestrating={false}
         />,
       );
       act(() => vi.advanceTimersByTime(1_000));
@@ -222,13 +209,7 @@ describe("WorkingTrace", () => {
       );
 
       rerender(
-        <WorkingTrace
-          running={false}
-          items={[]}
-          revealed={0}
-          collapseReady
-          orchestrating={false}
-        />,
+        <WorkingTrace running={false} items={[]} revealed={0} collapseReady />,
       );
       act(() => vi.advanceTimersByTime(500));
       expect(getByRole("button", { name: /Worked/ })).toHaveAttribute(
@@ -250,12 +231,7 @@ describe("WorkingTrace", () => {
     });
     const initialRun = run([]);
     const { container, rerender } = render(
-      <WorkingTrace
-        running
-        items={[item(initialRun)]}
-        revealed={1}
-        orchestrating
-      />,
+      <WorkingTrace running items={[item(initialRun)]} revealed={1} />,
     );
     const viewport = container.querySelector<HTMLElement>(
       ".aui-working-trace-viewport",
@@ -280,17 +256,49 @@ describe("WorkingTrace", () => {
         childSeq: 1,
       },
     ]);
-    rerender(
-      <WorkingTrace
-        running
-        items={[item(updatedRun)]}
-        revealed={1}
-        orchestrating
-      />,
-    );
+    rerender(<WorkingTrace running items={[item(updatedRun)]} revealed={1} />);
 
     expect(setScrollTop).toHaveBeenCalledWith(640);
     expect(viewport).toHaveAttribute("tabindex", "0");
     expect(container).toHaveTextContent("Show all 2 steps");
+  });
+
+  it("keeps a failed delegation at its transcript position after recovery", () => {
+    const failedRun: TaskRunState = {
+      ...run([]),
+      status: "failed",
+      message: "LI.FI route was unavailable",
+    };
+    const delegatedTask = {
+      type: "tool-call" as const,
+      toolCallId: failedRun.callId,
+      toolName: "task",
+      args: { label: "Prepare swap", app: "default", prompt: "Swap" },
+      result: { status: "failed" },
+    } as ToolCallMessagePart;
+    const recoveredCommit = {
+      type: "tool-call" as const,
+      toolCallId: "call-2",
+      toolName: "commit",
+      args: {},
+      result: { status: "completed" },
+    } as ToolCallMessagePart;
+
+    const items = buildTraceItems(
+      [delegatedTask, recoveredCommit],
+      [failedRun],
+    );
+
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({
+      kind: "agent",
+      agentId: failedRun.agentId,
+      run: failedRun,
+      tool: delegatedTask,
+    });
+    expect(items[1]).toMatchObject({
+      kind: "tool",
+      tool: recoveredCommit,
+    });
   });
 });

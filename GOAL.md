@@ -1,5 +1,13 @@
 # Canonical Landing
 
+Current session goal: **WORKING TRACE RECOVERY ORDER VERIFIED 2026-09-03** —
+remove the internal Orchestrator badge from the user-facing trace header and
+reconcile delegated task sidecar state into its matching transcript row. Failed
+subagents remain available as chronological history but no longer duplicate or
+stick to the bottom after later successful parent work. Focused tests, Portal
+typecheck, scoped lint, registry generation, and the widget 2.0.22 package build
+and 312-file tarball audit pass.
+
 Current session goal: **INLINE TRANSACTION REVIEW VERIFIED 2026-09-03** —
 replace the blocking raw-JSON action modal with a compact review panel anchored
 directly above the composer, show the canonical simulation verdict and readable

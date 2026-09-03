@@ -199,22 +199,13 @@ export const WorkingTrace: FC<{
   revealed: number;
   /** Final-answer playback has begun, so the open trace may fold away. */
   collapseReady?: boolean;
-  /** The turn delegated to child agents — announces the mode in the header. */
-  orchestrating: boolean;
   /**
    * When the turn actually started, if known. The card can mount long after
    * the work began (the transcript part for a delegation only lands at the
    * end), so mount time alone under-reports "Orchestrated for Ns" badly.
    */
   startedAtMs?: number;
-}> = ({
-  running,
-  items,
-  revealed,
-  collapseReady = true,
-  orchestrating,
-  startedAtMs,
-}) => {
+}> = ({ running, items, revealed, collapseReady = true, startedAtMs }) => {
   const [open, setOpen] = useState(running);
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
@@ -366,9 +357,6 @@ export const WorkingTrace: FC<{
     return () => clearTimeout(timer);
   }, [collapseReady, fullyRevealed]);
 
-  // The badge already names the orchestration mode. Keep the status language
-  // identical across modes so the header never reads as the redundant
-  // “Orchestrating · ORCHESTRATOR”.
   const label = running
     ? "Working"
     : elapsed != null
@@ -428,11 +416,6 @@ export const WorkingTrace: FC<{
         <span className={cn(WORKING_STATUS_TEXT_CLASS, headerClass)}>
           {label}
         </span>
-        {orchestrating && (
-          <span className="aui-working-badge bg-aomi-accent-subtle text-aomi-accent-strong inline-flex h-5 shrink-0 items-center rounded-full px-2 font-mono text-[10px] uppercase leading-none tracking-[0.1em]">
-            orchestrator
-          </span>
-        )}
         {stepCount > 0 ? (
           <span className="bg-aomi-surface-2/80 text-aomi-muted inline-flex h-5 items-center rounded-full px-2 font-mono text-[10px] tabular-nums leading-none">
             {stepCount} {stepCount === 1 ? "step" : "steps"}
@@ -664,6 +647,73 @@ export const ProgressiveRenderedText: FC<{
 };
 
 /**
+ * Reconcile the ordered transcript with the live delegation sidecar.
+ *
+ * A task exists in the sidecar before its transcript tool part arrives. Once
+ * that part does arrive, it replaces the synthetic row at the transcript's
+ * chronological position instead of being appended again at the bottom. This
+ * matters when a failed child is followed by successful parent work: the
+ * failure remains useful history without looking like the final active step.
+ */
+export const buildTraceItems = (
+  content: readonly (TextMessagePart | ToolCallMessagePart)[],
+  liveDelegations: readonly TaskRunState[],
+): TraceItem[] => {
+  const items: TraceItem[] = [];
+  const runsByCallId = new Map(
+    liveDelegations.map((run) => [run.callId, run] as const),
+  );
+  const consumedAgentIds = new Set<string>();
+  let agentOrder = 0;
+
+  content.forEach((part, i) => {
+    if (part.type === "tool-call") {
+      if (part.toolName === "task") {
+        const run = part.toolCallId
+          ? runsByCallId.get(part.toolCallId)
+          : undefined;
+        const agentId = run?.agentId ?? part.toolCallId ?? `task-${i}`;
+        if (run) consumedAgentIds.add(run.agentId);
+        items.push({
+          kind: "agent",
+          agentId,
+          run,
+          tool: part,
+          order: agentOrder++,
+          key: run ? `agent-${run.agentId}` : `task-${agentId}`,
+        });
+        return;
+      }
+
+      items.push({
+        kind: "tool",
+        tool: part,
+        key: part.toolCallId ?? `tool-${i}`,
+      });
+      return;
+    }
+
+    if (part.text.trim().length === 0) return;
+    const prev = items[items.length - 1];
+    if (prev?.kind === "note") prev.text += `\n\n${part.text}`;
+    else items.push({ kind: "note", text: part.text, key: `note-${i}` });
+  });
+
+  for (const run of liveDelegations) {
+    if (consumedAgentIds.has(run.agentId)) continue;
+    items.push({
+      kind: "agent",
+      agentId: run.agentId,
+      run,
+      order: agentOrder++,
+      key: `agent-${run.agentId}`,
+    });
+  }
+
+  return items;
+};
+
+/**
  * Drop-in replacement for `<MessagePrimitive.Parts>` in an assistant message.
  *
  * A merged turn is one ordered `content` array: interstitial talk (`text`) and
@@ -725,47 +775,13 @@ export const AssistantTurnParts: FC = () => {
       .filter((part): part is TextMessagePart => part.type === "text"),
   );
 
-  // Build the trace rows in order, merging consecutive talk into one note.
-  // Empty when the turn has neither tool calls nor a live delegation.
-  const items: TraceItem[] = [];
-  let agentOrder = 0;
-  content.slice(0, traceEnd).forEach((part, i) => {
-    if (part.type === "tool-call") {
-      items.push({
-        kind: "tool",
-        tool: part,
-        key: part.toolCallId ?? `tool-${i}`,
-      });
-      return;
-    }
-    if (part.type !== "text" || part.text.trim().length === 0) return;
-    const prev = items[items.length - 1];
-    if (prev?.kind === "note") prev.text += `\n\n${part.text}`;
-    else items.push({ kind: "note", text: part.text, key: `note-${i}` });
-  });
-
-  // Synthetic rows for runs the transcript has not caught up with, appended
-  // after the last transcript-derived item, ordered by start. The key is the
-  // agent id, so when the transcript part lands React keeps the same row (and
-  // its open/user-toggled state) instead of remounting it.
-  for (const run of liveDelegations) {
-    items.push({
-      kind: "agent",
-      agentId: run.agentId,
-      run,
-      order: agentOrder++,
-      key: `agent-${run.agentId}`,
-    });
-  }
-
-  // "Orchestrator-ness" is a property of the turn, never of the currently
-  // selected app — so scrollback still reads correctly after an app switch. A
-  // `task` part that carries no join key (an older transcript) still counts.
-  const orchestrating = items.some(
-    (item) =>
-      item.kind === "agent" ||
-      (item.kind === "tool" && item.tool.toolName === "task"),
-  );
+  const traceContent = content
+    .slice(0, traceEnd)
+    .filter(
+      (part): part is TextMessagePart | ToolCallMessagePart =>
+        part.type === "text" || part.type === "tool-call",
+    );
+  const items = buildTraceItems(traceContent, liveDelegations);
 
   // Awaiting an approval is a pause in the same turn, not completion. Keep the
   // trace visibly live until a real final answer exists and can begin its
@@ -844,7 +860,6 @@ export const AssistantTurnParts: FC = () => {
         items={items}
         revealed={revealed}
         collapseReady={answerText.length > 0}
-        orchestrating={orchestrating}
         startedAtMs={startedAtMs}
       />
       {answerReady && answerText.length > 0 && (
