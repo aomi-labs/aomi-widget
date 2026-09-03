@@ -8,10 +8,9 @@
  * Original note:
  *
  * STUB DATA — settings redesign (see docs/SETTINGS-REDESIGN-GAPS.md).
- * Three reconciled months of a per-app usage statement. Real source:
- * /api/account/usage covers per-app credits today; the full statement
- * (tool/outcome subjects, monthly history, payment rails) needs a new
- * backend endpoint.
+ * Three reconciled months of a per-app usage statement. The live source is
+ * API-server `/v1/account/statement`; tool/outcome subjects remain absent
+ * until their ledger writers exist.
  */
 import type { UsageFixtureData } from "./types";
 

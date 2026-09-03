@@ -3,6 +3,21 @@
 // =============================================================================
 
 export { AomiClient, secretNamesFrom } from "./client";
+export {
+  AccountCreditsTransport,
+  AccountTransport,
+  MAX_CREDIT_TOP_UP,
+  MICROUSD_PER_CREDIT,
+  MIN_CREDIT_TOP_UP,
+} from "./account/credits";
+export type {
+  AomiCreditActivity,
+  AomiCreditListOptions,
+  AomiCreditPaymentReceipt,
+  AomiCreditPosition,
+  AomiCreditTopUpOptions,
+  AomiCreditTopUpResult,
+} from "./account/credits";
 export { AgentApiError, AgentTransport } from "./agent/transport";
 export {
   EvmPipelineTransport,

@@ -5,10 +5,11 @@ import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { handlePaymentChallenges, parseChainId } from "@aomi-labs/client";
 import { getAddress, isAddress } from "viem";
 
-function isChatPost(request: Request): boolean {
+function isPaidPost(request: Request): boolean {
   const pathname = new URL(request.url).pathname;
   return (
-    request.method.toUpperCase() === "POST" && pathname === "/v1/agent/chat"
+    request.method.toUpperCase() === "POST" &&
+    (pathname === "/v1/agent/chat" || pathname === "/v1/account/credits/top-up")
   );
 }
 
@@ -69,7 +70,7 @@ export function createPortalPaymentFetch({
 }): typeof globalThis.fetch {
   return async (input, init) => {
     const request = new Request(input, init);
-    if (!isChatPost(request)) {
+    if (!isPaidPost(request)) {
       return rawFetch(request);
     }
 

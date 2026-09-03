@@ -1,6 +1,8 @@
 import { CliSession } from "../cli-session";
 import { fatal } from "../errors";
-import { printDataFileLocation, printJson } from "../output";
+import { printDataFileLocation, printJson, printPaymentEvent } from "../output";
+import { createCliPaymentFetch } from "../payment";
+import type { AomiCreditPosition } from "../../account/credits";
 import {
   linkCliSiwsWallet,
   signInWithCliSiwe,
@@ -47,6 +49,15 @@ export type AccountRenameOptions = {
 
 export type AccountDeleteOptions = {
   yes?: boolean;
+};
+
+export type AccountCreditsShowOptions = {
+  limit?: string;
+  before?: string;
+};
+
+export type AccountCreditsTopUpOptions = {
+  idempotencyKey?: string;
 };
 
 export async function accountLoginCommand(
@@ -517,6 +528,61 @@ export function accountSwitchCommand(selector: string): void {
   resumeSessionCommand(selector);
 }
 
+export async function accountCreditsShowCommand(
+  config: CliConfig,
+  options: AccountCreditsShowOptions = {},
+): Promise<void> {
+  const cli = loadMergedCli(config);
+  const position = await requireAccountGraphClient(cli).credits.get({
+    limit: parsePositiveInteger(options.limit, "--limit") ?? 25,
+    beforeId: parsePositiveInteger(options.before, "--before"),
+  });
+  if (config.json) {
+    printJson(position);
+    return;
+  }
+  printCreditPosition(position);
+  printDataFileLocation({ verbose: config.verbose });
+}
+
+export async function accountCreditsTopUpCommand(
+  config: CliConfig,
+  rawCredits: string,
+  options: AccountCreditsTopUpOptions = {},
+): Promise<void> {
+  const credits = Number(rawCredits);
+  if (!Number.isFinite(credits)) {
+    fatal("Credits must be a number between 100 and 100,000.");
+  }
+  const cli = loadMergedCli(config);
+  const paymentFetch = createCliPaymentFetch(
+    {
+      ...config,
+      paymentMethod: "coinbase",
+      privateKey: config.privateKey ?? cli.privateKey,
+    },
+    config.json ? undefined : printPaymentEvent,
+  );
+  const result = await requireAccountGraphClient(
+    cli,
+    paymentFetch,
+  ).credits.topUp({
+    credits,
+    idempotencyKey: options.idempotencyKey,
+  });
+  if (config.json) {
+    printJson(result);
+    return;
+  }
+  console.log(
+    `Credit bank: ${formatMicrousd(result.bank.balance_microusd)} credits available`,
+  );
+  if (result.receipt?.transaction) {
+    console.log(`Transaction: ${result.receipt.transaction}`);
+  }
+  printDataFileLocation({ verbose: config.verbose });
+}
+
 function hasAccountCredential(
   state: ReturnType<CliSession["toState"]>,
 ): boolean {
@@ -729,4 +795,45 @@ function requireConfirmed(
   if (!confirmed) {
     fatal(`Refusing to ${action} without --yes.`);
   }
+}
+
+function parsePositiveInteger(
+  value: string | undefined,
+  flag: string,
+): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1) {
+    fatal(`${flag} must be a positive integer.`);
+  }
+  return parsed;
+}
+
+function printCreditPosition(position: AomiCreditPosition): void {
+  console.log(
+    `Monthly:     ${formatMicrousd(position.included.used_microusd)} / ${formatMicrousd(position.included.limit_microusd)} credits used`,
+  );
+  console.log(
+    `Credit bank: ${formatMicrousd(position.bank.balance_microusd)} credits available`,
+  );
+  if (position.entries.length === 0) {
+    console.log("Activity:    none");
+    return;
+  }
+  console.log("Activity:");
+  for (const entry of position.entries) {
+    const sign = entry.amount_microusd >= 0 ? "+" : "";
+    const detail = entry.payment_method ? ` via ${entry.payment_method}` : "";
+    console.log(
+      `- ${sign}${formatMicrousd(entry.amount_microusd)} ${entry.entry_kind}${detail} · ${new Date(entry.created_at * 1000).toISOString()}`,
+    );
+  }
+}
+
+function formatCredits(value: number): string {
+  return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+function formatMicrousd(value: number): string {
+  return formatCredits(value / 10_000);
 }

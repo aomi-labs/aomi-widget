@@ -25,6 +25,7 @@ import type {
 import { normalizeAppDescriptor } from "./app-descriptor";
 import { AgentTransport } from "./agent/transport";
 import { PipelineTransport } from "./pipeline/transport";
+import { AccountTransport } from "./account/credits";
 import type {
   AomiOAuthTokenProvider,
   AomiOAuthResource,
@@ -33,6 +34,7 @@ import {
   createGuestSessionProvider,
   type GuestSessionProvider,
 } from "./guest-auth";
+import { wrapFetchWithPaymentChallenges } from "./payment";
 
 // =============================================================================
 // Internal helpers
@@ -296,6 +298,7 @@ export function secretNamesFrom(response: AomiListSecretsResponse): string[] {
 export class AomiClient {
   readonly agent: AgentTransport;
   readonly pipeline: PipelineTransport;
+  readonly account: AccountTransport;
   private readonly baseUrl: string;
   private readonly apiKey?: string;
   private readonly fetchImpl: typeof fetch;
@@ -322,7 +325,7 @@ export class AomiClient {
               baseUrl: this.baseUrl,
               fetch: fetchImpl,
             });
-    this.fetchImpl = wrapFetchWithAccountBearer(
+    const authenticatedFetch = wrapFetchWithAccountBearer(
       wrapFetchWithPublicApiAuthorization({
         fetch: fetchImpl,
         baseUrl: this.baseUrl,
@@ -331,7 +334,7 @@ export class AomiClient {
       }),
       options.getAccountBearer,
     );
-    this.rawFetchImpl = wrapFetchWithAccountBearer(
+    const authenticatedRawFetch = wrapFetchWithAccountBearer(
       wrapFetchWithPublicApiAuthorization({
         fetch: rawFetchImpl,
         baseUrl: this.baseUrl,
@@ -340,11 +343,20 @@ export class AomiClient {
       }),
       options.getAccountBearer,
     );
+    this.fetchImpl = options.x402
+      ? wrapFetchWithPaymentChallenges(authenticatedFetch, options.x402)
+      : authenticatedFetch;
+    this.rawFetchImpl = options.x402
+      ? wrapFetchWithPaymentChallenges(authenticatedRawFetch, options.x402)
+      : authenticatedRawFetch;
     this.logger = options.logger;
     this.agent = new AgentTransport((method, path, requestOptions) =>
       this.requestResponse(method, path, requestOptions),
     );
     this.pipeline = new PipelineTransport((method, path, requestOptions) =>
+      this.requestResponse(method, path, requestOptions),
+    );
+    this.account = new AccountTransport((method, path, requestOptions) =>
       this.requestResponse(method, path, requestOptions),
     );
   }

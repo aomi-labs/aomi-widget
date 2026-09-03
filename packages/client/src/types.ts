@@ -1,5 +1,6 @@
 import type { AomiOAuthTokenProvider } from "./authorization";
 import type { GuestSessionProvider } from "./guest-auth";
+import type { x402Client, x402HTTPClient } from "@x402/core/client";
 
 export { UserState } from "./user-state";
 export type {
@@ -32,6 +33,8 @@ export type AomiClientOptions = {
   fetch?: typeof fetch;
   /** Default API key for non-default apps */
   apiKey?: string;
+  /** Optional x402 signer used by the bounded payment retry transport. */
+  x402?: x402Client | x402HTTPClient;
   /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
   getAccountBearer?: GetAccountBearer;
   /** Resource-bound developer OAuth. Takes precedence over session/guest auth. */

@@ -237,6 +237,70 @@ const accountSwitchDef = defineCommand({
   },
 });
 
+const accountCreditsShowDef = defineCommand({
+  meta: {
+    name: "show",
+    description: "Show allowance, purchased balance, and recent activity",
+  },
+  args: {
+    ...globalArgs,
+    limit: {
+      type: "string",
+      description: "Recent activity rows (1-100, default: 25)",
+    },
+    before: {
+      type: "string",
+      description: "Load activity before this entry id",
+    },
+  },
+  async run({ args }) {
+    const { accountCreditsShowCommand } = await import("../account");
+    await accountCreditsShowCommand(buildCliConfig(args), {
+      limit: typeof args.limit === "string" ? args.limit : undefined,
+      before: typeof args.before === "string" ? args.before : undefined,
+    });
+  },
+});
+
+const accountCreditsTopUpDef = defineCommand({
+  meta: {
+    name: "top-up",
+    description: "Purchase durable credits with the configured EVM wallet",
+  },
+  args: {
+    ...globalArgs,
+    credits: {
+      type: "positional",
+      description: "Credits to purchase (100-100000, up to 4 decimals)",
+      required: true,
+    },
+    "idempotency-key": {
+      type: "string",
+      description: "Stable retry key (generated when omitted)",
+    },
+  },
+  async run({ args }) {
+    const { accountCreditsTopUpCommand } = await import("../account");
+    await accountCreditsTopUpCommand(buildCliConfig(args), args.credits, {
+      idempotencyKey:
+        typeof args["idempotency-key"] === "string"
+          ? args["idempotency-key"]
+          : undefined,
+    });
+  },
+});
+
+const accountCreditsDef = defineCommand({
+  meta: {
+    name: "credits",
+    description: "Included allowance, Credit Bank activity, and wallet top-ups",
+  },
+  subCommands: {
+    show: accountCreditsShowDef,
+    "top-up": accountCreditsTopUpDef,
+  },
+});
+
 export const accountDef = defineCommand({
   meta: { name: "account", description: "Account authentication" },
   subCommands: {
@@ -251,5 +315,6 @@ export const accountDef = defineCommand({
     delete: accountDeleteDef,
     sessions: accountSessionsDef,
     switch: accountSwitchDef,
+    credits: accountCreditsDef,
   },
 });
