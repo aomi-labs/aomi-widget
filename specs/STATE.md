@@ -2,6 +2,62 @@
 
 ## Last Updated
 
+2026-09-03 — MCP GRANTS NEVER CARRIED A REFRESH TOKEN (branch
+  `fix/mcp-offline-access-advertised`). Agent MCP and Pipeline MCP sessions
+  went invalid a few minutes after login. The refresh machinery was fine —
+  proven end to end in `apps/portal/src/app/api/auth/oauth-mcp-refresh.postgres.test.ts`,
+  which drives DCR → authorize → consent → token → refresh against a real
+  Postgres and gets a correctly-audienced JWT back. What was wrong is what
+  the resource ADVERTISES. `/.well-known/oauth-protected-resource/v1/{agent,pipeline}/mcp`
+  published `policy.allowedScopes`, and the `WWW-Authenticate` challenge
+  published `challengeScopes`; neither named `offline_access`. An MCP client
+  builds its authorization request out of exactly that set, so it never asked
+  for `offline_access`, Better Auth issued no refresh token
+  (`isRefreshToken` requires the scope on the request or the prior grant), and
+  the grant died at the 5-minute `accessTokenTtl` with nothing to refresh.
+  Every other layer already allowed it — the seeded `ba_oauth_resources` row,
+  `narrowScopesForAomiResource`, `validateAomiResourceScopes` and the SDK
+  (`sdk/auth.ts` appends `offline_access` to every token request, which is why
+  the CLI/device path never showed this). The three open-coded
+  `[...allowedScopes, "offline_access"]` spellings are now one derived
+  `AomiOAuthResourcePolicy.grantableScopes`: `allowedScopes` stays the ceiling
+  on what a principal may DO (`downscopeMcpPrincipal` still strips
+  `offline_access`), `grantableScopes` is what a grant may CARRY and is what
+  gets advertised, seeded, and narrowed to.
+  NOT fixed here, and worth a decision: `refreshTokenReuseInterval: 0` in
+  `packages/account/src/better-auth/auth.ts` means two in-flight refreshes with
+  the same token leave one caller with `invalid_grant`, and a client that
+  RETRIES that call presents an already-rotated token, which trips
+  `invalidateRefreshFamily` and destroys every grant for that client+user. With
+  a 5-minute access token and a parallel MCP client that race is reachable; a
+  short reuse interval (RFC 9700's rotation grace) would absorb it.
+
+2026-09-03 — CLI DEVICE-AUTH HANDOFF vs PARA JWT BACKOFF (branch
+  `codex/auth-provider-device`, PR #561). Live Para login on
+  `/device-auth` succeeded in the browser but the CLI never got its loopback
+  callback: `createParaCredentialGetter` arms a 30 s cooldown on the first
+  `issueJwt` 401/403 after login and returns `null` silently, while the page's
+  credential wait was also 30 s, so the page always expired just before the
+  getter's first permitted retry. Fixes: `getAccountCredential({ fresh: true })`
+  (new `AomiAccountCredentialOptions`) bypasses the Para backoff for one-shot
+  handoffs while polling widgets keep it; a shared
+  `apps/portal/src/lib/device-auth-handoff.ts` waits up to 90 s at 1.5 s
+  intervals and throws `DeviceAuthHandoffError` with stable codes
+  (`provider_credential_timeout`, `provider_account_conflict` for HTTP 409,
+  `provider_exchange_rate_limited`, `device_grant_failed`, ...) that
+  `classifyProviderInitializationFailure` passes through instead of the
+  catch-all `para_initialization_failed`; the page tracks attempts so a
+  getter identity change cannot start a second exchange, and shows Cancel
+  while waiting because Para's `login()` resolves when its modal opens and a
+  dismissed modal had no signal. `/oauth/device` now reads the wallet kit
+  through a ref (its click-time closure could never see the getter that
+  appears after Para authenticates) and uses the same waiter with a 180 s
+  budget. Known, not fixed here: the provider exchange endpoint still reuses
+  the Better Auth user by email, so a second provider with the same email as
+  an existing account gets 409 (now surfaced as `provider_account_conflict`);
+  and the CLI still receives the browser's own Better Auth session token from
+  the grant, so logout on either side ends both.
+
 2026-08-26 — AUTH STACK CLEAN-SLATE CUTOVER (branch
   `codex/unified-auth-provider`, committed and pushed; pairs with
   product-mono `codex/unified-auth-schema`). The Better Auth 1.7 stack now

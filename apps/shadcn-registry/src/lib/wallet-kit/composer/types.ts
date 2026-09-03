@@ -6,6 +6,7 @@ import type { WalletEip712Payload, WalletTxPayload } from "@aomi-labs/react";
 import type {
   AomiAccount,
   AomiAccountCredential,
+  AomiAccountCredentialOptions,
   AomiSessionIdentity,
   AomiTransactionExecution,
   AomiLoginMethod,
@@ -44,7 +45,9 @@ export type AuthRuntime = {
   logout?: () => Promise<void>;
   openAccountUI?: (reason: string, step?: string) => Promise<void>;
   startFlow?: (reason: string) => void;
-  getCredential?: () => Promise<AomiAccountCredential | null>;
+  getCredential?: (
+    options?: AomiAccountCredentialOptions,
+  ) => Promise<AomiAccountCredential | null>;
 };
 
 export type SvmIdentity = {
