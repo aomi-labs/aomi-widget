@@ -552,7 +552,7 @@ export async function accountCreditsTopUpCommand(
 ): Promise<void> {
   const credits = Number(rawCredits);
   if (!Number.isFinite(credits)) {
-    fatal("Credits must be a number between 100 and 100,000.");
+    fatal("Credits must be a number between 1 and 100,000.");
   }
   const cli = loadMergedCli(config);
   const paymentFetch = createCliPaymentFetch(

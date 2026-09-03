@@ -1,7 +1,7 @@
 import type { AomiHttpMethod, AomiRequestOptions } from "../types";
 
 export const MICROUSD_PER_CREDIT = 10_000;
-export const MIN_CREDIT_TOP_UP = 100;
+export const MIN_CREDIT_TOP_UP = 1;
 export const MAX_CREDIT_TOP_UP = 100_000;
 
 export type AomiCreditActivity = {
