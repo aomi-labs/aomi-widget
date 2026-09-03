@@ -487,12 +487,6 @@
   height: 0.875rem;
 }
 
-.aui-suggestions-marquee
-  .aui-thread-welcome-root
-  > div:has(> .aui-composer-root) {
-  order: 2;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .aui-suggestions-marquee .aui-thread-welcome-suggestions-track {
     width: 100%;

@@ -25,7 +25,14 @@ vi.mock("@aomi-labs/react", async (importOriginal) => ({
 
 vi.mock("../lib/wallet-kit", () => ({
   useAomiWalletKit: () => ({
-    supportedChains: [{ id: 1, name: "Ethereum" }],
+    supportedChains: [
+      {
+        id: 1,
+        name: "Ethereum",
+        nativeCurrency: { symbol: "ETH" },
+      },
+      { id: 8453, name: "Base", nativeCurrency: { symbol: "ETH" } },
+    ],
   }),
 }));
 
@@ -99,9 +106,10 @@ describe("RuntimeTxHandler", () => {
     render(<RuntimeTxHandler />);
 
     expect(runtime.executeAction).not.toHaveBeenCalled();
-    expect(screen.getByTestId("action-request-payload")).toHaveTextContent(
-      "0x2222222222222222222222222222222222222222",
+    expect(screen.getByTestId("transaction-review")).toHaveTextContent(
+      "To 0x222222…222222",
     );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Approve" }));
     await waitFor(() =>
       expect(runtime.executeAction).toHaveBeenCalledWith("action-1"),
@@ -204,10 +212,125 @@ describe("RuntimeTxHandler", () => {
       "passed",
     );
     expect(screen.getByTestId("action-simulation")).toHaveTextContent(
-      "Gas units: 21000",
+      "Simulation passed",
     );
+    expect(screen.getByTestId("transaction-review")).toHaveTextContent(
+      "Estimated gas · 21,000 units",
+    );
+    expect(screen.getByTestId("transaction-review")).toHaveTextContent(
+      "−0.000000000000000001 ETH",
+    );
+    expect(
+      screen.getByRole("region", { name: "Estimated wallet changes" }),
+    ).not.toHaveClass("sm:grid-cols-2");
+  });
+
+  it("pages through a multi-transaction request without scrolling", () => {
+    runtime.pendingActions = [
+      action({
+        type: "execute_evm",
+        simulation: simulation(),
+        transactions: [
+          {
+            chain_id: 8453,
+            from: "0x1111111111111111111111111111111111111111",
+            to: "0x2222222222222222222222222222222222222222",
+            data: "0x01",
+            label: "Approve USDC",
+            kind: "approval",
+            protocol: "LI.FI",
+          },
+          {
+            chain_id: 8453,
+            from: "0x1111111111111111111111111111111111111111",
+            to: "0x3333333333333333333333333333333333333333",
+            data: "0x02",
+            label: "Swap USDC to ETH",
+            kind: "swap",
+            protocol: "LI.FI",
+          },
+        ],
+      }),
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    expect(screen.getByText("Approve USDC")).toBeInTheDocument();
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next transaction" }));
+    expect(screen.getByText("Swap USDC to ETH")).toBeInTheDocument();
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+  });
+
+  it("turns protocol-generated swap labels into readable review steps", () => {
+    runtime.pendingActions = [
+      action({
+        type: "execute_evm",
+        simulation: simulation(),
+        transactions: [
+          {
+            chain_id: 8453,
+            from: "0x1111111111111111111111111111111111111111",
+            to: "0x2222222222222222222222222222222222222222",
+            data: "0x01",
+            label:
+              "Approve LI.FI swap spender for exact 0.00758 USDC using quote lifi_q_abc123",
+            kind: "erc20_approve",
+            protocol: "lifi",
+          },
+          {
+            chain_id: 8453,
+            from: "0x1111111111111111111111111111111111111111",
+            to: "0x3333333333333333333333333333333333333333",
+            data: "0x02",
+            label:
+              "LI.FI same-chain swap quote lifi_q_abc123: 0.00758 USDC to ETH on chain 8453",
+            kind: "lifi_swap",
+            protocol: "lifi",
+          },
+        ],
+      }),
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    expect(screen.getByText("Approve 0.00758 USDC")).toBeInTheDocument();
+    expect(screen.getByText("LI.FI")).toBeInTheDocument();
+    expect(screen.getByText("Token changes unavailable")).toBeInTheDocument();
+    expect(screen.queryByText(/lifi_q_abc123/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next transaction" }));
+    expect(screen.getByText("Swap 0.00758 USDC to ETH")).toBeInTheDocument();
+  });
+
+  it("does not show a stale failure warning beside a passed verdict", () => {
+    runtime.pendingActions = [
+      action({
+        type: "execute_evm",
+        transactions: [
+          {
+            chain_id: 1,
+            from: "0x1111111111111111111111111111111111111111",
+            to: "0x2222222222222222222222222222222222222222",
+            data: "0x",
+            label: "Transfer",
+            kind: "transfer",
+          },
+        ],
+        simulation: {
+          ...simulation(),
+          warnings: ["Simulation did not pass"],
+        },
+      }),
+    ];
+
+    render(<RuntimeTxHandler />);
+
     expect(screen.getByTestId("action-simulation")).toHaveTextContent(
-      "out: 1 ETH",
+      "Simulation passed",
     );
+    expect(
+      screen.queryByText("Simulation did not pass"),
+    ).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,30 @@
 # Canonical Landing
 
+Current session goal: **INLINE TRANSACTION REVIEW VERIFIED 2026-09-03** —
+replace the blocking raw-JSON action modal with a compact review panel anchored
+directly above the composer, show the canonical simulation verdict and readable
+wallet balance changes, page multi-transaction requests without an internal
+scroll area, and keep the Working trace live through action approval until the
+final answer begins streaming. Single balance changes fill the complete card,
+status copy has normal word spacing, assets use token marks while transaction
+steps retain chain marks, and repeated network/confirmation copy is removed.
+Protocol-generated LI.FI labels are reduced to readable approval and swap steps;
+when a successful simulation lacks token deltas, the review states that evidence
+is unavailable instead of claiming no balance change. Development-only
+`?aomi_preview=tx-review`, `tx-review-single`, and `tx-review-swap` fixtures
+render the real states in the Portal without opening a wallet. Wallet changes
+use a neutral asset mark, chain marks remain monochrome, gas metadata has a
+full-width separator, and welcome suggestions sit below the composer. Live desktop
+browser checks include a fixed tagging-menu footer that explains search and
+keyboard selection without reducing the scroll viewport; tagging icons stay
+aligned in a fixed column without boxed backgrounds. Fifteen focused tests,
+Portal typecheck, scoped lint, registry
+generation, the widget 2.0.21 build, and its 312-file dry-run tarball pass. The
+current simulator only derives native-value deltas and does not yet decode its
+preserved ERC-20 logs; that backend expansion is intentionally left for a
+separate change. The local backend was rebuilt with the stale failed-simulation
+warning fix and every workspace service is healthy.
+
 Current session goal: **AUTO/DIRECT COMPOSER AND COMPACT PICKER UI VERIFIED
 2026-09-03** — Auto is visually quiet with keyboard-only `@` hints, Direct is a
 borderless adjacent policy/app control, and model, network, execution, and

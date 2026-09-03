@@ -19,7 +19,6 @@ import {
   ThreadListSidebar,
   type SidebarProduct,
 } from "@/components/assistant-ui/threadlist-sidebar";
-import { RuntimeTxHandler } from "@/components/runtime-tx-handler";
 import {
   SidebarInset,
   SidebarProvider,
@@ -190,7 +189,6 @@ const Root: FC<RootProps> = ({
           <SidebarInset className="relative flex min-h-0 flex-col">
             {children}
           </SidebarInset>
-          <RuntimeTxHandler />
         </div>
       </SidebarProvider>
     </AomiRuntimeProvider>

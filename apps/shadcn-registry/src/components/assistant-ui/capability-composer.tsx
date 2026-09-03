@@ -607,6 +607,7 @@ export const CapabilityMentionInput: FC<{
         aria-multiline="true"
         aria-autocomplete="list"
         aria-expanded={query !== null}
+        aria-controls={query !== null ? pickerId : undefined}
         aria-activedescendant={
           query !== null && highlighted >= 0
             ? `${pickerId}-option-${highlighted}`
@@ -624,15 +625,14 @@ export const CapabilityMentionInput: FC<{
         className={`${className} min-h-[30px]`}
       />
       {hintsEnabled && query !== null ? (
-        <div
-          role="listbox"
-          aria-label="Apps, skills, and chains"
-          className="border-aomi-border bg-aomi-raised text-aomi-fg absolute bottom-full left-3 z-50 mb-2 w-[min(380px,calc(100%-24px))] overflow-hidden rounded-xl border p-1 shadow-xl"
-        >
+        <div className="border-aomi-border bg-aomi-raised text-aomi-fg absolute bottom-full left-3 z-50 mb-2 w-[min(380px,calc(100%-24px))] overflow-hidden rounded-xl border shadow-xl">
           {visibleItems.length > 0 ? (
             <div
+              id={pickerId}
+              role="listbox"
+              aria-label="Apps, skills, and chains"
               ref={pickerRef}
-              className="aui-command-list max-h-[268px] overflow-y-auto overflow-x-hidden overscroll-contain pr-1"
+              className="aui-command-list m-1 max-h-[268px] overflow-y-auto overflow-x-hidden overscroll-contain pr-1"
             >
               {visibleGroups.map((group, groupIndex) => {
                 const priorCount = visibleGroups
@@ -659,7 +659,7 @@ export const CapabilityMentionInput: FC<{
                             onClick={() => selectItem(item)}
                             className="hover:bg-aomi-hover aria-selected:bg-aomi-hover flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors"
                           >
-                            <span className="bg-aomi-surface-2 text-aomi-muted flex size-7 shrink-0 items-center justify-center rounded-lg">
+                            <span className="text-aomi-muted flex size-7 shrink-0 items-center justify-center">
                               <item.Icon className="size-3.5" />
                             </span>
                             <span className="min-w-0 flex-1 py-px">
@@ -684,10 +684,38 @@ export const CapabilityMentionInput: FC<{
               })}
             </div>
           ) : (
-            <div className="text-aomi-muted px-3 py-7 text-center text-xs">
-              No matching capabilities
+            <div
+              id={pickerId}
+              role="listbox"
+              aria-label="Apps, skills, and chains"
+              className="p-1"
+            >
+              <div
+                role="status"
+                className="text-aomi-muted px-3 py-7 text-center text-xs"
+              >
+                No matching capabilities
+              </div>
             </div>
           )}
+          <div className="border-aomi-border/70 text-aomi-muted flex min-h-8 items-center justify-between gap-3 border-t px-3 py-1.5 text-[11px]">
+            <span className="truncate">
+              Type to search apps, skills, and chains
+            </span>
+            <span
+              aria-hidden="true"
+              className="hidden shrink-0 items-center gap-2 text-[10px] sm:flex"
+            >
+              <span className="inline-flex items-center gap-1">
+                <kbd className="font-sans">↑↓</kbd>
+                navigate
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <kbd className="font-sans">↵</kbd>
+                add
+              </span>
+            </span>
+          </div>
         </div>
       ) : null}
     </div>

@@ -46,6 +46,7 @@ import {
 } from "@aomi-labs/react";
 import { useComposerControl } from "@/components/aomi-frame";
 import { AomiMark } from "@/components/aomi-mark";
+import { RuntimeTxHandler } from "@/components/runtime-tx-handler";
 import { ModelSelect } from "@/components/control-bar/model-select";
 import { ModeSelect } from "@/components/control-bar/mode-select";
 import { AppSelect } from "@/components/control-bar/app-select";
@@ -162,7 +163,7 @@ const ThreadWelcome: FC = () => {
         transition={{ delay: 0.05 }}
         className="w-full"
       >
-        <ComposerBox placeholder="Ask Aomi to swap, bridge, send, or deploy…" />
+        <ComposerStack placeholder="Ask Aomi to swap, bridge, send, or deploy…" />
       </m.div>
       <ThreadSuggestions />
     </div>
@@ -287,11 +288,18 @@ const ComposerBox: FC<{ placeholder: string }> = ({ placeholder }) => {
   );
 };
 
+const ComposerStack: FC<{ placeholder: string }> = ({ placeholder }) => (
+  <div className="flex w-full flex-col gap-2.5">
+    <RuntimeTxHandler />
+    <ComposerBox placeholder={placeholder} />
+  </div>
+);
+
 const Composer: FC = () => {
   return (
     <div className="aui-composer-wrapper bg-aomi-bg mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerBox placeholder="Reply to Aomi…" />
+      <ComposerStack placeholder="Reply to Aomi…" />
     </div>
   );
 };

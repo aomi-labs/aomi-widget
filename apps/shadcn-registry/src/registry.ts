@@ -329,11 +329,15 @@ export const registry: RegistryComponent[] = [
   },
   {
     name: "runtime-tx-handler",
-    file: "components/runtime-tx-handler.tsx",
-    dependencies: ["@aomi-labs/react", "lucide-react"],
-    registryDependencies: [aomi("aomi-wallet-kit"), "button", "dialog"],
+    file: [
+      "components/runtime-tx-handler.tsx",
+      "components/icons/chain-map.tsx",
+      "components/icons/chains/index.tsx",
+    ],
+    dependencies: ["@aomi-labs/client", "@aomi-labs/react", "lucide-react"],
+    registryDependencies: [aomi("aomi-wallet-kit"), "button"],
     description:
-      "Presents attended Actions and delegates execution to the runtime ActionHandler.",
+      "Shows an inline simulation review for attended Actions and delegates execution to the runtime ActionHandler.",
   },
   {
     name: "aomi-para-provider",

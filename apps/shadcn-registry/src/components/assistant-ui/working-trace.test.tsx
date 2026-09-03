@@ -193,6 +193,53 @@ describe("WorkingTrace", () => {
     expect(body).toHaveClass("grid-rows-[1fr]", "opacity-100");
   });
 
+  it("stays open until final-answer playback is ready", () => {
+    vi.useFakeTimers();
+    try {
+      const { getByRole, rerender } = render(
+        <WorkingTrace
+          running
+          items={[]}
+          revealed={0}
+          collapseReady={false}
+          orchestrating={false}
+        />,
+      );
+
+      rerender(
+        <WorkingTrace
+          running={false}
+          items={[]}
+          revealed={0}
+          collapseReady={false}
+          orchestrating={false}
+        />,
+      );
+      act(() => vi.advanceTimersByTime(1_000));
+      expect(getByRole("button", { name: /Worked/ })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      );
+
+      rerender(
+        <WorkingTrace
+          running={false}
+          items={[]}
+          revealed={0}
+          collapseReady
+          orchestrating={false}
+        />,
+      );
+      act(() => vi.advanceTimersByTime(500));
+      expect(getByRole("button", { name: /Worked/ })).toHaveAttribute(
+        "aria-expanded",
+        "false",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("follows nested subagent steps while the trace is pinned to latest", () => {
     const item = (state: TaskRunState) => ({
       kind: "agent" as const,

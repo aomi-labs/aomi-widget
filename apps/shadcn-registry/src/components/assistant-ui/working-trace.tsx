@@ -197,6 +197,8 @@ export const WorkingTrace: FC<{
   running: boolean;
   items: TraceItem[];
   revealed: number;
+  /** Final-answer playback has begun, so the open trace may fold away. */
+  collapseReady?: boolean;
   /** The turn delegated to child agents — announces the mode in the header. */
   orchestrating: boolean;
   /**
@@ -205,7 +207,14 @@ export const WorkingTrace: FC<{
    * end), so mount time alone under-reports "Orchestrated for Ns" badly.
    */
   startedAtMs?: number;
-}> = ({ running, items, revealed, orchestrating, startedAtMs }) => {
+}> = ({
+  running,
+  items,
+  revealed,
+  collapseReady = true,
+  orchestrating,
+  startedAtMs,
+}) => {
   const [open, setOpen] = useState(running);
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
@@ -348,13 +357,14 @@ export const WorkingTrace: FC<{
     wasRunning.current = running;
   }, [running]);
 
-  // Auto-collapse only after the tail has finished cascading, and leave the last
-  // step on screen for a beat so it isn't hidden the instant it appears.
+  // Auto-collapse only once final-answer playback has actually begun. An
+  // awaiting Action temporarily marks the assistant message complete, but the
+  // trace must stay open through approval and the resumed model turn.
   useEffect(() => {
-    if (!fullyRevealed) return;
+    if (!fullyRevealed || !collapseReady) return;
     const timer = setTimeout(() => setOpen(false), 500);
     return () => clearTimeout(timer);
-  }, [fullyRevealed]);
+  }, [collapseReady, fullyRevealed]);
 
   // The badge already names the orchestration mode. Keep the status language
   // identical across modes so the header never reads as the redundant
@@ -709,6 +719,12 @@ export const AssistantTurnParts: FC = () => {
         ? content.length
         : 0;
 
+  const answerText = collectText(
+    content
+      .slice(traceEnd)
+      .filter((part): part is TextMessagePart => part.type === "text"),
+  );
+
   // Build the trace rows in order, merging consecutive talk into one note.
   // Empty when the turn has neither tool calls nor a live delegation.
   const items: TraceItem[] = [];
@@ -751,10 +767,22 @@ export const AssistantTurnParts: FC = () => {
       (item.kind === "tool" && item.tool.toolName === "task"),
   );
 
+  // Awaiting an approval is a pause in the same turn, not completion. Keep the
+  // trace visibly live until a real final answer exists and can begin its
+  // synthetic stream. This also covers the short resume gap after approve or
+  // reject, when polling has restarted but the next model event has not landed.
+  const awaitingContinuation =
+    isLast &&
+    items.length > 0 &&
+    (runtime?.turnState === "awaiting_action" ||
+      runtime?.turnState === "processing" ||
+      (witnessedRunning.current && answerText.length === 0));
+  const traceLive = running || awaitingContinuation;
+
   // Pace the reveal so a burst of tool calls cascades instead of flashing in.
   // Called unconditionally (before the branches below) to satisfy hook rules;
   // it's a harmless no-op with an empty trace.
-  const staggered = useStaggeredReveal(items.length, running);
+  const staggered = useStaggeredReveal(items.length, traceLive);
 
   // Staggered-reveal choice: an agent row backed by a live sidecar is never
   // held hostage to the reveal backlog. Everything up to and including the
@@ -789,10 +817,6 @@ export const AssistantTurnParts: FC = () => {
       : (turnStartRef.current ?? earliestRunStart ?? undefined);
 
   if (items.length === 0) {
-    const answerText = collectText(
-      content.filter((part): part is TextMessagePart => part.type === "text"),
-    );
-
     // Before the first tool call, text is provisional: a later tool can move it
     // into the Working trace. Keep it buffered until the turn settles.
     if (running) {
@@ -809,22 +833,17 @@ export const AssistantTurnParts: FC = () => {
     ) : null;
   }
 
-  const answerText = collectText(
-    content
-      .slice(traceEnd)
-      .filter((part): part is TextMessagePart => part.type === "text"),
-  );
-
   // Hold the answer until the trace has fully caught up, so the steps finish
   // cascading before it fades in — nothing moves between the two regions.
-  const answerReady = !running && revealed >= items.length;
+  const answerReady = !traceLive && revealed >= items.length;
 
   return (
     <>
       <WorkingTrace
-        running={running}
+        running={traceLive}
         items={items}
         revealed={revealed}
+        collapseReady={answerText.length > 0}
         orchestrating={orchestrating}
         startedAtMs={startedAtMs}
       />
