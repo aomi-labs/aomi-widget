@@ -7,8 +7,11 @@ import { seedAccountOverview } from "@portal/lib/account-overview";
 const walletKitState = vi.hoisted(() => ({
   current: {
     identity: { isConnected: true, chainId: 1 },
+    accountGuest: false,
     accounts: [{ id: "para", walletName: "Para", active: true }],
-    accountUser: undefined as { id: string } | undefined,
+    accountUser: undefined as
+      | { id: string; displayName?: string; email?: string }
+      | undefined,
     accountError: undefined as string | undefined,
     connect: vi.fn(async () => undefined),
     disconnect: vi.fn(async () => undefined),
@@ -28,22 +31,23 @@ vi.mock("@portal/lib/use-settings", () => ({
   }),
 }));
 
-function readMenu() {
+function readMenu(onManageAccount = () => undefined) {
   let captured: ReturnType<typeof usePortalWalletAccountMenu>;
   function Probe() {
-    captured = usePortalWalletAccountMenu(() => undefined);
+    captured = usePortalWalletAccountMenu(() => undefined, onManageAccount);
     return null;
   }
   render(<Probe />);
   return captured!;
 }
 
-describe("usePortalWalletAccountMenu sign-in wiring", () => {
+describe("usePortalWalletAccountMenu account wiring", () => {
   afterEach(async () => {
     await act(async () => {
       seedAccountOverview(null);
     });
     walletKitState.current.accountUser = undefined;
+    walletKitState.current.accountGuest = false;
     walletKitState.current.accountError = undefined;
     walletKitState.current.connect.mockClear();
     walletKitState.current.disconnect.mockClear();
@@ -51,39 +55,48 @@ describe("usePortalWalletAccountMenu sign-in wiring", () => {
     walletKitState.current.signOutAccount.mockClear();
   });
 
-  it("offers Sign in that runs the auth flow, not the provider account popup", () => {
-    const menu = readMenu();
+  it("does not show account chrome for a connected wallet without an account", () => {
+    expect(readMenu()).toBeUndefined();
+  });
 
-    expect(menu?.secondaryLine).toBe("Sign in for allowance");
-    menu?.onSignIn?.();
+  it("does not show account chrome for a temporary guest", () => {
+    walletKitState.current.accountGuest = true;
 
-    expect(walletKitState.current.connect).toHaveBeenCalledTimes(1);
-    expect(walletKitState.current.openAccountUI).not.toHaveBeenCalled();
+    expect(readMenu()).toBeUndefined();
   });
 
   it("keeps exchange failure copy off the truncated chip line", () => {
+    walletKitState.current.accountUser = { id: "acct-a" };
     walletKitState.current.accountError =
       "This wallet or sign-in method is already linked to another Aomi account.";
 
     const menu = readMenu();
-    expect(menu?.secondaryLine).toBe("Sign-in needs attention");
+    expect(menu?.secondaryLine).toBe("Loading allowance…");
     expect(menu?.noticeLine).toBe(walletKitState.current.accountError);
   });
 
-  it("drops Sign in once the account session exists", () => {
-    walletKitState.current.accountUser = { id: "acct-a" };
+  it("shows the account name and routes account management to Settings", () => {
+    const onManageAccount = vi.fn();
+    walletKitState.current.accountUser = {
+      id: "acct-a",
+      displayName: "Alice",
+    };
 
-    const menu = readMenu();
+    const menu = readMenu(onManageAccount);
     expect(menu?.onSignIn).toBeUndefined();
+    expect(menu?.primaryLine).toBe("Alice");
     expect(menu?.secondaryLine).toBe("Loading allowance…");
+    menu?.onManageAccount?.();
+    expect(onManageAccount).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves disconnect to the widget-lib canonical teardown", () => {
+  it("leaves session and wallet teardown to widget-lib", () => {
+    walletKitState.current.accountUser = { id: "acct-a" };
     const menu = readMenu();
 
-    // DualWalletBar's default runs account/widget session sign-out before
-    // wallet disconnect (covered in dual-wallet-bar.test.tsx); supplying a
-    // portal onDisconnect would just duplicate it.
+    // DualWalletBar owns these as distinct actions; Portal does not override
+    // either boundary with a combined teardown.
+    expect(menu?.onSignOut).toBeUndefined();
     expect(menu?.onDisconnect).toBeUndefined();
   });
 });
