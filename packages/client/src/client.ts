@@ -266,6 +266,22 @@ function publicApiPolicy(url: URL, method: string, headers?: HeadersInit) {
       method: method.toUpperCase(),
     };
   }
+  if (
+    url.pathname === "/v1/account" ||
+    url.pathname.startsWith("/v1/account/")
+  ) {
+    const scope =
+      url.pathname === "/v1/account/statement"
+        ? "account:usage:read"
+        : url.pathname === "/v1/account/credits/top-up"
+          ? "account:credits:topup"
+          : "account:credits:read";
+    return {
+      resource: `${origin}/v1/account` as AomiOAuthResource,
+      scopes: [scope, ...payment],
+      method: method.toUpperCase(),
+    };
+  }
   return null;
 }
 
