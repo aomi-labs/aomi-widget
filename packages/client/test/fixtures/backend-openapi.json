@@ -1532,40 +1532,6 @@
         ]
       }
     },
-    "/api/account/usage": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "accountBearer": []
-          }
-        ],
-        "x-aomi-auth": [
-          "account"
-        ]
-      }
-    },
-    "/api/account/statement": {
-      "get": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "accountBearer": []
-          }
-        ],
-        "x-aomi-auth": [
-          "account"
-        ]
-      }
-    },
     "/api/account/status": {
       "get": {
         "responses": {
@@ -1866,7 +1832,7 @@
         ]
       }
     },
-    "/api/account/payment": {
+    "/api/account/model-keys": {
       "get": {
         "responses": {
           "200": {
@@ -1881,9 +1847,7 @@
         "x-aomi-auth": [
           "account"
         ]
-      }
-    },
-    "/api/account/payment/byok": {
+      },
       "post": {
         "responses": {
           "200": {
@@ -1900,7 +1864,7 @@
         ]
       }
     },
-    "/api/account/payment/byok/{provider}": {
+    "/api/account/model-keys/{provider}": {
       "delete": {
         "responses": {
           "200": {
@@ -2203,23 +2167,6 @@
         ],
         "x-aomi-auth": [
           "activation"
-        ]
-      }
-    },
-    "/api/_internal/agent/execution-preflight": {
-      "post": {
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "security": [
-          {
-            "delegatedBearer": []
-          }
-        ],
-        "x-aomi-auth": [
-          "delegated"
         ]
       }
     },

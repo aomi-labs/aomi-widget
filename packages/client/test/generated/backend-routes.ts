@@ -25,7 +25,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "DELETE",
-    path: "/api/account/payment/byok/:provider",
+    path: "/api/account/model-keys/:provider",
     auth: ["account"],
   },
   {
@@ -120,7 +120,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
-    path: "/api/account/payment",
+    path: "/api/account/model-keys",
     auth: ["account"],
   },
   {
@@ -135,17 +135,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "GET",
-    path: "/api/account/statement",
-    auth: ["account"],
-  },
-  {
-    method: "GET",
     path: "/api/account/status",
-    auth: ["account"],
-  },
-  {
-    method: "GET",
-    path: "/api/account/usage",
     auth: ["account"],
   },
   {
@@ -505,11 +495,6 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "POST",
-    path: "/api/_internal/agent/execution-preflight",
-    auth: ["delegated"],
-  },
-  {
-    method: "POST",
     path: "/api/_internal/agent/sessions/:thread_id/actions/:action_id/result",
     auth: ["delegated"],
   },
@@ -550,7 +535,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   },
   {
     method: "POST",
-    path: "/api/account/payment/byok",
+    path: "/api/account/model-keys",
     auth: ["account"],
   },
   {
@@ -756,17 +741,27 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/platforms/:name/telegram/handover",
-    auth: ["activation"],
+    auth: ["activation-or-wallet"],
   },
   {
     method: "POST",
     path: "/api/platforms/:name/telegram/handover/:bot/:id/activate",
-    auth: ["activation"],
+    auth: ["activation-or-wallet"],
   },
   {
     method: "POST",
     path: "/api/platforms/:name/telegram/handover/:bot/:id/revoke",
     auth: ["activation"],
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/telegram/handover/:bot/:id/status",
+    auth: ["wallet-session"],
+  },
+  {
+    method: "POST",
+    path: "/api/platforms/:name/telegram/handover/nonce",
+    auth: ["wallet"],
   },
   {
     method: "POST",
