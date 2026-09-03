@@ -62,6 +62,7 @@ function simulation(): Extract<
   return {
     status: "passed",
     balanceChanges: [],
+    approvals: [],
     fees: [],
     gas: null,
     guards: [],
@@ -194,8 +195,10 @@ describe("RuntimeTxHandler", () => {
               amount: "1",
               direction: "out",
               symbol: "ETH",
+              standard: "native",
             },
           ],
+          approvals: [],
           fees: [],
           gas: { units: "21000", priceWei: null, nativeCost: null },
           logs: [],
@@ -221,7 +224,7 @@ describe("RuntimeTxHandler", () => {
       "−0.000000000000000001 ETH",
     );
     expect(
-      screen.getByRole("region", { name: "Estimated wallet changes" }),
+      screen.getByRole("region", { name: "Simulated wallet impact" }),
     ).not.toHaveClass("sm:grid-cols-2");
   });
 
@@ -296,11 +299,147 @@ describe("RuntimeTxHandler", () => {
 
     expect(screen.getByText("Approve 0.00758 USDC")).toBeInTheDocument();
     expect(screen.getByText("LI.FI")).toBeInTheDocument();
-    expect(screen.getByText("Token changes unavailable")).toBeInTheDocument();
+    expect(screen.getByText("No asset changes detected")).toBeInTheDocument();
     expect(screen.queryByText(/lifi_q_abc123/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next transaction" }));
     expect(screen.getByText("Swap 0.00758 USDC to ETH")).toBeInTheDocument();
+  });
+
+  it("shows exact, unlimited, and revoked token permissions explicitly", () => {
+    runtime.pendingActions = [
+      action({
+        type: "execute_evm",
+        transactions: [
+          {
+            chain_id: 8453,
+            from: "0x1111111111111111111111111111111111111111",
+            to: "0x2222222222222222222222222222222222222222",
+            data: "0x01",
+            label: "Update token permissions",
+            kind: "approval",
+          },
+        ],
+        simulation: {
+          ...simulation(),
+          approvals: [
+            {
+              account: "0x1111111111111111111111111111111111111111",
+              spender: "0x2222222222222222222222222222222222222222",
+              asset: "0x3333333333333333333333333333333333333333",
+              kind: "allowance",
+              amount: "7500",
+              approved: true,
+              unlimited: false,
+              standard: "erc20",
+              symbol: "USDC",
+              decimals: 6,
+              chainId: 8453,
+            },
+            {
+              account: "0x1111111111111111111111111111111111111111",
+              spender: "0x2222222222222222222222222222222222222222",
+              asset: "0x4444444444444444444444444444444444444444",
+              kind: "allowance",
+              amount: "1000000000000000000000000000000000000000",
+              approved: true,
+              unlimited: true,
+              standard: "erc20",
+              symbol: "WETH",
+              decimals: 18,
+              chainId: 8453,
+            },
+            {
+              account: "0x1111111111111111111111111111111111111111",
+              spender: "0x2222222222222222222222222222222222222222",
+              asset: "0x5555555555555555555555555555555555555555",
+              kind: "allowance",
+              amount: "0",
+              approved: false,
+              unlimited: false,
+              standard: "erc20",
+              symbol: "DAI",
+              decimals: 18,
+              chainId: 8453,
+            },
+          ],
+        },
+      }),
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    expect(screen.getByText("Allow 0.0075 USDC")).toBeInTheDocument();
+    expect(screen.getByText("Unlimited WETH spending")).toBeInTheDocument();
+    expect(screen.getByText("Revoke DAI spending")).toBeInTheDocument();
+    expect(screen.getAllByTestId("approval-effect")).toHaveLength(3);
+  });
+
+  it("describes NFT minting and collection-wide access", () => {
+    runtime.pendingActions = [
+      action({
+        type: "execute_evm",
+        transactions: [
+          {
+            chain_id: 8453,
+            from: "0x1111111111111111111111111111111111111111",
+            to: "0x2222222222222222222222222222222222222222",
+            data: "0x01",
+            label: "Mint collectible",
+            kind: "mint",
+          },
+        ],
+        simulation: {
+          ...simulation(),
+          balanceChanges: [
+            {
+              account: "0x1111111111111111111111111111111111111111",
+              asset: "0x2222222222222222222222222222222222222222",
+              amount: "1",
+              direction: "in",
+              standard: "erc721",
+              name: "Aomi Founders",
+              tokenId: "42",
+              counterparty: "0x0000000000000000000000000000000000000000",
+              chainId: 8453,
+            },
+            {
+              account: "0x1111111111111111111111111111111111111111",
+              asset: "0x3333333333333333333333333333333333333333",
+              amount: "3",
+              direction: "in",
+              standard: "erc1155",
+              name: "Aomi Pass",
+              tokenId: "7",
+              counterparty: "0x0000000000000000000000000000000000000000",
+              chainId: 8453,
+            },
+          ],
+          approvals: [
+            {
+              account: "0x1111111111111111111111111111111111111111",
+              spender: "0x4444444444444444444444444444444444444444",
+              asset: "0x3333333333333333333333333333333333333333",
+              kind: "operator",
+              approved: true,
+              standard: "erc1155",
+              name: "Aomi Pass",
+              chainId: 8453,
+            },
+          ],
+        },
+      }),
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    expect(screen.getByText("NFT minted")).toBeInTheDocument();
+    expect(screen.getByText("Aomi Founders #42")).toBeInTheDocument();
+    expect(screen.getByText("Collectible minted")).toBeInTheDocument();
+    expect(screen.getByText("+3 × Aomi Pass #7")).toBeInTheDocument();
+    expect(
+      screen.getByText("Allow access to all Aomi Pass"),
+    ).toBeInTheDocument();
   });
 
   it("does not show a stale failure warning beside a passed verdict", () => {
@@ -332,5 +471,33 @@ describe("RuntimeTxHandler", () => {
     expect(
       screen.queryByText("Simulation did not pass"),
     ).not.toBeInTheDocument();
+  });
+
+  it("blocks approval when simulation failed", () => {
+    runtime.pendingActions = [
+      action({
+        type: "execute_evm",
+        transactions: [
+          {
+            chain_id: 1,
+            from: "0x1111111111111111111111111111111111111111",
+            to: "0x2222222222222222222222222222222222222222",
+            data: "0x",
+            label: "Transfer",
+            kind: "transfer",
+          },
+        ],
+        simulation: {
+          ...simulation(),
+          status: "failed",
+          warnings: ["Execution reverted"],
+        },
+      }),
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    expect(screen.getByRole("button", { name: "Blocked" })).toBeDisabled();
+    expect(screen.getByText("No wallet changes simulated")).toBeInTheDocument();
   });
 });
