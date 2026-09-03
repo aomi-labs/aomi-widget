@@ -1,5 +1,17 @@
 # Canonical Landing
 
+Current session goal: **LEAN PAYMENT BOUNDARY IMPLEMENTED AND LOCALLY VERIFIED
+2026-09-03** — move public execution admission, customer-rate accounting, and
+Credit Bank ownership into api-server; persist correlated raw usage before
+completion; remove runtime pricing and child admission; and expose the paired
+account, SDK, CLI, OpenAPI, and Portal contracts. The payment-aligned Credit
+Bank disclosure and top-up review UI are restored, with one credit as the
+minimum purchase. Capped Rust and TypeScript checks, focused Portal/client
+tests, a live Base Sepolia one-credit x402 settlement, idempotent replay, and
+database postconditions pass. The publishable client is patch-bumped to
+`@aomi-labs/client@0.6.10`; paired backend and frontend draft PRs are prepared
+for review.
+
 Current session goal: **PROVIDER AND DEVICE AUTH RECOVERY LOCALLY VERIFIED
 2026-09-02** — `/device-auth` and `/oauth/device` now select Para or Privy at
 the single root wallet-provider boundary, OAuth device decisions claim and
@@ -9,11 +21,11 @@ legacy CLI grants/link intents use encrypted five-minute one-time
 `ba_verifications` records instead of process-local maps. Portal lint,
 typecheck, all 468 tests, 139 account tests, and six disposable-PostgreSQL
 integration tests pass, including real Agent REST and Pipeline REST Better
-Auth flows from DCR through authenticated claim, approval, and token. Public clients are exact-resource-bound without
-widening resource-less Codex registration, and provider/link records survive
-cross-instance exchange with atomic replay protection. Live provider
-credentials and staging were intentionally not exercised in this isolated
-implementation slice.
+Auth flows from DCR through authenticated claim, approval, and token. Public
+clients are exact-resource-bound without widening resource-less Codex
+registration, and provider/link records survive cross-instance exchange with
+atomic replay protection. Live provider credentials and staging were
+intentionally not exercised in this isolated implementation slice.
 
 Current session goal: **CLI AGENT CHAT AUTH, ORDER, AND TOOL TRACES VERIFIED
 2026-08-31** — anonymous Agent and Pipeline calls now receive a guest bearer
