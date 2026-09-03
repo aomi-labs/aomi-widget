@@ -10,7 +10,13 @@ minimum purchase. Capped Rust and TypeScript checks, focused Portal/client
 tests, a live Base Sepolia one-credit x402 settlement, idempotent replay, and
 database postconditions pass. The publishable client is patch-bumped to
 `@aomi-labs/client@0.6.10`; paired backend and frontend draft PRs are prepared
-for review.
+for review. A final behavior-preserving cleanup removed the duplicate Diesel
+lease projection, centralized UTC billing-month calculation, moved lease
+acquisition onto its owning payment service, and split both oversized Portal
+account/payment components below the 500-line limit. Rust fmt, clippy, compile,
+and 201 affected-package tests pass; Portal typecheck and 457 tests, client
+typecheck/build and 265 tests, plus the widget build and 93 changed/artifact
+tests pass with capped concurrency.
 
 Current session goal: **PROVIDER AND DEVICE AUTH RECOVERY LOCALLY VERIFIED
 2026-09-02** — `/device-auth` and `/oauth/device` now select Para or Privy at

@@ -271,7 +271,7 @@ const accountCreditsTopUpDef = defineCommand({
     ...globalArgs,
     credits: {
       type: "positional",
-      description: "Credits to purchase (100-100000, up to 4 decimals)",
+      description: "Credits to purchase (1-100000, up to 4 decimals)",
       required: true,
     },
     "idempotency-key": {

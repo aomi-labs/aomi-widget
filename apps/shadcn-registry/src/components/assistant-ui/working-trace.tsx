@@ -554,7 +554,7 @@ export const MinimalWorkingTrace: FC = () => (
   <div
     role="status"
     aria-label="Aomi is thinking"
-    className="aui-working-trace-start ring-aomi-border/70 bg-aomi-surface/70 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 -mt-px mb-3 flex h-8 w-fit origin-top-left items-center gap-2 rounded-full pr-4 pl-3 ring-1 ring-inset duration-300 ease-out motion-reduce:animate-none"
+    className="aui-working-trace-start ring-aomi-border/70 bg-aomi-surface/70 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 -mt-px mb-3 flex h-8 w-fit origin-top-left items-center gap-2 rounded-full pl-3 pr-4 ring-1 ring-inset duration-300 ease-out motion-reduce:animate-none"
   >
     <WorkingLivePulse />
     <span

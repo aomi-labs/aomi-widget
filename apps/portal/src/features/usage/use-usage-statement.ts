@@ -29,7 +29,10 @@ export function useUsageStatement(monthCount = 6) {
   >({});
   const [status, setStatus] = useState<StatementStatus>("loading");
   const [error, setError] = useState<string | undefined>();
-  const [creditAllowance, setCreditAllowance] = useState({ included: 0, used: 0 });
+  const [creditAllowance, setCreditAllowance] = useState({
+    included: 0,
+    used: 0,
+  });
   const inflight = useRef<Set<string>>(new Set());
 
   const allowance = creditAllowance;
@@ -51,7 +54,9 @@ export function useUsageStatement(monthCount = 6) {
     try {
       const [wire, credits] = await Promise.all([
         fetchModelStatement(monthKey),
-        monthKey === currentMonthKey() ? fetchCreditAllowance() : Promise.resolve(null),
+        monthKey === currentMonthKey()
+          ? fetchCreditAllowance()
+          : Promise.resolve(null),
       ]);
       if (credits) setCreditAllowance(credits);
       setWireMonths((cache) => ({

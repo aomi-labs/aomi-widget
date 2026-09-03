@@ -121,30 +121,62 @@ export async function fetchModelStatement(
     const credits = row.gross_charge_microusd / 10_000;
     const usd = row.gross_charge_microusd / 1_000_000;
     const app = apps.get(row.application) ?? {
-      app: row.application, turns: 0, input_tokens: 0, output_tokens: 0,
-      credits_used: 0, usd: 0, by_model: [],
+      app: row.application,
+      turns: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+      credits_used: 0,
+      usd: 0,
+      by_model: [],
     };
-    app.turns += 1; app.input_tokens += row.input_tokens;
-    app.output_tokens += row.output_tokens; app.credits_used += credits; app.usd += usd;
+    app.turns += 1;
+    app.input_tokens += row.input_tokens;
+    app.output_tokens += row.output_tokens;
+    app.credits_used += credits;
+    app.usd += usd;
     let model = app.by_model.find(
       (line) => line.model === row.model && line.payment_method === method,
     );
     if (!model) {
-      model = { model: row.model, provider: row.provider, payment_method: method,
-        turns: 0, input_tokens: 0, output_tokens: 0, credits_used: 0, usd: 0 };
+      model = {
+        model: row.model,
+        provider: row.provider,
+        payment_method: method,
+        turns: 0,
+        input_tokens: 0,
+        output_tokens: 0,
+        credits_used: 0,
+        usd: 0,
+      };
       app.by_model.push(model);
     }
-    model.turns += 1; model.input_tokens += row.input_tokens;
-    model.output_tokens += row.output_tokens; model.credits_used += credits; model.usd += usd;
+    model.turns += 1;
+    model.input_tokens += row.input_tokens;
+    model.output_tokens += row.output_tokens;
+    model.credits_used += credits;
+    model.usd += usd;
     apps.set(row.application, app);
-    const leg = payments.get(method) ?? { method, credits_used: 0, usd: 0, paid_credits: 0, paid_usd: 0 };
-    leg.credits_used += credits; leg.usd += usd;
+    const leg = payments.get(method) ?? {
+      method,
+      credits_used: 0,
+      usd: 0,
+      paid_credits: 0,
+      paid_usd: 0,
+    };
+    leg.credits_used += credits;
+    leg.usd += usd;
     payments.set(method, leg);
   }
-  const totalMicrousd = rows.reduce((sum, row) => sum + row.gross_charge_microusd, 0);
+  const totalMicrousd = rows.reduce(
+    (sum, row) => sum + row.gross_charge_microusd,
+    0,
+  );
   return {
-    period_utc_from: from, period_utc_to: to, apps: [...apps.values()],
-    payment: [...payments.values()], total_credits_used: totalMicrousd / 10_000,
+    period_utc_from: from,
+    period_utc_to: to,
+    apps: [...apps.values()],
+    payment: [...payments.values()],
+    total_credits_used: totalMicrousd / 10_000,
     total_usd: totalMicrousd / 1_000_000,
   };
 }
@@ -199,7 +231,9 @@ export function toMonthlyStatement(
   allowance: { included: number; used: number },
 ): MonthlyStatement {
   const apps: AppUsageEntry[] = wire.apps.map((app) => {
-    const byok = app.by_model.every((line) => line.payment_method.endsWith("byok"));
+    const byok = app.by_model.every((line) =>
+      line.payment_method.endsWith("byok"),
+    );
     const byModel: AppModelRow[] = app.by_model.map((line) => ({
       model: line.model,
       provider: line.provider,
@@ -240,9 +274,14 @@ export function toMonthlyStatement(
     };
   });
 
-  const quota = wire.payment.find((leg) => leg.method === "null" || leg.method === "platform");
+  const quota = wire.payment.find(
+    (leg) => leg.method === "null" || leg.method === "platform",
+  );
   const streamLegs = wire.payment.filter(
-    (leg) => !["null", "platform", "byok", "user_byok", "application_byok"].includes(leg.method),
+    (leg) =>
+      !["null", "platform", "byok", "user_byok", "application_byok"].includes(
+        leg.method,
+      ),
   );
   const x402SettledUsd = streamLegs.reduce((sum, leg) => sum + leg.paid_usd, 0);
   const settledVia =

@@ -1,12 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
+import type { AomiCreditActivity, AomiCreditPosition } from "@aomi-labs/client";
 import { useAomiWalletKit } from "@aomi-labs/widget-lib";
 import {
   createPortalPaymentFetch,
   createPortalX402Client,
 } from "@portal/lib/payment-fetch";
+import { CreditTopUpDialog } from "./top-up-dialog";
+import {
+  formatCreditAmount,
+  formatCredits,
+  formatUsdc,
+  MAX_TOP_UP_MICROUSD,
+  MIN_TOP_UP_MICROUSD,
+  toCredits,
+} from "./format";
 import {
   CheckCircle2,
   ChevronDown,
@@ -15,45 +24,14 @@ import {
   LoaderCircle,
   Plus,
   ReceiptText,
-  WalletCards,
-  X,
 } from "lucide-react";
 
-type CreditEntry = {
-  id: number;
-  amount_microusd: number;
-  entry_kind: string;
-  payment_method?: string | null;
-  payment_provider?: string | null;
-  external_payment_reference?: string | null;
-  application_id?: number | null;
-  created_at: number;
-};
-
-type Position = {
-  period_utc_month: string;
-  included: {
-    limit_microusd: number;
-    used_microusd: number;
-    remaining_microusd: number;
-  };
-  bank: {
-    balance_microusd: number;
-    outstanding_debt_microusd: number;
-  };
-  entries: CreditEntry[];
-  next_before_id: number | null;
-};
-
 const ACTIVITY_PAGE_SIZE = 25;
-const MIN_TOP_UP_MICROUSD = 10_000;
-const MAX_TOP_UP_MICROUSD = 1_000_000_000;
-
 export function CreditBank() {
   const wallet = useAomiWalletKit();
   const [open, setOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [position, setPosition] = useState<Position | null>(null);
+  const [position, setPosition] = useState<AomiCreditPosition | null>(null);
   const [amount, setAmount] = useState("1000");
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
@@ -68,7 +46,7 @@ export function CreditBank() {
         { credentials: "include", cache: "no-store" },
       );
       if (!response.ok) throw new Error(await response.text());
-      setPosition((await response.json()) as Position);
+      setPosition((await response.json()) as AomiCreditPosition);
       setError(null);
     } catch (cause) {
       setError(
@@ -129,7 +107,7 @@ export function CreditBank() {
             : `Top-up failed (${response.status})`,
         );
       }
-      const next = (await response.json()) as Position;
+      const next = (await response.json()) as AomiCreditPosition;
       setPosition(next);
       setReviewOpen(false);
       setSuccess(
@@ -308,230 +286,7 @@ export function CreditBank() {
   );
 }
 
-function CreditTopUpDialog({
-  open,
-  busy,
-  credits,
-  paymentReady,
-  walletAddress,
-  walletChainId,
-  error,
-  onCreditsChange,
-  onClose,
-  onConfirm,
-}: {
-  open: boolean;
-  busy: boolean;
-  credits: string;
-  paymentReady: boolean;
-  walletAddress?: string;
-  walletChainId?: number;
-  error: string | null;
-  onCreditsChange: (value: string) => void;
-  onClose: () => void;
-  onConfirm: () => void;
-}) {
-  const parsedCredits = Number(credits);
-  const amountMicrousd = Math.round(parsedCredits * 10_000);
-  const validCredits =
-    Number.isSafeInteger(amountMicrousd) &&
-    amountMicrousd >= MIN_TOP_UP_MICROUSD &&
-    amountMicrousd <= MAX_TOP_UP_MICROUSD;
-  const cost = validCredits ? parsedCredits / 100 : 0;
-
-  return (
-    <DialogPrimitive.Root
-      open={open}
-      onOpenChange={(next) => !next && !busy && onClose()}
-    >
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-[80] bg-black/30 backdrop-blur-[3px]" />
-        <DialogPrimitive.Content className="border-aomi-overlay-border bg-aomi-raised text-aomi-fg fixed left-1/2 top-1/2 z-[81] max-h-[calc(100vh-2rem)] w-[calc(100%-2rem)] max-w-[430px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl border shadow-[0_24px_80px_rgba(0,0,0,0.32)] focus:outline-none">
-          <div className="border-aomi-border relative border-b px-5 py-4">
-            <DialogPrimitive.Title className="text-[15px] font-semibold">
-              Add credits
-            </DialogPrimitive.Title>
-            <DialogPrimitive.Description className="text-aomi-muted mt-1 pr-8 text-[12px] leading-relaxed">
-              Choose an amount, then approve one USDC payment in your wallet.
-            </DialogPrimitive.Description>
-            <DialogPrimitive.Close
-              type="button"
-              disabled={busy}
-              aria-label="Close top-up"
-              className="bg-aomi-surface-2 text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full transition-colors disabled:opacity-50"
-            >
-              <X size={15} aria-hidden="true" />
-            </DialogPrimitive.Close>
-          </div>
-
-          <div className="flex flex-col gap-4 px-5 py-5">
-            <fieldset>
-              <legend className="text-aomi-muted mb-2 text-[11px] font-medium uppercase tracking-wide">
-                Credit amount
-              </legend>
-              <div className="grid grid-cols-3 gap-2">
-                {[100, 500, 1000].map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    aria-pressed={credits === String(preset)}
-                    onClick={() => onCreditsChange(String(preset))}
-                    className={`focus-visible:ring-aomi-accent/40 rounded-lg border px-2 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 ${
-                      credits === String(preset)
-                        ? "border-aomi-accent-outline bg-aomi-accent-tint"
-                        : "border-aomi-border bg-aomi-bg/40 hover:bg-aomi-surface-2/60"
-                    }`}
-                  >
-                    <span className="block text-[13px] font-medium tabular-nums">
-                      {formatCredits(preset)}
-                    </span>
-                    <span className="text-aomi-muted mt-0.5 block text-[10px] tabular-nums">
-                      {formatUsdc(preset / 100)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-
-            <label className="block">
-              <span className="text-aomi-muted mb-2 block text-[11px] font-medium uppercase tracking-wide">
-                Custom amount
-              </span>
-              <span className="border-aomi-border bg-aomi-bg focus-within:border-aomi-muted flex h-11 items-center rounded-lg border transition-colors">
-                <input
-                  aria-label="Top-up credits"
-                  type="number"
-                  inputMode="decimal"
-                  min={1}
-                  max={100000}
-                  step={1}
-                  value={credits}
-                  onChange={(event) => onCreditsChange(event.target.value)}
-                  className="min-w-0 flex-1 bg-transparent px-3 text-sm tabular-nums outline-none"
-                />
-                <span className="border-aomi-border text-aomi-muted border-l px-3 text-xs">
-                  credits
-                </span>
-              </span>
-              <span className="text-aomi-muted mt-1.5 block text-[11px]">
-                100 credits = 1.00 USDC
-              </span>
-            </label>
-
-            <div className="border-aomi-border bg-aomi-surface/45 overflow-hidden rounded-xl border">
-              <div className="flex items-end justify-between gap-3 px-4 py-3.5">
-                <div>
-                  <span className="text-aomi-muted block text-[11px]">
-                    You receive
-                  </span>
-                  <span className="mt-0.5 block text-lg font-semibold tabular-nums">
-                    {validCredits ? formatCredits(parsedCredits) : "—"}{" "}
-                    <span className="text-aomi-muted text-[12px] font-normal">
-                      credits
-                    </span>
-                  </span>
-                </div>
-                <div className="text-right">
-                  <span className="text-aomi-muted block text-[11px]">
-                    Total
-                  </span>
-                  <span className="mt-0.5 block text-lg font-semibold tabular-nums">
-                    {validCredits ? formatUsdc(cost) : "—"}
-                  </span>
-                </div>
-              </div>
-              <div className="border-aomi-border grid grid-cols-2 border-t">
-                <div className="border-aomi-border min-w-0 border-r px-4 py-2.5">
-                  <span className="text-aomi-muted block text-[10px] uppercase tracking-wide">
-                    Paying wallet
-                  </span>
-                  <span className="mt-0.5 flex items-center gap-1.5 text-[11px] font-medium">
-                    <WalletCards
-                      size={12}
-                      className={
-                        paymentReady ? "text-aomi-success" : "text-aomi-danger"
-                      }
-                      aria-hidden="true"
-                    />
-                    <span className="truncate">
-                      {walletAddress
-                        ? truncateHex(walletAddress)
-                        : "Not connected"}
-                    </span>
-                  </span>
-                </div>
-                <div className="px-4 py-2.5">
-                  <span className="text-aomi-muted block text-[10px] uppercase tracking-wide">
-                    Network
-                  </span>
-                  <span className="mt-0.5 block text-[11px] font-medium">
-                    Base Sepolia
-                    {walletChainId !== 84532 ? (
-                      <span className="text-aomi-muted font-normal">
-                        {" "}
-                        · switches automatically
-                      </span>
-                    ) : null}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {!validCredits ? (
-              <p role="alert" className="text-aomi-danger text-xs">
-                Choose between 1 and 100,000 credits.
-              </p>
-            ) : null}
-            {!paymentReady ? (
-              <p role="alert" className="text-aomi-danger text-xs">
-                Connect an EVM wallet before topping up.
-              </p>
-            ) : null}
-            {error ? (
-              <div
-                role="alert"
-                className="border-aomi-danger/25 bg-aomi-danger/5 text-aomi-danger rounded-lg border px-3 py-2.5 text-xs"
-              >
-                {error}
-              </div>
-            ) : null}
-
-            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <DialogPrimitive.Close asChild>
-                <button
-                  type="button"
-                  disabled={busy}
-                  className="border-aomi-border hover:bg-aomi-surface-2 h-9 rounded-lg border px-3.5 text-[13px] font-medium transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </DialogPrimitive.Close>
-              <button
-                type="button"
-                disabled={busy || !validCredits || !paymentReady}
-                onClick={onConfirm}
-                className="bg-aomi-fg text-aomi-bg inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3.5 text-[13px] font-medium transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {busy ? (
-                  <LoaderCircle
-                    size={14}
-                    className="animate-spin"
-                    aria-hidden="true"
-                  />
-                ) : null}
-                {busy
-                  ? "Confirm in wallet…"
-                  : `Pay ${validCredits ? formatUsdc(cost) : ""}`}
-              </button>
-            </div>
-          </div>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
-  );
-}
-
-function CreditActivityRow({ entry }: { entry: CreditEntry }) {
+function CreditActivityRow({ entry }: { entry: AomiCreditActivity }) {
   const receiptUrl = creditReceiptUrl(entry);
   const amountCredits = Math.abs(toCredits(entry.amount_microusd));
   const amountUsdc = Math.abs(entry.amount_microusd) / 1_000_000;
@@ -601,29 +356,6 @@ function CreditActivityRow({ entry }: { entry: CreditEntry }) {
   );
 }
 
-function toCredits(microusd: number): number {
-  return microusd / 10_000;
-}
-
-function formatCredits(value: number): string {
-  return value.toLocaleString(undefined, { maximumFractionDigits: 4 });
-}
-
-function formatCreditAmount(value: number): string {
-  return `${formatCredits(value)} ${value === 1 ? "credit" : "credits"}`;
-}
-
-function formatUsdc(value: number): string {
-  return `${value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  })} USDC`;
-}
-
-function truncateHex(value: string): string {
-  return value.length > 12 ? `${value.slice(0, 6)}…${value.slice(-4)}` : value;
-}
-
 function formatCreditDate(timestamp: number): string {
   const milliseconds =
     timestamp < 1_000_000_000_000 ? timestamp * 1000 : timestamp;
@@ -635,7 +367,7 @@ function formatCreditDate(timestamp: number): string {
   }).format(new Date(milliseconds));
 }
 
-function creditReceiptUrl(entry: CreditEntry): string | null {
+function creditReceiptUrl(entry: AomiCreditActivity): string | null {
   const provider = entry.payment_provider?.toLowerCase();
   const legacyMethod = entry.payment_method?.toLowerCase();
   if (provider !== "coinbase" && legacyMethod !== "coinbase") {
@@ -650,7 +382,7 @@ function creditReceiptUrl(entry: CreditEntry): string | null {
   return `https://sepolia.basescan.org/tx/${entry.external_payment_reference}`;
 }
 
-function creditPaymentLabel(entry: CreditEntry): string {
+function creditPaymentLabel(entry: AomiCreditActivity): string {
   if (
     entry.payment_provider?.toLowerCase() === "coinbase" ||
     entry.payment_method?.toLowerCase() === "coinbase"

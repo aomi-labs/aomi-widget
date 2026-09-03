@@ -102,8 +102,14 @@ describe("public Agent and Pipeline OpenAPI snapshot", () => {
       preferences: { type: "object", additionalProperties: true },
       ext: { type: "object", additionalProperties: true },
     });
-    expect(publicApi.components.schemas.UserStateConnection.additionalProperties).toBe(false);
-    expect(publicApi.components.schemas.UserStateEvm.additionalProperties).toBe(false);
-    expect(publicApi.components.schemas.UserStateSvm.additionalProperties).toBe(false);
+    expect(
+      publicApi.components.schemas.UserStateConnection.additionalProperties,
+    ).toBe(false);
+    expect(publicApi.components.schemas.UserStateEvm.additionalProperties).toBe(
+      false,
+    );
+    expect(publicApi.components.schemas.UserStateSvm.additionalProperties).toBe(
+      false,
+    );
   });
 });
