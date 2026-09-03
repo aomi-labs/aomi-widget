@@ -19,7 +19,7 @@ import {
 import {
   groupModelsByVendor,
   getVendorForModel,
-  AUTO_MODE_LABEL,
+  AUTO_MODEL_LABEL,
   resolveAutoModel,
 } from "./model-metadata";
 import { AutoModeIcon, getVendorIcon } from "@/components/icons";
@@ -86,7 +86,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
   const groups = groupModelsByVendor(models);
 
   // Display label for the trigger button
-  const triggerLabel = isAuto ? AUTO_MODE_LABEL : selectedModel || placeholder;
+  const triggerLabel = isAuto ? AUTO_MODEL_LABEL : selectedModel || placeholder;
 
   const handleSelect = (model: string) => {
     if (isRunning) return;
@@ -171,7 +171,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
                     <AutoModeIcon className="size-4" />
                   </span>
                   <div className="flex flex-col">
-                    <span className="font-medium">{AUTO_MODE_LABEL}</span>
+                    <span className="font-medium">{AUTO_MODEL_LABEL}</span>
                     <span className="text-aomi-muted text-[11px] leading-4">
                       Best balance of speed & cost
                     </span>

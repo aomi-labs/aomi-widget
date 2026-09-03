@@ -10,6 +10,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -331,10 +332,12 @@ export const CapabilityMentionInput: FC<{
   className: string;
 }> = ({ placeholder, className }) => {
   const editorRef = useRef<HTMLDivElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const pickerId = useId();
   const triggerRef = useRef<TriggerRange | null>(null);
   const lastTextRef = useRef("");
   const [query, setQuery] = useState<string | null>(null);
-  const [highlighted, setHighlighted] = useState(0);
+  const [highlighted, setHighlighted] = useState(-1);
   const [hasText, setHasText] = useState(false);
   const { value, setText, isDisabled } = unstable_useComposerInput();
   const {
@@ -436,7 +439,6 @@ export const CapabilityMentionInput: FC<{
           ? `${item.label} ${item.searchText}`.toLowerCase().includes(needle)
           : true),
     );
-    const resultLimit = needle ? 18 : 6;
     return (
       [
         { kind: "app", label: "Apps" },
@@ -446,9 +448,7 @@ export const CapabilityMentionInput: FC<{
     )
       .map((group) => ({
         ...group,
-        items: matching
-          .filter((item) => item.kind === group.kind)
-          .slice(0, resultLimit),
+        items: matching.filter((item) => item.kind === group.kind),
       }))
       .filter((group) => group.items.length > 0);
   }, [hintsEnabled, items, mentions, query]);
@@ -457,6 +457,10 @@ export const CapabilityMentionInput: FC<{
     () => visibleGroups.flatMap((group) => group.items),
     [visibleGroups],
   );
+
+  useEffect(() => {
+    setHighlighted(query !== null && visibleItems.length > 0 ? 0 : -1);
+  }, [query, visibleItems.length]);
 
   const syncEditor = useCallback(() => {
     const editor = editorRef.current;
@@ -473,6 +477,23 @@ export const CapabilityMentionInput: FC<{
     setQuery(trigger?.query ?? null);
     setHighlighted(0);
   }, [hintsEnabled, retainMentions, setText]);
+
+  useEffect(() => {
+    if (highlighted < 0) return;
+    const picker = pickerRef.current;
+    const option = picker?.querySelector<HTMLElement>(
+      `[data-capability-index="${highlighted}"]`,
+    );
+    if (!picker || !option) return;
+
+    const pickerBounds = picker.getBoundingClientRect();
+    const optionBounds = option.getBoundingClientRect();
+    if (optionBounds.top < pickerBounds.top) {
+      picker.scrollTop -= pickerBounds.top - optionBounds.top;
+    } else if (optionBounds.bottom > pickerBounds.bottom) {
+      picker.scrollTop += optionBounds.bottom - pickerBounds.bottom;
+    }
+  }, [highlighted]);
 
   useEffect(() => {
     if (hintsEnabled) return;
@@ -540,17 +561,21 @@ export const CapabilityMentionInput: FC<{
     if (query !== null && visibleItems.length > 0) {
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setHighlighted((value) => (value + 1) % visibleItems.length);
+        setHighlighted((value) =>
+          value < 0 ? 0 : (value + 1) % visibleItems.length,
+        );
         return;
       }
       if (event.key === "ArrowUp") {
         event.preventDefault();
-        setHighlighted(
-          (value) => (value - 1 + visibleItems.length) % visibleItems.length,
+        setHighlighted((value) =>
+          value < 0
+            ? visibleItems.length - 1
+            : (value - 1 + visibleItems.length) % visibleItems.length,
         );
         return;
       }
-      if (event.key === "Enter" && !event.shiftKey) {
+      if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey) {
         event.preventDefault();
         selectItem(visibleItems[highlighted] ?? visibleItems[0]!);
         return;
@@ -582,6 +607,11 @@ export const CapabilityMentionInput: FC<{
         aria-multiline="true"
         aria-autocomplete="list"
         aria-expanded={query !== null}
+        aria-activedescendant={
+          query !== null && highlighted >= 0
+            ? `${pickerId}-option-${highlighted}`
+            : undefined
+        }
         contentEditable={!isDisabled}
         suppressContentEditableWarning
         onInput={syncEditor}
@@ -597,52 +627,64 @@ export const CapabilityMentionInput: FC<{
         <div
           role="listbox"
           aria-label="Apps, skills, and chains"
-          className="border-aomi-border bg-aomi-raised text-aomi-fg absolute bottom-full left-3 z-50 mb-2 max-h-[310px] w-[min(340px,calc(100%-24px))] overflow-y-auto rounded-2xl border p-1.5 shadow-xl"
+          className="border-aomi-border bg-aomi-raised text-aomi-fg absolute bottom-full left-3 z-50 mb-2 w-[min(380px,calc(100%-24px))] overflow-hidden rounded-xl border p-1 shadow-xl"
         >
           {visibleItems.length > 0 ? (
-            visibleGroups.map((group, groupIndex) => {
-              const priorCount = visibleGroups
-                .slice(0, groupIndex)
-                .reduce((count, prior) => count + prior.items.length, 0);
-              return (
-                <section key={group.kind} aria-label={group.label}>
-                  <div className="text-aomi-muted px-2.5 pb-1 pt-2 text-[10px] font-medium uppercase tracking-[0.08em] first:pt-1">
-                    {group.label}
-                  </div>
-                  {group.items.map((item, itemIndex) => {
-                    const index = priorCount + itemIndex;
-                    return (
-                      <button
-                        key={item.key}
-                        type="button"
-                        role="option"
-                        aria-selected={highlighted === index}
-                        onMouseDown={(event) => event.preventDefault()}
-                        onMouseEnter={() => setHighlighted(index)}
-                        onClick={() => selectItem(item)}
-                        className="hover:bg-aomi-hover aria-selected:bg-aomi-hover flex w-full items-start gap-3 rounded-xl px-2.5 py-2.5 text-left transition-colors"
-                      >
-                        <span className="bg-aomi-surface-2 text-aomi-muted flex size-8 shrink-0 items-center justify-center rounded-xl">
-                          <item.Icon className="size-4" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[13px] font-medium">
-                            {item.label}
-                          </span>
-                          {item.description ? (
-                            <span className="text-aomi-muted mt-0.5 line-clamp-2 block text-[11px] leading-4">
-                              {item.description}
+            <div
+              ref={pickerRef}
+              className="aui-command-list max-h-[268px] overflow-y-auto overflow-x-hidden overscroll-contain pr-1"
+            >
+              {visibleGroups.map((group, groupIndex) => {
+                const priorCount = visibleGroups
+                  .slice(0, groupIndex)
+                  .reduce((count, prior) => count + prior.items.length, 0);
+                return (
+                  <section key={group.kind} aria-label={group.label}>
+                    <div className="text-aomi-muted px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-[0.08em] first:pt-1.5">
+                      {group.label}
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      {group.items.map((item, itemIndex) => {
+                        const index = priorCount + itemIndex;
+                        return (
+                          <button
+                            key={item.key}
+                            id={`${pickerId}-option-${index}`}
+                            data-capability-index={index}
+                            type="button"
+                            role="option"
+                            aria-selected={highlighted === index}
+                            onMouseDown={(event) => event.preventDefault()}
+                            onPointerMove={() => setHighlighted(index)}
+                            onClick={() => selectItem(item)}
+                            className="hover:bg-aomi-hover aria-selected:bg-aomi-hover flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors"
+                          >
+                            <span className="bg-aomi-surface-2 text-aomi-muted flex size-7 shrink-0 items-center justify-center rounded-lg">
+                              <item.Icon className="size-3.5" />
                             </span>
-                          ) : null}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </section>
-              );
-            })
+                            <span className="min-w-0 flex-1 py-px">
+                              <span className="block truncate text-[13px] font-medium leading-4">
+                                {item.label}
+                              </span>
+                              {item.description ? (
+                                <span
+                                  title={item.description}
+                                  className="text-aomi-muted mt-px block truncate text-[11px] leading-4"
+                                >
+                                  {item.description}
+                                </span>
+                              ) : null}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
           ) : (
-            <div className="text-aomi-muted px-3 py-8 text-center text-xs">
+            <div className="text-aomi-muted px-3 py-7 text-center text-xs">
               No matching capabilities
             </div>
           )}

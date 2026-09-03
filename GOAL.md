@@ -4,16 +4,22 @@ Current session goal: **AUTO/DIRECT COMPOSER AND COMPACT PICKER UI VERIFIED
 2026-09-03** — Auto is visually quiet with keyboard-only `@` hints, Direct is a
 borderless adjacent policy/app control, and model, network, execution, and
 Direct-app pickers share one compact menu and chevron system. Search and bounded
-scrolling remain functional, logos are unboxed, and hover never merges with an
-adjacent selected row. Menus use a dense 248px app-scale width with compact rows
-and 24px icon slots, and open neutrally until pointer or keyboard navigation
+scrolling remain functional. The automatic model choice is labeled Balanced so
+it stays distinct from the Auto execution mode. Logos are unboxed, and hover
+never merges with an adjacent selected row. Menus use a dense 248px app-scale
+width with compact rows and 24px icon slots, and open neutrally until pointer or
+keyboard navigation
 begins. Search is integrated as the header instead of floating in a second
 labeled box, and scroll tracks are inset and rounded within the menu.
 Scrollable menus use a shorter five-row viewport with a visible draggable thumb.
 Every option reserves a fixed right-side status column so checks never reflow text.
+The `@` capability picker uses the same compact shell at a slightly wider reading
+width, exposes the full catalog through an inset scroll viewport, and keeps every
+description to one ellipsized line. Its first filtered result is selected while
+typing, arrow navigation follows the active row, and Enter or Tab inserts it.
 The stale Agent API and backend binaries were rebuilt; a real Auto request
 completed over Tailscale; focused tests, Portal typecheck, the widget package
-build, and live Chrome verification pass for widget 2.0.17.
+build, and live Chrome verification pass for widget 2.0.18.
 
 Current session goal: **AUTO/DIRECT CLIENT-TO-PORTAL IMPLEMENTATION VERIFIED
 2026-09-03** — make omitted Agent routing Auto across the TypeScript client,
