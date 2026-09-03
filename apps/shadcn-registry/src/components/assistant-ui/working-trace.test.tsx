@@ -39,20 +39,59 @@ describe("WorkingTrace", () => {
       "Thinking",
     );
     expect(container.querySelector(".aui-working-trace-start")).toHaveClass(
-      "h-8",
+      "h-9",
       "w-fit",
       "rounded-full",
-      "pr-4",
       "pl-3",
+      "pr-4",
+      "border-aomi-border",
+      "bg-aomi-surface",
+    );
+    expect(container.querySelector(".aui-working-trace-start")).not.toHaveClass(
+      "h-8",
+      "px-3",
+      "-mt-px",
     );
     expect(container.querySelector(".aui-working-shimmer")).toHaveClass(
       "text-[13px]",
       "font-medium",
       "leading-none",
     );
+    expect(container.querySelector(".aui-working-shimmer")).not.toHaveClass(
+      "-top-px",
+    );
     expect(container.querySelector(".aui-working-live")).toBeTruthy();
     expect(container.querySelector(".aui-working-trace")).toBeNull();
     expect(getByRole("status")).toHaveTextContent(/^Thinking$/);
+  });
+
+  it("keeps Thinking and collapsed Worked chips the same size", () => {
+    const { getByRole } = render(
+      <>
+        <MinimalWorkingTrace />
+        <WorkingTrace
+          running={false}
+          items={[]}
+          revealed={0}
+          orchestrating={false}
+        />
+      </>,
+    );
+
+    const thinking = getByRole("status", { name: "Aomi is thinking" });
+    const worked = getByRole("button", { name: /Worked it out/ });
+    for (const className of [
+      "h-9",
+      "w-fit",
+      "rounded-full",
+      "pl-3",
+      "pr-4",
+      "border-aomi-border",
+      "bg-aomi-surface",
+    ]) {
+      expect(thinking).toHaveClass(className);
+      expect(worked).toHaveClass(className);
+    }
   });
 
   it("shows completed duration as whole seconds", () => {

@@ -526,13 +526,10 @@
 
 @keyframes aui-working-sweep {
   from {
-    background-position: 0% 0;
+    background-position: 100% 50%;
   }
   to {
-    /* Shift by exactly one tile width so the tiled gradient loops with no
-       visible seam or snap. background-size is 50%, so 100% of the
-       positionable range equals one full tile. */
-    background-position: 100% 0;
+    background-position: 0% 50%;
   }
 }
 
@@ -557,32 +554,42 @@
    the agent is still working. Uses the theme's own foreground/muted tokens so
    it inherits each app's palette (and dark mode) automatically.
 
-   The gradient is a single soft bump (muted → foreground peak → muted) that is
-   *tiled* twice across the text (background-size: 50%, repeat). Because the
-   image repeats, a new highlight enters from the right exactly as the previous
-   one leaves — there is never a fully-muted "dead" stretch, and the foreground
-   peak is only ever a hairline so the text never goes solid. Translating by one
-   whole tile per cycle makes the loop seamless (no snap on restart). */
+   One broad highlight enters from the left, crosses the label, and exits to the
+   right. The oversized, non-repeating gradient leaves the rest of the label at
+   the normal muted color, preserving its apparent weight between slow passes. */
 .aui-working-shimmer {
   background-image: linear-gradient(
-    100deg,
+    90deg,
     var(--aomi-muted, var(--muted-foreground)) 0%,
-    var(--aomi-muted, var(--muted-foreground)) 20%,
+    var(--aomi-muted, var(--muted-foreground)) 38%,
+    color-mix(
+        in oklch,
+        var(--aomi-muted, var(--muted-foreground)) 50%,
+        var(--aomi-fg, var(--foreground))
+      )
+      46%,
     var(--aomi-fg, var(--foreground)) 50%,
-    var(--aomi-muted, var(--muted-foreground)) 80%,
+    color-mix(
+        in oklch,
+        var(--aomi-muted, var(--muted-foreground)) 50%,
+        var(--aomi-fg, var(--foreground))
+      )
+      54%,
+    var(--aomi-muted, var(--muted-foreground)) 62%,
     var(--aomi-muted, var(--muted-foreground)) 100%
   );
-  background-size: 50% 100%;
-  background-repeat: repeat;
+  background-size: 240% 100%;
+  background-repeat: no-repeat;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: aui-working-sweep 2s linear infinite;
+  animation: aui-working-sweep 3.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .aui-working-shimmer {
     animation: none;
+    background-image: none;
     color: var(--muted-foreground);
     -webkit-text-fill-color: var(--muted-foreground);
   }

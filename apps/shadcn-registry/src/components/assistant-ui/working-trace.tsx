@@ -190,6 +190,8 @@ const WorkingLivePulse: FC = () => (
 );
 
 const WORKING_STATUS_TEXT_CLASS = "text-[13px] font-medium leading-none";
+const WORKING_COLLAPSED_CHIP_CLASS =
+  "border-aomi-border bg-aomi-surface h-9 w-fit rounded-full pl-3 pr-4";
 
 export const WorkingTrace: FC<{
   running: boolean;
@@ -403,7 +405,10 @@ export const WorkingTrace: FC<{
           "aui-working-trace-header flex items-center gap-2 border text-left text-sm transition-[height,padding,border-radius,border-color,background-color] duration-300 ease-out motion-reduce:transition-none",
           open
             ? "bg-aomi-surface/65 h-10 w-full self-stretch rounded-[11px] border-transparent px-3.5"
-            : "border-aomi-border bg-aomi-surface hover:border-aomi-muted/40 h-9 w-fit self-start rounded-full px-3",
+            : cn(
+                WORKING_COLLAPSED_CHIP_CLASS,
+                "hover:border-aomi-muted/40 self-start",
+              ),
         )}
       >
         {running ? (
@@ -554,15 +559,13 @@ export const MinimalWorkingTrace: FC = () => (
   <div
     role="status"
     aria-label="Aomi is thinking"
-    className="aui-working-trace-start ring-aomi-border/70 bg-aomi-surface/70 animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 -mt-px mb-3 flex h-8 w-fit origin-top-left items-center gap-2 rounded-full pr-4 pl-3 ring-1 ring-inset duration-300 ease-out motion-reduce:animate-none"
+    className={cn(
+      "aui-working-trace-start animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 mb-3 flex origin-top-left items-center gap-2 border duration-300 ease-out motion-reduce:animate-none",
+      WORKING_COLLAPSED_CHIP_CLASS,
+    )}
   >
     <WorkingLivePulse />
-    <span
-      className={cn(
-        WORKING_STATUS_TEXT_CLASS,
-        "aui-working-shimmer relative -top-px",
-      )}
-    >
+    <span className={cn(WORKING_STATUS_TEXT_CLASS, "aui-working-shimmer")}>
       Thinking
     </span>
   </div>

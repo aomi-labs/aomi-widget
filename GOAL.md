@@ -17,9 +17,13 @@ The `@` capability picker uses the same compact shell at a slightly wider readin
 width, exposes the full catalog through an inset scroll viewport, and keeps every
 description to one ellipsized line. Its first filtered result is selected while
 typing, arrow navigation follows the active row, and Enter or Tab inserts it.
+The initial Thinking pill and collapsed Worked pill now share one 36px shell,
+including an identical text baseline and optically balanced trailing padding.
+Active labels use one broad, non-repeating highlight that moves slowly from left
+to right over otherwise stable muted text.
 The stale Agent API and backend binaries were rebuilt; a real Auto request
 completed over Tailscale; focused tests, Portal typecheck, the widget package
-build, and live Chrome verification pass for widget 2.0.18.
+build, and live Chrome verification pass for widget 2.0.19.
 
 Current session goal: **AUTO/DIRECT CLIENT-TO-PORTAL IMPLEMENTATION VERIFIED
 2026-09-03** — make omitted Agent routing Auto across the TypeScript client,
