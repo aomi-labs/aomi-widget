@@ -66,7 +66,9 @@ export const Thread: FC = () => {
   const composerRuntime = useComposerRuntime();
   const { threadViewKey } = useThreadContext();
   const composerControl = useComposerControl();
+  const aomiRuntime = useOptionalAomiRuntime();
   const controlBarProps = composerControl.controlBarProps ?? {};
+  const isReviewingAction = Boolean(aomiRuntime?.pendingActions.length);
 
   useEffect(() => {
     try {
@@ -90,7 +92,10 @@ export const Thread: FC = () => {
             }}
           >
             <PaymentRequiredGate />
-            <ThreadPrimitive.Viewport className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 pt-2 md:px-6">
+            <ThreadPrimitive.Viewport
+              autoScroll={!isReviewingAction}
+              className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 pt-2 md:px-6"
+            >
               <ThreadPrimitive.If empty>
                 <ThreadWelcome />
               </ThreadPrimitive.If>

@@ -409,6 +409,16 @@ function AssetChange({
     change.decimals ?? (change.asset === "native" ? 18 : undefined);
   const network = balanceChangeNetwork(change, request, supportedChains);
   const presentation = assetChangePresentation(change, symbol, decimals);
+  const assetName =
+    change.asset !== "native" &&
+    !change.tokenId &&
+    change.name?.trim() &&
+    change.name.trim().toLocaleLowerCase() !== symbol.toLocaleLowerCase()
+      ? change.name.trim()
+      : undefined;
+  const context = [assetName, showNetwork ? network : undefined]
+    .filter((value): value is string => Boolean(value))
+    .join(" · ");
 
   return (
     <div
@@ -421,11 +431,11 @@ function AssetChange({
         incoming={incoming}
       />
       <div className="min-w-0 flex-1">
-        <p className="text-aomi-muted text-[10px] font-medium uppercase tracking-[0.08em]">
+        <p className="text-aomi-muted truncate text-[10px] font-medium uppercase tracking-[0.08em]">
           {presentation.verb}
-          {showNetwork && network ? (
+          {context ? (
             <span className="ml-1 normal-case tracking-normal">
-              · {network}
+              · {context}
             </span>
           ) : null}
         </p>

@@ -228,6 +228,59 @@ describe("RuntimeTxHandler", () => {
     ).not.toHaveClass("sm:grid-cols-2");
   });
 
+  it("pairs token names and tickers with exact decimal display amounts", () => {
+    runtime.pendingActions = [
+      action({
+        type: "execute_evm",
+        transactions: [
+          {
+            chain_id: 8453,
+            from: "0x1111111111111111111111111111111111111111",
+            to: "0x2222222222222222222222222222222222222222",
+            data: "0x01",
+            label: "Withdraw USDC",
+            kind: "withdraw",
+          },
+        ],
+        simulation: {
+          ...simulation(),
+          balanceChanges: [
+            {
+              account: "0x1111111111111111111111111111111111111111",
+              asset: "0x3333333333333333333333333333333333333333",
+              amount: "100000",
+              direction: "out",
+              standard: "erc20",
+              name: "Aave Base USDC",
+              symbol: "aBasUSDC",
+              decimals: 6,
+              chainId: 8453,
+            },
+            {
+              account: "0x1111111111111111111111111111111111111111",
+              asset: "0x4444444444444444444444444444444444444444",
+              amount: "100000",
+              direction: "in",
+              standard: "erc20",
+              name: "USD Coin",
+              symbol: "USDC",
+              decimals: 6,
+              chainId: 8453,
+            },
+          ],
+        },
+      }),
+    ];
+
+    render(<RuntimeTxHandler />);
+
+    expect(screen.getByText("−0.1 aBasUSDC")).toBeInTheDocument();
+    expect(screen.getByText("+0.1 USDC")).toBeInTheDocument();
+    const effects = screen.getAllByTestId("asset-effect");
+    expect(effects[0]).toHaveTextContent("Aave Base USDC");
+    expect(effects[1]).toHaveTextContent("USD Coin");
+  });
+
   it("pages through a multi-transaction request without scrolling", () => {
     runtime.pendingActions = [
       action({

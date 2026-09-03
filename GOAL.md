@@ -1,5 +1,12 @@
 # Canonical Landing
 
+Current session goal: **AGENT SIMULATION METADATA + REVIEW VIEWPORT VERIFIED 2026-09-04** —
+ensure the normal Agent action path enriches every decoded EVM asset with its
+on-chain name, ticker, and decimals just like the public Pipeline route. Keep
+atomic-unit strings canonical in the API while presenting exact human decimal
+amounts, tickers, and quiet full-name context in transaction review, without
+auto-scrolling the conversation when the review panel appears.
+
 Current session goal: **TYPED EVM SIMULATION EFFECTS VERIFIED 2026-09-04** —
 consume the backend's wallet-focused native/ERC-20/ERC-721/ERC-1155 movement
 and permission evidence through the generated public API contract, expose it
