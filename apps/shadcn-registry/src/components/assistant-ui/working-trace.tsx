@@ -365,14 +365,11 @@ export const WorkingTrace: FC<{
       ? `Worked for ${formatDuration(elapsed)}`
       : "Worked it out";
 
-  // Exactly one "live" signal: the newest *revealed* step shimmers while running
-  // and the trace is open; if the user collapses mid-run, the header shimmers.
+  // Keep the status treatment continuous from Thinking into Working. The newest
+  // revealed step retains its contextual shimmer while the header consistently
+  // communicates that the overall turn is still live.
   const activeIndex = running ? revealed - 1 : -1;
-  const headerClass = !running
-    ? "text-aomi-fg"
-    : open
-      ? "text-aomi-muted"
-      : "aui-working-shimmer";
+  const headerClass = running ? "aui-working-shimmer" : "text-aomi-fg";
 
   const visibleItems = items.slice(0, revealed);
 

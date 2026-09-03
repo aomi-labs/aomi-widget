@@ -160,6 +160,7 @@ describe("WorkingTrace", () => {
       "text-[13px]",
       "font-medium",
       "leading-none",
+      "aui-working-shimmer",
     );
     expect(container).toHaveTextContent("orchestrator");
     expect(container).not.toHaveTextContent("Orchestrating");
