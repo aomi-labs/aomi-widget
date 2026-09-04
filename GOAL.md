@@ -1,5 +1,12 @@
 # Canonical Landing
 
+Current session goal: **SEMANTIC LIVE STATUS GLYPHS VERIFIED 2026-09-04** —
+replace the generic pulsing dot with a softly breathing neural mark while the
+model is thinking and a flowing three-node execution path once tool work has
+begun. Preserve the compact pill geometry, text shimmer, theme colors, and
+reduced-motion behavior. Focused trace tests, scoped lint, Portal typecheck,
+registry generation, and the widget 2.0.26 package/tarball audit pass.
+
 Current session goal: **WALLET MODAL LAYERING VERIFIED 2026-09-04** — render
 the wallet manager through a document-level portal so it remains above the
 entire widget regardless of host stacking contexts, and keep the custom empty

@@ -7,7 +7,12 @@ import {
   type TextMessagePart,
   type ToolCallMessagePart,
 } from "@assistant-ui/react";
-import { CheckIcon, ChevronDownIcon, MoreHorizontalIcon } from "lucide-react";
+import {
+  BrainCircuitIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  MoreHorizontalIcon,
+} from "lucide-react";
 
 import {
   cn,
@@ -179,13 +184,62 @@ type TraceItem =
 const childStepCount = (item: TraceItem): number =>
   item.kind === "agent" ? agentStepCount(item.run) : 0;
 
-const WorkingLivePulse: FC = () => (
+const ThinkingStatusGlyph: FC = () => (
   <span
     aria-hidden="true"
-    className="aui-working-live relative flex size-4 shrink-0 items-center justify-center"
+    className="aui-thinking-glyph text-aomi-accent relative flex size-4 shrink-0 items-center justify-center"
   >
-    <span className="aui-working-live-halo bg-aomi-accent/25 absolute size-2.5 rounded-full" />
-    <span className="bg-aomi-accent-strong relative size-1.5 rounded-full" />
+    <BrainCircuitIcon className="aui-thinking-brain size-[15px]" />
+    <span className="aui-thinking-signal bg-aomi-accent-strong ring-aomi-surface absolute right-0 top-0 size-[3px] rounded-full ring-1" />
+  </span>
+);
+
+const WorkingStatusGlyph: FC = () => (
+  <span
+    aria-hidden="true"
+    className="aui-working-glyph text-aomi-accent relative flex size-4 shrink-0 items-center justify-center"
+  >
+    <svg viewBox="0 0 16 16" className="size-4 overflow-visible">
+      <path
+        className="aui-working-route"
+        d="M2.5 10.5c2.1 0 2.25-5 5.5-5s3.4 5 5.5 5"
+        fill="none"
+        pathLength="24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.2"
+      />
+      <path
+        className="aui-working-route-flow"
+        d="M2.5 10.5c2.1 0 2.25-5 5.5-5s3.4 5 5.5 5"
+        fill="none"
+        pathLength="24"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.5"
+      />
+      <circle
+        className="aui-working-node aui-working-node-start"
+        cx="2.5"
+        cy="10.5"
+        r="1.25"
+        fill="currentColor"
+      />
+      <circle
+        className="aui-working-node aui-working-node-center"
+        cx="8"
+        cy="5.5"
+        r="1.4"
+        fill="currentColor"
+      />
+      <circle
+        className="aui-working-node aui-working-node-end"
+        cx="13.5"
+        cy="10.5"
+        r="1.25"
+        fill="currentColor"
+      />
+    </svg>
   </span>
 );
 
@@ -407,7 +461,7 @@ export const WorkingTrace: FC<{
         )}
       >
         {running ? (
-          <WorkingLivePulse />
+          <WorkingStatusGlyph />
         ) : (
           <span className="flex size-4 shrink-0 items-center justify-center">
             <CheckIcon className="text-aomi-success size-3.5" />
@@ -554,7 +608,7 @@ export const MinimalWorkingTrace: FC = () => (
       WORKING_COLLAPSED_CHIP_CLASS,
     )}
   >
-    <WorkingLivePulse />
+    <ThinkingStatusGlyph />
     <span className={cn(WORKING_STATUS_TEXT_CLASS, "aui-working-shimmer")}>
       Thinking
     </span>

@@ -62,7 +62,9 @@ describe("WorkingTrace", () => {
     expect(container.querySelector(".aui-working-shimmer")).not.toHaveClass(
       "-top-px",
     );
-    expect(container.querySelector(".aui-working-live")).toBeTruthy();
+    expect(container.querySelector(".aui-thinking-glyph")).toBeTruthy();
+    expect(container.querySelector(".aui-thinking-brain")).toBeTruthy();
+    expect(container.querySelector(".aui-working-glyph")).toBeNull();
     expect(container.querySelector(".aui-working-trace")).toBeNull();
     expect(getByRole("status")).toHaveTextContent(/^Thinking$/);
   });
@@ -158,7 +160,9 @@ describe("WorkingTrace", () => {
       "aui-working-shimmer",
     );
     expect(container).not.toHaveTextContent(/orchestrat/i);
-    expect(container.querySelector(".aui-working-live")).toBeTruthy();
+    expect(container.querySelector(".aui-working-glyph")).toBeTruthy();
+    expect(container.querySelector(".aui-working-route-flow")).toBeTruthy();
+    expect(container.querySelector(".aui-thinking-glyph")).toBeNull();
     expect(container).not.toHaveTextContent("0 steps");
   });
 
