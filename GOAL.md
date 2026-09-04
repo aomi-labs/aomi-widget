@@ -1,5 +1,30 @@
 # Canonical Landing
 
+Current session goal: **PRODUCTION WALLET IMPACT REVIEW VERIFIED 2026-09-04** —
+ship the selected side-by-side review into the live widget with invariant Send
+controls, two-row fixed transaction pages, approval/action pairing, safe
+protocol attribution, semantic Aomi-blue transaction marks, directional ETH
+and generic-token marks, and footer-level gas. Eleven focused handler tests,
+scoped formatting and lint, Portal typecheck, registry generation, the widget
+2.0.28 bundle/tarball audit, and live swap-preview verification all pass.
+
+Current session goal: **WALLET IMPACT SYSTEM LAB VERIFIED 2026-09-04** —
+expand the selected side-by-side wallet-impact direction across realistic
+transaction shapes. Keep Ethereum and generic ERC-20 asset marks directional,
+make transaction marks consistently Aomi blue, retain the full simulation
+verdict, and page complex requests by meaningful operation with prerequisite
+approvals attached to the action they enable. Nine live fixtures pass scoped
+formatting, lint, Portal typecheck, and browser verification of recipient-range
+and grouped-operation paging.
+
+Current session goal: **TRANSACTION REVIEW CONCEPT LAB VERIFIED 2026-09-04** —
+build an isolated dev-only gallery of distinct transaction-review structures at
+the real chat width before changing production UI. Every viable direction uses
+asset-specific ETH treatment, directional balance colors, footer-level gas,
+and a paper-plane send action across swap, transfer, NFT, and failure examples.
+The dev route passes scoped formatting, lint, Portal typecheck, and a live
+Tailscale browser render of all eight concepts with working shortlist controls.
+
 Current session goal: **LEGIBLE LIVE STATUS GLYPHS VERIFIED 2026-09-04** —
 replace the intricate neural mark and abstract execution path with immediately
 readable 15px symbols: a gently illuminating bulb for Thinking and a slowly

@@ -10,9 +10,13 @@ import {
   ChevronRight,
   Coins,
   FileSignature,
+  Fuel,
+  Gem,
   Info,
   KeyRound,
-  LoaderCircle,
+  Layers3,
+  Repeat2,
+  Send,
   ShieldAlert,
   ShieldCheck,
 } from "lucide-react";
@@ -20,8 +24,6 @@ import type { Action, ActionRequest } from "@aomi-labs/client";
 import { normalizeSolanaCluster } from "@aomi-labs/client";
 import { cn, getChainInfo, useAomiRuntime } from "@aomi-labs/react";
 
-import { getChainIcon } from "./icons/chain-map";
-import { SolanaIcon } from "./icons/chains";
 import { useAomiWalletKit } from "../lib/wallet-kit";
 import { Button } from "./ui/button";
 
@@ -31,7 +33,7 @@ type Simulation = Extract<
 >["simulation"];
 type BalanceChange = Simulation["balanceChanges"][number];
 type ApprovalChange = Simulation["approvals"][number];
-type ChainIcon = FC<SVGProps<SVGSVGElement>>;
+type TransactionIcon = FC<SVGProps<SVGSVGElement>>;
 type SupportedChain = {
   id: number;
   name: string;
@@ -39,6 +41,7 @@ type SupportedChain = {
 };
 
 const STALE_FAILED_SIMULATION_WARNING = "simulation did not pass";
+const REVIEW_PAGE_SIZE = 2;
 
 /** Presents the next durable Action and submits only an explicit user choice. */
 export function RuntimeTxHandler() {
@@ -101,21 +104,24 @@ export function TransactionReview({
   onApprove: () => void;
   onReject: () => void;
 }) {
-  const [transactionIndex, setTransactionIndex] = useState(0);
+  const [transactionPage, setTransactionPage] = useState(0);
   const [pageDirection, setPageDirection] = useState<-1 | 1>(1);
   const transactions = useMemo(
     () => actionTransactions(action.request, supportedChains),
     [action.request, supportedChains],
   );
-  const transaction = transactions[transactionIndex] ?? transactions[0];
+  const transactionPages = useMemo(
+    () => paginateTransactions(transactions),
+    [transactions],
+  );
+  const visibleTransactions =
+    transactionPages[transactionPage] ?? transactionPages[0] ?? [];
   const simulation =
     action.request.type === "sign" ? undefined : action.request.simulation;
   const balanceChanges = simulation?.balanceChanges ?? [];
   const approvals = simulation?.approvals ?? [];
   const warnings = visibleSimulationWarnings(simulation);
   const simulationFailed = simulation?.status === "failed";
-  const canPage = transactions.length > 1;
-  const transactionNetworks = new Set(transactions.map((item) => item.network));
   const balanceNetworks = new Set(
     balanceChanges
       .map((change) =>
@@ -124,15 +130,14 @@ export function TransactionReview({
       .filter((network): network is string => Boolean(network)),
   );
 
-  useEffect(() => setTransactionIndex(0), [action.id, action.revision]);
-
-  if (!transaction) return null;
+  useEffect(() => setTransactionPage(0), [action.id, action.revision]);
 
   const move = (direction: -1 | 1) => {
     setPageDirection(direction);
-    setTransactionIndex(
+    setTransactionPage(
       (current) =>
-        (current + direction + transactions.length) % transactions.length,
+        (current + direction + transactionPages.length) %
+        transactionPages.length,
     );
   };
 
@@ -143,7 +148,7 @@ export function TransactionReview({
       data-preview={preview || undefined}
       className="aui-transaction-review border-aomi-border bg-aomi-raised text-aomi-fg animate-in fade-in-0 slide-in-from-bottom-2 zoom-in-95 w-full origin-bottom overflow-hidden rounded-2xl border shadow-[0_14px_40px_rgba(17,24,39,0.09)] duration-300 ease-out motion-reduce:animate-none"
     >
-      <header className="flex min-h-12 items-center gap-3 px-4 py-2">
+      <header className="flex min-h-14 items-center gap-3 px-4 py-2.5">
         <span className="bg-aomi-accent-subtle text-aomi-accent-strong ring-current/5 flex size-8 shrink-0 items-center justify-center rounded-full ring-1 ring-inset">
           {action.request.type === "sign" ? (
             <FileSignature className="size-4" />
@@ -153,10 +158,10 @@ export function TransactionReview({
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-[13px] font-semibold leading-5">
-            {reviewTitle(action.request, transactions.length)}
+            Wallet impact
           </h2>
           <p className="text-aomi-muted truncate text-[11px] leading-4">
-            {reviewSubtitle(action.request, transactions)}
+            {reviewSummary(action.request, transactions)}
           </p>
         </div>
         {simulation ? (
@@ -168,155 +173,81 @@ export function TransactionReview({
         )}
       </header>
 
-      {balanceChanges.length > 0 || approvals.length > 0 ? (
-        <section
-          aria-label="Simulated wallet impact"
-          data-change-count={balanceChanges.length}
-          data-approval-count={approvals.length}
-          className="border-aomi-border/70 divide-aomi-border/70 divide-y border-y"
-        >
-          {balanceChanges.length > 0 ? (
-            <div
-              className={cn(
-                "grid gap-px bg-[var(--aomi-border)]",
-                balanceChanges.length > 1 && "sm:grid-cols-2",
-              )}
-            >
-              {balanceChanges.map((change, index) => (
-                <AssetChange
-                  key={`${change.asset}-${change.tokenId ?? "fungible"}-${change.direction}-${index}`}
-                  change={change}
-                  request={action.request}
-                  supportedChains={supportedChains}
-                  showNetwork={balanceNetworks.size > 1}
-                />
-              ))}
-            </div>
-          ) : null}
-          {approvals.length > 0 ? (
-            <div className="bg-aomi-surface/45 grid sm:grid-cols-2">
-              {approvals.map((approval, index) => (
-                <ApprovalEffect
-                  key={`${approval.asset}-${approval.kind}-${approval.tokenId ?? "all"}-${index}`}
-                  approval={approval}
-                  request={action.request}
-                  supportedChains={supportedChains}
-                />
-              ))}
-            </div>
-          ) : null}
-        </section>
-      ) : (
-        <section className="border-aomi-border/70 bg-aomi-surface/45 flex items-center gap-2.5 border-y px-4 py-2">
-          <span className="bg-aomi-surface-2 text-aomi-muted flex size-7 shrink-0 items-center justify-center rounded-full">
-            <Info className="size-3.5" />
+      {warnings[0] ? (
+        <div className="border-aomi-warning/15 bg-aomi-warning/5 text-aomi-warning flex items-center gap-2 border-t px-4 py-2 text-[10px]">
+          <ShieldAlert className="size-3.5 shrink-0" />
+          <span className="truncate" title={warnings[0]}>
+            {warnings[0]}
           </span>
-          <div className="min-w-0">
-            <p className="text-aomi-fg text-[11px] font-medium leading-4">
-              {action.request.type === "sign"
-                ? "Signature only"
-                : simulationFailed
-                  ? "No wallet changes simulated"
-                  : "No asset changes detected"}
-            </p>
-            <p className="text-aomi-muted truncate text-[10px] leading-4">
-              {action.request.type === "sign"
-                ? "No transaction is sent until after you sign."
-                : simulationFailed
-                  ? "The transaction reverted before decoded effects were produced."
-                  : "The simulation did not find wallet movements or permission changes."}
-            </p>
-          </div>
-        </section>
-      )}
+        </div>
+      ) : null}
 
-      <section className="px-4 py-2.5">
-        <div className="flex min-h-10 items-center gap-3">
+      <section className="border-aomi-border/70 grid gap-3 border-t p-3 sm:grid-cols-2">
+        <ImpactPanel
+          key={`${action.id}-${action.revision}`}
+          request={action.request}
+          balanceChanges={balanceChanges}
+          approvals={approvals}
+          hasApprovalTransaction={transactions.some(
+            (transaction) => transaction.kind === "approval",
+          )}
+          supportedChains={supportedChains}
+          showNetwork={balanceNetworks.size > 1}
+          failed={simulationFailed}
+        />
+        <section className="border-aomi-border bg-aomi-raised flex min-h-[152px] min-w-0 flex-col rounded-xl border p-2">
+          <div className="flex min-h-8 items-center gap-2 px-2 pb-1">
+            <p className="text-aomi-muted flex-1 text-[9px] font-semibold uppercase tracking-[0.12em]">
+              Transactions
+            </p>
+            {transactionPages.length > 1 ? (
+              <ReviewPager
+                current={transactionPage}
+                total={transactionPages.length}
+                label={pageRangeLabel(
+                  transactionPages
+                    .slice(0, transactionPage)
+                    .reduce((count, page) => count + page.length, 0),
+                  visibleTransactions.length,
+                  transactions.length,
+                )}
+                onMove={move}
+                subject="transaction page"
+              />
+            ) : null}
+          </div>
           <div
-            key={transactionIndex}
+            key={transactionPage}
             className={cn(
-              "animate-in fade-in-0 flex min-w-0 flex-1 items-center gap-3 duration-200 motion-reduce:animate-none",
+              "animate-in fade-in-0 min-h-[104px] duration-200 motion-reduce:animate-none",
               pageDirection > 0
                 ? "slide-in-from-right-1"
                 : "slide-in-from-left-1",
             )}
           >
-            <span className="bg-aomi-surface-2 flex size-8 shrink-0 items-center justify-center rounded-full ring-1 ring-inset ring-black/[0.03]">
-              <transaction.Icon className="size-4" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <p className="truncate text-[13px] font-medium leading-5">
-                  {transaction.label}
-                </p>
-                {transaction.protocol ? (
-                  <span className="bg-aomi-surface-2 text-aomi-muted hidden shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.04em] sm:inline">
-                    {displayProtocol(transaction.protocol)}
-                  </span>
-                ) : null}
-              </div>
-              <p className="text-aomi-muted truncate text-[11px] leading-4">
-                {transactionNetworks.size > 1 || !transaction.destination
-                  ? transaction.network
-                  : ""}
-                {transaction.destination
-                  ? `${transactionNetworks.size > 1 ? " · " : ""}To ${compact(transaction.destination)}`
-                  : ""}
-              </p>
-            </div>
+            {visibleTransactions.map((transaction, index) => (
+              <TransactionRow
+                key={`${transaction.label}-${index}`}
+                transaction={transaction}
+                connected={
+                  index === 1 &&
+                  visibleTransactions[0]?.kind === "approval" &&
+                  transaction.kind !== "approval"
+                }
+              />
+            ))}
           </div>
-
-          {canPage ? (
-            <div className="border-aomi-border bg-aomi-surface flex h-8 shrink-0 items-center rounded-full border p-0.5">
-              <button
-                type="button"
-                onClick={() => move(-1)}
-                aria-label="Previous transaction"
-                className="text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg flex size-7 items-center justify-center rounded-full transition-colors"
-              >
-                <ChevronLeft className="size-3.5" />
-              </button>
-              <span className="text-aomi-muted min-w-10 text-center font-mono text-[10px] tabular-nums">
-                {transactionIndex + 1} / {transactions.length}
-              </span>
-              <button
-                type="button"
-                onClick={() => move(1)}
-                aria-label="Next transaction"
-                className="text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg flex size-7 items-center justify-center rounded-full transition-colors"
-              >
-                <ChevronRight className="size-3.5" />
-              </button>
-            </div>
-          ) : null}
-        </div>
+        </section>
       </section>
 
-      {simulation?.fees.length || simulation?.gas?.units || warnings.length ? (
-        <div className="border-aomi-border/70 flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 border-t px-4 py-1.5 text-[11px]">
-          {simulation?.fees.length ? (
-            <span className="text-aomi-muted">
-              Estimated fees · {formatFeeSummary(simulation.fees)}
-            </span>
-          ) : simulation?.gas?.units ? (
-            <span className="text-aomi-muted">
-              Estimated gas · {formatInteger(simulation.gas.units)} units
-            </span>
-          ) : null}
-          {warnings[0] ? (
-            <span className="text-aomi-warning truncate" title={warnings[0]}>
-              {warnings[0]}
-            </span>
+      <footer className="border-aomi-border/70 bg-aomi-surface/35 flex min-h-12 items-center gap-2 border-t px-3 py-2">
+        <div className="text-aomi-muted mr-auto flex min-w-0 items-center gap-1.5 pl-1 text-[11px]">
+          <Fuel className="size-3.5 shrink-0" />
+          <span className="truncate">{simulationCostSummary(simulation)}</span>
+          {preview ? (
+            <span className="hidden shrink-0 sm:inline">· Preview</span>
           ) : null}
         </div>
-      ) : null}
-
-      <footer className="border-aomi-border/70 bg-aomi-surface/35 flex items-center justify-end gap-2 border-t px-3 py-2">
-        {preview ? (
-          <p className="text-aomi-muted mr-auto hidden pl-1 text-[11px] sm:block">
-            Preview only
-          </p>
-        ) : null}
         <Button
           type="button"
           variant="outline"
@@ -334,25 +265,214 @@ export function TransactionReview({
           disabled={approving || simulationFailed}
           className="bg-aomi-fg text-aomi-bg hover:bg-aomi-fg h-8 min-w-24 rounded-lg px-3 text-[12px] hover:opacity-90"
         >
-          {approving ? (
-            <>
-              <LoaderCircle className="size-3.5 animate-spin" />
-              In wallet…
-            </>
-          ) : simulationFailed ? (
-            <>
-              <ShieldAlert className="size-3.5" />
-              Blocked
-            </>
-          ) : (
-            <>
-              <Check className="size-3.5" strokeWidth={2.25} />
-              Approve
-            </>
-          )}
+          <Send className="size-3.5" strokeWidth={2} />
+          Send
         </Button>
       </footer>
     </aside>
+  );
+}
+
+function ReviewPager({
+  current,
+  total,
+  label,
+  onMove,
+  subject,
+}: {
+  current: number;
+  total: number;
+  label: string;
+  onMove: (direction: -1 | 1) => void;
+  subject: string;
+}) {
+  return (
+    <div className="border-aomi-border bg-aomi-raised flex h-7 shrink-0 items-center rounded-full border p-0.5">
+      <button
+        type="button"
+        onClick={() => onMove(-1)}
+        aria-label={`Previous ${subject}`}
+        className="text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg flex size-6 items-center justify-center rounded-full transition-colors"
+      >
+        <ChevronLeft className="size-3" />
+      </button>
+      <span className="text-aomi-muted min-w-[66px] text-center text-[9px] tabular-nums">
+        {label || `${current + 1} of ${total}`}
+      </span>
+      <button
+        type="button"
+        onClick={() => onMove(1)}
+        aria-label={`Next ${subject}`}
+        className="text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg flex size-6 items-center justify-center rounded-full transition-colors"
+      >
+        <ChevronRight className="size-3" />
+      </button>
+    </div>
+  );
+}
+
+function ImpactPanel({
+  request,
+  balanceChanges,
+  approvals,
+  hasApprovalTransaction,
+  supportedChains,
+  showNetwork,
+  failed,
+}: {
+  request: ActionRequest;
+  balanceChanges: Simulation["balanceChanges"];
+  approvals: Simulation["approvals"];
+  hasApprovalTransaction: boolean;
+  supportedChains?: readonly SupportedChain[];
+  showNetwork: boolean;
+  failed: boolean;
+}) {
+  const [page, setPage] = useState(0);
+  const visibleApprovals =
+    balanceChanges.length && hasApprovalTransaction
+      ? approvals.filter(
+          (approval) => approval.unlimited || isRevokedApproval(approval),
+        )
+      : approvals;
+  const entries: Array<
+    | { type: "balance"; value: BalanceChange }
+    | { type: "approval"; value: ApprovalChange }
+  > = [
+    ...balanceChanges.map((value) => ({ type: "balance" as const, value })),
+    ...visibleApprovals.map((value) => ({ type: "approval" as const, value })),
+  ];
+  const pages = Math.max(1, Math.ceil(entries.length / REVIEW_PAGE_SIZE));
+  const safePage = Math.min(page, pages - 1);
+  const shown = entries.slice(
+    safePage * REVIEW_PAGE_SIZE,
+    safePage * REVIEW_PAGE_SIZE + REVIEW_PAGE_SIZE,
+  );
+  const heading =
+    balanceChanges.length && visibleApprovals.length
+      ? "Wallet changes"
+      : balanceChanges.length
+        ? "Balance changes"
+        : approvals.length
+          ? "Permission changes"
+          : "Wallet changes";
+  const move = (direction: -1 | 1) =>
+    setPage((current) => (current + direction + pages) % pages);
+
+  return (
+    <section
+      aria-label="Simulated wallet impact"
+      data-change-count={balanceChanges.length}
+      data-approval-count={approvals.length}
+      className="bg-aomi-surface/70 flex min-h-[152px] min-w-0 flex-col rounded-xl p-2"
+    >
+      <div className="flex min-h-8 items-center gap-2 px-2 pb-1">
+        <p className="text-aomi-muted flex-1 text-[9px] font-semibold uppercase tracking-[0.12em]">
+          {heading}
+        </p>
+        {pages > 1 ? (
+          <ReviewPager
+            current={safePage}
+            total={pages}
+            label={pageRangeLabel(
+              safePage * REVIEW_PAGE_SIZE,
+              shown.length,
+              entries.length,
+            )}
+            onMove={move}
+            subject="wallet impact page"
+          />
+        ) : null}
+      </div>
+      <div className={cn("min-h-[104px]", failed && "opacity-50")}>
+        {shown.map((entry, index) =>
+          entry.type === "balance" ? (
+            <AssetChange
+              key={`${entry.value.asset}-${entry.value.tokenId ?? "fungible"}-${entry.value.direction}-${index}`}
+              change={entry.value}
+              request={request}
+              supportedChains={supportedChains}
+              showNetwork={showNetwork}
+            />
+          ) : (
+            <ApprovalEffect
+              key={`${entry.value.asset}-${entry.value.kind}-${entry.value.tokenId ?? "all"}-${index}`}
+              approval={entry.value}
+              request={request}
+              supportedChains={supportedChains}
+            />
+          ),
+        )}
+        {shown.length === 0 ? (
+          <div className="flex min-h-[104px] items-center gap-3 px-2">
+            <span className="border-aomi-border bg-aomi-raised text-aomi-muted flex size-8 shrink-0 items-center justify-center rounded-full border">
+              <Info className="size-3.5" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[12px] font-medium">
+                {request.type === "sign"
+                  ? "Signature only"
+                  : failed
+                    ? "No wallet changes simulated"
+                    : "No wallet changes"}
+              </p>
+              <p className="text-aomi-muted truncate text-[10px]">
+                {request.type === "sign"
+                  ? "No transaction is sent until after you sign."
+                  : failed
+                    ? "The request reverted before effects were produced."
+                    : "Assets and permissions stay the same."}
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function TransactionRow({
+  transaction,
+  connected,
+}: {
+  transaction: TransactionView;
+  connected: boolean;
+}) {
+  const detail = [
+    transaction.network,
+    transaction.protocol ? displayProtocol(transaction.protocol) : undefined,
+    transaction.destination
+      ? `To ${compact(transaction.destination)}`
+      : undefined,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(" · ");
+
+  return (
+    <div
+      data-testid="transaction-step"
+      data-kind={transaction.kind}
+      className="relative flex min-h-[52px] min-w-0 items-center gap-3 px-2.5 py-2"
+    >
+      {connected ? (
+        <span
+          data-testid="transaction-connector"
+          aria-hidden="true"
+          className="bg-aomi-accent/30 absolute -top-3 left-6 h-6 w-px"
+        />
+      ) : null}
+      <span className="bg-aomi-accent-subtle text-aomi-accent-strong ring-aomi-accent/10 relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full ring-1 ring-inset">
+        <transaction.Icon className="size-3.5" strokeWidth={1.9} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[12px] font-medium leading-5">
+          {transaction.label}
+        </p>
+        <p className="text-aomi-muted truncate text-[10px] leading-4">
+          {detail}
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -375,10 +495,7 @@ function SimulationVerdict({ status }: { status: Simulation["status"] }) {
       ) : (
         <ShieldAlert className="size-3" />
       )}
-      <span>
-        <span className="hidden sm:inline">Simulation </span>
-        {passed ? "passed" : "failed"}
-      </span>
+      Simulation {passed ? "passed" : "failed"}
     </span>
   );
 }
@@ -423,11 +540,11 @@ function AssetChange({
   return (
     <div
       data-testid="asset-effect"
-      className="bg-aomi-surface/70 flex min-w-0 items-center gap-3 px-4 py-2"
+      className="flex min-w-0 items-center gap-3 px-2.5 py-2"
     >
       <AssetMark
         standard={change.standard}
-        chainId={chainId ?? undefined}
+        symbol={symbol}
         incoming={incoming}
       />
       <div className="min-w-0 flex-1">
@@ -463,31 +580,35 @@ function AssetChange({
 
 function AssetMark({
   standard,
-  chainId,
+  symbol,
   incoming,
 }: {
   standard?: BalanceChange["standard"];
-  chainId?: number;
+  symbol: string;
   incoming: boolean;
 }) {
-  const Chain = standard === "native" && chainId ? getChainIcon(chainId) : null;
   const Direction = incoming ? ArrowDownLeft : ArrowUpRight;
   return (
     <span
       aria-hidden="true"
+      data-asset-icon={
+        standard === "native" && symbol.toUpperCase() === "ETH"
+          ? "eth"
+          : standard === "erc721" || standard === "erc1155"
+            ? "nft"
+            : "coin"
+      }
       className={cn(
         "border-aomi-border/60 bg-aomi-raised relative flex size-8 shrink-0 items-center justify-center rounded-full border",
         incoming ? "text-aomi-success" : "text-aomi-danger",
       )}
     >
-      {Chain ? (
-        <Chain className="size-[17px]" />
+      {standard === "native" && symbol.toUpperCase() === "ETH" ? (
+        <EthereumAssetIcon className="size-[17px]" />
       ) : standard === "erc721" || standard === "erc1155" ? (
-        <span className="text-aomi-muted text-[9px] font-semibold tracking-[-0.04em]">
-          NFT
-        </span>
+        <Gem className="size-[16px]" strokeWidth={1.7} />
       ) : (
-        <Coins className="text-aomi-muted size-[16px]" strokeWidth={1.7} />
+        <Coins className="size-[16px]" strokeWidth={1.7} />
       )}
       <span className="bg-aomi-raised ring-aomi-raised absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full ring-1">
         <Direction className="size-2.5" strokeWidth={2.5} />
@@ -495,6 +616,21 @@ function AssetMark({
     </span>
   );
 }
+
+const EthereumAssetIcon: TransactionIcon = ({ className }) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" className={className}>
+    <path
+      d="m12 2.25-6.1 10.1L12 15.9l6.1-3.55L12 2.25Z"
+      fill="currentColor"
+      opacity=".9"
+    />
+    <path
+      d="m5.9 13.55 6.1 8.2 6.1-8.2L12 17.1l-6.1-3.55Z"
+      fill="currentColor"
+      opacity=".58"
+    />
+  </svg>
+);
 
 function ApprovalEffect({
   approval,
@@ -522,7 +658,7 @@ function ApprovalEffect({
   return (
     <div
       data-testid="approval-effect"
-      className="sm:[&:nth-child(even)]:border-aomi-border/70 flex min-w-0 items-center gap-3 px-4 py-2 sm:[&:nth-child(even)]:border-l"
+      className="flex min-w-0 items-center gap-3 px-2.5 py-2"
     >
       <span
         aria-hidden="true"
@@ -574,7 +710,8 @@ type TransactionView = {
   network: string;
   destination?: string;
   protocol?: string;
-  Icon: ChainIcon;
+  kind: "approval" | "action";
+  Icon: TransactionIcon;
 };
 
 function actionTransactions(
@@ -586,27 +723,32 @@ function actionTransactions(
       const chain = supportedChains?.find(
         (candidate) => candidate.id === transaction.chain_id,
       );
+      const label = friendlyTransactionLabel(
+        transaction.label || `Transaction ${index + 1}`,
+        transaction.kind,
+      );
+      const semantic = transactionSemantic(label, transaction.kind);
       return {
-        label: friendlyTransactionLabel(
-          transaction.label || `Transaction ${index + 1}`,
-          transaction.kind,
-        ),
+        label,
         network: chain?.name ?? `Chain ${transaction.chain_id}`,
         destination: transaction.to,
         protocol: transaction.protocol,
-        Icon: getChainIcon(transaction.chain_id) ?? ShieldCheck,
+        ...semantic,
       };
     });
   }
   if (request.type === "execute_svm") {
-    return request.transactions.map((transaction, index) => ({
-      label: transaction.description || `Transaction ${index + 1}`,
-      network:
-        normalizeSolanaCluster(transaction.cluster) ??
-        transaction.cluster ??
-        "Solana",
-      Icon: SolanaIcon,
-    }));
+    return request.transactions.map((transaction, index) => {
+      const label = transaction.description || `Transaction ${index + 1}`;
+      return {
+        label,
+        network:
+          normalizeSolanaCluster(transaction.cluster) ??
+          transaction.cluster ??
+          "Solana",
+        ...transactionSemantic(label),
+      };
+    });
   }
   const chainId = request.chainId;
   const chain = chainId
@@ -622,28 +764,96 @@ function actionTransactions(
             "Solana")
           : (chain?.name ?? (chainId ? `Chain ${chainId}` : "Ethereum")),
       destination: request.signer,
-      Icon:
-        request.chainFamily === "svm"
-          ? SolanaIcon
-          : chainId
-            ? (getChainIcon(chainId) ?? FileSignature)
-            : FileSignature,
+      kind: "action",
+      Icon: FileSignature,
     },
   ];
 }
 
-function reviewTitle(request: ActionRequest, count: number): string {
-  if (request.type === "sign") return "Review signature";
-  return count === 1 ? "Review transaction" : `Review ${count} transactions`;
-}
-
-function reviewSubtitle(
+function reviewSummary(
   request: ActionRequest,
   transactions: TransactionView[],
 ): string {
   if (request.type === "sign") return "Confirm what your wallet will sign";
+  const intent =
+    transactions.find((transaction) => transaction.kind !== "approval")
+      ?.label ?? transactions[0]?.label;
   const networks = [...new Set(transactions.map((item) => item.network))];
-  return networks.join(" + ");
+  const count = `${transactions.length} ${transactions.length === 1 ? "transaction" : "transactions"}`;
+  return [intent, count, networks.join(" + ")]
+    .filter((value): value is string => Boolean(value))
+    .join(" · ");
+}
+
+function transactionSemantic(
+  label: string,
+  kind?: string,
+): Pick<TransactionView, "kind" | "Icon"> {
+  const text = `${kind ?? ""} ${label}`.toLowerCase();
+  if (/approv|allowance|permit/.test(text)) {
+    return { kind: "approval", Icon: KeyRound };
+  }
+  if (/erc-?721|erc-?1155|\bnft\b|collectible|mint/.test(text)) {
+    return { kind: "action", Icon: Gem };
+  }
+  if (/swap|exchange/.test(text)) {
+    return { kind: "action", Icon: Repeat2 };
+  }
+  if (/bridge|cross.?chain/.test(text)) {
+    return { kind: "action", Icon: Layers3 };
+  }
+  if (/send|transfer/.test(text)) {
+    if (!/erc-?20/.test(text) && /(^|\s)eth(\s|$)/.test(text)) {
+      return { kind: "action", Icon: EthereumAssetIcon };
+    }
+    if (/erc-?20|usdc|usdt|dai|weth/.test(text)) {
+      return { kind: "action", Icon: Coins };
+    }
+    return { kind: "action", Icon: Send };
+  }
+  return { kind: "action", Icon: FileSignature };
+}
+
+function paginateTransactions(
+  transactions: TransactionView[],
+): TransactionView[][] {
+  const pages: TransactionView[][] = [];
+  for (let index = 0; index < transactions.length; ) {
+    const first = transactions[index];
+    const second = transactions[index + 1];
+    const third = transactions[index + 2];
+    if (second?.kind === "approval" && third) {
+      pages.push(first ? [first] : []);
+      index += 1;
+      continue;
+    }
+    pages.push(transactions.slice(index, index + REVIEW_PAGE_SIZE));
+    index += REVIEW_PAGE_SIZE;
+  }
+  return pages;
+}
+
+function pageRangeLabel(
+  startIndex: number,
+  visible: number,
+  total: number,
+): string {
+  const start = startIndex + 1;
+  const end = start + visible - 1;
+  return `${start}${end > start ? `–${end}` : ""} of ${total}`;
+}
+
+function simulationCostSummary(simulation: Simulation | undefined): string {
+  if (!simulation) return "No network fee";
+  if (simulation.fees.length) {
+    return `~${formatFeeSummary(simulation.fees)} fee`;
+  }
+  if (simulation.gas?.units) {
+    return `Estimated gas · ${formatInteger(simulation.gas.units)} units`;
+  }
+  return simulation.status === "failed"
+    ? "No gas will be spent"
+    : "Gas estimate unavailable";
 }
 
 function friendlyTransactionLabel(label: string, kind?: string): string {

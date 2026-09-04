@@ -111,7 +111,7 @@ describe("RuntimeTxHandler", () => {
       "To 0x222222…222222",
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
     await waitFor(() =>
       expect(runtime.executeAction).toHaveBeenCalledWith("action-1"),
     );
@@ -138,7 +138,7 @@ describe("RuntimeTxHandler", () => {
 
     render(<RuntimeTxHandler />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() =>
       expect(runtime.showNotification).toHaveBeenCalledWith(
@@ -165,7 +165,7 @@ describe("RuntimeTxHandler", () => {
     render(<RuntimeTxHandler />);
     expect(runtime.executeAction).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() =>
       expect(runtime.executeAction).toHaveBeenCalledWith("action-1"),
@@ -224,6 +224,11 @@ describe("RuntimeTxHandler", () => {
       "−0.000000000000000001 ETH",
     );
     expect(
+      screen
+        .getByTestId("asset-effect")
+        .querySelector('[data-asset-icon="eth"]'),
+    ).toBeTruthy();
+    expect(
       screen.getByRole("region", { name: "Simulated wallet impact" }),
     ).not.toHaveClass("sm:grid-cols-2");
   });
@@ -279,9 +284,14 @@ describe("RuntimeTxHandler", () => {
     const effects = screen.getAllByTestId("asset-effect");
     expect(effects[0]).toHaveTextContent("Aave Base USDC");
     expect(effects[1]).toHaveTextContent("USD Coin");
+    expect(
+      effects.every((effect) =>
+        Boolean(effect.querySelector('[data-asset-icon="coin"]')),
+      ),
+    ).toBe(true);
   });
 
-  it("pages through a multi-transaction request without scrolling", () => {
+  it("keeps two transactions visible and pages additional work", () => {
     runtime.pendingActions = [
       action({
         type: "execute_evm",
@@ -305,6 +315,14 @@ describe("RuntimeTxHandler", () => {
             kind: "swap",
             protocol: "LI.FI",
           },
+          {
+            chain_id: 8453,
+            from: "0x1111111111111111111111111111111111111111",
+            to: "0x4444444444444444444444444444444444444444",
+            data: "0x03",
+            label: "Send ETH",
+            kind: "transfer",
+          },
         ],
       }),
     ];
@@ -312,10 +330,20 @@ describe("RuntimeTxHandler", () => {
     render(<RuntimeTxHandler />);
 
     expect(screen.getByText("Approve USDC")).toBeInTheDocument();
-    expect(screen.getByText("1 / 2")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Next transaction" }));
     expect(screen.getByText("Swap USDC to ETH")).toBeInTheDocument();
-    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+    expect(screen.getByText("1–2 of 3")).toBeInTheDocument();
+    expect(screen.getByTestId("transaction-connector")).toBeInTheDocument();
+    const firstPage = screen.getAllByTestId("transaction-step");
+    expect(firstPage).toHaveLength(2);
+    expect(firstPage[0]?.querySelector(".lucide-key-round")).toBeTruthy();
+    expect(firstPage[1]?.querySelector(".lucide-repeat-2")).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Next transaction page" }),
+    );
+    expect(screen.getByText("Send ETH")).toBeInTheDocument();
+    expect(screen.getByText("3 of 3")).toBeInTheDocument();
+    expect(screen.getAllByTestId("transaction-step")).toHaveLength(1);
   });
 
   it("turns protocol-generated swap labels into readable review steps", () => {
@@ -351,11 +379,9 @@ describe("RuntimeTxHandler", () => {
     render(<RuntimeTxHandler />);
 
     expect(screen.getByText("Approve 0.00758 USDC")).toBeInTheDocument();
-    expect(screen.getByText("LI.FI")).toBeInTheDocument();
-    expect(screen.getByText("No asset changes detected")).toBeInTheDocument();
+    expect(screen.getAllByText(/LI\.FI/).length).toBeGreaterThan(0);
+    expect(screen.getByText("No wallet changes")).toBeInTheDocument();
     expect(screen.queryByText(/lifi_q_abc123/)).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Next transaction" }));
     expect(screen.getByText("Swap 0.00758 USDC to ETH")).toBeInTheDocument();
   });
 
@@ -424,8 +450,12 @@ describe("RuntimeTxHandler", () => {
 
     expect(screen.getByText("Allow 0.0075 USDC")).toBeInTheDocument();
     expect(screen.getByText("Unlimited WETH spending")).toBeInTheDocument();
+    expect(screen.getAllByTestId("approval-effect")).toHaveLength(2);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Next wallet impact page" }),
+    );
     expect(screen.getByText("Revoke DAI spending")).toBeInTheDocument();
-    expect(screen.getAllByTestId("approval-effect")).toHaveLength(3);
+    expect(screen.getAllByTestId("approval-effect")).toHaveLength(1);
   });
 
   it("describes NFT minting and collection-wide access", () => {
@@ -490,6 +520,9 @@ describe("RuntimeTxHandler", () => {
     expect(screen.getByText("Aomi Founders #42")).toBeInTheDocument();
     expect(screen.getByText("Collectible minted")).toBeInTheDocument();
     expect(screen.getByText("+3 × Aomi Pass #7")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Next wallet impact page" }),
+    );
     expect(
       screen.getByText("Allow access to all Aomi Pass"),
     ).toBeInTheDocument();
@@ -550,7 +583,7 @@ describe("RuntimeTxHandler", () => {
 
     render(<RuntimeTxHandler />);
 
-    expect(screen.getByRole("button", { name: "Blocked" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
     expect(screen.getByText("No wallet changes simulated")).toBeInTheDocument();
   });
 });
