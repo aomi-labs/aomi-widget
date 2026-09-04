@@ -1,5 +1,12 @@
 # Canonical Landing
 
+Current session goal: **LEGIBLE LIVE STATUS GLYPHS VERIFIED 2026-09-04** —
+replace the intricate neural mark and abstract execution path with immediately
+readable 15px symbols: a gently illuminating bulb for Thinking and a slowly
+turning gear for Working. Keep motion quiet and preserve the existing pill and
+text treatment. Focused trace tests, scoped lint, formatting, Portal typecheck,
+registry generation, and the widget 2.0.27 package/tarball audit pass.
+
 Current session goal: **SEMANTIC LIVE STATUS GLYPHS VERIFIED 2026-09-04** —
 replace the generic pulsing dot with a softly breathing neural mark while the
 model is thinking and a flowing three-node execution path once tool work has

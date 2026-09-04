@@ -527,87 +527,37 @@
   }
 }
 
-@keyframes aui-thinking-breathe {
+@keyframes aui-thinking-illuminate {
   0%,
   100% {
-    opacity: 0.72;
-    transform: scale(0.94);
+    filter: drop-shadow(0 0 0 transparent);
+    opacity: 0.68;
+    transform: rotate(-2deg) scale(0.96);
   }
   50% {
+    filter: drop-shadow(
+      0 0 2px color-mix(in oklch, currentColor 45%, transparent)
+    );
     opacity: 1;
-    transform: scale(1.04);
+    transform: rotate(2deg) scale(1.05);
   }
 }
 
-@keyframes aui-thinking-signal {
-  0%,
-  100% {
-    opacity: 0.35;
-    transform: scale(0.7);
-  }
-  45% {
-    opacity: 1;
-    transform: scale(1.15);
-  }
-}
-
-@keyframes aui-working-route-flow {
-  from {
-    stroke-dashoffset: 24;
-  }
+@keyframes aui-working-turn {
   to {
-    stroke-dashoffset: 0;
+    transform: rotate(360deg);
   }
 }
 
-@keyframes aui-working-node-arrive {
-  0%,
-  58%,
-  100% {
-    opacity: 0.42;
-    transform: scale(0.78);
-  }
-  72% {
-    opacity: 1;
-    transform: scale(1.18);
-  }
-}
-
-.aui-thinking-brain {
-  animation: aui-thinking-breathe 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+.aui-thinking-bulb {
+  animation: aui-thinking-illuminate 2.2s cubic-bezier(0.45, 0, 0.55, 1)
+    infinite;
   transform-origin: center;
 }
 
-.aui-thinking-signal {
-  animation: aui-thinking-signal 2.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+.aui-working-cog {
+  animation: aui-working-turn 3s linear infinite;
   transform-origin: center;
-}
-
-.aui-working-route {
-  opacity: 0.22;
-}
-
-.aui-working-route-flow {
-  stroke-dasharray: 5 19;
-  animation: aui-working-route-flow 1.9s ease-in-out infinite;
-}
-
-.aui-working-node {
-  animation: aui-working-node-arrive 1.9s ease-in-out infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-
-.aui-working-node-start {
-  animation-delay: -1.25s;
-}
-
-.aui-working-node-center {
-  animation-delay: -0.65s;
-}
-
-.aui-working-node-end {
-  animation-delay: -0.1s;
 }
 
 /* Shimmering "Working" label — a soft highlight drifts across the text while
@@ -654,12 +604,10 @@
     -webkit-text-fill-color: var(--muted-foreground);
   }
 
-  .aui-thinking-brain,
-  .aui-thinking-signal,
-  .aui-working-route-flow,
-  .aui-working-node {
+  .aui-thinking-bulb,
+  .aui-working-cog {
     animation: none;
-    opacity: 0.75;
+    opacity: 0.85;
     transform: none;
   }
 }

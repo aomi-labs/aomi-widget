@@ -8,9 +8,10 @@ import {
   type ToolCallMessagePart,
 } from "@assistant-ui/react";
 import {
-  BrainCircuitIcon,
   CheckIcon,
   ChevronDownIcon,
+  CogIcon,
+  LightbulbIcon,
   MoreHorizontalIcon,
 } from "lucide-react";
 
@@ -187,59 +188,18 @@ const childStepCount = (item: TraceItem): number =>
 const ThinkingStatusGlyph: FC = () => (
   <span
     aria-hidden="true"
-    className="aui-thinking-glyph text-aomi-accent relative flex size-4 shrink-0 items-center justify-center"
+    className="aui-thinking-glyph text-aomi-accent flex size-4 shrink-0 items-center justify-center"
   >
-    <BrainCircuitIcon className="aui-thinking-brain size-[15px]" />
-    <span className="aui-thinking-signal bg-aomi-accent-strong ring-aomi-surface absolute right-0 top-0 size-[3px] rounded-full ring-1" />
+    <LightbulbIcon className="aui-thinking-bulb size-[15px] stroke-[1.8]" />
   </span>
 );
 
 const WorkingStatusGlyph: FC = () => (
   <span
     aria-hidden="true"
-    className="aui-working-glyph text-aomi-accent relative flex size-4 shrink-0 items-center justify-center"
+    className="aui-working-glyph text-aomi-accent flex size-4 shrink-0 items-center justify-center"
   >
-    <svg viewBox="0 0 16 16" className="size-4 overflow-visible">
-      <path
-        className="aui-working-route"
-        d="M2.5 10.5c2.1 0 2.25-5 5.5-5s3.4 5 5.5 5"
-        fill="none"
-        pathLength="24"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.2"
-      />
-      <path
-        className="aui-working-route-flow"
-        d="M2.5 10.5c2.1 0 2.25-5 5.5-5s3.4 5 5.5 5"
-        fill="none"
-        pathLength="24"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.5"
-      />
-      <circle
-        className="aui-working-node aui-working-node-start"
-        cx="2.5"
-        cy="10.5"
-        r="1.25"
-        fill="currentColor"
-      />
-      <circle
-        className="aui-working-node aui-working-node-center"
-        cx="8"
-        cy="5.5"
-        r="1.4"
-        fill="currentColor"
-      />
-      <circle
-        className="aui-working-node aui-working-node-end"
-        cx="13.5"
-        cy="10.5"
-        r="1.25"
-        fill="currentColor"
-      />
-    </svg>
+    <CogIcon className="aui-working-cog size-[15px] stroke-[1.8]" />
   </span>
 );
 

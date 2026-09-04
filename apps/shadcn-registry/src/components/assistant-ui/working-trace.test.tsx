@@ -63,7 +63,7 @@ describe("WorkingTrace", () => {
       "-top-px",
     );
     expect(container.querySelector(".aui-thinking-glyph")).toBeTruthy();
-    expect(container.querySelector(".aui-thinking-brain")).toBeTruthy();
+    expect(container.querySelector(".aui-thinking-bulb")).toBeTruthy();
     expect(container.querySelector(".aui-working-glyph")).toBeNull();
     expect(container.querySelector(".aui-working-trace")).toBeNull();
     expect(getByRole("status")).toHaveTextContent(/^Thinking$/);
@@ -161,7 +161,7 @@ describe("WorkingTrace", () => {
     );
     expect(container).not.toHaveTextContent(/orchestrat/i);
     expect(container.querySelector(".aui-working-glyph")).toBeTruthy();
-    expect(container.querySelector(".aui-working-route-flow")).toBeTruthy();
+    expect(container.querySelector(".aui-working-cog")).toBeTruthy();
     expect(container.querySelector(".aui-thinking-glyph")).toBeNull();
     expect(container).not.toHaveTextContent("0 steps");
   });
