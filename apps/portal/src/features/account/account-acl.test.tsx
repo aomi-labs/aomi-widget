@@ -37,6 +37,7 @@ const walletKit = vi.hoisted(() => ({
 const privyDelegation = vi.hoisted(() => ({ start: vi.fn() }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
+  requestWalletPickerOpen: vi.fn(),
   useAomiWalletKit: () => walletKit,
   usePrivyDelegation: () => privyDelegation,
 }));

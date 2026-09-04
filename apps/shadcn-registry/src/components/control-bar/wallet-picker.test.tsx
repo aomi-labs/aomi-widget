@@ -17,7 +17,11 @@ import type { AomiWalletKit } from "@/lib/wallet-kit";
 import { AomiWalletKitContextProvider } from "@/lib/wallet-kit";
 import { AomiWalletNetworkPreferencesProvider } from "@/lib/wallet-kit/network-preferences";
 import { registerWalletProvider } from "@/lib/wallet-kit/providers/plugin-registry";
-import { WalletPickerProvider, useWalletPicker } from "./wallet-picker-context";
+import {
+  requestWalletPickerOpen,
+  WalletPickerProvider,
+  useWalletPicker,
+} from "./wallet-picker-context";
 import { WalletPicker } from "./wallet-picker";
 
 afterEach(cleanup);
@@ -216,7 +220,11 @@ function OpenAndRender() {
   return <WalletPicker />;
 }
 
-function renderPicker(adapter: AomiWalletKit, hasBlockingActions = false) {
+function renderPicker(
+  adapter: AomiWalletKit,
+  hasBlockingActions = false,
+  initiallyOpen = true,
+) {
   const runtime = {
     hasBlockingActions,
     showNotification: vi.fn(),
@@ -231,7 +239,7 @@ function renderPicker(adapter: AomiWalletKit, hasBlockingActions = false) {
             solanaNetworks={solanaNetworks}
           >
             <WalletPickerProvider>
-              <OpenAndRender />
+              {initiallyOpen ? <OpenAndRender /> : <WalletPicker />}
             </WalletPickerProvider>
           </AomiWalletNetworkPreferencesProvider>
         </AomiWalletKitContextProvider>
@@ -247,6 +255,15 @@ function openAddWallets() {
 }
 
 describe("WalletPicker", () => {
+  it("opens from a host-owned surface request", async () => {
+    renderPicker(makeAdapter(), false, false);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await act(async () => requestWalletPickerOpen());
+
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
   it("uses the shared light blurred backdrop", () => {
     renderPicker(makeAdapter());
 
@@ -840,7 +857,7 @@ describe("WalletPicker", () => {
     );
 
     expect(screen.getByText("Connected wallet")).toBeTruthy();
-    expect(screen.getByText("Connected now")).toBeTruthy();
+    expect(screen.getByText("Connected")).toBeTruthy();
     expect(document.querySelector('[data-wallet-brand="rabby"]')).toBeTruthy();
 
     await act(async () => {

@@ -29,14 +29,6 @@ import {
   type UnifiedAccountWallet,
 } from "./wallet-management-model";
 
-export type AddWalletOption = {
-  id: string;
-  family: "evm" | "svm";
-  label: string;
-  markKey?: string;
-  ready: boolean;
-};
-
 export type AddSignInOption = {
   id: string;
   label: string;
@@ -47,12 +39,12 @@ type AccountManagementProps = {
   user?: AomiUserRef;
   wallets: UnifiedAccountWallet[];
   signInMethods: LinkedAuthAccount[];
-  addWalletOptions: AddWalletOption[];
+  canAddWallet: boolean;
   addSignInOptions: AddSignInOption[];
   pending: string | null;
   error?: string | null;
   onRenameAccount?: (displayName: string) => Promise<void>;
-  onAddWallet: (option: AddWalletOption) => Promise<void>;
+  onAddWallet: () => void;
   onAddSignIn: (option: AddSignInOption) => Promise<void>;
   onLinkWallet?: (wallet: UnifiedAccountWallet) => Promise<void>;
   onConnectWallet?: (wallet: UnifiedAccountWallet) => Promise<void>;
@@ -68,7 +60,7 @@ export function AccountManagement({
   user,
   wallets,
   signInMethods,
-  addWalletOptions,
+  canAddWallet,
   addSignInOptions,
   pending,
   error,
@@ -86,7 +78,6 @@ export function AccountManagement({
 }: AccountManagementProps) {
   const [editingName, setEditingName] = useState(false);
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
-  const [addWalletOpen, setAddWalletOpen] = useState(false);
   const [addSignInOpen, setAddSignInOpen] = useState(false);
   const visibleName = user?.displayName ?? user?.email ?? "Aomi account";
   const connectedWalletCount = wallets.filter(
@@ -187,31 +178,18 @@ export function AccountManagement({
           title="Wallets"
           detail={`${wallets.length} total · ${connectedWalletCount} connected now`}
           action={
-            addWalletOptions.length ? (
+            canAddWallet ? (
               <button
                 type="button"
-                onClick={() => setAddWalletOpen((open) => !open)}
+                onClick={onAddWallet}
                 className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-medium transition-colors"
               >
                 <Plus size={13} />
                 Add wallet
-                <ChevronDown
-                  size={13}
-                  className={`transition-transform ${addWalletOpen ? "rotate-180" : ""}`}
-                />
               </button>
             ) : undefined
           }
         />
-
-        {addWalletOpen ? (
-          <OptionGrid
-            options={addWalletOptions}
-            pending={pending}
-            prefix="add-wallet"
-            onSelect={(option) => void onAddWallet(option)}
-          />
-        ) : null}
 
         <div className={settingsPanelClass}>
           {wallets.length ? (

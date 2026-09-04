@@ -212,6 +212,14 @@ export function SettingsModal({
         className="border-aomi-border bg-aomi-raised text-aomi-fg relative overflow-hidden rounded-[22px] border shadow-[0_24px_70px_rgba(0,0,0,0.08)]"
         style={{ width: 1080, height: 620, maxWidth: "96%", maxHeight: "92%" }}
       >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close settings"
+          className="text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg absolute right-4 top-4 z-20 flex size-7 items-center justify-center rounded-full transition-colors"
+        >
+          <X className="size-3.5" />
+        </button>
         <div className="grid h-full min-h-0 md:grid-cols-[185px_minmax(0,1fr)]">
           <aside className="border-aomi-border bg-aomi-bg/40 min-h-0 border-r p-3">
             <div className="flex items-center gap-2 px-2.5 py-3">
@@ -222,14 +230,6 @@ export function SettingsModal({
               >
                 Settings
               </h1>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label="Close settings"
-                className="text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg flex size-7 items-center justify-center rounded-full transition-colors"
-              >
-                <X className="size-3.5" />
-              </button>
             </div>
             <nav className="mt-3 space-y-0.5" aria-label="Settings sections">
               {NAV.map(({ id, label, Icon }) => {

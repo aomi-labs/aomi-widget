@@ -84,6 +84,7 @@ export {
   signOutAndDisconnect,
   useAomiWalletKit,
 } from "./lib/wallet-kit";
+export { requestWalletPickerOpen } from "./components/control-bar/wallet-picker-context";
 export {
   usePrivyDelegation,
   type PrivyDelegationContextValue,

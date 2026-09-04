@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { signOutAndDisconnect, useAomiWalletKit } from "@aomi-labs/widget-lib";
-import { AccountSigningView } from "./account-signing";
 import {
-  AccountManagement,
-  type AddSignInOption,
-  type AddWalletOption,
-} from "./account-management";
+  requestWalletPickerOpen,
+  signOutAndDisconnect,
+  useAomiWalletKit,
+} from "@aomi-labs/widget-lib";
+import { AccountSigningView } from "./account-signing";
+import { AccountManagement, type AddSignInOption } from "./account-management";
 import { useAccountAcl } from "./use-account-acl";
 import {
   buildUnifiedAccountWallets,
@@ -107,25 +107,6 @@ export function AccountSettings() {
   const providerWallets = useMemo(
     () => acl.wallets.filter(isProviderSigningWallet),
     [acl.wallets],
-  );
-  const addWalletOptions = useMemo<AddWalletOption[]>(
-    () => [
-      ...(adapter.evmWallets ?? []).map((wallet) => ({
-        id: wallet.id,
-        family: "evm" as const,
-        label: wallet.label,
-        markKey: `${wallet.id} ${wallet.label}`,
-        ready: wallet.status !== "unavailable",
-      })),
-      ...(adapter.solanaWallets ?? []).map((wallet) => ({
-        id: wallet.name,
-        family: "svm" as const,
-        label: wallet.name,
-        markKey: wallet.name,
-        ready: wallet.ready,
-      })),
-    ],
-    [adapter.evmWallets, adapter.solanaWallets],
   );
   const addSignInOptions = useMemo<AddSignInOption[]>(
     () =>
@@ -235,7 +216,7 @@ export function AccountSettings() {
         user={adapter.accountUser}
         wallets={wallets}
         signInMethods={signInMethods}
-        addWalletOptions={addWalletOptions}
+        canAddWallet
         addSignInOptions={addSignInOptions}
         pending={pending}
         error={actionError ?? (acl.status === "error" ? acl.error : null)}
@@ -247,19 +228,7 @@ export function AccountSettings() {
                 )
             : undefined
         }
-        onAddWallet={async (option) =>
-          run(`add-wallet:${option.id}`, async () => {
-            if (option.family === "evm" && adapter.connectEvmWallet) {
-              await adapter.connectEvmWallet(option.id);
-              return;
-            }
-            if (option.family === "svm" && adapter.connectSolanaWallet) {
-              await adapter.connectSolanaWallet(option.id);
-              return;
-            }
-            await adapter.connect({ family: option.family });
-          })
-        }
+        onAddWallet={requestWalletPickerOpen}
         onAddSignIn={async (option) =>
           run(`add-sign-in:${option.id}`, async () => {
             if (adapter.connectSocial) {

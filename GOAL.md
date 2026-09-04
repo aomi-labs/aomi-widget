@@ -1,5 +1,18 @@
 # Canonical Landing
 
+Current session goal: **UNIFIED WALLET SIGN-OUT + CONNECTION UI VERIFIED
+2026-09-04** — make Sign out consistently end both the Aomi account session
+and live wallet connection, while preserving the separate wallet-only
+disconnect action. Restyle fresh wallet selection and wallet-linked sign-in to
+match the compact Library and Settings hierarchy, restore restrained visual
+grouping after live review while leaving identity marks unbacked, and route
+Settings' Add wallet action into the same canonical chooser above its overlay.
+Library and Settings close controls now share the conventional top-right modal
+position. Verified with 61 focused widget/Portal
+tests, scoped ESLint and Prettier, Portal TypeScript, registry and package
+builds, a `@aomi-labs/widget-lib@2.0.33` package dry run, `git diff --check`,
+and live HTTPS visual review of the anonymous wallet chooser.
+
 Current session goal: **SETTINGS DIRECTORY LANGUAGE VERIFIED 2026-09-04** —
 port the selected Library aesthetic to the complete Settings experience: one
 matching 1080×620 directory shell, compact persistent sidebar navigation,
