@@ -1524,8 +1524,8 @@ NOTE: this worktree's landing dev server runs on port 3001, not 3000.
   on fixtures; it now reads and writes live state. New files, all under
   `apps/portal/src/features/account/`:
 
-  - `account-api.ts` — wire types + mappers for `GET /api/account/wallets`
-    (policy axis) and `GET /api/account/grants` (capability axis), plus
+  - `account-api.ts` — wire types + mappers for canonical `GET /api/account`
+    ownership, policy, and capability collections, plus
     `DELETE /api/account/providers/:provider/grant`. `linkedVia` is derived,
     not stored: `wallet_provider` privy/para, else siwe/siws by chain. Legacy
     `human_sync`/`agent_sync` wire values normalize to the renamed modes.
@@ -1538,7 +1538,8 @@ NOTE: this worktree's landing dev server runs on port 3001, not 3000.
   local mutation, per-row busy/error, and **nothing optimistic** — a mode flips
   only on the committed backend value, so a rejected signature or a failed
   version CAS can never look applied. Mode availability now follows backend
-  truth (`can_use_auto`, `provider_managed`) instead of inferring from custody.
+  truth (`SigningPolicy` plus current `DelegatedAccount` capability) instead of
+  storing a second auto-availability boolean.
   Direction (loosen vs tighten) is pre-computed client-side against the
   kernel's rank ladder purely to explain "connect this wallet itself" before
   the prompt — the backend still decides. The posture strip counts only

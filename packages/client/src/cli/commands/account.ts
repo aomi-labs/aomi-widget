@@ -265,12 +265,19 @@ export async function accountWhoamiCommand(config: CliConfig): Promise<void> {
     }
     if (user.tier) console.log(`Tier:     ${user.tier}`);
     if (user.status) console.log(`Status:   ${user.status}`);
-    const wallets = account.identity_wallets ?? [];
-    console.log(`Wallets:  ${wallets.length}`);
-    for (const wallet of wallets) {
-      const walletId = wallet.wallet_id ? ` (${wallet.wallet_id})` : "";
+    const policies = account.signing_policies;
+    console.log(`Wallets:  ${policies.length}`);
+    for (const policy of policies) {
+      const userAccount = account.user_accounts.find(
+        (candidate) =>
+          candidate.address.chain === policy.address.chain &&
+          (policy.address.chain === "evm"
+            ? candidate.address.address.toLowerCase() ===
+              policy.address.address.toLowerCase()
+            : candidate.address.address === policy.address.address),
+      );
       console.log(
-        `- ${formatWalletChainType(wallet.chain_type)} [${wallet.wallet_provider}]: ${wallet.address}${walletId}`,
+        `- ${formatWalletChainType(policy.address.chain)} [${userAccount?.auth_provider ?? "self-custody"}]: ${policy.address.address}`,
       );
     }
     printDataFileLocation({ verbose: config.verbose });

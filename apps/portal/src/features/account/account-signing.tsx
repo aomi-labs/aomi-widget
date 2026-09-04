@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { DelegationGrant, SignerMode, WalletPolicy } from "./types";
+import type { DelegatedAccountView, SignerMode, WalletPolicy } from "./types";
 import type { UnboundWallet } from "./use-account-acl";
 import {
   CUSTODY_GROUPS,
@@ -16,18 +16,18 @@ import { Loader2 } from "lucide-react";
 
 interface AccountSigningViewProps {
   wallets: WalletPolicy[];
-  grants: DelegationGrant[];
+  delegatedAccounts: DelegatedAccountView[];
   unboundWallets: UnboundWallet[];
   needsParaAgentWallet: boolean;
   /** Run the permit ceremony. Rejects with a user-facing message. */
   onCommit: (wallet: WalletPolicy, mode: SignerMode) => Promise<void>;
   onBindWallet: (wallet: UnboundWallet) => Promise<"bound" | "already_bound">;
   onProvisionParaAgentWallet: () => Promise<void>;
-  onRevokeGrant: (grant: DelegationGrant) => Promise<void>;
+  onRevokeDelegation: (delegation: DelegatedAccountView) => Promise<void>;
   onStopAllAuto: () => Promise<void>;
   canConnectPrivy: boolean;
   onConnectPrivy: () => Promise<void>;
-  onRegrant: (wallet: WalletPolicy) => Promise<void>;
+  onRenewDelegation: (wallet: WalletPolicy) => Promise<void>;
   /** Why a target mode can't be signed right now, or null when it can. */
   blockedReason?: (wallet: WalletPolicy, mode: SignerMode) => string | null;
 }
@@ -39,17 +39,17 @@ const CONNECT_PRIVY_KEY = "__connect_privy__";
 
 export function AccountSigningView({
   wallets,
-  grants,
+  delegatedAccounts,
   unboundWallets,
   needsParaAgentWallet,
   onCommit,
   onBindWallet,
   onProvisionParaAgentWallet,
-  onRevokeGrant,
+  onRevokeDelegation,
   onStopAllAuto,
   canConnectPrivy,
   onConnectPrivy,
-  onRegrant,
+  onRenewDelegation,
   blockedReason,
 }: AccountSigningViewProps) {
   const [drafts, setDrafts] = useState<Record<string, SignerMode>>({});
@@ -121,24 +121,25 @@ export function AccountSigningView({
     [wallets],
   );
 
-  const liveGrants = useMemo(
-    () => grants.filter((g) => g.status === "active").length,
-    [grants],
+  const activeDelegations = useMemo(
+    () => delegatedAccounts.filter((item) => item.status === "active").length,
+    [delegatedAccounts],
   );
-  const hasActiveGrants = liveGrants > 0;
+  const hasActiveDelegations = activeDelegations > 0;
 
-  // An unrelated provider grant (for example Para/Solana) must not hide the
-  // Privy EVM setup action. Grants are provider capabilities, not a single
+  // An unrelated delegated account (for example Para/Solana) must not hide the
+  // Privy EVM setup action. Delegations are provider capabilities, not a single
   // account-wide on/off bit.
-  const hasActivePrivyGrant = useMemo(
+  const hasActivePrivyDelegation = useMemo(
     () =>
-      grants.some(
-        (grant) =>
-          grant.status === "active" &&
-          (grant.providerKey ?? grant.provider).toLowerCase() === "privy" &&
-          !grant.scope.toLowerCase().startsWith("solana"),
+      delegatedAccounts.some(
+        (delegation) =>
+          delegation.status === "active" &&
+          (delegation.providerKey ?? delegation.provider).toLowerCase() ===
+            "privy" &&
+          !delegation.scope.toLowerCase().startsWith("solana"),
       ),
-    [grants],
+    [delegatedAccounts],
   );
 
   const jumpToAttention = () => {
@@ -182,16 +183,18 @@ export function AccountSigningView({
     if (ok) cancelDraft(id);
   };
 
-  const regrant = (id: string) => {
+  const renewDelegation = (id: string) => {
     const wallet = walletById(id);
     if (!wallet) return;
-    void run(id, () => onRegrant(wallet));
+    void run(id, () => onRenewDelegation(wallet));
   };
 
-  const revokeGrant = (grantId: string) => {
-    const grant = grants.find((g) => g.id === grantId);
-    if (!grant) return;
-    void run(grantId, () => onRevokeGrant(grant));
+  const revokeDelegation = (delegationId: string) => {
+    const delegation = delegatedAccounts.find(
+      (item) => item.id === delegationId,
+    );
+    if (!delegation) return;
+    void run(delegationId, () => onRevokeDelegation(delegation));
   };
 
   const stopAllAuto = () => {
@@ -222,7 +225,7 @@ export function AccountSigningView({
             <span className="text-aomi-fg text-[13px]">
               {attentionCount}{" "}
               {attentionCount === 1 ? "wallet needs" : "wallets need"} a new
-              provider grant
+              provider delegation
             </span>
             <button
               type="button"
@@ -265,7 +268,7 @@ export function AccountSigningView({
           </div>
         )}
 
-        {canConnectPrivy && !hasActivePrivyGrant && (
+        {canConnectPrivy && !hasActivePrivyDelegation && (
           <div className="border-aomi-border bg-aomi-surface-2/40 flex items-center justify-between gap-3 rounded-lg border px-4 py-3">
             <div className="min-w-0 flex-1">
               <span className="text-aomi-fg block text-[13px] font-medium">
@@ -302,11 +305,11 @@ export function AccountSigningView({
               Choose who can sign for each wallet. Changes require your
               signature.
             </span>
-            {liveGrants > 0 && (
+            {activeDelegations > 0 && (
               <span className="text-aomi-muted text-[12px]">
-                {liveGrants} active provider{" "}
-                {liveGrants === 1 ? "grant" : "grants"} — expand a wallet to
-                revoke
+                {activeDelegations} active provider{" "}
+                {activeDelegations === 1 ? "delegation" : "delegations"} —
+                expand a wallet to revoke
               </span>
             )}
           </div>
@@ -323,7 +326,7 @@ export function AccountSigningView({
                       {index > 0 && <Divider />}
                       <WalletPolicyRow
                         wallet={wallet}
-                        grants={grants}
+                        delegatedAccounts={delegatedAccounts}
                         draft={drafts[wallet.id]}
                         expanded={Boolean(expanded[wallet.id])}
                         flash={flashId === wallet.id}
@@ -339,8 +342,8 @@ export function AccountSigningView({
                         onDraft={(mode) => setDraft(wallet.id, mode)}
                         onCommit={() => void commit(wallet.id)}
                         onCancel={() => cancelDraft(wallet.id)}
-                        onRegrant={() => regrant(wallet.id)}
-                        onRevokeGrant={revokeGrant}
+                        onRenewDelegation={() => renewDelegation(wallet.id)}
+                        onRevokeDelegation={revokeDelegation}
                       />
                     </div>
                   ))}
@@ -371,13 +374,13 @@ export function AccountSigningView({
           </div>
         </div>
 
-        {hasActiveGrants && (
+        {hasActiveDelegations && (
           <div className="flex flex-col pt-1">
             <Divider />
             <SettingRow
               className="pt-4"
               title="Stop all auto-signing"
-              desc="Revokes every provider grant. Wallets set to Bypass permissions will fall back to manual until renewed."
+              desc="Revokes every provider delegation. Wallets set to Bypass permissions will fall back to manual until renewed."
             >
               <button
                 type="button"

@@ -6,8 +6,8 @@ import { useAccountAcl } from "./use-account-acl";
 /**
  * Account tab — the wallet signing policy (ACL) editor.
  *
- * Identity comes from the shared `/api/account` overview; the ACL itself comes
- * from `useAccountAcl` (`/api/account/wallets` + `/api/account/grants`), and
+ * Identity, signing policy, and exact-address delegation state come from the
+ * canonical `/api/account` response, and
  * every mutation runs the backend's challenge → sign → commit permit ceremony.
  * Nothing here is optimistic: a mode flips on screen only after the backend
  * returns the committed row.
@@ -36,17 +36,17 @@ export function AccountSettings() {
   return (
     <AccountSigningView
       wallets={acl.wallets}
-      grants={acl.grants}
+      delegatedAccounts={acl.delegatedAccounts}
       unboundWallets={acl.unboundWallets}
       needsParaAgentWallet={acl.needsParaAgentWallet}
       onCommit={acl.commitMode}
       onBindWallet={acl.bindWallet}
       onProvisionParaAgentWallet={acl.provisionParaAgentWallet}
-      onRevokeGrant={acl.revokeGrant}
+      onRevokeDelegation={acl.revokeDelegation}
       onStopAllAuto={acl.stopAllAuto}
       canConnectPrivy={acl.canConnectPrivy}
       onConnectPrivy={acl.connectPrivy}
-      onRegrant={acl.regrant}
+      onRenewDelegation={acl.renewDelegation}
       blockedReason={acl.blockedReason}
     />
   );
