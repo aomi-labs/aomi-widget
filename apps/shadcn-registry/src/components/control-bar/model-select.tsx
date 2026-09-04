@@ -147,7 +147,8 @@ export const ModelSelect: FC<ModelSelectProps> = ({
         align="start"
         side="bottom"
         sideOffset={4}
-        avoidCollisions={false}
+        avoidCollisions
+        collisionPadding={8}
         className={controlMenuContentClass}
         onOpenAutoFocus={(e) => {
           if (window.matchMedia("(max-width: 767px)").matches) {

@@ -193,6 +193,7 @@ const inlineToolResult = (event: MessageEvent) => {
 const inlineToolPart = (
   tool: NonNullable<ReturnType<typeof inlineToolResult>>,
   key: string,
+  toolCallId?: string | null,
 ): MessageContentPart => {
   let result: unknown = tool.payload;
   try {
@@ -202,7 +203,7 @@ const inlineToolPart = (
   }
   return {
     type: "tool-call",
-    toolCallId: `inline:${key}`,
+    toolCallId: toolCallId ?? `inline:${key}`,
     toolName: tool.toolName,
     args: tool.args,
     result,
@@ -273,7 +274,7 @@ export function projectAssistantMessages(
               projection,
               projection.toolParts,
               key,
-              inlineToolPart(toolResult, key),
+              inlineToolPart(toolResult, key, event.tool_call_id),
             );
           }
         } else {

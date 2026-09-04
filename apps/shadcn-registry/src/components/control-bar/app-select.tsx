@@ -110,7 +110,8 @@ export const AppSelect: FC<AppSelectProps> = ({
         align="start"
         side="bottom"
         sideOffset={4}
-        avoidCollisions={false}
+        avoidCollisions
+        collisionPadding={8}
         className={controlMenuContentClass}
         onOpenAutoFocus={(event) => {
           if (

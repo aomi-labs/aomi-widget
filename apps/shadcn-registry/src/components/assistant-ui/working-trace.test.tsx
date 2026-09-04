@@ -305,4 +305,65 @@ describe("WorkingTrace", () => {
       tool: recoveredCommit,
     });
   });
+
+  it("reconciles a legacy inline task part by its nested failure agent id", () => {
+    const failedRun: TaskRunState = {
+      ...run([]),
+      status: "failed",
+      message: "child failed",
+    };
+    const delegatedTask = {
+      type: "tool-call" as const,
+      toolCallId: "inline:legacy-task-message",
+      toolName: "task",
+      args: {},
+      result: {
+        error: { agent_id: failedRun.agentId, code: "child_turn_failed" },
+      },
+    } as ToolCallMessagePart;
+
+    const items = buildTraceItems([delegatedTask], [failedRun]);
+
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      kind: "agent",
+      agentId: failedRun.agentId,
+      run: failedRun,
+      tool: delegatedTask,
+    });
+  });
+
+  it("expands one batch task part into one reconciled row per child", () => {
+    const first: TaskRunState = {
+      ...run([]),
+      agentId: "task-agent:first",
+      callId: "call-batch:1",
+    };
+    const second: TaskRunState = {
+      ...run([]),
+      agentId: "task-agent:second",
+      callId: "call-batch:2",
+    };
+    const delegatedTask = {
+      type: "tool-call" as const,
+      toolCallId: "call-batch",
+      toolName: "task",
+      args: { tasks: [{ prompt: "one" }, { prompt: "two" }] },
+      result: {
+        status: "completed",
+        results: [
+          { agent_id: first.agentId, status: "completed" },
+          { agent_id: second.agentId, status: "completed" },
+        ],
+      },
+    } as ToolCallMessagePart;
+
+    const items = buildTraceItems([delegatedTask], [first, second]);
+
+    expect(items).toHaveLength(2);
+    expect(items.map((item) => item.kind === "agent" && item.agentId)).toEqual([
+      first.agentId,
+      second.agentId,
+    ]);
+  });
 });

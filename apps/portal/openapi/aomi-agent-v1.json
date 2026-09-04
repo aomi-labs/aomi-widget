@@ -2089,6 +2089,20 @@
               "content": {
                 "type": "string"
               },
+              "tool_call_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tool_result": {},
+              "tool_name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tool_arguments": {},
               "is_streaming": {
                 "type": "boolean"
               }

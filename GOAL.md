@@ -1,5 +1,23 @@
 # Canonical Landing
 
+Current session goal: **SUBAGENT BATCH + TRACE RECONCILIATION VERIFIED
+2026-09-04** — consume the backend's canonical tool call identity and task
+result agent IDs so each delegated child renders exactly once, including
+legacy failures and 1–5 item concurrent batches. Preserve canonical tool
+identity across persistence and hydration. Verified with 18 focused React and
+widget tests, scoped ESLint and Prettier, client/React/widget builds, generated
+Agent contract alignment, and `git diff --check`; paired backend Luna evals
+passed for ordinary completion, two-child concurrency, and LI.FI staging.
+
+Current session goal: **COMPOSER MENU VIEWPORT FLIPPING VERIFIED 2026-09-04** — keep
+model, execution-mode, and Direct-app menus anchored below their triggers when
+space allows, but let them flip above the composer when its bottom placement
+would cross the viewport. Preserve the header network selector's established
+placement. Verified with 11 focused control-bar tests, focused ESLint, Portal
+TypeScript, Prettier, the registry build, a clean npm package dry run, live
+bottom-composer geometry for the model and execution menus (`top`), live
+centered-composer geometry (`bottom`), and `git diff --check`.
+
 Current session goal: **THREAD ARCHIVING RECOVERY VERIFIED 2026-09-04** —
 restore archive, unarchive, and delete mutations by aligning the backend's
 internal Agent session route authorization with the public API's `agent:write`

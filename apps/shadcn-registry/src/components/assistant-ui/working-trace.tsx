@@ -185,6 +185,32 @@ type TraceItem =
 const childStepCount = (item: TraceItem): number =>
   item.kind === "agent" ? agentStepCount(item.run) : 0;
 
+const taskResultAgentIds = (result: unknown): string[] => {
+  if (!result || typeof result !== "object") return [];
+  const record = result as Record<string, unknown>;
+  const candidates: unknown[] = [record.agent_id];
+  if (record.error && typeof record.error === "object") {
+    candidates.push((record.error as Record<string, unknown>).agent_id);
+  }
+  if (Array.isArray(record.results)) {
+    for (const item of record.results) {
+      if (!item || typeof item !== "object") continue;
+      const child = item as Record<string, unknown>;
+      candidates.push(child.agent_id);
+      if (child.error && typeof child.error === "object") {
+        candidates.push((child.error as Record<string, unknown>).agent_id);
+      }
+    }
+  }
+  return [
+    ...new Set(
+      candidates.filter(
+        (id): id is string => typeof id === "string" && id.length > 0,
+      ),
+    ),
+  ];
+};
+
 const ThinkingStatusGlyph: FC = () => (
   <span
     aria-hidden="true"
@@ -677,25 +703,52 @@ export const buildTraceItems = (
   const runsByCallId = new Map(
     liveDelegations.map((run) => [run.callId, run] as const),
   );
+  const runsByAgentId = new Map(
+    liveDelegations.map((run) => [run.agentId, run] as const),
+  );
   const consumedAgentIds = new Set<string>();
   let agentOrder = 0;
 
   content.forEach((part, i) => {
     if (part.type === "tool-call") {
       if (part.toolName === "task") {
-        const run = part.toolCallId
+        const resultAgentIds = taskResultAgentIds(part.result);
+        const exactRun = part.toolCallId
           ? runsByCallId.get(part.toolCallId)
           : undefined;
-        const agentId = run?.agentId ?? part.toolCallId ?? `task-${i}`;
-        if (run) consumedAgentIds.add(run.agentId);
-        items.push({
-          kind: "agent",
-          agentId,
-          run,
-          tool: part,
-          order: agentOrder++,
-          key: run ? `agent-${run.agentId}` : `task-${agentId}`,
-        });
+        const matchedRuns = [
+          ...(exactRun ? [exactRun] : []),
+          ...resultAgentIds.flatMap((agentId) => {
+            const run = runsByAgentId.get(agentId);
+            return run ? [run] : [];
+          }),
+        ].filter(
+          (run, index, all) =>
+            all.findIndex((candidate) => candidate.agentId === run.agentId) ===
+            index,
+        );
+        const rows =
+          matchedRuns.length > 0
+            ? matchedRuns.map((run) => ({ agentId: run.agentId, run }))
+            : resultAgentIds.length > 0
+              ? resultAgentIds.map((agentId) => ({ agentId, run: undefined }))
+              : [
+                  {
+                    agentId: part.toolCallId ?? `task-${i}`,
+                    run: undefined,
+                  },
+                ];
+        for (const row of rows) {
+          if (row.run) consumedAgentIds.add(row.run.agentId);
+          items.push({
+            kind: "agent",
+            agentId: row.agentId,
+            run: row.run,
+            tool: part,
+            order: agentOrder++,
+            key: row.run ? `agent-${row.run.agentId}` : `task-${row.agentId}`,
+          });
+        }
         return;
       }
 

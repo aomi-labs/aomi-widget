@@ -143,6 +143,7 @@ describe("projectAssistantMessages", () => {
         sender: "agent",
         content: "",
         message_key: "tool-step-1",
+        tool_call_id: "call-balance-1",
         tool_name: "get_balance",
         tool_arguments: { owner: "vitalik.eth" },
         tool_result: ["Read vitalik.eth ETH balance", '{"balance_eth":"6.64"}'],
@@ -159,7 +160,7 @@ describe("projectAssistantMessages", () => {
     expect(projectAssistantMessages(events)[0]?.content).toMatchObject([
       {
         type: "tool-call",
-        toolCallId: "inline:tool-step-1",
+        toolCallId: "call-balance-1",
         toolName: "get_balance",
         args: { owner: "vitalik.eth" },
         result: { balance_eth: "6.64" },

@@ -74,7 +74,8 @@ export const ModeSelect: FC<ModeSelectProps> = ({ className }) => {
         align="start"
         side="bottom"
         sideOffset={4}
-        avoidCollisions={false}
+        avoidCollisions
+        collisionPadding={8}
         className={controlMenuContentClass}
       >
         <ControlMenuTitle>Execution mode</ControlMenuTitle>
