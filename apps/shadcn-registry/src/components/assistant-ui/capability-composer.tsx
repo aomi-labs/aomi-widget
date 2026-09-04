@@ -423,6 +423,13 @@ export function textFromEditor(editor: HTMLDivElement): string {
   return text.replaceAll("\u00a0", " ").replaceAll("\u200b", "");
 }
 
+export function clearEmptyEditorStructure(editor: HTMLDivElement): boolean {
+  if (textFromEditor(editor).trim().length > 0) return false;
+  const hadStructure = editor.childNodes.length > 0;
+  editor.replaceChildren();
+  return hadStructure;
+}
+
 function mentionKeysFromEditor(editor: HTMLDivElement): Set<string> {
   return new Set(
     [...editor.querySelectorAll<HTMLElement>("[data-capability-key]")]
@@ -817,6 +824,7 @@ export const CapabilityMentionInput: FC<{
     if (!editor) return;
 
     closePicker();
+    clearEmptyEditorStructure(editor);
     const selection = window.getSelection();
     const selectionNode = selection?.anchorNode;
     const selectionInsideMention =
@@ -898,7 +906,7 @@ export const CapabilityMentionInput: FC<{
       mention.dataset.capabilityKey = item.key;
       mention.dataset.capabilityKind = item.kind;
       mention.className =
-        "text-aomi-accent mx-0.5 inline-flex items-center gap-1 whitespace-nowrap align-baseline font-medium";
+        "text-aomi-accent relative top-px mx-0.5 inline-flex items-center gap-1 whitespace-nowrap align-baseline font-medium";
       const glyph =
         item.kind === "skill" ? "✦" : item.kind === "app" ? "▦" : "◇";
       mention.dataset.capabilityToken = `${glyph} ${item.label}`;

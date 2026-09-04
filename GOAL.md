@@ -1,5 +1,16 @@
 # Canonical Landing
 
+Current session goal: **INLINE PLUS PICKER ANCHOR VERIFIED 2026-09-04** —
+normalize Chrome's residual empty-editor `<br>` before anchoring the plus-opened
+capability picker so opening it never moves the caret onto a new line or changes
+the composer's layout; match composer and sent capability mentions to the
+surrounding text baseline with balanced inline spacing. Verified with focused
+Vitest coverage (12/12), ESLint, portal TypeScript, Prettier, registry generation,
+widget build, `@aomi-labs/widget-lib@2.0.31` package dry-run, `git diff --check`,
+and a live browser reproduction of the empty `<br>` plus-open sequence (unchanged
+33.5px composer height, no line break), mention baseline measurement, and visual
+review with no browser errors.
+
 Current session goal: **CAPABILITY MENTION IDENTITY VERIFIED 2026-09-04** —
 keep selected capability mentions blue while rendering their real app, skill,
 or chain mark in the composer and sent user bubble; make Backspace remove an

@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  clearEmptyEditorStructure,
   SupportedChainStack,
   matchCapabilityMentionTrigger,
   removeCapabilityMentionBeforeCaret,
@@ -99,5 +100,25 @@ describe("textFromEditor", () => {
     document.body.append(editor);
 
     expect(textFromEditor(editor)).toBe("Ask ▦ Basic to help");
+  });
+});
+
+describe("clearEmptyEditorStructure", () => {
+  it("removes the residual line break left by an emptied contenteditable", () => {
+    const editor = document.createElement("div");
+    editor.append(document.createElement("br"));
+    document.body.append(editor);
+
+    expect(clearEmptyEditorStructure(editor)).toBe(true);
+    expect(editor).toBeEmptyDOMElement();
+  });
+
+  it("preserves non-empty composer content", () => {
+    const editor = document.createElement("div");
+    editor.textContent = "hello";
+    document.body.append(editor);
+
+    expect(clearEmptyEditorStructure(editor)).toBe(false);
+    expect(editor.textContent).toBe("hello");
   });
 });

@@ -188,7 +188,7 @@ export const CapabilityMessageText: TextMessagePartComponent = ({ text }) => {
         ) : (
           <span
             key={`${segment.capability.kind}-${segment.capability.id}-${index}`}
-            className="text-aomi-accent inline-flex items-center gap-1 whitespace-nowrap font-medium"
+            className="text-aomi-accent relative top-px mx-0.5 inline-flex items-center gap-1 whitespace-nowrap align-baseline font-medium"
           >
             <segment.capability.Icon
               aria-hidden="true"
