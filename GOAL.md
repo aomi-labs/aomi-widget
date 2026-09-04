@@ -1,5 +1,14 @@
 # Canonical Landing
 
+Current session goal: **THREAD ARCHIVING RECOVERY VERIFIED 2026-09-04** —
+restore archive, unarchive, and delete mutations by aligning the backend's
+internal Agent session route authorization with the public API's `agent:write`
+delegation, while preserving `agent:read` for session reads. Verified with the
+method-specific delegated-scope regression, route-manifest test, rustfmt,
+Clippy with warnings denied, a managed standard-profile rebuild, and a live
+HTTPS Portal archive that removed the thread from Recent and produced a
+backend `PATCH` 200 without the prior error overlay.
+
 Current session goal: **UNIFIED WALLET SIGN-OUT + CONNECTION UI VERIFIED
 2026-09-04** — make Sign out consistently end both the Aomi account session
 and live wallet connection, while preserving the separate wallet-only
