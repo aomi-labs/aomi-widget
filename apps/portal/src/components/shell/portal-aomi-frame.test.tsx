@@ -228,7 +228,7 @@ describe("PortalAomiFrame account bootstrap", () => {
     );
   });
 
-  it("isolates anonymous threads when sign-in establishes an account", async () => {
+  it("starts fresh when sign-in establishes an account", async () => {
     walletKitState.current = {
       accountStatus: "error",
       accountUser: undefined,
@@ -255,12 +255,12 @@ describe("PortalAomiFrame account bootstrap", () => {
       "true",
     );
     expect(screen.getByTestId("aomi-frame")).toHaveAttribute(
-      "data-thread-persistence-scope",
-      "acct-a",
+      "data-persist-thread",
+      "false",
     );
     expect(screen.getByTestId("aomi-frame")).toHaveAttribute(
-      "data-persist-thread",
-      "true",
+      "data-thread-persistence-scope",
+      "",
     );
   });
 

@@ -195,11 +195,10 @@ export function PortalAomiFrame() {
           lockedTarget ? { mode: "direct", ...lockedTarget } : undefined
         }
         accountSessionAvailable={Boolean(accountUser)}
-        // Do not restore a shared pre-auth thread: it may belong to a deleted
-        // anonymous identity. Once Better Auth resolves a canonical user id,
-        // persistence is isolated to that exact principal.
-        persistThread={Boolean(accountUserId)}
-        threadPersistenceScope={accountUserId}
+        // Always open on the new-chat starting screen. Thread history remains
+        // available in the sidebar, but the previously active thread is not
+        // restored after a reload.
+        persistThread={false}
         showSidebar={!lockedApp}
         walletPosition="footer"
         walletFamilies={["evm", "solana"]}

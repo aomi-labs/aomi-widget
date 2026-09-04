@@ -1,5 +1,13 @@
 # Canonical Landing
 
+Current session goal: **FRESH PORTAL START VERIFIED 2026-09-04** — disable
+Portal last-thread persistence so normal visits stay on the new-chat starting
+screen instead of hydrating and visibly jumping to the previously active thread;
+preserve explicit thread deep links and account-bound thread history navigation.
+Verified with the Portal frame suite (8/8), ESLint, Portal TypeScript, Prettier,
+`git diff --check`, and a fresh HTTPS browser visit rendering the starting screen
+without selecting a previous thread or logging a browser error.
+
 Current session goal: **INLINE PLUS PICKER ANCHOR VERIFIED 2026-09-04** —
 normalize Chrome's residual empty-editor `<br>` before anchoring the plus-opened
 capability picker so opening it never moves the caret onto a new line or changes
