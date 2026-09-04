@@ -121,6 +121,35 @@ export function skillLabel(skill: Pick<SkillSummary, "name">): string {
     .join(" ");
 }
 
+const CHAIN_CONTEXT =
+  /\s+(?:on|from|across)\s+(?:Ethereum|Arbitrum(?: One)?|Optimism|OP Mainnet|Polygon|Base|Linea|Monad|MegaETH|Robinhood|Solana)\b.*$/iu;
+
+/** Turn registry prose into a quiet one-line capability summary for pickers. */
+export function conciseSkillDescription(description: string): string {
+  const original = description.trim();
+  if (!original) return "";
+
+  let summary = original
+    .split(/\n|(?<=[.!?])\s/u, 1)[0]!
+    .replace(
+      /^use (?:this skill )?when (?:the )?users? (?:want|wants|need|needs) (?:to\s+)?/iu,
+      "",
+    )
+    .replace(/\s+[—;].*$/u, "")
+    .replace(/\s+via\s+.*$/iu, "")
+    .replace(CHAIN_CONTEXT, "")
+    .replace(/\bERC20\b/giu, "ERC-20")
+    .replace(/[.!?]+$/u, "")
+    .trim();
+
+  if (!summary) summary = original;
+  summary = `${summary[0]?.toUpperCase() ?? ""}${summary.slice(1)}`;
+  if (summary.length <= 64) return summary;
+
+  const boundary = summary.lastIndexOf(" ", 61);
+  return `${summary.slice(0, boundary >= 42 ? boundary : 61).trimEnd()}…`;
+}
+
 export function useSkillCatalog() {
   const [skills, setSkills] = useState<SkillSummary[] | null>(cachedCatalog);
   const [error, setError] = useState<string | null>(null);

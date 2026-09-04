@@ -172,6 +172,7 @@ export const registry: RegistryComponent[] = [
       "components/icons/chain-map.tsx",
       "components/icons/wallet-map.tsx",
       "components/icons/apps/index.tsx",
+      "components/icons/skills/index.tsx",
       "components/icons/vendors/index.tsx",
       "components/icons/chains/index.tsx",
       "components/icons/wallets/index.tsx",

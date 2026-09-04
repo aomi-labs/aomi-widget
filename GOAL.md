@@ -1,5 +1,62 @@
 # Canonical Landing
 
+Current session goal: **CAPABILITY MENTION IDENTITY VERIFIED 2026-09-04** —
+keep selected capability mentions blue while rendering their real app, skill,
+or chain mark in the composer and sent user bubble; make Backspace remove an
+adjacent mention atomically; and retain bounded capability identity metadata
+through optimistic and durable message projection without exposing UI markup
+to the model. The picker request is consumed once and stale selections are
+cleared when the composer changes placement, so sending no longer reopens a
+filtered picker. Twelve focused registry tests, seven React projection tests,
+React and Portal typechecks, scoped lint and formatting, registry generation,
+both publishable package builds/tarball audits, and live composer, deletion,
+send, and durable-bubble checks pass. The broader assistant-ui run remains at
+74/76 due to two unrelated pre-existing wallet-approval title expectations.
+
+Current session goal: **CAPABILITY ENTRY CONTROL SPACING VERIFIED 2026-09-04** —
+normalize the plus, model, and execution controls around their own internal
+padding instead of applying a second desktop-only gap. Their visible icon gaps
+now differ by only four pixels, while the compact click targets remain intact.
+Fourteen focused tests, scoped formatting and lint, and live desktop geometry
+and screenshot checks pass.
+
+Current session goal: **CAPABILITY PICKER OUTSIDE DISMISSAL VERIFIED
+2026-09-04** — dismiss the open app, skill, and chain picker when the user
+clicks elsewhere, while preserving composer typing and interactions inside the
+picker itself. Nineteen focused registry tests, scoped formatting and lint,
+Portal typecheck, registry generation, the widget 2.0.30 bundle/tarball audit,
+and live plus/`@` outside-click checks pass without browser errors.
+
+Current session goal: **CAPABILITY PICKER PLUS ENTRY VERIFIED 2026-09-04** —
+open the existing full-width app, skill, and chain picker from a compact plus
+control before the model selector; keep the composer focused so ordinary text
+filters button-opened results, and retain multi-word filtering for both the
+plus and `@` entry paths through mouse and keyboard selection. Sixteen focused
+registry tests, eight Portal frame tests, Portal typecheck, scoped formatting
+and lint, the widget 2.0.30 bundle/tarball audit, live plus/`@` mouse
+interaction checks, and registry JSON regeneration pass. The control-bar
+registry item now includes the skill icon module required by the published
+icons barrel.
+
+Current session goal: **SKILL IDENTITY MARKS INTEGRATED 2026-09-04** — expose
+one normalized skill-icon lookup for the capability catalog, use official
+monochrome marks where the built-in catalog has a confidently attributable
+identity, and keep a neutral wand for unsupported or user-defined skills. The
+same mapping now drives the `@` picker and the Portal skills library list and
+detail views. Twelve focused registry tests, eight Portal frame tests, both
+registry/Portal TypeScript checks, registry JSON generation, the tsup/CSS
+package build, npm pack dry-run, Prettier, and `git diff --check` pass. The
+workspace package runner remains blocked by its unrelated ignored-build
+dependency-install guard.
+
+Current session goal: **CAPABILITY PICKER DENSITY VERIFIED 2026-09-04** —
+shorten verbose skill prose without losing the full hover description and show
+declared app/skill chain coverage as a restrained three-logo cluster with a
+compact overflow count beside the capability type. Absent chain metadata stays
+honestly blank. Fifteen focused registry tests, scoped formatting and lint,
+Portal typecheck plus eight frame tests, registry generation, the widget 2.0.30
+bundle/tarball audit, and a live anonymous-picker layout check pass.
+
 Current session goal: **COMPOSER MENU SYSTEM + MODE PREFERENCE VERIFIED
 2026-09-04** — unify model, execution, app, network, and capability menus around
 the compact account-menu language. Retain compact header-level network

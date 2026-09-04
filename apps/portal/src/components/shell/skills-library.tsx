@@ -10,6 +10,7 @@ import {
   WandSparkles,
   Wrench,
 } from "lucide-react";
+import { getSkillIcon } from "@/components/icons";
 import {
   fetchSkillDetail,
   skillLabel,
@@ -17,6 +18,17 @@ import {
   type SkillDetail,
   type SkillSummary,
 } from "@/lib/capabilities/skill-catalog";
+
+function SkillIdentityIcon({
+  skillId,
+  className,
+}: {
+  skillId: string;
+  className?: string;
+}) {
+  const Icon = getSkillIcon(skillId) ?? WandSparkles;
+  return <Icon className={className} />;
+}
 
 function chainLabel(id: number): string {
   const known: Record<number, string> = {
@@ -120,7 +132,10 @@ export function SkillsLibrary({ query }: { query: string }) {
                 className="border-aomi-border group flex min-h-[82px] items-center gap-3 border-b py-3 text-left"
               >
                 <span className="border-aomi-overlay-border bg-aomi-surface-2 text-aomi-accent flex size-10 shrink-0 items-center justify-center rounded-xl border">
-                  <WandSparkles size={18} />
+                  <SkillIdentityIcon
+                    skillId={skill.id}
+                    className="size-[18px]"
+                  />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5 text-[13px] font-semibold">
@@ -158,7 +173,10 @@ export function SkillsLibrary({ query }: { query: string }) {
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
             <div className="flex items-start gap-3">
               <span className="border-aomi-overlay-border bg-aomi-surface-2 text-aomi-accent flex size-11 shrink-0 items-center justify-center rounded-xl border">
-                <WandSparkles size={19} />
+                <SkillIdentityIcon
+                  skillId={selected.id}
+                  className="size-[19px]"
+                />
               </span>
               <div className="min-w-0">
                 <h2 className="text-[15px] font-semibold">

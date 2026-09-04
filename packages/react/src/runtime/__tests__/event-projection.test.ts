@@ -27,9 +27,17 @@ describe("projectAssistantMessages", () => {
       ],
     });
 
-    expect(projectRuntimeMessages([], hinted)[0]?.content).toEqual([
-      { type: "text", text: "swap one eth" },
-    ]);
+    expect(projectRuntimeMessages([], hinted)[0]).toMatchObject({
+      content: [{ type: "text", text: "swap one eth" }],
+      metadata: {
+        custom: {
+          aomiCapabilityHints: [
+            { kind: "skill", id: "uniswap" },
+            { kind: "chain", id: "eip155:8453" },
+          ],
+        },
+      },
+    });
     expect(
       projectAssistantMessages([
         {
@@ -39,8 +47,18 @@ describe("projectAssistantMessages", () => {
           content: hinted,
           message_key: "user-1",
         },
-      ])[0]?.content,
-    ).toEqual([{ type: "text", text: "swap one eth" }]);
+      ])[0],
+    ).toMatchObject({
+      content: [{ type: "text", text: "swap one eth" }],
+      metadata: {
+        custom: {
+          aomiCapabilityHints: [
+            { kind: "skill", id: "uniswap" },
+            { kind: "chain", id: "eip155:8453" },
+          ],
+        },
+      },
+    });
   });
 
   it("reconciles the optimistic user echo with the canonical event by id", () => {

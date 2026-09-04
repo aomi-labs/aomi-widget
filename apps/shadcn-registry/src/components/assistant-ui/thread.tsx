@@ -13,6 +13,7 @@ import {
   ImageIcon,
   LandmarkIcon,
   PencilIcon,
+  PlusIcon,
   RefreshCwIcon,
   SearchIcon,
   SendIcon,
@@ -60,6 +61,7 @@ import { NetworkSelect } from "@/components/control-bar/network-select";
 import { ConnectButton } from "@/components/control-bar/connect-button";
 import { PaymentRequiredGate } from "@/components/control-bar/payment-required-gate";
 import { shouldShowThreadLoadingSkeleton } from "@/components/assistant-ui/thread-loading";
+import { CapabilityMessageText } from "@/components/assistant-ui/capability-message-text";
 import { useThread, useComposerRuntime, useMessage } from "@assistant-ui/react";
 import {
   CapabilityComposerProvider,
@@ -365,6 +367,24 @@ const ExecutionControl: FC = () => {
   );
 };
 
+const CapabilityPickerButton: FC = () => {
+  const { hintsEnabled, openCapabilityPicker } = useCapabilityComposer();
+  if (!hintsEnabled) return null;
+
+  return (
+    <button
+      type="button"
+      aria-label="Add app, skill, or chain"
+      title="Add app, skill, or chain"
+      onMouseDown={(event) => event.preventDefault()}
+      onClick={openCapabilityPicker}
+      className="text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors"
+    >
+      <PlusIcon className="size-4" />
+    </button>
+  );
+};
+
 const ComposerAction: FC = () => {
   const composerControl = useComposerControl();
   const aomiRuntime = useOptionalAomiRuntime();
@@ -379,8 +399,9 @@ const ComposerAction: FC = () => {
     <div className="aui-composer-action-wrapper relative mx-1 mb-3 mt-2 flex min-h-[38px] items-center gap-1">
       {/* Inline controls — horizontally scrollable on mobile */}
       {composerControl.enabled && (
-        <div className="aui-composer-action-scroll ml-1 flex min-w-0 flex-1 items-center gap-0 overflow-x-auto md:ml-2 md:gap-2">
+        <div className="aui-composer-action-scroll ml-1 flex min-w-0 flex-1 items-center gap-0 overflow-x-auto md:ml-2">
           {!hideNetwork && <NetworkSelect />}
+          <CapabilityPickerButton />
           {!hideModel && <ModelSelect />}
           <ExecutionControl />
           {!hideWallet && <ConnectButton />}
@@ -650,7 +671,9 @@ const UserMessage: FC = () => {
             {isEmpty ? (
               <Skeleton className="aui-user-message-content-skeleton h-4 w-28 rounded-full" />
             ) : (
-              <MessagePrimitive.Parts />
+              <MessagePrimitive.Parts
+                components={{ Text: CapabilityMessageText }}
+              />
             )}
           </div>
           {!isEmpty && (

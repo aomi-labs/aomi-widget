@@ -3,7 +3,7 @@ const HINTS_END = "</AOMI_UI_CAPABILITY_HINTS>";
 
 type CapabilityKind = "app" | "skill" | "chain";
 
-type CapabilityHint = {
+export type CapabilityHint = {
   kind: CapabilityKind;
   id: string;
 };
@@ -88,4 +88,30 @@ export function stripCapabilityHints(text: string): string {
   const suffix = text.slice(start + 2);
   if (!suffix.endsWith(HINTS_END)) return text;
   return text.slice(0, start).trimEnd();
+}
+
+const HINT_LINES = [
+  ["app", "Preferred app ids: "],
+  ["skill", "Preferred skill ids: "],
+  ["chain", "Preferred execution chain ids: "],
+] as const satisfies readonly (readonly [CapabilityKind, string])[];
+
+/** Recover the validated capability identities used by a user message. */
+export function extractCapabilityHints(text: string): CapabilityHint[] {
+  const start = text.lastIndexOf(`\n\n${HINTS_START}`);
+  if (start < 0) return [];
+  const suffix = text.slice(start + 2);
+  if (!suffix.endsWith(HINTS_END)) return [];
+
+  const lines = suffix.split("\n");
+  return HINT_LINES.flatMap(([kind, prefix]) => {
+    const line = lines.find((candidate) => candidate.startsWith(prefix));
+    if (!line?.endsWith(".")) return [];
+    return line
+      .slice(prefix.length, -1)
+      .split(", ")
+      .filter((id) => SAFE_ID.test(id))
+      .slice(0, 16)
+      .map((id) => ({ kind, id }));
+  }).slice(0, 16);
 }
