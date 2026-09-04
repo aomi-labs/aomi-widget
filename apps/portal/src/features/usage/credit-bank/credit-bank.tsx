@@ -379,7 +379,27 @@ function creditReceiptUrl(entry: AomiCreditActivity): string | null {
   ) {
     return null;
   }
-  return `https://sepolia.basescan.org/tx/${entry.external_payment_reference}`;
+  const network = entry.metadata.payment_network;
+  if (typeof network !== "string") return null;
+  const explorer = explorerForPaymentNetwork(network);
+  return explorer ? `${explorer}/tx/${entry.external_payment_reference}` : null;
+}
+
+function explorerForPaymentNetwork(network: string): string | null {
+  return (
+    (
+      {
+        "eip155:8453": "https://basescan.org",
+        "eip155:84532": "https://sepolia.basescan.org",
+        "eip155:137": "https://polygonscan.com",
+        "eip155:80002": "https://amoy.polygonscan.com",
+        "eip155:43114": "https://snowtrace.io",
+        "eip155:43113": "https://testnet.snowtrace.io",
+        "eip155:42220": "https://celoscan.io",
+        "eip155:11142220": "https://celo-sepolia.blockscout.com",
+      } as Record<string, string>
+    )[network] ?? null
+  );
 }
 
 function creditPaymentLabel(entry: AomiCreditActivity): string {

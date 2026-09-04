@@ -7,7 +7,7 @@ import {
   AccountManagement,
   type AddSignInOption,
   type AddWalletOption,
-} from "./account-management";
+} from "./account-management/index";
 import { useAccountAcl } from "./use-account-acl";
 import {
   buildUnifiedAccountWallets,

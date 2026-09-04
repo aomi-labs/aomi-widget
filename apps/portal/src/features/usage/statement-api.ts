@@ -71,6 +71,7 @@ type AccountStatementResponse = {
     bank_debit_microusd: number;
     occurred_at: number;
   }>;
+  next_cursor: string | null;
 };
 
 export type CreditAllowance = { included: number; used: number };
@@ -108,12 +109,22 @@ export async function fetchModelStatement(
   const { from, to } = monthRange(monthKey);
   const start = Date.parse(`${from}T00:00:00Z`) / 1000;
   const end = Date.parse(`${to}T23:59:59Z`) / 1000 + 1;
-  const wire = await accountScopedFetch<AccountStatementResponse>(
-    "/v1/account/statement?limit=100",
-  );
-  const rows = wire.entries.filter(
-    (entry) => entry.occurred_at >= start && entry.occurred_at < end,
-  );
+  const rows: AccountStatementResponse["entries"] = [];
+  let cursor: string | null = null;
+  do {
+    const query = new URLSearchParams({
+      limit: "100",
+      from: String(start),
+      to: String(end),
+    });
+    if (cursor) query.set("cursor", cursor);
+    const page: AccountStatementResponse =
+      await accountScopedFetch<AccountStatementResponse>(
+        `/v1/account/statement?${query.toString()}`,
+      );
+    rows.push(...page.entries);
+    cursor = page.next_cursor;
+  } while (cursor);
   const apps = new Map<string, WireAppStatement>();
   const payments = new Map<string, WirePaymentLeg>();
   for (const row of rows) {
@@ -156,16 +167,8 @@ export async function fetchModelStatement(
     model.credits_used += credits;
     model.usd += usd;
     apps.set(row.application, app);
-    const leg = payments.get(method) ?? {
-      method,
-      credits_used: 0,
-      usd: 0,
-      paid_credits: 0,
-      paid_usd: 0,
-    };
-    leg.credits_used += credits;
-    leg.usd += usd;
-    payments.set(method, leg);
+    addPaymentLeg(payments, "included", row.included_applied_microusd);
+    addPaymentLeg(payments, "credit_bank", row.bank_debit_microusd);
   }
   const totalMicrousd = rows.reduce(
     (sum, row) => sum + row.gross_charge_microusd,
@@ -179,6 +182,24 @@ export async function fetchModelStatement(
     total_credits_used: totalMicrousd / 10_000,
     total_usd: totalMicrousd / 1_000_000,
   };
+}
+
+function addPaymentLeg(
+  payments: Map<string, WirePaymentLeg>,
+  method: string,
+  amountMicrousd: number,
+) {
+  if (amountMicrousd <= 0) return;
+  const leg = payments.get(method) ?? {
+    method,
+    credits_used: 0,
+    usd: 0,
+    paid_credits: 0,
+    paid_usd: 0,
+  };
+  leg.credits_used += amountMicrousd / 10_000;
+  leg.usd += amountMicrousd / 1_000_000;
+  payments.set(method, leg);
 }
 
 export async function fetchCreditAllowance(): Promise<CreditAllowance> {
@@ -213,7 +234,9 @@ function monthLabel(monthKey: string): string {
 
 /** Human label for a payment method wire value. */
 export function paymentMethodLabel(method: string): string {
-  if (method === "null" || method === "platform") return "allowance";
+  if (method === "included") return "monthly allowance";
+  if (method === "credit_bank") return "Credit Bank";
+  if (method === "null" || method === "platform") return "platform funding";
   if (method === "byok" || method === "user_byok") return "your own key";
   if (method === "application_byok") return "application key";
   return method;
@@ -274,26 +297,19 @@ export function toMonthlyStatement(
     };
   });
 
-  const quota = wire.payment.find(
-    (leg) => leg.method === "null" || leg.method === "platform",
-  );
-  const streamLegs = wire.payment.filter(
-    (leg) =>
-      !["null", "platform", "byok", "user_byok", "application_byok"].includes(
-        leg.method,
-      ),
-  );
-  const x402SettledUsd = streamLegs.reduce((sum, leg) => sum + leg.paid_usd, 0);
-  const settledVia =
-    streamLegs.length > 0
-      ? streamLegs.map((leg) => paymentMethodLabel(leg.method)).join(" + ")
-      : "allowance";
+  const allowanceAppliedUsd =
+    wire.payment.find((leg) => leg.method === "included")?.usd ?? 0;
+  const creditBankAppliedUsd =
+    wire.payment.find((leg) => leg.method === "credit_bank")?.usd ?? 0;
+  const settledVia = wire.payment.length
+    ? wire.payment.map((leg) => paymentMethodLabel(leg.method)).join(" + ")
+    : "your own key";
 
   const payment: UsagePayment = {
     settledVia,
     allowanceCredits: allowance,
-    allowanceAppliedUsd: quota?.usd ?? 0,
-    x402SettledUsd,
+    allowanceAppliedUsd,
+    creditBankAppliedUsd,
     onchainUsd: 0,
     onchainNote: "",
   };

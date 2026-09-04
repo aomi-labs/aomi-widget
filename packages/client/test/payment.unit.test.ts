@@ -197,7 +197,7 @@ describe("wrapFetchWithPaymentChallenges", () => {
     expect(rawFetch).toHaveBeenCalledTimes(1);
   });
 
-  it("fails after four sequential settled challenges", async () => {
+  it("returns the final response after four sequential settled challenges", async () => {
     let calls = 0;
     const rawFetch = vi.fn(async () => {
       calls += 1;
@@ -205,9 +205,12 @@ describe("wrapFetchWithPaymentChallenges", () => {
     });
     const { client, createPaymentPayload } = paymentClient();
 
-    await expect(
-      wrapFetchWithPaymentChallenges(rawFetch, client)(PAID_URL),
-    ).rejects.toThrow("Exceeded 4 sequential x402 payment challenges");
+    const response = await wrapFetchWithPaymentChallenges(
+      rawFetch,
+      client,
+    )(PAID_URL);
+
+    expect(response.status).toBe(402);
     expect(rawFetch).toHaveBeenCalledTimes(5);
     expect(createPaymentPayload).toHaveBeenCalledTimes(4);
   });

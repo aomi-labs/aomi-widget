@@ -1,5 +1,14 @@
 # Canonical Landing
 
+Current session goal: **PAYMENT BOUNDARY REVIEW FIXES VERIFIED 2026-09-04** —
+paginate complete monthly statements, report allowance and Credit Bank debits as
+separate account-funding buckets, classify anonymous widget principals as
+guests, derive receipt explorers from the settled network, and return the final
+bounded x402 challenge to callers. The branch is rebased onto the OAuth refresh
+fixes on `main`, preserving `offline_access` and refresh-resource inheritance.
+Portal/client tests, lint, formatting, and typechecks pass. The publishable
+client is patch-bumped to `@aomi-labs/client@0.6.11`.
+
 Current session goal: **LEAN PAYMENT BOUNDARY IMPLEMENTED AND LOCALLY VERIFIED
 2026-09-03** — move public execution admission, customer-rate accounting, and
 Credit Bank ownership into api-server; persist correlated raw usage before

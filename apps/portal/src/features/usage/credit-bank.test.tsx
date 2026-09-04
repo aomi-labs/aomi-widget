@@ -36,6 +36,7 @@ function position(
     payment_provider?: string | null;
     external_payment_reference?: string | null;
     application_id?: number | null;
+    metadata?: Record<string, unknown>;
     created_at: number;
   }> = [],
 ) {
@@ -78,6 +79,7 @@ describe("Credit Bank", () => {
               payment_method: "x402",
               payment_provider: "coinbase",
               external_payment_reference: `0x${"1".repeat(64)}`,
+              metadata: { payment_network: "eip155:84532" },
               created_at: 1,
             },
             {

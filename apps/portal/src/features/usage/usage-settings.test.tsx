@@ -24,7 +24,7 @@ const STATEMENT = {
       occurred_at: Math.floor(Date.now() / 1_000),
     },
   ],
-  next_before: null,
+  next_cursor: null,
 };
 
 const CREDITS = {
@@ -65,7 +65,14 @@ describe("usage settings wiring", () => {
       render(<UsageSettings />);
     });
 
-    expect(calls).toContain("/v1/account/statement?limit=100");
+    const statementCall = calls.find((call) =>
+      call.startsWith("/v1/account/statement?"),
+    );
+    expect(statementCall).toBeTruthy();
+    const statementQuery = new URL(statementCall!, "https://portal.test");
+    expect(statementQuery.searchParams.get("limit")).toBe("100");
+    expect(statementQuery.searchParams.get("from")).toBeTruthy();
+    expect(statementQuery.searchParams.get("to")).toBeTruthy();
     expect(calls).toContain("/v1/account/credits?limit=1");
     expect(screen.getAllByText("$0.80").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
@@ -80,7 +87,7 @@ describe("usage settings wiring", () => {
       vi.fn(async (input: string | URL | Request) => {
         const url = new URL(input.toString(), "https://portal.test");
         if (url.pathname === "/v1/account/statement") {
-          return Response.json({ entries: [], next_before: null });
+          return Response.json({ entries: [], next_cursor: null });
         }
         if (url.pathname === "/v1/account/credits") {
           return Response.json({

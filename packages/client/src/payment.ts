@@ -90,9 +90,7 @@ export async function handlePaymentChallenges(
       return response;
     }
     if (attempts === MAX_PAYMENT_CHALLENGES) {
-      throw new Error(
-        `Exceeded ${MAX_PAYMENT_CHALLENGES} sequential x402 payment challenges`,
-      );
+      return response;
     }
 
     response = await wrapFetchWithPayment(
