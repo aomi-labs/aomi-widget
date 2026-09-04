@@ -33,7 +33,6 @@ export function HeaderControls({
 
   return (
     <div className="flex items-center gap-2.5">
-      {/* Per-thread network picker, styled as the header pill from the mock. */}
       <NetworkSelect className="border-aomi-border text-aomi-muted hover:bg-aomi-surface-2 hover:text-aomi-fg h-8 rounded-full border px-2.5 text-[13px]" />
       <button
         type="button"

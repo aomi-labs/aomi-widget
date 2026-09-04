@@ -26,6 +26,7 @@ import {
   type AgentMode,
 } from "@aomi-labs/react";
 import { getAppInfo } from "@/components/control-bar/app-metadata";
+import { evmNetworkDescription } from "@/components/control-bar/network-metadata";
 import { getAppIcon, getChainIcon, SolanaIcon } from "@/components/icons";
 import { useOptionalAomiWalletNetworkPreferences } from "@/lib/wallet-kit/network-preferences";
 import { skillLabel, useSkillCatalog } from "@/lib/capabilities/skill-catalog";
@@ -150,7 +151,9 @@ export function CapabilityComposerProvider({
   useEffect(() => {
     if (normalizedRouting.error) return;
     if (policy === "auto") {
-      if (storedMode && storedMode !== "auto") onAgentModeSelect("auto");
+      if (storedMode && storedMode !== "auto") {
+        onAgentModeSelect("auto", { persist: false });
+      }
       return;
     }
     if (
@@ -159,7 +162,7 @@ export function CapabilityComposerProvider({
         !currentDirectApp ||
         !sameDirectRoutingApp(selectedDirectApp, currentDirectApp))
     ) {
-      onAgentTargetSelect(toAgentTarget(selectedDirectApp));
+      onAgentTargetSelect(toAgentTarget(selectedDirectApp), { persist: false });
     }
   }, [
     currentDirectApp,
@@ -400,7 +403,7 @@ export const CapabilityMentionInput: FC<{
         kind: "chain" as const,
         id: `eip155:${chain.id}`,
         label: chain.name,
-        description: "EVM execution chain",
+        description: evmNetworkDescription(chain),
         chainTarget: { family: "evm" as const, chainId: chain.id },
         searchText: `${chain.name} evm ${chain.id}`,
         Icon: getChainIcon(chain.id) ?? Globe2Icon,
@@ -410,7 +413,7 @@ export const CapabilityMentionInput: FC<{
         kind: "chain" as const,
         id: `solana:${network.id}`,
         label: network.label,
-        description: "Solana execution cluster",
+        description: `Solana network · ${network.cluster.replace("solana:", "")}`,
         chainTarget: {
           family: "svm" as const,
           networkId: network.id,
@@ -625,14 +628,14 @@ export const CapabilityMentionInput: FC<{
         className={`${className} min-h-[30px]`}
       />
       {hintsEnabled && query !== null ? (
-        <div className="border-aomi-border bg-aomi-raised text-aomi-fg absolute bottom-full left-3 z-50 mb-2 w-[min(380px,calc(100%-24px))] overflow-hidden rounded-xl border shadow-xl">
+        <div className="border-aomi-border bg-aomi-raised text-aomi-fg absolute bottom-full left-0 z-50 mb-8 flex max-h-[min(320px,calc(100dvh-11rem))] w-full flex-col overflow-hidden rounded-2xl border p-2 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
           {visibleItems.length > 0 ? (
             <div
               id={pickerId}
               role="listbox"
               aria-label="Apps, skills, and chains"
               ref={pickerRef}
-              className="aui-command-list m-1 max-h-[268px] overflow-y-auto overflow-x-hidden overscroll-contain pr-1"
+              className="aui-command-list min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain pr-1"
             >
               {visibleGroups.map((group, groupIndex) => {
                 const priorCount = visibleGroups
@@ -640,7 +643,7 @@ export const CapabilityMentionInput: FC<{
                   .reduce((count, prior) => count + prior.items.length, 0);
                 return (
                   <section key={group.kind} aria-label={group.label}>
-                    <div className="text-aomi-muted px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-[0.08em] first:pt-1.5">
+                    <div className="text-aomi-muted px-2.5 pb-1 pt-2 text-[10px] font-medium uppercase tracking-[0.09em] first:pt-1.5">
                       {group.label}
                     </div>
                     <div className="flex flex-col gap-0.5">
@@ -657,7 +660,7 @@ export const CapabilityMentionInput: FC<{
                             onMouseDown={(event) => event.preventDefault()}
                             onPointerMove={() => setHighlighted(index)}
                             onClick={() => selectItem(item)}
-                            className="hover:bg-aomi-hover aria-selected:bg-aomi-hover flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors"
+                            className="hover:bg-aomi-surface-2 aria-selected:bg-aomi-surface-2 flex min-h-11 w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left transition-colors"
                           >
                             <span className="text-aomi-muted flex size-7 shrink-0 items-center justify-center">
                               <item.Icon className="size-3.5" />
@@ -675,6 +678,9 @@ export const CapabilityMentionInput: FC<{
                                 </span>
                               ) : null}
                             </span>
+                            <span className="bg-aomi-surface-2 text-aomi-muted ml-2 min-w-12 shrink-0 rounded-full px-2 py-1 text-center text-[9px] font-medium uppercase tracking-[0.08em]">
+                              {item.kind}
+                            </span>
                           </button>
                         );
                       })}
@@ -688,7 +694,7 @@ export const CapabilityMentionInput: FC<{
               id={pickerId}
               role="listbox"
               aria-label="Apps, skills, and chains"
-              className="p-1"
+              className="min-h-0 flex-1 py-1"
             >
               <div
                 role="status"
@@ -698,7 +704,7 @@ export const CapabilityMentionInput: FC<{
               </div>
             </div>
           )}
-          <div className="border-aomi-border/70 text-aomi-muted flex min-h-8 items-center justify-between gap-3 border-t px-3 py-1.5 text-[11px]">
+          <div className="border-aomi-border/70 text-aomi-muted mt-1.5 flex min-h-8 shrink-0 items-center justify-between gap-3 border-t px-2.5 pb-0.5 pt-2 text-[11px]">
             <span className="truncate">
               Type to search apps, skills, and chains
             </span>

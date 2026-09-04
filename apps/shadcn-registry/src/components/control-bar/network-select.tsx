@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FC, type SVGProps } from "react";
-import { cn, getChainInfo } from "@aomi-labs/react";
+import { cn } from "@aomi-labs/react";
 import type { Chain } from "viem";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,6 +48,7 @@ import {
   controlSelectTriggerClass,
   useControlMenuHighlight,
 } from "./control-menu";
+import { evmNetworkDescription } from "./network-metadata";
 
 export type NetworkSelectProps = {
   className?: string;
@@ -61,6 +62,7 @@ type NetworkRow = {
   family: WalletFamily;
   key: string;
   title: string;
+  description: string;
   Icon?: GlyphIcon;
   /** Two-letter fallback when no brand mark exists (EVM only). */
   fallback: string;
@@ -125,6 +127,12 @@ function formatSolanaBadge(network: SvmNetworkOption): string {
   return "Devnet";
 }
 
+function formatSolanaDescription(network: SvmNetworkOption): string {
+  if (network.cluster === "solana:mainnet") return "L1 · SOL";
+  if (network.cluster === "solana:testnet") return "Testnet · SOL";
+  return "Devnet · SOL";
+}
+
 export const NetworkSelect: FC<NetworkSelectProps> = ({
   className,
   chains,
@@ -182,12 +190,13 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
         family: "evm",
         rows: evmChains.map((chain) => {
           const ticker =
-            getChainInfo(chain.id)?.ticker ??
-            ("nativeCurrency" in chain ? chain.nativeCurrency.symbol : "");
+            ("nativeCurrency" in chain ? chain.nativeCurrency.symbol : "") ||
+            "";
           return {
             family: "evm",
             key: `evm:${chain.id}`,
             title: chain.name,
+            description: evmNetworkDescription(chain),
             Icon: getChainIcon(chain.id),
             fallback: ticker.slice(0, 2),
             isTestnet: isTestnetChain(chain),
@@ -205,6 +214,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
           family: "svm",
           key: `solana:${network.id}`,
           title: network.label,
+          description: formatSolanaDescription(network),
           Icon: SolanaIcon,
           fallback: formatSolanaBadge(network).slice(0, 2),
           isTestnet: !isSolanaMainnet(network),
@@ -319,6 +329,7 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
       <CommandItem
         key={row.key}
         value={row.searchValue}
+        aria-label={row.title}
         onSelect={() => void handleTargetSelect(row.target)}
         className={controlMenuItemClass}
       >
@@ -331,7 +342,12 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
         >
           {row.Icon ? <row.Icon className="h-4 w-4" /> : row.fallback}
         </span>
-        <span className="min-w-0 flex-1 truncate">{row.title}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{row.title}</span>
+          <span className="text-aomi-muted block truncate text-[11px] leading-4">
+            {row.description}
+          </span>
+        </span>
         <ControlMenuCheck selected={row.isActive} />
       </CommandItem>
     );
@@ -381,7 +397,9 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
         </PopoverTrigger>
         <PopoverContent
           align="start"
+          side="bottom"
           sideOffset={4}
+          avoidCollisions={false}
           className={controlMenuContentClass}
           onOpenAutoFocus={(event) => {
             if (
@@ -442,21 +460,27 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
       </Popover>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Switch SVM network?</DialogTitle>
-            <DialogDescription>
+        <DialogContent
+          showCloseButton={false}
+          className="border-aomi-border bg-aomi-raised text-aomi-fg gap-0 overflow-hidden rounded-2xl p-0 shadow-[0_20px_60px_rgba(0,0,0,0.24)] sm:max-w-sm"
+        >
+          <DialogHeader className="gap-1 px-5 pb-4 pt-5 text-left">
+            <DialogTitle className="text-[15px] leading-5">
+              Switch Solana network?
+            </DialogTitle>
+            <DialogDescription className="text-aomi-muted text-[12px] leading-5">
               This SVM wallet needs to reconnect to change clusters. Your
               current chat and EVM wallet stay connected.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
+          <DialogFooter className="border-aomi-border bg-aomi-surface/35 flex-row justify-end gap-2 border-t px-4 py-3">
             <Button
               variant="outline"
               onClick={() => {
                 setConfirmOpen(false);
                 setPendingTarget(null);
               }}
+              className="border-aomi-border bg-aomi-raised text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg h-8 rounded-lg px-3 text-[12px]"
             >
               Cancel
             </Button>
@@ -469,8 +493,9 @@ export const NetworkSelect: FC<NetworkSelectProps> = ({
                   void applyTarget(target);
                 }
               }}
+              className="bg-aomi-fg text-aomi-bg hover:bg-aomi-fg h-8 rounded-lg px-3 text-[12px] hover:opacity-90"
             >
-              Switch Network
+              Switch network
             </Button>
           </DialogFooter>
         </DialogContent>

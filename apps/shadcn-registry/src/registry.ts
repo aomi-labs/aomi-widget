@@ -152,6 +152,7 @@ export const registry: RegistryComponent[] = [
       "components/control-bar/app-metadata.ts",
       "components/control-bar/api-key-input.tsx",
       "components/control-bar/connect-button.tsx",
+      "components/control-bar/network-metadata.ts",
       "components/control-bar/network-select.tsx",
       "components/control-bar/secret-input.tsx",
       "components/control-bar/payment-required-gate.tsx",

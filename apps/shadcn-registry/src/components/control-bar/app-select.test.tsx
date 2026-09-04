@@ -87,7 +87,7 @@ describe("AppSelect", () => {
 
   it("selects an application-id target without inventing an app name", () => {
     render(<AppSelect />);
-    fireEvent.click(screen.getByRole("button", { name: "PA Partner Agent" }));
+    fireEvent.click(screen.getByRole("button", { name: "Partner Agent" }));
     expect(selectDirectApp).toHaveBeenCalledWith({ applicationId: 42 });
   });
 });

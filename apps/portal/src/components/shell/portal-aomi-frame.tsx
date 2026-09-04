@@ -229,7 +229,6 @@ export function PortalAomiFrame() {
             hideApiKey: true,
             routing,
             enabledAppIds: enabledApps,
-            // The network picker lives in the header pill (HeaderControls).
             hideNetwork: true,
           }}
         />

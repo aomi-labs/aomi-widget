@@ -8,19 +8,19 @@ export const controlSelectTriggerClass =
   "text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg h-8 min-w-0 gap-1.5 rounded-full px-2.5 text-xs";
 
 export const controlMenuContentClass =
-  "border-aomi-border bg-aomi-raised w-[248px] overflow-hidden rounded-xl p-1";
+  "border-aomi-border bg-aomi-raised w-[248px] overflow-hidden rounded-xl border p-2 shadow-[0_16px_40px_rgba(0,0,0,0.20)]";
 
 export const controlMenuCommandClass =
-  "bg-transparent rounded-[9px] [&_[cmdk-input-wrapper]]:border-aomi-border [&_[cmdk-input-wrapper]]:mb-1 [&_[cmdk-input-wrapper]]:px-2.5 [&_[cmdk-input-wrapper]_svg]:mr-[7px] [&_[cmdk-input-wrapper]_svg]:size-3.5 [&_[cmdk-input]]:h-9 [&_[cmdk-input]]:py-1.5 [&_[cmdk-input]]:text-xs";
+  "bg-transparent rounded-lg [&_[cmdk-input-wrapper]]:bg-aomi-surface-2/55 [&_[cmdk-input-wrapper]]:mb-1.5 [&_[cmdk-input-wrapper]]:rounded-lg [&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:px-2.5 [&_[cmdk-input-wrapper]_svg]:mr-[7px] [&_[cmdk-input-wrapper]_svg]:size-3.5 [&_[cmdk-input]]:h-8 [&_[cmdk-input]]:py-1 [&_[cmdk-input]]:text-xs";
 
 export const controlMenuListClass =
-  "mx-0.5 mb-0.5 max-h-[190px] overscroll-contain overflow-y-auto overflow-x-hidden p-0 pr-1";
+  "max-h-[240px] overscroll-contain overflow-y-auto overflow-x-hidden p-0 pr-1";
 
 export const controlMenuGroupClass =
-  "p-0 [&_[cmdk-group-heading]]:text-aomi-muted [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-[7px] [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col [&_[cmdk-group-items]]:gap-0.5";
+  "p-0 [&_[cmdk-group-heading]]:text-aomi-muted [&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.09em] [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col [&_[cmdk-group-items]]:gap-0.5";
 
 export const controlMenuItemClass =
-  "aria-selected:bg-aomi-hover aria-selected:text-aomi-fg flex min-h-9 w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[13px]";
+  "aria-selected:bg-aomi-surface-2 aria-selected:text-aomi-fg flex min-h-9 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px]";
 
 export const controlMenuIconClass =
   "text-aomi-muted flex size-6 shrink-0 items-center justify-center";
@@ -77,7 +77,7 @@ export const ControlSelectChevron: FC<{ className?: string }> = ({
 );
 
 export const ControlMenuTitle: FC<{ children: ReactNode }> = ({ children }) => (
-  <div className="text-aomi-muted px-2.5 pb-1 pt-1 text-[11px] font-medium uppercase tracking-[0.08em]">
+  <div className="text-aomi-muted px-2.5 pb-1 pt-0.5 text-[10px] font-medium uppercase tracking-[0.09em]">
     {children}
   </div>
 );

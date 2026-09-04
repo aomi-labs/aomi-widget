@@ -72,7 +72,9 @@ export const ModeSelect: FC<ModeSelectProps> = ({ className }) => {
       </PopoverTrigger>
       <PopoverContent
         align="start"
+        side="bottom"
         sideOffset={4}
+        avoidCollisions={false}
         className={controlMenuContentClass}
       >
         <ControlMenuTitle>Execution mode</ControlMenuTitle>

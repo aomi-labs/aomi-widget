@@ -10,8 +10,13 @@ import {
   ChevronRightIcon,
   CoinsIcon,
   CopyIcon,
+  ImageIcon,
+  LandmarkIcon,
   PencilIcon,
   RefreshCwIcon,
+  SearchIcon,
+  SendIcon,
+  ShieldCheckIcon,
   Square,
   ArrowLeftRightIcon,
   TrendingUpIcon,
@@ -176,41 +181,66 @@ const ThreadWelcome: FC = () => {
 };
 
 const ThreadSuggestions: FC = () => {
-  const suggestedActions = [
-    {
-      label: "Swap 0.5 ETH to USDC",
-      action: "Swap 0.5 ETH to USDC at the best rate",
-      icon: ArrowLeftRightIcon,
-    },
-    {
-      label: "Bridge USDC to Base",
-      action: "Bridge 100 USDC from Ethereum to Base",
-      icon: CableIcon,
-    },
-    {
-      label: "Check my portfolio",
-      action: "Show my wallet balances and positions",
-      icon: CoinsIcon,
-    },
-    {
-      label: "Deploy an ERC-20 token",
-      action: "Deploy an ERC-20 token",
-      icon: BoxIcon,
-    },
-    {
-      label: "Find the best ETH yield",
-      action: "Find the highest available yield for staking ETH",
-      icon: TrendingUpIcon,
-    },
-  ];
   const suggestionRows = [
     {
       id: "primary",
-      actions: suggestedActions,
+      actions: [
+        {
+          label: "Swap 0.5 ETH to USDC",
+          action: "Swap 0.5 ETH to USDC at the best rate",
+          icon: ArrowLeftRightIcon,
+        },
+        {
+          label: "Bridge USDC to Base",
+          action: "Bridge 100 USDC from Ethereum to Base",
+          icon: CableIcon,
+        },
+        {
+          label: "Check my portfolio",
+          action: "Show my wallet balances and positions",
+          icon: CoinsIcon,
+        },
+        {
+          label: "Deploy an ERC-20 token",
+          action: "Deploy an ERC-20 token",
+          icon: BoxIcon,
+        },
+        {
+          label: "Find the best ETH yield",
+          action: "Find the highest available yield for staking ETH",
+          icon: TrendingUpIcon,
+        },
+      ],
     },
     {
       id: "secondary",
-      actions: [...suggestedActions.slice(2), ...suggestedActions.slice(0, 2)],
+      actions: [
+        {
+          label: "Send 0.01 ETH",
+          action: "Help me send 0.01 ETH to another wallet",
+          icon: SendIcon,
+        },
+        {
+          label: "Supply USDC to Aave",
+          action: "Supply 100 USDC to Aave on the best supported network",
+          icon: LandmarkIcon,
+        },
+        {
+          label: "Review token approvals",
+          action: "Show and review my active token approvals",
+          icon: ShieldCheckIcon,
+        },
+        {
+          label: "Create an NFT collection",
+          action: "Create and deploy an NFT collection",
+          icon: ImageIcon,
+        },
+        {
+          label: "Track a transaction",
+          action: "Help me look up an on-chain transaction by hash",
+          icon: SearchIcon,
+        },
+      ],
     },
   ];
 

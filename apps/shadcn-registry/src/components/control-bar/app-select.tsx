@@ -65,6 +65,7 @@ export const AppSelect: FC<AppSelectProps> = ({
         descriptor?.label ??
         (appName ? info.displayName : `Application ${target.applicationId}`),
       Icon: getAppIcon(appName),
+      description: info.category.label,
       search: `${appName} ${descriptor?.label ?? ""} ${info.displayName}`,
     };
   });
@@ -107,7 +108,9 @@ export const AppSelect: FC<AppSelectProps> = ({
       </PopoverTrigger>
       <PopoverContent
         align="start"
+        side="bottom"
         sideOffset={4}
+        avoidCollisions={false}
         className={controlMenuContentClass}
         onOpenAutoFocus={(event) => {
           if (
@@ -136,6 +139,7 @@ export const AppSelect: FC<AppSelectProps> = ({
                         : `app:${row.target.app}`
                     }
                     value={`${row.label} ${row.search}`}
+                    aria-label={row.label}
                     disabled={isRunning}
                     onSelect={() => {
                       if (isRunning) return;
@@ -152,7 +156,14 @@ export const AppSelect: FC<AppSelectProps> = ({
                           row.label.slice(0, 2).toUpperCase()
                         )}
                       </span>
-                      <span className="truncate">{row.label}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">
+                          {row.label}
+                        </span>
+                        <span className="text-aomi-muted block truncate text-[11px] leading-4">
+                          {row.description}
+                        </span>
+                      </span>
                     </div>
                     <ControlMenuCheck selected={isSelected} />
                   </CommandItem>

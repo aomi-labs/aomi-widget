@@ -1,5 +1,24 @@
 # Canonical Landing
 
+Current session goal: **COMPOSER MENU SYSTEM + MODE PREFERENCE VERIFIED
+2026-09-04** — unify model, execution, app, network, and capability menus around
+the compact account-menu language. Retain compact header-level network
+selection with useful `L1/L2 · token` metadata; make only the `@` panel span the
+complete input width above a deliberate gap; keep button-triggered menus below
+their controls; and expose clear app, skill, and chain identity without
+redundant headings. Model choice no longer mutates routing, while the user's
+Auto/Direct preference persists independently across reloads and fresh chats.
+Thirty-two focused React, registry, and Portal tests, scoped formatting and
+lint, React/Portal typechecks, registry generation, both publishable package
+builds and tarball audits, and live browser interaction/visual checks pass.
+
+Current session goal: **DISTINCT WELCOME SUGGESTION LANES VERIFIED 2026-09-04** —
+replace the rotated duplicate welcome prompts with two independently curated
+marquee lanes spanning trading, portfolio, deployment, transfers, lending,
+security, NFTs, and transaction lookup while retaining seamless per-lane
+animation. Scoped formatting and lint, Portal typecheck, registry generation,
+the widget 2.0.29 bundle/tarball audit, and live browser verification pass.
+
 Current session goal: **PRODUCTION WALLET IMPACT REVIEW VERIFIED 2026-09-04** —
 ship the selected side-by-side review into the live widget with invariant Send
 controls, two-row fixed transaction pages, approval/action pairing, safe

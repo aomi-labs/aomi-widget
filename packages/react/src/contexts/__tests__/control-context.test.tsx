@@ -223,11 +223,14 @@ describe("ControlContextProvider", () => {
     });
 
     expect(setModel).not.toHaveBeenCalled();
-    expect(threadMetadata.get("session-1")?.control).toMatchObject({
+    const selectedControl = threadMetadata.get("session-1")?.control;
+    expect(selectedControl).toMatchObject({
       model: "gpt-5",
       modelMode: "manual",
+      app: null,
       controlDirty: true,
     });
+    expect(selectedControl?.agentMode).not.toBe("direct");
     expect(
       JSON.parse(globalThis.localStorage.getItem("aomi_model_selection")!),
     ).toMatchObject({ mode: "manual", model: "gpt-5" });
@@ -428,6 +431,7 @@ describe("ControlContextProvider", () => {
         applicationId: 2936682,
       });
     });
+    expect(globalThis.localStorage.getItem("aomi_agent_mode")).toBe("direct");
     expect(getControl().getCurrentThreadTarget()).toEqual({
       mode: "direct",
       applicationId: 2936682,
@@ -435,6 +439,10 @@ describe("ControlContextProvider", () => {
 
     act(() => {
       getControl().onAgentModeSelect("auto");
+    });
+    expect(globalThis.localStorage.getItem("aomi_agent_mode")).toBe("auto");
+    expect(getControl().getPreferredThreadControl()).toMatchObject({
+      agentMode: "auto",
     });
     expect(getControl().getCurrentThreadTarget()).toEqual({ mode: "auto" });
   });

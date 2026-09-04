@@ -145,7 +145,9 @@ export const ModelSelect: FC<ModelSelectProps> = ({
       </PopoverTrigger>
       <PopoverContent
         align="start"
+        side="bottom"
         sideOffset={4}
+        avoidCollisions={false}
         className={controlMenuContentClass}
         onOpenAutoFocus={(e) => {
           if (window.matchMedia("(max-width: 767px)").matches) {
@@ -173,7 +175,7 @@ export const ModelSelect: FC<ModelSelectProps> = ({
                   <div className="flex flex-col">
                     <span className="font-medium">{AUTO_MODEL_LABEL}</span>
                     <span className="text-aomi-muted text-[11px] leading-4">
-                      Best balance of speed & cost
+                      Balanced speed and cost
                     </span>
                   </div>
                 </div>
