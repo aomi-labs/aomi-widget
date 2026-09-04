@@ -68,6 +68,23 @@ export type CapabilityMention = {
     | { family: "svm"; networkId: string };
 };
 
+export type CapabilityMentionRequest = Pick<CapabilityMention, "kind" | "id">;
+
+const CAPABILITY_MENTION_REQUEST_EVENT = "aomi:capability-mention-request";
+
+/** Ask the mounted composer to insert a catalog capability as a rich mention. */
+export function requestCapabilityMention(
+  request: CapabilityMentionRequest,
+): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<CapabilityMentionRequest>(
+      CAPABILITY_MENTION_REQUEST_EVENT,
+      { detail: request },
+    ),
+  );
+}
+
 type CapabilityComposerContextValue = {
   mentions: CapabilityMention[];
   policy: ExecutionPolicy;
@@ -881,24 +898,10 @@ export const CapabilityMentionInput: FC<{
     isDisabled,
   ]);
 
-  const selectItem = useCallback(
-    (item: PickerItem) => {
+  const insertItemAtRange = useCallback(
+    (item: PickerItem, range: Range) => {
       const editor = editorRef.current;
       if (!editor) return;
-
-      const range = document.createRange();
-      if (pickerSourceRef.current === "button") {
-        const trigger = buttonTriggerRef.current;
-        if (!trigger?.marker.isConnected || !trigger.endNode.isConnected)
-          return;
-        range.setStartBefore(trigger.marker);
-        range.setEnd(trigger.endNode, trigger.end);
-      } else {
-        const trigger = triggerRef.current;
-        if (!trigger?.node.isConnected) return;
-        range.setStart(trigger.node, trigger.start);
-        range.setEnd(trigger.node, trigger.end);
-      }
       range.deleteContents();
 
       const mention = document.createElement("span");
@@ -939,6 +942,81 @@ export const CapabilityMentionInput: FC<{
     },
     [addMention, closePicker, syncEditor],
   );
+
+  const selectItem = useCallback(
+    (item: PickerItem) => {
+      const range = document.createRange();
+      if (pickerSourceRef.current === "button") {
+        const trigger = buttonTriggerRef.current;
+        if (!trigger?.marker.isConnected || !trigger.endNode.isConnected)
+          return;
+        range.setStartBefore(trigger.marker);
+        range.setEnd(trigger.endNode, trigger.end);
+      } else {
+        const trigger = triggerRef.current;
+        if (!trigger?.node.isConnected) return;
+        range.setStart(trigger.node, trigger.start);
+        range.setEnd(trigger.node, trigger.end);
+      }
+      insertItemAtRange(item, range);
+    },
+    [insertItemAtRange],
+  );
+
+  useEffect(() => {
+    const insertRequestedMention = (rawEvent: Event) => {
+      if (!hintsEnabled || isDisabled) return;
+      const request = (rawEvent as CustomEvent<CapabilityMentionRequest>)
+        .detail;
+      if (!request) return;
+      const item = items.find(
+        (candidate) =>
+          candidate.kind === request.kind && candidate.id === request.id,
+      );
+      const editor = editorRef.current;
+      if (!item || !editor) return;
+      if (mentions.some((mention) => mention.key === item.key)) {
+        editor.focus();
+        return;
+      }
+
+      closePicker();
+      clearEmptyEditorStructure(editor);
+      const range = document.createRange();
+      const selection = window.getSelection();
+      const anchor = selection?.anchorNode;
+      const selectionInsideEditor =
+        selection?.isCollapsed && anchor && editor.contains(anchor);
+      const selectionInsideMention =
+        anchor instanceof Text &&
+        anchor.parentElement?.closest("[data-capability-key]");
+      if (selectionInsideEditor && !selectionInsideMention) {
+        range.setStart(anchor, selection.anchorOffset);
+      } else {
+        range.selectNodeContents(editor);
+        range.collapse(false);
+      }
+      range.collapse(true);
+      insertItemAtRange(item, range);
+    };
+
+    window.addEventListener(
+      CAPABILITY_MENTION_REQUEST_EVENT,
+      insertRequestedMention,
+    );
+    return () =>
+      window.removeEventListener(
+        CAPABILITY_MENTION_REQUEST_EVENT,
+        insertRequestedMention,
+      );
+  }, [
+    closePicker,
+    hintsEnabled,
+    insertItemAtRange,
+    isDisabled,
+    items,
+    mentions,
+  ]);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing) return;

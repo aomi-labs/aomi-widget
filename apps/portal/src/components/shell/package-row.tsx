@@ -106,13 +106,17 @@ export function PackageRow({
 
 interface PackageIconProps {
   app: CatalogPackage;
-  size?: "small" | "large";
+  size?: "small" | "large" | "detail";
 }
 
 export function PackageIcon({ app, size = "large" }: PackageIconProps) {
   const sizeClass =
-    size === "small" ? "h-9 w-9 text-[11px]" : "h-10 w-10 text-xs";
-  const glyphSize = size === "small" ? 18 : 20;
+    size === "small"
+      ? "h-9 w-9 text-[11px]"
+      : size === "detail"
+        ? "h-12 w-12 text-sm"
+        : "h-10 w-10 text-xs";
+  const glyphSize = size === "small" ? 18 : size === "detail" ? 22 : 20;
   const Glyph =
     app.glyph === "chart"
       ? Chart

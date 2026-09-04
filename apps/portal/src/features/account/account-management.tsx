@@ -17,7 +17,12 @@ import {
   X,
 } from "lucide-react";
 import { WalletProviderAvatar } from "./wallet-brands";
-import { Divider, SettingRow } from "./settings-rows";
+import {
+  Divider,
+  SettingRow,
+  SettingsSectionHeading,
+  settingsPanelClass,
+} from "./settings-rows";
 import { shortenAddress } from "./account-api";
 import {
   walletConnectionSummary,
@@ -105,7 +110,7 @@ export function AccountManagement({
   };
 
   return (
-    <div className="flex flex-col gap-6 px-[22px] py-5">
+    <div className="mx-auto flex w-full max-w-[780px] flex-col gap-5 px-6 py-6">
       {error ? (
         <div
           role="alert"
@@ -116,8 +121,8 @@ export function AccountManagement({
       ) : null}
 
       <section className="flex flex-col gap-2">
-        <SectionHeading title="Account" />
-        <div className="border-aomi-border bg-aomi-bg/40 overflow-hidden rounded-xl border">
+        <SettingsSectionHeading title="Account" />
+        <div className={settingsPanelClass}>
           <SettingRow
             className="px-4"
             leading={
@@ -178,7 +183,7 @@ export function AccountManagement({
       </section>
 
       <section className="flex flex-col gap-2">
-        <SectionHeading
+        <SettingsSectionHeading
           title="Wallets"
           detail={`${wallets.length} total · ${connectedWalletCount} connected now`}
           action={
@@ -186,7 +191,7 @@ export function AccountManagement({
               <button
                 type="button"
                 onClick={() => setAddWalletOpen((open) => !open)}
-                className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors"
+                className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-medium transition-colors"
               >
                 <Plus size={13} />
                 Add wallet
@@ -208,7 +213,7 @@ export function AccountManagement({
           />
         ) : null}
 
-        <div className="border-aomi-border bg-aomi-bg/40 overflow-hidden rounded-xl border">
+        <div className={settingsPanelClass}>
           {wallets.length ? (
             wallets.map((wallet, index) => (
               <div key={wallet.key}>
@@ -233,7 +238,7 @@ export function AccountManagement({
       </section>
 
       <section className="flex flex-col gap-2">
-        <SectionHeading
+        <SettingsSectionHeading
           title="Sign-in methods"
           detail={
             signInMethods.length ? `${signInMethods.length} linked` : undefined
@@ -243,7 +248,7 @@ export function AccountManagement({
               <button
                 type="button"
                 onClick={() => setAddSignInOpen((open) => !open)}
-                className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors"
+                className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-medium transition-colors"
               >
                 <Plus size={13} />
                 Add method
@@ -261,7 +266,7 @@ export function AccountManagement({
           />
         ) : null}
 
-        <div className="border-aomi-border bg-aomi-bg/40 overflow-hidden rounded-xl border">
+        <div className={settingsPanelClass}>
           {signInMethods.length ? (
             signInMethods.map((account, index) => (
               <div key={account.id}>
@@ -304,8 +309,8 @@ export function AccountManagement({
       </section>
 
       <section className="flex flex-col gap-2 pb-1">
-        <SectionHeading title="Session" />
-        <div className="border-aomi-border bg-aomi-bg/40 overflow-hidden rounded-xl border">
+        <SettingsSectionHeading title="Session" />
+        <div className={settingsPanelClass}>
           {onSignOut ? (
             <SettingRow
               className="px-4"
@@ -386,14 +391,14 @@ function WalletRow({
       />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="truncate text-sm font-medium">{title}</span>
+          <span className="truncate text-[13px] font-medium">{title}</span>
           {wallet.connected ? (
             <StatusBadge label="Connected" tone="connected" />
           ) : null}
           {wallet.linked ? <StatusBadge label="Linked" tone="linked" /> : null}
           {wallet.active ? <StatusBadge label="Active" tone="active" /> : null}
         </div>
-        <span className="text-aomi-muted block truncate font-mono text-[12px]">
+        <span className="text-aomi-muted block truncate font-mono text-[11px]">
           {shortenAddress(wallet.address)} ·{" "}
           {wallet.family === "evm" ? "Ethereum" : "Solana"}
         </span>
@@ -471,28 +476,6 @@ function WalletRow({
   );
 }
 
-function SectionHeading({
-  title,
-  detail,
-  action,
-}: {
-  title: string;
-  detail?: string;
-  action?: React.ReactNode;
-}) {
-  return (
-    <div className="flex min-h-8 items-center justify-between gap-3">
-      <div className="flex items-baseline gap-2">
-        <h3 className="text-sm font-semibold">{title}</h3>
-        {detail ? (
-          <span className="text-aomi-muted text-[12px]">{detail}</span>
-        ) : null}
-      </div>
-      {action}
-    </div>
-  );
-}
-
 function OptionGrid<
   T extends { id: string; label: string; markKey?: string; ready: boolean },
 >({
@@ -507,7 +490,7 @@ function OptionGrid<
   onSelect: (option: T) => void;
 }) {
   return (
-    <div className="border-aomi-border bg-aomi-surface-2/30 grid grid-cols-1 gap-2 rounded-xl border p-2 sm:grid-cols-2">
+    <div className="border-aomi-border bg-aomi-surface-2/25 grid grid-cols-1 gap-2 rounded-xl border p-2 sm:grid-cols-2">
       {options.map((option) => {
         const busy = pending === `${prefix}:${option.id}`;
         return (
@@ -516,7 +499,7 @@ function OptionGrid<
             type="button"
             disabled={!option.ready || busy}
             onClick={() => onSelect(option)}
-            className="border-aomi-border bg-aomi-bg hover:bg-aomi-hover text-aomi-fg flex h-10 items-center justify-between rounded-lg border px-3 text-left text-[13px] font-medium transition-colors disabled:opacity-50"
+            className="border-aomi-border bg-aomi-raised hover:bg-aomi-hover text-aomi-fg flex h-10 items-center justify-between rounded-lg border px-3 text-left text-[12px] font-medium transition-colors disabled:opacity-50"
           >
             <span className="flex min-w-0 items-center gap-2">
               {option.markKey ? (

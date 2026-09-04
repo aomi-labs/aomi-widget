@@ -1,5 +1,36 @@
 # Canonical Landing
 
+Current session goal: **SETTINGS DIRECTORY LANGUAGE VERIFIED 2026-09-04** —
+port the selected Library aesthetic to the complete Settings experience: one
+matching 1080×620 directory shell, compact persistent sidebar navigation,
+consistent header hierarchy, quiet borders, shared row typography, restrained
+rounded controls, and aligned General, Account/signing, and Usage surfaces.
+Preserve all account, wallet, signing, theme, and usage behavior. Verified with
+40 focused Portal tests, scoped ESLint and Prettier, Portal TypeScript,
+`git diff --check`, and successful hot compilation in the active
+`portal-ui-local` workspace.
+
+Current session goal: **SIDEBAR LIBRARY INTEGRATED 2026-09-04** — replace the
+production Library's legacy tabbed lists with the selected design-lab directory:
+persistent section and category navigation, a searchable mixed catalog, and an
+always-visible inspector for the selected app or skill. Preserve real app
+install/remove state and chain restrictions; give skills a Try action that
+returns to chat with a real rich mention. Keep category names compact and route
+token, balance, transfer, and allowance capabilities to Tokens & wallets.
+Verified with 32 focused Portal/widget tests, scoped ESLint and Prettier, Portal
+TypeScript, registry and package builds, a package dry run, `git diff --check`,
+and live HTTPS interaction plus visual review of the category and Try flow.
+
+Current session goal: **LIBRARY DESIGN LAB VERIFIED 2026-09-04** — build a
+dev-only, fixture-backed comparison page with eight meaningfully different
+Library directions for apps and skills. Keep every direction inside the current
+Aomi visual language—real identity marks, compact type, quiet borders, rounded
+surfaces, chain context, and clear installed/add states—without changing the
+production Library until a direction is selected. Verified with Portal
+TypeScript, scoped ESLint and Prettier, `git diff --check`, complete accessibility
+tree inspection, and live HTTPS visual review of all eight anchored directions
+at desktop width with no browser errors.
+
 Current session goal: **FRESH PORTAL START VERIFIED 2026-09-04** — disable
 Portal last-thread persistence so normal visits stay on the new-chat starting
 screen instead of hydrating and visibly jumping to the previously active thread;

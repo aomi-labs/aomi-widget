@@ -329,7 +329,7 @@ export function AccountSettings() {
       />
 
       {acl.status === "loading" ? (
-        <p className="text-aomi-muted px-[22px] pb-5 text-[13px]">
+        <p className="text-aomi-muted mx-auto w-full max-w-[780px] px-6 pb-6 text-[12px]">
           Loading provider signing settings…
         </p>
       ) : providerWallets.length || acl.needsParaAgentWallet ? (

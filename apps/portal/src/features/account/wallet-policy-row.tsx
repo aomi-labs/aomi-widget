@@ -75,15 +75,19 @@ export function WalletPolicyRow({
       >
         <SettingRow
           className="px-4"
-          leading={<WalletProviderAvatar markKey={walletMarkKey(wallet)} size={18} />}
+          leading={
+            <WalletProviderAvatar markKey={walletMarkKey(wallet)} size={18} />
+          }
           title={displayName}
           desc={shortenAddress(wallet.address)}
           descMono
         >
           <span className="flex items-center gap-1">
             <span
-              className={`max-w-[9.5rem] truncate text-right text-[13px] font-medium sm:max-w-none ${
-                recon.status === "drifted" ? "text-aomi-danger" : "text-aomi-muted"
+              className={`max-w-[9.5rem] truncate text-right text-[11px] font-medium sm:max-w-none ${
+                recon.status === "drifted"
+                  ? "text-aomi-danger"
+                  : "text-aomi-muted"
               }`}
             >
               {status}
@@ -123,16 +127,20 @@ export function WalletPolicyRow({
                     type="button"
                     onClick={() => onRevokeGrant(grant.id)}
                     disabled={busy}
-                    className="border-aomi-border text-aomi-muted hover:bg-aomi-surface-2 hover:text-aomi-fg flex h-8 items-center rounded-md border px-3 text-[13px] font-medium transition-colors disabled:opacity-50"
+                    className="border-aomi-border text-aomi-muted hover:bg-aomi-surface-2 hover:text-aomi-fg flex h-8 items-center rounded-lg border px-3 text-[11px] font-medium transition-colors disabled:opacity-50"
                   >
-                    {busy ? <Loader2 size={13} className="animate-spin" /> : "Revoke"}
+                    {busy ? (
+                      <Loader2 size={13} className="animate-spin" />
+                    ) : (
+                      "Revoke"
+                    )}
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={onRegrant}
                     disabled={busy}
-                    className="border-aomi-border text-aomi-muted hover:bg-aomi-surface-2 hover:text-aomi-fg flex h-8 items-center rounded-md border px-3 text-[13px] font-medium transition-colors disabled:opacity-50"
+                    className="border-aomi-border text-aomi-muted hover:bg-aomi-surface-2 hover:text-aomi-fg flex h-8 items-center rounded-lg border px-3 text-[11px] font-medium transition-colors disabled:opacity-50"
                   >
                     Renew grant
                   </button>
@@ -143,7 +151,7 @@ export function WalletPolicyRow({
 
           {pending ? (
             <div className="border-aomi-border bg-aomi-bg/60 flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
-              <span className="text-aomi-fg text-[13px]">
+              <span className="text-aomi-fg text-[12px]">
                 {blocked ?? "Sign to apply this change."}
               </span>
               <div className="flex shrink-0 items-center gap-2">
@@ -151,7 +159,7 @@ export function WalletPolicyRow({
                   type="button"
                   onClick={onCancel}
                   disabled={busy}
-                  className="text-aomi-muted hover:text-aomi-fg rounded-md px-2.5 py-1.5 text-[13px] transition-colors disabled:opacity-50"
+                  className="text-aomi-muted hover:text-aomi-fg rounded-lg px-2.5 py-1.5 text-[11px] transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -159,7 +167,7 @@ export function WalletPolicyRow({
                   type="button"
                   onClick={onCommit}
                   disabled={busy || Boolean(blocked)}
-                  className="bg-aomi-accent-strong text-aomi-on-accent flex h-8 items-center gap-1.5 rounded-md px-3 text-[13px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
+                  className="bg-aomi-accent-strong text-aomi-on-accent flex h-8 items-center gap-1.5 rounded-lg px-3 text-[11px] font-semibold transition-opacity hover:opacity-90 disabled:opacity-50"
                 >
                   {busy && <Loader2 size={13} className="animate-spin" />}
                   {busy ? "Waiting for signature…" : "Sign to authorize"}
@@ -170,12 +178,14 @@ export function WalletPolicyRow({
             recon.status === "drifted" &&
             !(wallet.desiredMode === "auto" && grant) && (
               <div className="flex items-center justify-between gap-3">
-                <span className="text-aomi-muted text-[13px]">{recon.detail}</span>
+                <span className="text-aomi-muted text-[12px]">
+                  {recon.detail}
+                </span>
                 <button
                   type="button"
                   onClick={onRegrant}
                   disabled={busy}
-                  className="border-aomi-border text-aomi-muted hover:bg-aomi-surface-2 hover:text-aomi-fg flex h-8 shrink-0 items-center rounded-md border px-3 text-[13px] font-medium transition-colors disabled:opacity-50"
+                  className="border-aomi-border text-aomi-muted hover:bg-aomi-surface-2 hover:text-aomi-fg flex h-8 shrink-0 items-center rounded-lg border px-3 text-[11px] font-medium transition-colors disabled:opacity-50"
                 >
                   {recon.action}
                 </button>
@@ -183,7 +193,9 @@ export function WalletPolicyRow({
             )
           )}
 
-          {error && <span className="text-aomi-danger text-[13px]">{error}</span>}
+          {error && (
+            <span className="text-aomi-danger text-[13px]">{error}</span>
+          )}
 
           <span className="text-aomi-muted/75 pt-0.5 text-[11px]">
             Last updated {wallet.lastPermit?.replace(/^you · /, "") ?? "—"}

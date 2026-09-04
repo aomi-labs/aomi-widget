@@ -14,12 +14,18 @@ interface UnboundWalletRowProps {
   onActivate: () => void;
 }
 
-export function UnboundWalletRow({ wallet, busy, error, onActivate }: UnboundWalletRowProps) {
+export function UnboundWalletRow({
+  wallet,
+  busy,
+  error,
+  onActivate,
+}: UnboundWalletRowProps) {
   const markKey =
     walletNameToMarkKey(wallet.walletName) ??
     walletNameToMarkKey(wallet.provider) ??
     null;
-  const displayName = wallet.walletName ?? (wallet.chain === "evm" ? "Self-custody" : "Solana");
+  const displayName =
+    wallet.walletName ?? (wallet.chain === "evm" ? "Self-custody" : "Solana");
 
   return (
     <div id={`wallet-${wallet.id}`}>
@@ -34,7 +40,7 @@ export function UnboundWalletRow({ wallet, busy, error, onActivate }: UnboundWal
           type="button"
           onClick={onActivate}
           disabled={busy}
-          className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors disabled:opacity-50"
+          className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-8 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-medium transition-colors disabled:opacity-50"
         >
           {busy && <Loader2 size={13} className="animate-spin" />}
           {busy ? "Waiting for signature…" : "Activate"}

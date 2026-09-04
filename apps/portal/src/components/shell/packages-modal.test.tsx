@@ -7,7 +7,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 
-import { PackagesModal } from "./packages-modal";
+import { inferLibraryCategory, PackagesModal } from "./packages-modal";
 import { PackageRow } from "./package-row";
 import { toCatalogPackage } from "./packages-catalog";
 import { seedAccountOverview } from "@portal/lib/account-overview";
@@ -117,36 +117,70 @@ describe("packages modal wiring", () => {
     await renderModal();
 
     expect(paths(calls)).toContain("GET /api/account/apps");
-    // Wire row + decoration: uniswap gets its brand name; installed from the
-    // account overview.
+    // Wire row + decoration: installed apps are presented first and open into
+    // the shared inspector rather than exposing destructive row controls.
     expect(screen.getAllByText("Uniswap").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByLabelText("Open Uniswap details"));
     expect(screen.getByLabelText("Remove Uniswap")).toBeTruthy();
-    // The pinned core app shows as built in, never removable.
+    fireEvent.click(screen.getByLabelText("Open Aomi Core details"));
     expect(screen.getByText("Built in")).toBeTruthy();
     expect(screen.queryByLabelText("Remove Aomi Core")).toBeNull();
     expect(screen.getByText("Circle StableFX")).toBeTruthy();
     expect(screen.getByText("Arc only")).toBeTruthy();
   });
 
-  it("separates apps and skills inside one library", async () => {
+  it("keeps apps and skills in the directory with a persistent inspector", async () => {
     const { calls } = installFetchRecorder();
 
     await renderModal();
 
     expect(screen.getByRole("dialog", { name: "Library" })).toBeTruthy();
-    expect(screen.getByRole("tab", { name: "Apps" })).toHaveAttribute(
-      "aria-selected",
+    expect(screen.getByRole("button", { name: /Discover/ })).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
+    expect(screen.getByLabelText("Aave details").className).toContain(
+      "border-l",
+    );
+    expect(screen.getByLabelText("Try Aave")).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
-    expect(await screen.findByText("Aave")).toBeTruthy();
-    expect(paths(calls)).toContain("GET /api/resource/skills");
-
-    fireEvent.click(screen.getByText("Aave"));
-    expect(await screen.findByText("Uses app tools")).toBeTruthy();
-    expect(await screen.findByText("aomi_call_tool")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Skills/ }));
+    expect(screen.getByRole("heading", { name: "Skills" })).toBeTruthy();
+    expect(await screen.findByText("How it works")).toBeTruthy();
+    expect(await screen.findByText("2 actions available")).toBeTruthy();
     expect(paths(calls)).toContain("GET /api/resource/skills/aave");
+  });
+
+  it("puts token operations in Tokens & wallets before broad research matches", () => {
+    expect(
+      inferLibraryCategory({
+        kind: "skill",
+        item: {
+          id: "common_erc20",
+          name: "common erc20",
+          description: "Check balances, allowances, and token transfers.",
+          tags: ["tokens"],
+          chainIds: [1, 8453],
+          injectedTools: [],
+        },
+      }),
+    ).toBe("wallets");
+  });
+
+  it("sends a skill to chat as a capability mention", async () => {
+    installFetchRecorder();
+    const onMention = vi.fn();
+    window.addEventListener("aomi:capability-mention-request", onMention);
+
+    await renderModal();
+    fireEvent.click(screen.getAllByLabelText("Try Aave")[0]);
+
+    expect(onMention).toHaveBeenCalledOnce();
+    expect((onMention.mock.calls[0][0] as CustomEvent).detail).toEqual({
+      kind: "skill",
+      id: "aave",
+    });
+    window.removeEventListener("aomi:capability-mention-request", onMention);
   });
 
   it("uses the same full-frame modal geometry as settings", async () => {
@@ -155,9 +189,9 @@ describe("packages modal wiring", () => {
     await renderModal();
 
     const dialog = screen.getByRole("dialog");
-    expect(dialog.style.width).toBe("900px");
-    expect(dialog.style.height).toBe("600px");
-    expect(dialog.style.maxWidth).toBe("95%");
+    expect(dialog.style.width).toBe("1080px");
+    expect(dialog.style.height).toBe("620px");
+    expect(dialog.style.maxWidth).toBe("96%");
     expect(dialog.style.maxHeight).toBe("92%");
     expect(dialog.parentElement?.className).toContain("absolute");
     expect(dialog.parentElement?.className).not.toContain("fixed");
@@ -180,7 +214,10 @@ describe("packages modal wiring", () => {
 
     fireEvent.click(screen.getByText("Retry"));
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      const appRequests = fetchMock.mock.calls.filter(([input]) =>
+        input.toString().startsWith("/api/account/apps"),
+      );
+      expect(appRequests).toHaveLength(2);
     });
   });
 
@@ -188,6 +225,9 @@ describe("packages modal wiring", () => {
     const { calls } = installFetchRecorder();
 
     const view = await renderModal();
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Open Uniswap details"));
+    });
     await act(async () => {
       fireEvent.click(screen.getByLabelText("Remove Uniswap"));
     });
@@ -208,10 +248,7 @@ describe("packages modal wiring", () => {
 
     await renderModal();
     await act(async () => {
-      fireEvent.click(screen.getByText("Personal"));
-    });
-    await act(async () => {
-      fireEvent.click(screen.getByText("Install"));
+      fireEvent.click(screen.getByLabelText("Add Treasury Ops"));
     });
 
     const put = calls.find((c) => c.init?.method === "PUT");
@@ -227,7 +264,9 @@ describe("packages modal wiring", () => {
 
     await renderModal();
 
-    const install = screen.getAllByText("Install")[0] as HTMLButtonElement;
+    const install = screen.getByLabelText(
+      "Add Treasury Ops",
+    ) as HTMLButtonElement;
     expect(install.disabled).toBe(true);
     fireEvent.click(install);
     expect(paths(calls)).not.toContain("PUT /api/account/apps");
@@ -237,6 +276,7 @@ describe("packages modal wiring", () => {
         user: { user_id: "acct-1", apps: ["default", "uniswap"] },
       });
     });
+    fireEvent.click(screen.getByLabelText("Open Uniswap details"));
     expect(
       (screen.getByLabelText("Remove Uniswap") as HTMLButtonElement).disabled,
     ).toBe(false);
@@ -263,6 +303,7 @@ describe("packages modal wiring", () => {
     );
 
     await renderModal();
+    fireEvent.click(screen.getByLabelText("Open Uniswap details"));
     const remove = screen.getByLabelText("Remove Uniswap");
     fireEvent.click(remove);
     fireEvent.click(remove);
