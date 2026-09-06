@@ -40,14 +40,39 @@ export type AomiCreditTopUpResult = AomiCreditPosition & {
   receipt?: AomiCreditPaymentReceipt;
 };
 
+export class AomiCreditApiError extends Error {
+  constructor(
+    readonly status: number,
+    operation: string,
+    detail?: string,
+  ) {
+    super(
+      `Failed to ${operation}: HTTP ${status}${detail ? `\n${detail}` : ""}`,
+    );
+    this.name = "AomiCreditApiError";
+  }
+}
+
 export type AomiCreditListOptions = {
   limit?: number;
   beforeId?: number;
 };
 
 export type AomiCreditTopUpOptions =
-  | { credits: number; amountMicrousd?: never; idempotencyKey?: string }
-  | { amountMicrousd: number; credits?: never; idempotencyKey?: string };
+  | {
+      credits: number;
+      amountMicrousd?: never;
+      idempotencyKey: string;
+      /** Retry a previously submitted payment without creating a new proof. */
+      recover?: boolean;
+    }
+  | {
+      amountMicrousd: number;
+      credits?: never;
+      idempotencyKey: string;
+      /** Retry a previously submitted payment without creating a new proof. */
+      recover?: boolean;
+    };
 
 type RequestResponse = (
   method: AomiHttpMethod,
@@ -80,8 +105,10 @@ export class AccountCreditsTransport {
 
   async topUp(options: AomiCreditTopUpOptions): Promise<AomiCreditTopUpResult> {
     const amountMicrousd = topUpMicrousd(options);
-    const idempotencyKey =
-      options.idempotencyKey?.trim() || crypto.randomUUID();
+    const idempotencyKey = options.idempotencyKey.trim();
+    if (!idempotencyKey) {
+      throw new TypeError("Credit top-up requires an idempotency key");
+    }
     if (idempotencyKey.length > 200) {
       throw new RangeError("Credit top-up idempotency key is too long");
     }
@@ -89,6 +116,10 @@ export class AccountCreditsTransport {
       "POST",
       `${this.basePath}/top-up`,
       {
+        // A recovery probe must reach the backend without the x402 wrapper:
+        // the original proof is already bound to this idempotency key and a
+        // fresh challenge would be rejected as a different payment attempt.
+        raw: options.recover === true,
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": idempotencyKey,
@@ -139,9 +170,7 @@ async function responseJson<T>(
 ): Promise<T> {
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(
-      `Failed to ${operation}: HTTP ${response.status}${detail ? `\n${detail}` : ""}`,
-    );
+    throw new AomiCreditApiError(response.status, operation, detail);
   }
   return (await response.json()) as T;
 }

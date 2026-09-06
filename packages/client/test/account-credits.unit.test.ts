@@ -15,6 +15,50 @@ const position = {
 };
 
 describe("account credits", () => {
+  it("uses the account model-key routes and response shape", async () => {
+    const key = {
+      provider: "openai",
+      key_prefix: "sk-test",
+      label: null,
+      is_active: true,
+    };
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ keys: [key] }))
+      .mockResolvedValueOnce(Response.json({ key }))
+      .mockResolvedValueOnce(Response.json({ deleted: true }));
+    const client = new AomiClient({
+      baseUrl: "https://api.test",
+      fetch: fetchImpl,
+      guest: false,
+    });
+
+    await expect(client.listByokKeys("session-1")).resolves.toEqual([key]);
+    await expect(
+      client.saveByokKey("session-1", "openai", "sk-test", "work"),
+    ).resolves.toEqual(key);
+    await expect(client.deleteByokKey("session-1", "openai")).resolves.toBe(
+      true,
+    );
+
+    expect(String(fetchImpl.mock.calls[0]![0])).toBe(
+      "https://api.test/api/account/model-keys",
+    );
+    expect(String(fetchImpl.mock.calls[1]![0])).toBe(
+      "https://api.test/api/account/model-keys",
+    );
+    expect(String(fetchImpl.mock.calls[2]![0])).toBe(
+      "https://api.test/api/account/model-keys/openai",
+    );
+    expect(fetchImpl.mock.calls[1]![1]?.body).toBe(
+      JSON.stringify({
+        provider: "openai",
+        byok_key: "sk-test",
+        label: "work",
+      }),
+    );
+  });
+
   it("reads a paginated credit position through the account transport", async () => {
     const fetchImpl = vi.fn(async () => Response.json(position));
     const client = new AomiClient({
@@ -75,14 +119,63 @@ describe("account credits", () => {
     });
 
     await expect(
-      client.account.credits.topUp({ credits: 0.5 }),
+      client.account.credits.topUp({ credits: 0.5, idempotencyKey: "invalid" }),
     ).rejects.toThrow("between 1 and 100,000 credits");
     await expect(
-      client.account.credits.topUp({ amountMicrousd: 10_000.5 }),
+      client.account.credits.topUp({
+        amountMicrousd: 10_000.5,
+        idempotencyKey: "invalid",
+      }),
     ).rejects.toThrow("whole, safe microusd");
     await expect(
-      client.account.credits.topUp({ credits: 100.00001 }),
+      client.account.credits.topUp({
+        credits: 100.00001,
+        idempotencyKey: "invalid",
+      }),
     ).rejects.toThrow("whole, safe microusd");
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("retries an unknown outcome with the same key without creating a new payment", async () => {
+    const fetchImpl = vi
+      .fn<Parameters<typeof fetch>, ReturnType<typeof fetch>>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "payment_pending" }), {
+          status: 503,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(Response.json(position));
+    const client = new AomiClient({
+      baseUrl: "https://api.test",
+      fetch: fetchImpl as typeof fetch,
+      guest: false,
+    });
+
+    await expect(
+      client.account.credits.topUp({
+        amountMicrousd: 1_000_000,
+        idempotencyKey: "topup-recovery",
+      }),
+    ).rejects.toThrow("HTTP 503");
+    await expect(
+      client.account.credits.topUp({
+        amountMicrousd: 1_000_000,
+        idempotencyKey: "topup-recovery",
+        recover: true,
+      }),
+    ).resolves.toEqual(position);
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const first = new Request(
+      fetchImpl.mock.calls[0]![0],
+      fetchImpl.mock.calls[0]![1],
+    );
+    const second = new Request(
+      fetchImpl.mock.calls[1]![0],
+      fetchImpl.mock.calls[1]![1],
+    );
+    expect(first.headers.get("idempotency-key")).toBe("topup-recovery");
+    expect(second.headers.get("idempotency-key")).toBe("topup-recovery");
   });
 });

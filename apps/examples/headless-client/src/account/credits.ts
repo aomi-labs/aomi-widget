@@ -31,7 +31,10 @@ console.log({
 
 const topUpCredits = optionalCredits(process.env.AOMI_TOP_UP_CREDITS);
 if (topUpCredits !== undefined) {
-  const result = await aomi.account.credits.topUp({ credits: topUpCredits });
+  const result = await aomi.account.credits.topUp({
+    credits: topUpCredits,
+    idempotencyKey: crypto.randomUUID(),
+  });
   console.log({ topUp: result });
 }
 

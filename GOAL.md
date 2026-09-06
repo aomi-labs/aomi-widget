@@ -1,5 +1,12 @@
 # Canonical Landing
 
+Current session goal: **LEAN PAYMENT REVIEW FRONTEND CONSUMER FIXES VERIFIED
+2026-09-06** — SDK BYOK routes and response shapes use `/api/account/model-keys`,
+Agent and CLI calls can explicitly select `user_byok`, Portal credit top-ups
+retain one account-scoped idempotency key through uncertain outcomes, and the
+Portal uses the shared SDK credit transport and x402 signer. Client/React/Portal
+typechecks, focused tests, package builds, and npm dry-run audits pass.
+
 Current session goal: **PAYMENT BOUNDARY REVIEW FIXES VERIFIED 2026-09-04** —
 paginate complete monthly statements, report allowance and Credit Bank debits as
 separate account-funding buckets, classify anonymous widget principals as

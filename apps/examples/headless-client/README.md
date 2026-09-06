@@ -93,7 +93,10 @@ The high-level SDK keeps billing under the account it belongs to:
 
 ```ts
 const position = await aomi.account.credits.get({ limit: 25 });
-const topUp = await aomi.account.credits.topUp({ credits: 100 });
+const topUp = await aomi.account.credits.topUp({
+  credits: 100,
+  idempotencyKey: crypto.randomUUID(),
+});
 ```
 
 There is no separate debt-payment endpoint. The Credit Bank position reports

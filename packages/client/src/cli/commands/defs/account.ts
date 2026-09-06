@@ -276,7 +276,8 @@ const accountCreditsTopUpDef = defineCommand({
     },
     "idempotency-key": {
       type: "string",
-      description: "Stable retry key (generated when omitted)",
+      description: "Purchase key; reuse the same key when retrying",
+      required: true,
     },
   },
   async run({ args }) {

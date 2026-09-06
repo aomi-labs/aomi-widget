@@ -1,12 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { AomiCreditActivity, AomiCreditPosition } from "@aomi-labs/client";
-import { useAomiWalletKit } from "@aomi-labs/widget-lib";
+import { useCallback, useEffect, useState } from "react";
 import {
-  createPortalPaymentFetch,
-  createPortalX402Client,
-} from "@portal/lib/payment-fetch";
+  AomiCreditApiError,
+  type AomiCreditActivity,
+  type AomiCreditPosition,
+} from "@aomi-labs/client";
+import { useAomiRuntime } from "@aomi-labs/react";
+import { useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { CreditTopUpDialog } from "./top-up-dialog";
 import {
   formatCreditAmount,
@@ -27,26 +28,76 @@ import {
 } from "lucide-react";
 
 const ACTIVITY_PAGE_SIZE = 25;
+type PendingTopUp = { idempotencyKey: string; amountMicrousd: number };
+
+function readPendingTopUp(key: string | null): PendingTopUp | null {
+  if (typeof window === "undefined" || !key) return null;
+  try {
+    const value = JSON.parse(
+      window.localStorage.getItem(key) ?? "null",
+    ) as Partial<PendingTopUp> | null;
+    const amountMicrousd = value?.amountMicrousd;
+    if (
+      !value ||
+      typeof value.idempotencyKey !== "string" ||
+      typeof amountMicrousd !== "number" ||
+      !Number.isSafeInteger(amountMicrousd) ||
+      amountMicrousd <= 0
+    ) {
+      return null;
+    }
+    return { idempotencyKey: value.idempotencyKey, amountMicrousd };
+  } catch {
+    return null;
+  }
+}
+
+function writePendingTopUp(key: string, value: PendingTopUp): void {
+  window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function clearPendingTopUp(key: string): void {
+  window.localStorage.removeItem(key);
+}
+
+function creditsFromMicrousd(amountMicrousd: number): string {
+  return String(amountMicrousd / 10_000);
+}
+
 export function CreditBank() {
   const wallet = useAomiWalletKit();
+  const { account } = useAomiRuntime();
+  const accountScope = wallet.accountUser?.id ?? null;
+  const pendingStorageKey = accountScope
+    ? `aomi_credit_topup:${accountScope}`
+    : null;
+  const initialPendingTopUp = readPendingTopUp(pendingStorageKey);
   const [open, setOpen] = useState(false);
   const [reviewOpen, setReviewOpen] = useState(false);
   const [position, setPosition] = useState<AomiCreditPosition | null>(null);
-  const [amount, setAmount] = useState("1000");
+  const [amount, setAmount] = useState(() =>
+    initialPendingTopUp
+      ? creditsFromMicrousd(initialPendingTopUp.amountMicrousd)
+      : "1000",
+  );
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [pendingTopUp, setPendingTopUp] = useState<PendingTopUp | null>(
+    initialPendingTopUp,
+  );
+
+  useEffect(() => {
+    const next = readPendingTopUp(pendingStorageKey);
+    setPendingTopUp(next);
+    setAmount(next ? creditsFromMicrousd(next.amountMicrousd) : "1000");
+  }, [pendingStorageKey]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `/v1/account/credits?limit=${ACTIVITY_PAGE_SIZE}`,
-        { credentials: "include", cache: "no-store" },
-      );
-      if (!response.ok) throw new Error(await response.text());
-      setPosition((await response.json()) as AomiCreditPosition);
+      setPosition(await account.credits.get({ limit: ACTIVITY_PAGE_SIZE }));
       setError(null);
     } catch (cause) {
       setError(
@@ -55,20 +106,11 @@ export function CreditBank() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [account.credits]);
 
   useEffect(() => {
     void load();
   }, [load]);
-
-  const x402 = useMemo(
-    () => createPortalX402Client(wallet),
-    [wallet.identity, wallet.signTypedData, wallet.switchChain],
-  );
-  const paymentFetch = useMemo(
-    () => createPortalPaymentFetch({ fetch, x402 }),
-    [x402],
-  );
 
   const parsedCredits = Number(amount);
   const amountMicrousd = Math.round(parsedCredits * 10_000);
@@ -82,33 +124,42 @@ export function CreditBank() {
       setError("Choose between 1 and 100,000 credits.");
       return;
     }
-    if (!x402) {
+    if (!pendingStorageKey) {
+      setError("Sign in before topping up credits.");
+      return;
+    }
+    const recovering = pendingTopUp !== null;
+    if (recovering && pendingTopUp.amountMicrousd !== amountMicrousd) {
+      setError(
+        "A previous top-up is still being confirmed. Retry that amount before starting another payment.",
+      );
+      return;
+    }
+    if (
+      !recovering &&
+      (!wallet.identity.isConnected || !wallet.signTypedData)
+    ) {
       setError("Connect an EVM wallet before topping up.");
       return;
+    }
+    const idempotencyKey = pendingTopUp?.idempotencyKey ?? crypto.randomUUID();
+    if (!pendingTopUp) {
+      const pending = { idempotencyKey, amountMicrousd };
+      writePendingTopUp(pendingStorageKey, pending);
+      setPendingTopUp(pending);
     }
     setPaying(true);
     setError(null);
     setSuccess(null);
     try {
-      const response = await paymentFetch("/v1/account/credits/top-up", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "content-type": "application/json",
-          "idempotency-key": crypto.randomUUID(),
-          "x-aomi-csrf": "1",
-        },
-        body: JSON.stringify({ amount_microusd: amountMicrousd }),
+      const next = await account.credits.topUp({
+        amountMicrousd,
+        idempotencyKey,
+        recover: recovering,
       });
-      if (!response.ok) {
-        throw new Error(
-          response.status === 402
-            ? "Wallet payment is still required."
-            : `Top-up failed (${response.status})`,
-        );
-      }
-      const next = (await response.json()) as AomiCreditPosition;
       setPosition(next);
+      clearPendingTopUp(pendingStorageKey);
+      setPendingTopUp(null);
       setReviewOpen(false);
       setSuccess(
         `${formatCreditAmount(parsedCredits)} added. Your bank now has ${formatCreditAmount(
@@ -116,7 +167,23 @@ export function CreditBank() {
         )}.`,
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Top-up failed");
+      const recoveryWasNotStarted =
+        recovering &&
+        cause instanceof AomiCreditApiError &&
+        cause.status === 402;
+      if (recoveryWasNotStarted) {
+        clearPendingTopUp(pendingStorageKey);
+        setPendingTopUp(null);
+      }
+      setError(
+        recoveryWasNotStarted
+          ? "Wallet payment is still required. Confirm the top-up again."
+          : recovering
+            ? "The previous payment is still being confirmed. Try again shortly."
+            : cause instanceof Error
+              ? cause.message
+              : "Top-up failed",
+      );
     } finally {
       setPaying(false);
     }
@@ -271,9 +338,13 @@ export function CreditBank() {
         open={reviewOpen}
         busy={paying}
         credits={amount}
-        paymentReady={Boolean(x402)}
+        paymentReady={Boolean(
+          pendingStorageKey &&
+          (pendingTopUp ||
+            (wallet.identity.isConnected && wallet.signTypedData)),
+        )}
         walletAddress={wallet.identity.address}
-        walletChainId={wallet.identity.chainId}
+        recoveryPending={pendingTopUp !== null}
         error={error}
         onCreditsChange={(value) => {
           setAmount(value);

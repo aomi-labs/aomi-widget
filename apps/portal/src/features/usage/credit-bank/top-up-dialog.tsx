@@ -16,7 +16,7 @@ export function CreditTopUpDialog({
   credits,
   paymentReady,
   walletAddress,
-  walletChainId,
+  recoveryPending = false,
   error,
   onCreditsChange,
   onClose,
@@ -27,7 +27,7 @@ export function CreditTopUpDialog({
   credits: string;
   paymentReady: boolean;
   walletAddress?: string;
-  walletChainId?: number;
+  recoveryPending?: boolean;
   error: string | null;
   onCreditsChange: (value: string) => void;
   onClose: () => void;
@@ -76,6 +76,7 @@ export function CreditTopUpDialog({
                   <button
                     key={preset}
                     type="button"
+                    disabled={recoveryPending}
                     aria-pressed={credits === String(preset)}
                     onClick={() => onCreditsChange(String(preset))}
                     className={`focus-visible:ring-aomi-accent/40 rounded-lg border px-2 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 ${
@@ -102,6 +103,7 @@ export function CreditTopUpDialog({
               <span className="border-aomi-border bg-aomi-bg focus-within:border-aomi-muted flex h-11 items-center rounded-lg border transition-colors">
                 <input
                   aria-label="Top-up credits"
+                  disabled={recoveryPending}
                   type="number"
                   inputMode="decimal"
                   min={1}
@@ -167,13 +169,9 @@ export function CreditTopUpDialog({
                     Network
                   </span>
                   <span className="mt-0.5 block text-[11px] font-medium">
-                    Base Sepolia
-                    {walletChainId !== 84532 ? (
-                      <span className="text-aomi-muted font-normal">
-                        {" "}
-                        · switches automatically
-                      </span>
-                    ) : null}
+                    {recoveryPending
+                      ? "Confirming previous payment"
+                      : "Selected by payment challenge"}
                   </span>
                 </div>
               </div>
@@ -222,7 +220,9 @@ export function CreditTopUpDialog({
                   />
                 ) : null}
                 {busy
-                  ? "Confirm in wallet…"
+                  ? recoveryPending
+                    ? "Checking payment…"
+                    : "Confirm in wallet…"
                   : `Pay ${validCredits ? formatUsdc(cost) : ""}`}
               </button>
             </div>

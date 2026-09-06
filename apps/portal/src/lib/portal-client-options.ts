@@ -4,24 +4,23 @@
  * The portal's runtime fetch stack, extracted from the frame shell so the
  * component file stays presentational.
  *
- * Layers (inside-out): native fetch → debug logging → x402 payment handling
- * → locked-app query scoping. The composed fetch
- * plus the AccountBearer provider become the widget's `clientOptions`.
+ * The routed fetch handles debug logging and locked-app query scoping. The
+ * x402 signer and AccountBearer provider are passed separately so the shared
+ * client owns payment retries and recovery probes.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { type AomiClientOptions } from "@aomi-labs/react";
+import type { AomiInferenceFundingSource } from "@aomi-labs/client";
 import { useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { createPortalAccountBearerProvider } from "@portal/lib/account-bearer";
-import {
-  createPortalPaymentFetch,
-  createPortalX402Client,
-} from "@portal/lib/payment-fetch";
+import { createPortalX402Client } from "@portal/lib/payment-fetch";
 
 export type RequestedAppConfig = {
   app: string | null;
   applicationId: string | null;
   locked: boolean;
+  inferenceFunding: AomiInferenceFundingSource | undefined;
 };
 
 export function getRequestedAppConfig(search: string): RequestedAppConfig {
@@ -47,7 +46,17 @@ export function getRequestedAppConfig(search: string): RequestedAppConfig {
       params.get("lock_app") === "true" ||
       params.get("app_locked") === "1" ||
       params.get("app_locked") === "true",
+    inferenceFunding: parseInferenceFunding(
+      params.get("inference_funding") ?? params.get("funding"),
+    ),
   };
+}
+
+function parseInferenceFunding(
+  value: string | null,
+): AomiInferenceFundingSource | undefined {
+  const normalized = value?.trim().toLowerCase();
+  return normalized === "user_byok" ? normalized : undefined;
 }
 
 export function useRequestedAppConfig(): RequestedAppConfig {
@@ -55,6 +64,7 @@ export function useRequestedAppConfig(): RequestedAppConfig {
     app: null,
     applicationId: null,
     locked: false,
+    inferenceFunding: undefined,
   });
 
   useEffect(() => {
@@ -235,12 +245,8 @@ export function usePortalClientOptions(
 
   return useMemo(() => {
     const rawFetch = withDebugLogging("native.fetch", nativeFetch);
-    const paymentFetch = createPortalPaymentFetch({
-      fetch: rawFetch,
-      x402: paymentClient,
-    });
     const routedFetch: typeof fetch = async (input, init) => {
-      return paymentFetch(
+      return rawFetch(
         await applyLockedAppScope(input, lockedApp, lockedApplicationId),
         init,
       );
@@ -248,6 +254,7 @@ export function usePortalClientOptions(
 
     return {
       fetch: routedFetch,
+      x402: paymentClient,
       getAccountBearer: accountAccessTokenProvider ?? undefined,
     };
   }, [

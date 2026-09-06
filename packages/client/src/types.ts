@@ -1,6 +1,7 @@
 import type { AomiOAuthTokenProvider } from "./authorization";
 import type { GuestSessionProvider } from "./guest-auth";
 import type { x402Client, x402HTTPClient } from "@x402/core/client";
+import type { AomiInferenceFundingSource } from "./agent/types";
 
 export { UserState } from "./user-state";
 export type {
@@ -35,6 +36,8 @@ export type AomiClientOptions = {
   apiKey?: string;
   /** Optional x402 signer used by the bounded payment retry transport. */
   x402?: x402Client | x402HTTPClient;
+  /** Default inference funding lane used by high-level Agent sessions. */
+  inferenceFunding?: AomiInferenceFundingSource;
   /** Supplies a short-lived Aomi account bearer for REST and SSE requests. */
   getAccountBearer?: GetAccountBearer;
   /** Resource-bound developer OAuth. Takes precedence over session/guest auth. */
@@ -281,10 +284,7 @@ export type AomiAuthWalletFamily = "evm" | "solana";
 /** Provider login intent. Linking ownership never implies delegated signing. */
 export type AomiAuthPurpose = "link_wallet" | "delegate_signing";
 
-/**
- * GET/POST/DELETE /api/account/payment/byok
- * Lists or saves BYOK keys (one per LLM provider) for the account.
- */
+/** GET/POST/DELETE /api/account/model-keys. */
 export interface AomiByokKeyEntry {
   provider: string;
   key_prefix: string;
@@ -293,7 +293,7 @@ export interface AomiByokKeyEntry {
 }
 
 export interface AomiListByokKeysResponse {
-  byok: AomiByokKeyEntry[];
+  keys: AomiByokKeyEntry[];
 }
 
 export interface AomiSaveByokKeyResponse {

@@ -430,6 +430,7 @@ export class CliSession {
             svmCluster: this.resolvedSvmCluster(config?.svmCluster),
           }),
         actions: cliActionCapabilities(this, config),
+        inferenceFunding: config?.inferenceFunding,
       },
     );
     return session;

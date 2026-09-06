@@ -12,6 +12,7 @@ import {
   cn,
   useAomiRuntime,
   type AomiClientOptions,
+  type AomiInferenceFundingSource,
 } from "@aomi-labs/react";
 import { Thread } from "@/components/assistant-ui/thread";
 import {
@@ -76,6 +77,8 @@ type RootProps = {
   applicationId?: number | string | null;
   /** Optional runtime client overrides. */
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+  /** Explicit inference funding lane for Agent turns. */
+  inferenceFunding?: AomiInferenceFundingSource;
   /** Whether an account session can load thread history without a wallet. */
   accountSessionAvailable?: boolean;
   /** Persist the active materialized thread in localStorage. Defaults to true. */
@@ -136,6 +139,7 @@ const Root: FC<RootProps> = ({
   backendUrl,
   applicationId,
   clientOptions,
+  inferenceFunding,
   accountSessionAvailable,
   persistThread,
   threadPersistenceKey,
@@ -155,6 +159,7 @@ const Root: FC<RootProps> = ({
       actions={actions}
       applicationId={applicationId}
       clientOptions={clientOptions}
+      inferenceFunding={inferenceFunding}
       accountSessionAvailable={accountSessionAvailable}
       persistThread={persistThread}
       threadPersistenceKey={threadPersistenceKey}

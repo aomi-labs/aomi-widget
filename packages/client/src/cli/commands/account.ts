@@ -554,6 +554,12 @@ export async function accountCreditsTopUpCommand(
   if (!Number.isFinite(credits)) {
     fatal("Credits must be a number between 1 and 100,000.");
   }
+  const idempotencyKey = options.idempotencyKey?.trim();
+  if (!idempotencyKey) {
+    fatal(
+      "Provide --idempotency-key for this purchase and reuse it when retrying an unknown payment outcome.",
+    );
+  }
   const cli = loadMergedCli(config);
   const paymentFetch = createCliPaymentFetch(
     {
@@ -568,7 +574,7 @@ export async function accountCreditsTopUpCommand(
     paymentFetch,
   ).credits.topUp({
     credits,
-    idempotencyKey: options.idempotencyKey,
+    idempotencyKey,
   });
   if (config.json) {
     printJson(result);

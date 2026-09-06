@@ -3,7 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   connected: true,
-  paymentFetch: vi.fn(),
+  accountCredits: {
+    get: vi.fn(),
+    topUp: vi.fn(),
+  },
+}));
+
+vi.mock("@aomi-labs/react", () => ({
+  useAomiRuntime: () => ({ account: { credits: mocks.accountCredits } }),
 }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
@@ -13,16 +20,10 @@ vi.mock("@aomi-labs/widget-lib", () => ({
       address: "0x0000000000000000000000000000000000000001",
       chainId: 84532,
     },
+    accountUser: { id: "user-1" },
     signTypedData: vi.fn(),
     switchChain: vi.fn(),
   }),
-}));
-
-vi.mock("@portal/lib/payment-fetch", () => ({
-  createPortalX402Client: vi.fn(() =>
-    mocks.connected ? { signer: true } : undefined,
-  ),
-  createPortalPaymentFetch: vi.fn(() => mocks.paymentFetch),
 }));
 
 import { CreditBank } from "./credit-bank";
@@ -59,7 +60,13 @@ function position(
 describe("Credit Bank", () => {
   beforeEach(() => {
     mocks.connected = true;
-    mocks.paymentFetch.mockReset();
+    window.localStorage.clear();
+    mocks.accountCredits.get.mockReset();
+    mocks.accountCredits.topUp.mockReset();
+    mocks.accountCredits.get.mockImplementation(async () => {
+      const response = await fetch(`/v1/account/credits?limit=25`);
+      return response.json();
+    });
   });
 
   afterEach(() => {
@@ -137,12 +144,10 @@ describe("Credit Bank", () => {
       "fetch",
       vi.fn(async () => Response.json(position())),
     );
-    mocks.paymentFetch.mockResolvedValue(
-      Response.json({
-        ...position(),
-        bank: { balance_microusd: 10_000, outstanding_debt_microusd: 0 },
-      }),
-    );
+    mocks.accountCredits.topUp.mockResolvedValue({
+      ...position(),
+      bank: { balance_microusd: 10_000, outstanding_debt_microusd: 0 },
+    });
     render(<CreditBank />);
     await screen.findByText("-25 credits");
 
@@ -155,20 +160,56 @@ describe("Credit Bank", () => {
     expect(
       screen.getByText("Choose between 1 and 100,000 credits."),
     ).toBeTruthy();
-    expect(mocks.paymentFetch).not.toHaveBeenCalled();
+    expect(mocks.accountCredits.topUp).not.toHaveBeenCalled();
 
     fireEvent.change(input, { target: { value: "1" } });
     fireEvent.click(screen.getByRole("button", { name: "Pay 0.01 USDC" }));
-    await waitFor(() => expect(mocks.paymentFetch).toHaveBeenCalledOnce());
-    const [path, init] = mocks.paymentFetch.mock.calls[0] as [
-      string,
-      RequestInit,
-    ];
-    expect(path).toBe("/v1/account/credits/top-up");
-    expect(new Headers(init.headers).get("idempotency-key")).toBeTruthy();
-    expect(JSON.parse(String(init.body))).toEqual({ amount_microusd: 10_000 });
+    await waitFor(() =>
+      expect(mocks.accountCredits.topUp).toHaveBeenCalledOnce(),
+    );
+    expect(mocks.accountCredits.topUp).toHaveBeenCalledWith({
+      amountMicrousd: 10_000,
+      idempotencyKey: expect.any(String),
+      recover: false,
+    });
     expect(
       await screen.findByText("1 credit added. Your bank now has 1 credit."),
     ).toBeTruthy();
+  });
+
+  it("recovers a pending top-up without reconnecting the wallet", async () => {
+    mocks.connected = false;
+    window.localStorage.setItem(
+      "aomi_credit_topup:user-1",
+      JSON.stringify({
+        idempotencyKey: "topup-recovery",
+        amountMicrousd: 250_000,
+      }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json(position())),
+    );
+    mocks.accountCredits.topUp.mockResolvedValue({
+      ...position(),
+      bank: { balance_microusd: 10_000, outstanding_debt_microusd: 0 },
+    });
+
+    render(<CreditBank />);
+    await screen.findByText("-25 credits");
+    fireEvent.click(screen.getByRole("button", { name: /Credit bank/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Add credits" }));
+    expect(screen.getByLabelText("Top-up credits")).toHaveValue(25);
+    expect(screen.getByLabelText("Top-up credits")).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Pay 0.25 USDC" }));
+
+    await waitFor(() =>
+      expect(mocks.accountCredits.topUp).toHaveBeenCalledOnce(),
+    );
+    expect(mocks.accountCredits.topUp).toHaveBeenCalledWith({
+      amountMicrousd: 250_000,
+      idempotencyKey: "topup-recovery",
+      recover: true,
+    });
   });
 });

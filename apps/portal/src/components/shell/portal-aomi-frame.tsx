@@ -207,6 +207,7 @@ export function PortalAomiFrame() {
         walletAccountMenu={walletAccountMenu}
         className="portal-aomi-frame aui-suggestions-marquee rounded-none border-0 shadow-none"
         clientOptions={clientOptions}
+        inferenceFunding={requestedApp.inferenceFunding}
       >
         <ThreadUrlBootstrap />
         <AppSelectUrlBootstrap

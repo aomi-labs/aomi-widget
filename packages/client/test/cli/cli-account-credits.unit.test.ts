@@ -134,4 +134,45 @@ describe("aomi account credits", () => {
 
     expect(log).toHaveBeenCalledWith("Credit bank: 250 credits available");
   });
+  it("requires a caller-retained purchase key before making a payment request", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { accountCreditsTopUpCommand } =
+      await import("../../src/cli/commands/account");
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(
+      accountCreditsTopUpCommand(baseConfig, "100"),
+    ).rejects.toThrow();
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining("--idempotency-key"),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reuses the purchase key after an unknown outcome", async () => {
+    const keys: Array<string | null> = [];
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = new Request(input, init);
+        keys.push(request.headers.get("idempotency-key"));
+        return keys.length === 1
+          ? new Response("unavailable", { status: 503 })
+          : Response.json(position);
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const { accountCreditsTopUpCommand } =
+      await import("../../src/cli/commands/account");
+    const config = { ...baseConfig, privateKey: PRIVATE_KEY };
+    await expect(
+      accountCreditsTopUpCommand(config, "100", {
+        idempotencyKey: "recover-cli",
+      }),
+    ).rejects.toThrow();
+    await accountCreditsTopUpCommand(config, "100", {
+      idempotencyKey: "recover-cli",
+    });
+    expect(keys).toEqual(["recover-cli", "recover-cli"]);
+  });
 });
