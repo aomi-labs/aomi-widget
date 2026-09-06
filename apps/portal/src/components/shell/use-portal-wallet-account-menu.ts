@@ -30,7 +30,14 @@ export function usePortalWalletAccountMenu(
   } | null>(null);
   const { settings, updateSetting } = useSettings();
   const adapter = useAomiWalletKit();
-  const { accountGuest, accountUser, accountError, identity } = adapter;
+  const {
+    accounts,
+    accountGuest,
+    accountUser,
+    accountError,
+    identity,
+  } = adapter;
+  const activeAccount = accounts.find((account) => account.active);
 
   useEffect(() => {
     if (!accountUser || accountGuest) {
@@ -71,8 +78,6 @@ export function usePortalWalletAccountMenu(
           ? `${Math.max(0, credits.included - credits.used).toLocaleString()} credits left`
           : "Loading allowance…";
 
-    const activeAccount = adapter.accounts.find((account) => account.active);
-
     const isDark =
       settings.colorMode === "dark" ||
       (settings.colorMode === "auto" &&
@@ -108,9 +113,8 @@ export function usePortalWalletAccountMenu(
     accountError,
     accountGuest,
     accountUser,
-    adapter,
+    activeAccount?.walletName,
     identity.chainId,
-    identity.isConnected,
     identity.svmCluster,
     onManageAccount,
     onOpenSettings,
