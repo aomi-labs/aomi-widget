@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AomiFrame, useAomiWalletKit } from "@aomi-labs/widget-lib";
+import type { WalletAccountMenuOptions } from "@aomi-labs/widget-lib";
 import { useAomiRuntime, usePerThreadControl } from "@aomi-labs/react";
 import { HeaderControls } from "@portal/components/shell/header-controls";
 import { OverlayPortal } from "@portal/components/shell/overlay-portal";
@@ -125,6 +126,45 @@ export function ThreadUrlBootstrap() {
   return null;
 }
 
+function PortalFrameContents({
+  requestedApp,
+  requestedApplicationId,
+  locked,
+  openSettings,
+  onWalletAccountMenuChange,
+}: {
+  requestedApp: string | null;
+  requestedApplicationId: string | null;
+  locked: boolean;
+  openSettings: (tab: SettingsTab) => void;
+  onWalletAccountMenuChange: (
+    menu: WalletAccountMenuOptions | undefined,
+  ) => void;
+}) {
+  // AomiFrame.Root creates the runtime provider. Keep this hook in its
+  // subtree; calling it in PortalAomiFrame would read the provider before it
+  // exists and make the real portal route fail during server rendering.
+  const walletAccountMenu = usePortalWalletAccountMenu(
+    useCallback(() => openSettings("general"), [openSettings]),
+    useCallback(() => openSettings("account"), [openSettings]),
+  );
+
+  useEffect(() => {
+    onWalletAccountMenuChange(walletAccountMenu);
+  }, [onWalletAccountMenuChange, walletAccountMenu]);
+
+  return (
+    <>
+      <ThreadUrlBootstrap />
+      <AppSelectUrlBootstrap
+        requestedApp={requestedApp}
+        requestedApplicationId={requestedApplicationId}
+        locked={locked}
+      />
+    </>
+  );
+}
+
 export function PortalAomiFrame() {
   const { accountStatus, accountUser } = useAomiWalletKit();
   const accountUserId = accountUser?.id;
@@ -146,15 +186,12 @@ export function PortalAomiFrame() {
     "none",
   );
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
+  const [walletAccountMenu, setWalletAccountMenu] =
+    useState<WalletAccountMenuOptions>();
   const openSettings = useCallback((tab: SettingsTab) => {
     setSettingsTab(tab);
     setOverlay("settings");
   }, []);
-  const walletAccountMenu = usePortalWalletAccountMenu(
-    useCallback(() => openSettings("general"), [openSettings]),
-    useCallback(() => openSettings("account"), [openSettings]),
-  );
-
   useEffect(() => {
     if (accountStatus !== "loading") {
       setHasResolvedInitialAccount(true);
@@ -209,11 +246,12 @@ export function PortalAomiFrame() {
         clientOptions={clientOptions}
         inferenceFunding={requestedApp.inferenceFunding}
       >
-        <ThreadUrlBootstrap />
-        <AppSelectUrlBootstrap
+        <PortalFrameContents
           requestedApp={requestedApp.app}
           requestedApplicationId={requestedApp.applicationId}
           locked={Boolean(lockedApp)}
+          openSettings={openSettings}
+          onWalletAccountMenuChange={setWalletAccountMenu}
         />
         <AomiFrame.Header>
           <HeaderControls
