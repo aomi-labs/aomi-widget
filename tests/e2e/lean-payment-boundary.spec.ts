@@ -126,14 +126,38 @@ test("paired model-key CRUD and explicit user_byok chat", async ({
 });
 
 async function signInWithTestWallet(page: Page): Promise<void> {
+  page.setDefaultTimeout(30_000);
+  const walletToken = process.env.AOMI_E2E_WALLET_TOKEN;
+  if (walletToken) {
+    const seed = new URL("/api/bff/e2e/wallet", portalOrigin);
+    seed.searchParams.set("token", walletToken);
+    seed.searchParams.set(
+      "address",
+      "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+    );
+    seed.searchParams.set("chainId", "31337");
+    const response = await page.request.get(seed.toString(), {
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(307);
+  }
+  const hydrated = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === "/v1/account",
+    { timeout: 60_000 },
+  );
   await page.goto("/dev/widget-auth-e2e", { waitUntil: "domcontentloaded" });
+  expect((await hydrated).ok()).toBe(true);
   const verified = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/auth/siwe/verify" &&
       response.request().method() === "POST",
   );
+  const reloaded = page.waitForEvent("framenavigated", {
+    predicate: (frame) => frame === page.mainFrame(),
+  });
   await page.getByRole("button", { name: "Test SIWE Sign In" }).click();
   expect((await verified).status()).toBe(200);
+  await reloaded;
   await expect
     .poll(
       () =>
@@ -162,9 +186,20 @@ async function authenticatedClient(
     fetch: async (input, init) => {
       const headers = new Headers(init?.headers);
       headers.set("Cookie", cookieHeader);
+      headers.set("Origin", portalOrigin);
       const funding = headers.get("x-aomi-inference-funding");
       if (funding) fundingHeaders.push(funding);
-      return fetch(input, { ...init, headers });
+      const response = await fetch(input, { ...init, headers });
+      if (!response.ok) {
+        const body = await response
+          .clone()
+          .json()
+          .catch(() => ({}));
+        throw new Error(
+          `${new URL(String(input)).pathname}: HTTP ${response.status} ${body.code ?? body.error?.code ?? body.error?.message ?? body.error ?? ""}`,
+        );
+      }
+      return response;
     },
   });
 }
@@ -213,3 +248,98 @@ function agentReply(pages: EventPage[]): string {
     .map((event) => event.content)
     .join("\n");
 }
+
+test("local Portal root chat settles and settings renders", async ({
+  page,
+}) => {
+  test.skip(
+    !process.env.AOMI_E2E_WALLET_TOKEN,
+    "AOMI_E2E_WALLET_TOKEN is required for the local Portal smoke",
+  );
+  await signInWithTestWallet(page);
+
+  await page.context().clearCookies({ name: "aomi_e2e_wallet" });
+  const selectedModel = model || "gpt-5.6-luna";
+  const agentPages: EventPage[] = [];
+  const responseTasks: Promise<void>[] = [];
+  const agentStatuses: number[] = [];
+  await page.route("**/v1/agent/chat", async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    const body = JSON.parse(route.request().postData() ?? "{}") as Record<
+      string,
+      unknown
+    >;
+    body.model = selectedModel;
+    await route.continue({ postData: JSON.stringify(body) });
+  });
+  page.on("response", (response) => {
+    const path = new URL(response.url()).pathname;
+    if (!path.startsWith("/v1/agent/chat")) return;
+    agentStatuses.push(response.status());
+    if (response.status() === 200) {
+      responseTasks.push(
+        response
+          .json()
+          .then((body: EventPage) => agentPages.push(body))
+          .catch(() => undefined),
+      );
+    }
+  });
+
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("portal-shell")).toBeVisible({
+    timeout: 30_000,
+  });
+  const input = page.getByRole("textbox", { name: "Message input" });
+  await expect(input).toBeVisible();
+  await input.fill("Reply with exactly LEAN_PAYMENT_PORTAL_UI_OK.");
+  await page.getByRole("button", { name: "Send message" }).click();
+
+  await expect.poll(() => agentStatuses, { timeout: 30_000 }).toContain(200);
+  await expect
+    .poll(
+      async () => {
+        await Promise.all(responseTasks);
+        return agentPages
+          .flatMap((entry) => entry.events)
+          .some(
+            (event) =>
+              event.type === "message" &&
+              event.sender === "agent" &&
+              event.content.includes("LEAN_PAYMENT_PORTAL_UI_OK"),
+          );
+      },
+      { timeout: 180_000 },
+    )
+    .toBe(true);
+
+  await expect
+    .poll(
+      () =>
+        agentPages
+          .flatMap((entry) => entry.events)
+          .some(
+            (event) =>
+              event.type === "turn_state_changed" && event.state === "complete",
+          ),
+      { timeout: 30_000 },
+    )
+    .toBe(true);
+
+  await expect(
+    page.getByRole("button", { name: "Open settings" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Open settings" }).click();
+  await expect(
+    page.getByRole("button", { name: "Close settings" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Settings", { exact: true }).last(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "General", exact: true }),
+  ).toBeVisible();
+});
