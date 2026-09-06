@@ -336,17 +336,17 @@ export function AccountSettings() {
         <div className="border-aomi-border border-t">
           <AccountSigningView
             wallets={providerWallets}
-            grants={acl.grants}
-            unboundWallets={[]}
+            delegatedAccounts={acl.delegatedAccounts}
+            unboundWallets={acl.unboundWallets}
             needsParaAgentWallet={acl.needsParaAgentWallet}
             onCommit={acl.commitMode}
             onBindWallet={acl.bindWallet}
             onProvisionParaAgentWallet={acl.provisionParaAgentWallet}
-            onRevokeGrant={acl.revokeGrant}
+            onRevokeDelegation={acl.revokeDelegation}
             onStopAllAuto={acl.stopAllAuto}
             canConnectPrivy={acl.canConnectPrivy}
             onConnectPrivy={acl.connectPrivy}
-            onRegrant={acl.regrant}
+            onRenewDelegation={acl.renewDelegation}
             blockedReason={acl.blockedReason}
           />
         </div>
