@@ -254,18 +254,9 @@ export interface AomiOnchainPolicyBinding {
   revoked_at: number | null;
 }
 
-export interface AomiUsageStats {
-  period_utc_month?: string;
-  input_tokens: number;
-  output_tokens: number;
-  credit_used: number;
-  credit_paid: number;
-}
-
 export interface AomiAccountProfile {
   user: AomiUser;
   auth_providers: AomiAuthProvider[];
-  usage: AomiUsageStats;
   user_accounts: AomiUserAccount[];
   signing_policies: AomiSigningPolicy[];
   delegated_accounts: AomiDelegatedAccount[];

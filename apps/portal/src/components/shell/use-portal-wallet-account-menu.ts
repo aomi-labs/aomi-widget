@@ -1,15 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
-import { getChainInfo } from "@aomi-labs/react";
+import { useEffect, useMemo, useState } from "react";
+import { getChainInfo, useAomiRuntime } from "@aomi-labs/react";
 import {
   useAomiWalletKit,
   type WalletAccountMenuOptions,
 } from "@aomi-labs/widget-lib";
-import {
-  formatAllowanceSummary,
-  useAccountOverview,
-} from "@portal/lib/account-overview";
+import { formatAllowanceSummary } from "@portal/lib/account-overview";
 import { useSettings } from "@portal/lib/use-settings";
 
 function openHeaderNetworkSelect() {
@@ -26,10 +23,38 @@ export function usePortalWalletAccountMenu(
   onOpenSettings: () => void,
   onManageAccount: () => void = onOpenSettings,
 ): WalletAccountMenuOptions | undefined {
-  const overview = useAccountOverview();
+  const { account: runtimeAccount } = useAomiRuntime();
+  const [credits, setCredits] = useState<{
+    used: number;
+    included: number;
+  } | null>(null);
   const { settings, updateSetting } = useSettings();
   const adapter = useAomiWalletKit();
   const { accountGuest, accountUser, accountError, identity } = adapter;
+
+  useEffect(() => {
+    if (!accountUser || accountGuest) {
+      setCredits(null);
+      return;
+    }
+    let mounted = true;
+    void runtimeAccount.credits
+      .get({ limit: 1 })
+      .then((position) => {
+        if (mounted) {
+          setCredits({
+            used: position.included.used_microusd / 10_000,
+            included: position.included.limit_microusd / 10_000,
+          });
+        }
+      })
+      .catch(() => {
+        if (mounted) setCredits(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [accountGuest, accountUser, runtimeAccount]);
 
   return useMemo(() => {
     // A Better Auth guest is only transport for guest chat. Do not present it
@@ -37,14 +62,13 @@ export function usePortalWalletAccountMenu(
     // replaces this temporary session with a verified wallet sign-in.
     if (!accountUser || accountGuest) return undefined;
 
-    const usage = overview?.usage;
     // A wallet can be connected while the Aomi account session is missing:
     // the provider credential exchange either has not run yet or it failed.
     const secondaryLine =
-      usage && usage.credit_paid > 0
-        ? formatAllowanceSummary(usage.credit_used, usage.credit_paid)
-        : usage
-          ? `${Math.max(0, usage.credit_paid - usage.credit_used).toLocaleString()} credits left`
+      credits && credits.included > 0
+        ? formatAllowanceSummary(credits.used, credits.included)
+        : credits
+          ? `${Math.max(0, credits.included - credits.used).toLocaleString()} credits left`
           : "Loading allowance…";
 
     const activeAccount = adapter.accounts.find((account) => account.active);
@@ -90,7 +114,7 @@ export function usePortalWalletAccountMenu(
     identity.svmCluster,
     onManageAccount,
     onOpenSettings,
-    overview?.usage,
+    credits,
     settings.colorMode,
     updateSetting,
   ]);

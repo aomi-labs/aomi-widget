@@ -233,7 +233,6 @@ export type {
   AomiPolicyWindow,
   AomiProviderBinding,
   AomiSigningPolicy,
-  AomiUsageStats,
   AomiUser,
   AomiUserAccount,
   GetAccountBearer,

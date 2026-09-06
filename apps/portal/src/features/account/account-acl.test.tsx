@@ -46,50 +46,49 @@ vi.mock("@aomi-labs/react", async (importOriginal) => ({
   useOptionalAomiRuntime: () => ({ currentThreadId: "thread-aa-test" }),
 }));
 
-/** Backend `AccountWalletView` rows — the exact wire shape of /api/account/wallets. */
-const WALLETS = {
-  wallets: [
+/** Canonical `AccountProfile` read model. */
+const ACCOUNT = {
+  user_accounts: [
     {
-      address: CONNECTED_EVM,
-      chain_type: "evm",
-      wallet_provider: null,
-      signing: "client",
+      address: { chain: "evm", address: CONNECTED_EVM.toLowerCase() },
+      auth_provider: "para",
       is_primary: true,
-      signing_mode: "manual",
-      authorization_version: 2,
-      last_authorized_at: 1_752_000_000,
-      last_authorized_by: CONNECTED_EVM,
-      has_delegated_grant: false,
       provider_managed: false,
-      can_use_auto: false,
     },
     {
-      address: PRIVY_SVM,
-      chain_type: "svm",
-      wallet_provider: "privy",
-      signing: "delegated",
+      address: { chain: "svm", address: PRIVY_SVM },
+      auth_provider: "privy",
       is_primary: false,
-      signing_mode: "server_auto",
-      authorization_version: 4,
-      has_delegated_grant: true,
       provider_managed: false,
-      can_use_auto: true,
-      expires_at: 1_785_000_000,
     },
   ],
-};
-
-const GRANTS = {
-  grants: [
+  signing_policies: [
+    {
+      address: { chain: "evm", address: CONNECTED_EVM.toLowerCase() },
+      mode: "manual",
+      authorization_version: 2,
+      last_authorized_at: 1_752_000_000,
+      last_authorized_by: {
+        chain: "evm",
+        address: CONNECTED_EVM.toLowerCase(),
+      },
+    },
+    {
+      address: { chain: "svm", address: PRIVY_SVM },
+      mode: "auto",
+      authorization_version: 4,
+    },
+  ],
+  delegated_accounts: [
     {
       id: 41,
-      provider: "privy",
-      grant_kind: "session_delegation",
+      address: { chain: "svm", address: PRIVY_SVM },
+      delegation_provider: "privy",
+      kind: "session_delegation",
       status: "active",
       created_at: 1_750_000_000,
+      updated_at: 1_750_000_000,
       expires_at: 1_785_000_000,
-      chain_type: "svm",
-      address: PRIVY_SVM,
     },
   ],
 };
@@ -105,9 +104,7 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
       const override = overrides[url.pathname];
       if (override) return override();
 
-      if (url.pathname === "/api/account/wallets")
-        return Response.json(WALLETS);
-      if (url.pathname === "/api/account/grants") return Response.json(GRANTS);
+      if (url.pathname === "/api/account") return Response.json(ACCOUNT);
       if (url.pathname === "/api/account/authorization/challenge") {
         return Response.json({
           permit: {
@@ -129,7 +126,7 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
           authorization_version: 3,
         });
       }
-      if (url.pathname.endsWith("/grant") && method === "DELETE") {
+      if (url.pathname.endsWith("/delegation") && method === "DELETE") {
         return Response.json({ status: "revoked", provider: "privy" });
       }
       if (
@@ -145,9 +142,8 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
             is_primary: false,
             signing_mode: "manual",
             authorization_version: 0,
-            has_delegated_grant: false,
+            has_delegated_account: false,
             provider_managed: true,
-            can_use_auto: false,
           },
         });
       }
@@ -161,7 +157,7 @@ function installFetchRecorder(overrides: Record<string, () => Response> = {}) {
   return { calls, fetchMock };
 }
 
-/** Render and let the initial wallets+grants load settle inside `act`. */
+/** Render and let the initial account profile load settle inside `act`. */
 async function renderAcl() {
   await act(async () => {
     render(<AccountSettings />);
@@ -174,6 +170,10 @@ const click = async (el: HTMLElement) => {
     fireEvent.click(el);
   });
 };
+
+const findWalletRow = async () =>
+  (await screen.findAllByText(/0x71c7…976f/i)).at(-1)!;
+const findPrivyRow = async () => (await screen.findAllByText("Privy")).at(-1)!;
 
 const paths = (calls: FetchCall[]) =>
   calls.map(
@@ -211,40 +211,67 @@ describe("account ACL wiring", () => {
     seedAccountOverview(null);
   });
 
-  it("loads wallets and grants from the account routes", async () => {
+  it("loads authorizations and delegated accounts from the canonical account route", async () => {
     const { calls } = installFetchRecorder();
 
     await renderAcl();
 
-    await screen.findByText(/0x71C7…976F/);
-    expect(paths(calls)).toContain("/api/account/wallets");
-    expect(paths(calls)).toContain("/api/account/grants");
-    // External wallets appear in the unified list but never expose provider
-    // signing-policy controls.
-    expect(screen.queryByText("Auto-approve")).toBeNull();
-    // Privy provenance + live grant render from the wire inside the expanded row.
-    await click((await screen.findAllByText("8xKnQm…TzWv")).at(-1)!);
+    await findWalletRow();
+    expect(paths(calls).filter((path) => path === "/api/account")).toHaveLength(
+      1,
+    );
+    // Privy provenance + live delegation render inside the expanded row.
+    await click(await findPrivyRow());
     expect(screen.getByText(/Privy · Session delegation/)).toBeTruthy();
   });
 
-  it("runs challenge → sign → commit and reloads on a mode change", async () => {
-    const paraWallets = {
-      wallets: [
-        {
-          ...WALLETS.wallets[0],
-          wallet_provider: "para",
-          provider_managed: false,
-          can_use_auto: false,
-        },
-      ],
+  it("offers server auto from current delegated capability, not the saved mode", async () => {
+    const manualWithCapability = {
+      ...ACCOUNT,
+      signing_policies: ACCOUNT.signing_policies.map((policy) =>
+        policy.address.chain === "svm" ? { ...policy, mode: "manual" } : policy,
+      ),
     };
-    const { calls } = installFetchRecorder({
-      "/api/account/wallets": () => Response.json(paraWallets),
-      "/api/account/grants": () => Response.json({ grants: [] }),
+    installFetchRecorder({
+      "/api/account": () => Response.json(manualWithCapability),
     });
 
     await renderAcl();
-    const row = (await screen.findAllByText("0x71C7…976F")).at(-1)!;
+    await click(await findPrivyRow());
+
+    expect(
+      screen
+        .getByRole("button", { name: /Bypass permissions/ })
+        .hasAttribute("disabled"),
+    ).toBe(false);
+  });
+
+  it("does not use another provider's delegation as signing capability", async () => {
+    const mismatchedDelegation = {
+      ...ACCOUNT,
+      delegated_accounts: ACCOUNT.delegated_accounts.map((delegation) => ({
+        ...delegation,
+        delegation_provider: "para",
+      })),
+    };
+    installFetchRecorder({
+      "/api/account": () => Response.json(mismatchedDelegation),
+    });
+
+    await renderAcl();
+    await click(await findPrivyRow());
+
+    expect(screen.getByText("Delegation expired")).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: /Bypass permissions/ }),
+    ).toBeNull();
+  });
+
+  it("runs challenge → sign → commit and reloads on a mode change", async () => {
+    const { calls } = installFetchRecorder();
+
+    await renderAcl();
+    const row = await findWalletRow();
 
     await click(row);
     await click(await screen.findByText("Auto-approve"));
@@ -255,7 +282,7 @@ describe("account ACL wiring", () => {
     );
     expect(bodyOf(calls, "/api/account/authorization/challenge")).toEqual({
       chain_type: "evm",
-      wallet: CONNECTED_EVM,
+      wallet: CONNECTED_EVM.toLowerCase(),
       mode: "client_auto",
     });
     expect(walletKit.signTypedData).toHaveBeenCalledOnce();
@@ -263,29 +290,27 @@ describe("account ACL wiring", () => {
       signature: "0xsignature",
     });
     // Committed state is re-read rather than assumed.
-    expect(
-      paths(calls).filter((p) => p === "/api/account/wallets"),
-    ).toHaveLength(2);
+    expect(paths(calls).filter((p) => p === "/api/account")).toHaveLength(2);
   });
 
   it("allows a user-controlled Para wallet to accept transactions", async () => {
-    const paraWallets = {
-      wallets: [
+    const paraAccount = {
+      user_accounts: [
         {
-          ...WALLETS.wallets[0],
-          wallet_provider: "para",
+          ...ACCOUNT.user_accounts[0],
+          auth_provider: "para",
           provider_managed: false,
-          can_use_auto: false,
         },
       ],
+      signing_policies: [ACCOUNT.signing_policies[0]],
+      delegated_accounts: [],
     };
     const { calls } = installFetchRecorder({
-      "/api/account/wallets": () => Response.json(paraWallets),
-      "/api/account/grants": () => Response.json({ grants: [] }),
+      "/api/account": () => Response.json(paraAccount),
     });
 
     await renderAcl();
-    await click((await screen.findAllByText("0x71C7…976F")).at(-1)!);
+    await click(await findWalletRow());
 
     const accept = await screen.findByRole("button", {
       name: /^Auto-approve/,
@@ -317,23 +342,10 @@ describe("account ACL wiring", () => {
       address: "0xSomeOtherWallet",
       svmAddress: undefined,
     };
-    const paraWallets = {
-      wallets: [
-        {
-          ...WALLETS.wallets[0],
-          wallet_provider: "para",
-          provider_managed: false,
-          can_use_auto: false,
-        },
-      ],
-    };
-    const { calls } = installFetchRecorder({
-      "/api/account/wallets": () => Response.json(paraWallets),
-      "/api/account/grants": () => Response.json({ grants: [] }),
-    });
+    const { calls } = installFetchRecorder();
 
     await renderAcl();
-    const row = (await screen.findAllByText("0x71C7…976F")).at(-1)!;
+    const row = await findWalletRow();
 
     await click(row);
     await click(await screen.findByText("Auto-approve"));
@@ -350,19 +362,7 @@ describe("account ACL wiring", () => {
   it("restates a lost version CAS in words instead of raw JSON", async () => {
     // The backend answers `{"error":"stale_permit"}` with a 409 when another
     // commit won the version race; the raw body must never reach the user.
-    const paraWallets = {
-      wallets: [
-        {
-          ...WALLETS.wallets[0],
-          wallet_provider: "para",
-          provider_managed: false,
-          can_use_auto: false,
-        },
-      ],
-    };
     installFetchRecorder({
-      "/api/account/wallets": () => Response.json(paraWallets),
-      "/api/account/grants": () => Response.json({ grants: [] }),
       "/api/account/authorization/commit": () =>
         new Response(JSON.stringify({ error: "stale_permit" }), {
           status: 409,
@@ -370,7 +370,7 @@ describe("account ACL wiring", () => {
     });
 
     await renderAcl();
-    await click((await screen.findAllByText("0x71C7…976F")).at(-1)!);
+    await click(await findWalletRow());
     await click(await screen.findByText("Auto-approve"));
     await click(await screen.findByText("Sign to authorize"));
 
@@ -381,15 +381,15 @@ describe("account ACL wiring", () => {
     ).toBeTruthy();
   });
 
-  it("revokes a grant through the provider grant route", async () => {
+  it("revokes provider delegated accounts", async () => {
     const { calls } = installFetchRecorder();
 
     await renderAcl();
-    await click((await screen.findAllByText("8xKnQm…TzWv")).at(-1)!);
+    await click(await findPrivyRow());
     await click(await screen.findByText("Revoke"));
 
     await waitFor(() =>
-      expect(paths(calls)).toContain("/api/account/providers/privy/grant"),
+      expect(paths(calls)).toContain("/api/account/providers/privy/delegation"),
     );
   });
 
@@ -420,7 +420,7 @@ describe("account ACL wiring", () => {
     });
 
     await renderAcl();
-    await click(await screen.findByRole("button", { name: "Link" }));
+    await click(await screen.findByRole("button", { name: "Activate" }));
 
     await waitFor(() =>
       expect(paths(calls)).toContain("/api/account/authorization/commit"),
@@ -433,19 +433,19 @@ describe("account ACL wiring", () => {
   });
 
   it("provisions a Para agent wallet through the provider route", async () => {
-    const paraWallets = {
-      wallets: [
+    const paraAccount = {
+      user_accounts: [
         {
-          ...WALLETS.wallets[0],
-          wallet_provider: "para",
+          ...ACCOUNT.user_accounts[0],
+          auth_provider: "para",
           provider_managed: false,
-          can_use_auto: false,
         },
       ],
+      signing_policies: [ACCOUNT.signing_policies[0]],
+      delegated_accounts: [],
     };
     const { calls } = installFetchRecorder({
-      "/api/account/wallets": () => Response.json(paraWallets),
-      "/api/account/grants": () => Response.json({ grants: [] }),
+      "/api/account": () => Response.json(paraAccount),
     });
 
     await renderAcl();
