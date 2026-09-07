@@ -52,6 +52,9 @@ function installFetchRecorder() {
       calls.push({ input, init });
       const url = new URL(input.toString(), "https://portal.test");
       const method = init?.method ?? "GET";
+      if (url.pathname === "/api/thread/apps" && method === "GET") {
+        return Response.json(CATALOG.filter((app) => app.is_public !== false));
+      }
       if (url.pathname === "/api/account/apps" && method === "GET") {
         return Response.json(CATALOG);
       }
@@ -121,6 +124,24 @@ describe("packages modal wiring", () => {
     await act(async () => {
       seedAccountOverview(null);
     });
+  });
+
+  it("lets guests browse public apps without account catalog access or install writes", async () => {
+    seedAccountOverview(null);
+    const { calls } = installFetchRecorder();
+    await renderModal();
+    expect(paths(calls)).toContain("GET /api/thread/apps");
+    expect(paths(calls)).not.toContain("GET /api/account/apps");
+    expect(
+      screen.getByRole("button", { name: "Open Uniswap details" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("button", { name: "Open Treasury Ops details" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Add Uniswap", exact: true }),
+    ).toBeDisabled();
+    expect(paths(calls)).not.toContain("PUT /api/account/apps");
   });
 
   it("loads the catalog from the account apps route", async () => {
@@ -300,7 +321,7 @@ describe("packages modal wiring", () => {
   });
 
   it("blocks replacement until the installed-app baseline is available", async () => {
-    seedAccountOverview(null);
+    seedAccountOverview({ user: { user_id: "acct-1" } });
     const { calls } = installFetchRecorder();
 
     await renderModal();

@@ -44,7 +44,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
     catalog,
     error: catalogError,
     retry: retryApps,
-  } = usePackageCatalog();
+  } = usePackageCatalog(account?.user.user_id);
   const {
     skills,
     error: skillsError,
