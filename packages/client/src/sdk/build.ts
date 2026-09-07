@@ -8,7 +8,10 @@ import type {
   EvmSimulatedBuild,
   EvmStagedBuild,
   PipelineActionSummary,
+  PipelineApprovalChange,
+  PipelineBalanceChange,
   PipelineCommitOptions,
+  PipelineMutationOptions,
   PipelineSimulation,
   SvmCommitResult,
   SvmPresentedAction,
@@ -34,7 +37,6 @@ export class EvmStaged {
     return this.raw.actions.map((action) => ({
       ...action,
       chainFamily: "evm",
-      kind: "calls",
     }));
   }
 
@@ -42,9 +44,9 @@ export class EvmStaged {
     return this.raw.digest;
   }
 
-  async simulate(): Promise<EvmBuild> {
+  async simulate(options?: PipelineMutationOptions): Promise<EvmBuild> {
     return new EvmBuild(
-      await this.transport.simulate(this.raw),
+      await this.transport.simulate(this.raw, options),
       this.transport,
     );
   }
@@ -72,7 +74,6 @@ export class EvmBuild {
     return this.raw.actions.map((action) => ({
       ...action,
       chainFamily: "evm",
-      kind: "calls",
     }));
   }
 
@@ -82,6 +83,16 @@ export class EvmBuild {
 
   get simulation(): PipelineSimulation {
     return this.raw.simulation;
+  }
+
+  /** Wallet asset movements decoded from successful simulation steps. */
+  get balanceChanges(): PipelineBalanceChange[] {
+    return this.raw.simulation.balanceChanges;
+  }
+
+  /** Allowance, token, and operator permissions changed by the build. */
+  get approvals(): PipelineApprovalChange[] {
+    return this.raw.simulation.approvals;
   }
 
   get digest(): string {
@@ -122,9 +133,9 @@ export class SvmStaged {
     return this.raw.digest;
   }
 
-  async simulate(): Promise<SvmBuild> {
+  async simulate(options?: PipelineMutationOptions): Promise<SvmBuild> {
     return new SvmBuild(
-      await this.transport.simulate(this.raw),
+      await this.transport.simulate(this.raw, options),
       this.transport,
     );
   }

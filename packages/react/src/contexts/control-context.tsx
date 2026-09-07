@@ -176,11 +176,15 @@ export function usePerThreadControl(): {
   return {
     actions: {
       getCurrentThreadControl: ctx.getCurrentThreadControl,
+      getCurrentThreadAgentMode: ctx.getCurrentThreadAgentMode,
+      getCurrentThreadTarget: ctx.getCurrentThreadTarget,
       getCurrentThreadApp: ctx.getCurrentThreadApp,
       getCurrentThreadApplicationId: ctx.getCurrentThreadApplicationId,
       getPreferredThreadControl: ctx.getPreferredThreadControl,
       onModelSelect: ctx.onModelSelect,
       onAppSelect: ctx.onAppSelect,
+      onAgentTargetSelect: ctx.onAgentTargetSelect,
+      onAgentModeSelect: ctx.onAgentModeSelect,
       markControlSynced: ctx.markControlSynced,
     },
   };
@@ -202,6 +206,7 @@ export type ControlContextProviderProps = {
   appPlatforms?: AomiPlatformFilter;
   applicationId?: ApplicationId;
   inferenceFunding?: AomiInferenceFundingSource;
+  accountSessionAvailable?: boolean;
 };
 
 export function ControlContextProvider({
@@ -213,6 +218,7 @@ export function ControlContextProvider({
   appPlatforms,
   applicationId,
   inferenceFunding,
+  accountSessionAvailable = false,
 }: ControlContextProviderProps) {
   // ---------------------------------------------------------------------------
   // Stable refs into the central plumbing (aomiClient, the props that change
@@ -265,6 +271,7 @@ export function ControlContextProvider({
 
   const byok = useByokImpl({
     aomiClientRef,
+    accountClient: accountSessionAvailable ? aomiClient : null,
     clientIdRef,
     getControlSessionId: getCurrentControlSessionId,
     initialInferenceFunding: inferenceFunding,

@@ -120,11 +120,15 @@ describe("WorkingAgent", () => {
       steps: [
         {
           kind: "tool_call",
+          resultPreview: "",
+          args: {},
           toolName: "get_account_info",
           childSeq: 1,
         },
         {
           kind: "tool_call",
+          resultPreview: "",
+          args: {},
           toolName: "thread_return",
           childSeq: 2,
         },
@@ -321,12 +325,15 @@ describe("WorkingAgent", () => {
           steps: [
             {
               kind: "tool_call",
+              resultPreview: "",
+              args: {},
               toolName: "get_chain_context",
               childSeq: 1,
             },
             { kind: "note", text: '{"staged":[{"tx_id":1}]}', childSeq: 2 },
             {
               kind: "tool_call",
+              resultPreview: "",
               toolName: "thread_return",
               args: { status: "completed" },
               childSeq: 3,
@@ -355,6 +362,7 @@ describe("WorkingAgent", () => {
   it("degrades to the transcript part when there is no sidecar", () => {
     const tool = {
       type: "tool-call",
+      argsText: "{}",
       toolCallId: "tool_1",
       toolName: "task",
       args: { label: "approvals-auditor", app: "default", prompt: "audit" },
@@ -363,7 +371,7 @@ describe("WorkingAgent", () => {
         status: "completed",
         staged_count: 2,
       },
-    } as unknown as ToolCallMessagePart;
+    } satisfies ToolCallMessagePart;
 
     const { container } = render(
       <WorkingAgent

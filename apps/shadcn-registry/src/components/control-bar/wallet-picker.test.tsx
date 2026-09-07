@@ -17,7 +17,11 @@ import type { AomiWalletKit } from "@/lib/wallet-kit";
 import { AomiWalletKitContextProvider } from "@/lib/wallet-kit";
 import { AomiWalletNetworkPreferencesProvider } from "@/lib/wallet-kit/network-preferences";
 import { registerWalletProvider } from "@/lib/wallet-kit/providers/plugin-registry";
-import { WalletPickerProvider, useWalletPicker } from "./wallet-picker-context";
+import {
+  requestWalletPickerOpen,
+  WalletPickerProvider,
+  useWalletPicker,
+} from "./wallet-picker-context";
 import { WalletPicker } from "./wallet-picker";
 
 afterEach(cleanup);
@@ -56,8 +60,8 @@ function makeAdapter(overrides: Partial<AomiWalletKit> = {}): AomiWalletKit {
       address: "0xAAAAAAAA",
       chainId: 1,
       svmAddress: "9xQpubKey",
-      authProvider: "google",
-      walletProvider: "para",
+      authMethod: "google",
+      embeddedProvider: "para",
       primaryLabel: "0xAAA..AA",
     },
     isReady: true,
@@ -216,7 +220,11 @@ function OpenAndRender() {
   return <WalletPicker />;
 }
 
-function renderPicker(adapter: AomiWalletKit, hasBlockingActions = false) {
+function renderPicker(
+  adapter: AomiWalletKit,
+  hasBlockingActions = false,
+  initiallyOpen = true,
+) {
   const runtime = {
     hasBlockingActions,
     showNotification: vi.fn(),
@@ -231,7 +239,7 @@ function renderPicker(adapter: AomiWalletKit, hasBlockingActions = false) {
             solanaNetworks={solanaNetworks}
           >
             <WalletPickerProvider>
-              <OpenAndRender />
+              {initiallyOpen ? <OpenAndRender /> : <WalletPicker />}
             </WalletPickerProvider>
           </AomiWalletNetworkPreferencesProvider>
         </AomiWalletKitContextProvider>
@@ -247,9 +255,19 @@ function openAddWallets() {
 }
 
 describe("WalletPicker", () => {
+  it("opens from a host-owned surface request", async () => {
+    renderPicker(makeAdapter(), false, false);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await act(async () => requestWalletPickerOpen());
+
+    expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
   it("uses the shared light blurred backdrop", () => {
     renderPicker(makeAdapter());
 
+    expect(screen.getByRole("dialog").parentElement).toBe(document.body);
     const backdrop = screen.getAllByRole("button", { name: "Close" })[0];
     expect(backdrop).toHaveAttribute("data-slot", "modal-backdrop");
     expect(backdrop.className).toContain("bg-black/20");
@@ -274,7 +292,7 @@ describe("WalletPicker", () => {
         identity: {
           status: "disconnected",
           isConnected: false,
-          walletProvider: "para",
+          embeddedProvider: "para",
         },
         accounts: [],
         connectEvmWallet,
@@ -303,7 +321,7 @@ describe("WalletPicker", () => {
         identity: {
           status: "disconnected",
           isConnected: false,
-          walletProvider: "para",
+          embeddedProvider: "para",
         },
         accounts: [],
         connectEvmWallet,
@@ -558,7 +576,6 @@ describe("WalletPicker", () => {
           chainId: 1,
           sessionProvider: "privy",
           embeddedProvider: "privy",
-          walletProvider: "privy",
         },
         accounts: [
           {
@@ -771,14 +788,14 @@ describe("WalletPicker", () => {
         identity: {
           status: "disconnected",
           isConnected: false,
-          walletProvider: "para",
+          embeddedProvider: "para",
         },
         accounts: [],
       }),
     );
     const socialRow = screen.getByRole("button", { name: "Email or Google" });
     expect(within(socialRow).getByText("Email or Google")).toBeTruthy();
-    expect(within(socialRow).getByText("Fast account sign-in")).toBeTruthy();
+    expect(within(socialRow).getByText("Para")).toBeTruthy();
   });
 
   it("falls back to the method label when no account provider brand exists", () => {
@@ -839,7 +856,7 @@ describe("WalletPicker", () => {
     );
 
     expect(screen.getByText("Connected wallet")).toBeTruthy();
-    expect(screen.getByText("Connected now")).toBeTruthy();
+    expect(screen.getByText("Connected")).toBeTruthy();
     expect(document.querySelector('[data-wallet-brand="rabby"]')).toBeTruthy();
 
     await act(async () => {
@@ -1081,7 +1098,7 @@ describe("WalletPicker", () => {
         identity: {
           status: "connected",
           isConnected: true,
-          walletProvider: "para",
+          embeddedProvider: "para",
           sessionProvider: "para",
         },
         accounts: [
@@ -1136,7 +1153,7 @@ describe("WalletPicker", () => {
         identity: {
           status: "connected",
           isConnected: true,
-          walletProvider: "privy",
+          embeddedProvider: "privy",
           sessionProvider: "privy",
           walletProviderSubject: "did:privy:user",
           primaryLabel: "privy@example.com",
@@ -1187,7 +1204,7 @@ describe("WalletPicker", () => {
         identity: {
           status: "connected",
           isConnected: true,
-          walletProvider: "privy",
+          embeddedProvider: "privy",
           sessionProvider: "privy",
           walletProviderSubject: "did:privy:user",
           primaryLabel: "privy@example.com",
@@ -1226,7 +1243,7 @@ describe("WalletPicker", () => {
           isConnected: true,
           address: "0xAAAAAAAA",
           chainId: 1,
-          walletProvider: "privy",
+          embeddedProvider: "privy",
           primaryLabel: "0xAAA..AA",
         },
         socialLoginOptions: [
@@ -1248,7 +1265,7 @@ describe("WalletPicker", () => {
     expect(
       within(socialRow).getByText("Email, wallet, or social"),
     ).toBeTruthy();
-    expect(within(socialRow).getByText("Fast account sign-in")).toBeTruthy();
+    expect(within(socialRow).getByText("Privy")).toBeTruthy();
   });
 
   it("dedupes stored embedded wallets behind the provider quick sign-in row", () => {
@@ -1281,7 +1298,7 @@ describe("WalletPicker", () => {
           isConnected: true,
           address: "0xAAAAAAAA",
           chainId: 1,
-          walletProvider: "privy",
+          embeddedProvider: "privy",
           primaryLabel: "0xAAA..AA",
         },
         walletModalRows: [
@@ -1327,7 +1344,7 @@ describe("WalletPicker", () => {
     const socialRow = screen.getByRole("button", {
       name: "Email or Google",
     });
-    expect(within(socialRow).getByText("Fast account sign-in")).toBeTruthy();
+    expect(within(socialRow).getByText("Privy")).toBeTruthy();
     expect(
       screen.getAllByRole("button", { name: "Email or Google" }),
     ).toHaveLength(1);

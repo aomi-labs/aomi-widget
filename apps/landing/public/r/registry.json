@@ -1,7 +1,7 @@
 {
   "$schema": "https://ui.shadcn.com/schema/registry.json",
   "name": "aomi",
-  "homepage": "https://r.aomi.dev",
+  "homepage": "https://aomi.dev",
   "items": [
     {
       "name": "aomi-theme",
@@ -14,6 +14,21 @@
         }
       ],
       "dependencies": [],
+      "registryDependencies": []
+    },
+    {
+      "name": "agent-routing",
+      "type": "registry:component",
+      "description": "Host-owned Auto and Direct routing contract for Aomi UI.",
+      "files": [
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/routing.ts"
+        }
+      ],
+      "dependencies": [
+        "@aomi-labs/react"
+      ],
       "registryDependencies": []
     },
     {
@@ -35,6 +50,7 @@
         "@aomi-labs/react"
       ],
       "registryDependencies": [
+        "https://aomi.dev/r/agent-routing.json",
         "https://aomi.dev/r/aomi-frame.json",
         "https://aomi.dev/r/aomi-wallet-kit.json"
       ]
@@ -47,6 +63,10 @@
         {
           "type": "registry:component",
           "path": "components/aomi-frame.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/activity-sidebar/activity-panel-context.tsx"
         }
       ],
       "dependencies": [
@@ -58,7 +78,7 @@
         "https://aomi.dev/r/assistant-threadlist-sidebar.json",
         "https://aomi.dev/r/aomi-wallet-kit.json",
         "https://aomi.dev/r/control-bar.json",
-        "https://aomi.dev/r/runtime-tx-handler.json",
+        "https://aomi.dev/r/activity-sidebar.json",
         "separator",
         "breadcrumb",
         "sidebar"
@@ -341,6 +361,10 @@
         },
         {
           "type": "registry:component",
+          "path": "components/control-bar/control-menu.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "components/control-bar/model-select.tsx"
         },
         {
@@ -353,7 +377,7 @@
         },
         {
           "type": "registry:component",
-          "path": "components/control-bar/app-select.tsx"
+          "path": "lib/apps/app-identity.ts"
         },
         {
           "type": "registry:component",
@@ -362,6 +386,10 @@
         {
           "type": "registry:component",
           "path": "components/control-bar/connect-button.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/network-metadata.ts"
         },
         {
           "type": "registry:component",
@@ -425,6 +453,10 @@
         },
         {
           "type": "registry:component",
+          "path": "components/icons/app-identity-icon.tsx"
+        },
+        {
+          "type": "registry:component",
           "path": "components/icons/vendor-map.tsx"
         },
         {
@@ -438,6 +470,18 @@
         {
           "type": "registry:component",
           "path": "components/icons/apps/index.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/apps/sourced-marks.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/skills/index.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/skills/sourced-marks.ts"
         },
         {
           "type": "registry:component",
@@ -479,6 +523,7 @@
         "wagmi"
       ],
       "registryDependencies": [
+        "https://aomi.dev/r/agent-routing.json",
         "https://aomi.dev/r/aomi-wallet-kit.json",
         "button",
         "popover",
@@ -500,6 +545,54 @@
         {
           "type": "registry:component",
           "path": "components/assistant-ui/thread-loading.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/capability-composer.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/capability-composer/provider.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/capability-composer/input.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/capability-composer/picker.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/capability-composer/use-picker-placement.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/capability-composer/catalog.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/capability-composer/editor-dom.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/capability-composer/model.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/capability-hint-payload.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/app-select.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/control-bar/mode-select.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/capabilities/skill-catalog.ts"
         },
         {
           "type": "registry:component",
@@ -607,11 +700,16 @@
         "remark-gfm"
       ],
       "registryDependencies": [
+        "https://aomi.dev/r/agent-routing.json",
+        "https://aomi.dev/r/activity-sidebar.json",
+        "https://aomi.dev/r/control-bar.json",
         "https://r.assistant-ui.com/markdown-text.json",
         "https://r.assistant-ui.com/tooltip-icon-button.json",
         "https://aomi.dev/r/attachment.json",
         "https://aomi.dev/r/assistant-tool-fallback.json",
         "button",
+        "command",
+        "popover",
         "skeleton"
       ]
     },
@@ -742,23 +840,107 @@
       "registryDependencies": []
     },
     {
-      "name": "runtime-tx-handler",
+      "name": "activity-sidebar",
       "type": "registry:component",
-      "description": "Presents attended Actions and delegates execution to the runtime ActionHandler.",
+      "description": "Activity rail and wallet impact review for durable attended Actions.",
       "files": [
         {
           "type": "registry:component",
-          "path": "components/runtime-tx-handler.tsx"
+          "path": "components/activity-sidebar/activity-sidebar.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/activity-sidebar/subagent-row.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/activity-sidebar/transactions.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/activity-sidebar/activity-panel-context.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/activity-sidebar/model.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/capabilities/skill-catalog.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/tool-registry.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/tool-interpreter/unwrap.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/tool-interpreter/normalize.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/assistant-ui/tool-interpreter/types.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/skills/index.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/skills/sourced-marks.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/apps/index.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/apps/sourced-marks.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/activity-sidebar/wallet-review.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/activity-sidebar/transaction-review.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/activity-sidebar/wallet-impact.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/activity-sidebar/token-metadata.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/activity-sidebar/presentation.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/chain-map.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/icons/chains/index.tsx"
         }
       ],
       "dependencies": [
+        "@aomi-labs/client",
         "@aomi-labs/react",
-        "lucide-react"
+        "@assistant-ui/react",
+        "lucide-react",
+        "viem",
+        "motion"
       ],
       "registryDependencies": [
         "https://aomi.dev/r/aomi-wallet-kit.json",
-        "button",
-        "dialog"
+        "https://r.assistant-ui.com/markdown-text.json",
+        "button"
       ]
     },
     {
@@ -781,6 +963,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/para/ParaPluginProvider.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/providers/para/para-evm-session.ts"
         },
         {
           "type": "registry:component",
@@ -910,6 +1096,10 @@
         {
           "type": "registry:component",
           "path": "lib/wallet-kit/providers/privy/privy-auth.ts"
+        },
+        {
+          "type": "registry:component",
+          "path": "lib/wallet-kit/providers/privy/privy-embedded-execution.ts"
         },
         {
           "type": "registry:component",

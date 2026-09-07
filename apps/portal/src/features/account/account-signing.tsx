@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { DelegatedAccountView, SignerMode, WalletPolicy } from "./types";
-import type { UnboundWallet } from "./use-account-acl";
 import {
   CUSTODY_GROUPS,
   reconcile,
@@ -10,17 +9,14 @@ import {
   walletGroupKey,
 } from "./account-reconcile";
 import { WalletPolicyRow } from "./wallet-policy-row";
-import { UnboundWalletRow } from "./unbound-wallet-row";
 import { Divider, SettingRow } from "./settings-rows";
 import { Loader2 } from "lucide-react";
 
 interface AccountSigningViewProps {
   wallets: WalletPolicy[];
   delegatedAccounts: DelegatedAccountView[];
-  unboundWallets: UnboundWallet[];
   /** Run the permit ceremony. Rejects with a user-facing message. */
   onCommit: (wallet: WalletPolicy, mode: SignerMode) => Promise<void>;
-  onBindWallet: (wallet: UnboundWallet) => Promise<"bound" | "already_bound">;
   onRevokeDelegation: (delegation: DelegatedAccountView) => Promise<void>;
   onStopAllAuto: () => Promise<void>;
   canConnectPrivy: boolean;
@@ -37,9 +33,7 @@ const CONNECT_PRIVY_KEY = "__connect_privy__";
 export function AccountSigningView({
   wallets,
   delegatedAccounts,
-  unboundWallets,
   onCommit,
-  onBindWallet,
   onRevokeDelegation,
   onStopAllAuto,
   canConnectPrivy,
@@ -200,19 +194,11 @@ export function AccountSigningView({
     void run(CONNECT_PRIVY_KEY, onConnectPrivy);
   };
 
-  const bindWallet = (id: string) => {
-    const wallet = unboundWallets.find((entry) => entry.id === id);
-    if (!wallet) return;
-    void run(id, async () => {
-      await onBindWallet(wallet);
-    });
-  };
-
   return (
-    <div className="flex-1 overflow-y-auto px-[22px] py-5">
-      <div className="flex flex-col gap-6">
+    <div className="mx-auto w-full max-w-[780px] px-6 py-6">
+      <div className="flex flex-col gap-5">
         {attentionCount > 0 && (
-          <div className="border-aomi-border bg-aomi-surface-2/40 flex items-center justify-between gap-3 rounded-lg border px-4 py-3">
+          <div className="border-aomi-border bg-aomi-surface-2/35 flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
             <span className="text-aomi-fg text-[13px]">
               {attentionCount}{" "}
               {attentionCount === 1 ? "wallet needs" : "wallets need"} a new
@@ -221,7 +207,7 @@ export function AccountSigningView({
             <button
               type="button"
               onClick={jumpToAttention}
-              className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 h-8 shrink-0 rounded-full border px-3 text-[13px] font-medium transition-colors"
+              className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 h-8 shrink-0 rounded-lg border px-3 text-[11px] font-medium transition-colors"
             >
               Fix
             </button>
@@ -229,7 +215,7 @@ export function AccountSigningView({
         )}
 
         {canConnectPrivy && !hasActivePrivyDelegation && (
-          <div className="border-aomi-border bg-aomi-surface-2/40 flex items-center justify-between gap-3 rounded-lg border px-4 py-3">
+          <div className="border-aomi-border bg-aomi-surface-2/35 flex items-center justify-between gap-3 rounded-xl border px-4 py-3">
             <div className="min-w-0 flex-1">
               <span className="text-aomi-fg block text-[13px] font-medium">
                 Enable automatic signing
@@ -248,7 +234,7 @@ export function AccountSigningView({
               type="button"
               onClick={connectPrivy}
               disabled={Boolean(busy[CONNECT_PRIVY_KEY])}
-              className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors disabled:opacity-50"
+              className="border-aomi-border text-aomi-fg hover:bg-aomi-surface-2 flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-[11px] font-medium transition-colors disabled:opacity-50"
             >
               {busy[CONNECT_PRIVY_KEY] && (
                 <Loader2 size={13} className="animate-spin" />
@@ -260,8 +246,8 @@ export function AccountSigningView({
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-0.5">
-            <span className="text-sm font-semibold">Provider signing</span>
-            <span className="text-aomi-muted text-[13px]">
+            <span className="text-[12px] font-semibold">Provider signing</span>
+            <span className="text-aomi-muted text-[11px] leading-relaxed">
               Configure signing for Para and Privy wallets. External wallets
               always remain under their wallet app’s control.
             </span>
@@ -280,7 +266,7 @@ export function AccountSigningView({
                 <span className="text-aomi-muted/80 px-0.5 pb-1.5 text-[10px] font-medium uppercase tracking-[0.08em]">
                   {group.label}
                 </span>
-                <div className="border-aomi-border bg-aomi-bg/40 flex flex-col overflow-hidden rounded-lg border">
+                <div className="border-aomi-border bg-aomi-raised flex flex-col overflow-hidden rounded-xl border">
                   {group.wallets.map((wallet, index) => (
                     <div key={wallet.id}>
                       {index > 0 && <Divider />}
@@ -310,27 +296,6 @@ export function AccountSigningView({
                 </div>
               </div>
             ))}
-
-            {unboundWallets.length > 0 && (
-              <div className="flex flex-col">
-                <span className="text-aomi-muted/80 px-0.5 pb-1.5 text-[10px] font-medium uppercase tracking-[0.08em]">
-                  Connected wallets
-                </span>
-                <div className="border-aomi-border bg-aomi-bg/40 flex flex-col overflow-hidden rounded-lg border">
-                  {unboundWallets.map((wallet, index) => (
-                    <div key={wallet.id}>
-                      {index > 0 && <Divider />}
-                      <UnboundWalletRow
-                        wallet={wallet}
-                        busy={Boolean(busy[wallet.id])}
-                        error={errors[wallet.id]}
-                        onActivate={() => bindWallet(wallet.id)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 

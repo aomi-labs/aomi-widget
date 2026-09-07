@@ -14,6 +14,7 @@ import type {
   EvmStagedBuild,
   PipelineCommitOptions,
   PipelineInvokeOptions,
+  PipelineMutationOptions,
   PipelineOperationBuildInput,
   PipelineOperationDescriptor,
   SvmCommitResult,
@@ -29,32 +30,43 @@ export class AomiEvmPipeline {
 
   async build(
     input: PipelineOperationBuildInput | EvmDirectInput,
+    options?: PipelineMutationOptions,
   ): Promise<EvmBuild> {
     if ("calls" in input) {
-      return (await this.stage(input)).simulate();
+      return (await this.stage(input, options)).simulate(options);
     }
-    return new EvmBuild(await this.raw.build(input), this.raw);
+    return new EvmBuild(await this.raw.build(input, options), this.raw);
   }
 
-  async stage(input: EvmStageInput | EvmDirectInput): Promise<EvmStaged> {
+  async stage(
+    input: EvmStageInput | EvmDirectInput,
+    options?: PipelineMutationOptions,
+  ): Promise<EvmStaged> {
     const request: EvmStageInput =
       "actions" in input
         ? input
         : {
-            actions: [
-              {
-                chainId: input.chainId,
-                calls: input.calls,
-                description: input.description,
-              },
-            ],
+            app: input.app,
+            skills: input.skills,
+            actions: input.calls.map((call) => ({
+              to: call.to,
+              chain_id: input.chainId,
+              description:
+                call.description ?? input.description ?? "Transaction",
+              data: { signature: "", args: [], raw: call.data ?? "0x" },
+              value: call.value,
+              gas_limit: call.gas,
+            })),
           };
-    return new EvmStaged(await this.raw.stage(request), this.raw);
+    return new EvmStaged(await this.raw.stage(request, options), this.raw);
   }
 
-  async simulate(build: EvmStaged | EvmStagedBuild): Promise<EvmBuild> {
+  async simulate(
+    build: EvmStaged | EvmStagedBuild,
+    options?: PipelineMutationOptions,
+  ): Promise<EvmBuild> {
     const value = build instanceof EvmStaged ? build.raw : build;
-    return new EvmBuild(await this.raw.simulate(value), this.raw);
+    return new EvmBuild(await this.raw.simulate(value, options), this.raw);
   }
 
   commit(
@@ -72,20 +84,27 @@ export class AomiSvmPipeline {
 
   async build(
     input: PipelineOperationBuildInput | SvmDirectInput,
+    options?: PipelineMutationOptions,
   ): Promise<SvmBuild> {
     if ("kind" in input) {
-      return (await this.stage(input)).simulate();
+      return (await this.stage(input, options)).simulate(options);
     }
-    return new SvmBuild(await this.raw.build(input), this.raw);
+    return new SvmBuild(await this.raw.build(input, options), this.raw);
   }
 
-  async stage(input: SvmStageInput): Promise<SvmStaged> {
-    return new SvmStaged(await this.raw.stage(input), this.raw);
+  async stage(
+    input: SvmStageInput,
+    options?: PipelineMutationOptions,
+  ): Promise<SvmStaged> {
+    return new SvmStaged(await this.raw.stage(input, options), this.raw);
   }
 
-  async simulate(build: SvmStaged | SvmStagedBuild): Promise<SvmBuild> {
+  async simulate(
+    build: SvmStaged | SvmStagedBuild,
+    options?: PipelineMutationOptions,
+  ): Promise<SvmBuild> {
     const value = build instanceof SvmStaged ? build.raw : build;
-    return new SvmBuild(await this.raw.simulate(value), this.raw);
+    return new SvmBuild(await this.raw.simulate(value, options), this.raw);
   }
 
   commit(
@@ -98,7 +117,7 @@ export class AomiSvmPipeline {
   }
 }
 
-export interface AomiOperationBuildOptions {
+export interface AomiOperationBuildOptions extends PipelineMutationOptions {
   /** Override Catalog metadata when integrating an older descriptor. */
   chainFamily?: "evm" | "svm";
 }
@@ -139,10 +158,14 @@ export class AomiPipelineOperationScope {
     validatePipelineArguments(args, descriptor.inputSchema);
     const chainFamily =
       options.chainFamily ?? descriptor.chainFamily ?? inferChainFamily(args);
-    const input = { operation: descriptor.href, arguments: args };
+    const input = {
+      ...this.raw.executionScope,
+      operation: descriptor.href,
+      arguments: args,
+    };
     return chainFamily === "svm"
-      ? this.svm.build(input)
-      : this.evm.build(input);
+      ? this.svm.build(input, options)
+      : this.evm.build(input, options);
   }
 }
 

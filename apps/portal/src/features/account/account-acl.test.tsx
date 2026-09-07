@@ -37,6 +37,7 @@ const walletKit = vi.hoisted(() => ({
 const privyDelegation = vi.hoisted(() => ({ start: vi.fn() }));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
+  requestWalletPickerOpen: vi.fn(),
   useAomiWalletKit: () => walletKit,
   usePrivyDelegation: () => privyDelegation,
 }));
@@ -402,7 +403,7 @@ describe("account ACL wiring", () => {
     });
 
     await renderAcl();
-    await click(await screen.findByRole("button", { name: "Activate" }));
+    await click(await screen.findByRole("button", { name: "Link" }));
 
     await waitFor(() =>
       expect(paths(calls)).toContain("/api/account/authorization/commit"),

@@ -4,10 +4,10 @@ import type { ReactNode, FC } from "react";
 import { cn } from "@aomi-labs/react";
 import { NetworkSelect } from "./network-select";
 import { ModelSelect } from "./model-select";
-import { AppSelect } from "./app-select";
 import { ApiKeyInput } from "./api-key-input";
 import { ConnectButton } from "./connect-button";
 import { SecretInput } from "./secret-input";
+import type { AomiRoutingConfig } from "@/components/assistant-ui/routing";
 
 // =============================================================================
 // Types
@@ -19,8 +19,12 @@ export type ControlBarProps = {
   children?: ReactNode;
   /** Hide the model selector */
   hideModel?: boolean;
-  /** Hide the App selector */
+  /** @deprecated Constrain `routing` instead. */
   hideApp?: boolean;
+  /** Execution modes and Direct apps exposed by this host. */
+  routing?: AomiRoutingConfig;
+  /** Account-enabled app names offered by the composer capability picker. */
+  enabledAppIds?: readonly string[];
   /** Hide the API key input */
   hideApiKey?: boolean;
   /** Hide the wallet connect button (default: true) */
@@ -39,7 +43,6 @@ export const ControlBar: FC<ControlBarProps> = ({
   className,
   children,
   hideModel = false,
-  hideApp = false,
   hideApiKey = false,
   hideWallet = true,
   hideNetwork = false,
@@ -49,7 +52,6 @@ export const ControlBar: FC<ControlBarProps> = ({
     <div className={cn("flex items-center gap-1", className)}>
       {!hideNetwork && <NetworkSelect />}
       {!hideModel && <ModelSelect />}
-      {!hideApp && <AppSelect />}
       {!hideWallet && <ConnectButton />}
       {!hideSecrets && <SecretInput />}
       {children}
@@ -63,11 +65,11 @@ export const ControlBar: FC<ControlBarProps> = ({
 // =============================================================================
 
 export { ModelSelect, type ModelSelectProps } from "./model-select";
-export { AppSelect, type AppSelectProps } from "./app-select";
+export type {
+  AomiRoutingConfig,
+  DirectRoutingApp,
+} from "@/components/assistant-ui/routing";
 export { ApiKeyInput, type ApiKeyInputProps } from "./api-key-input";
-export {
-  ConnectButton,
-  type ConnectButtonProps,
-} from "./connect-button";
+export { ConnectButton, type ConnectButtonProps } from "./connect-button";
 export { NetworkSelect, type NetworkSelectProps } from "./network-select";
 export { SecretInput, type SecretInputProps } from "./secret-input";
