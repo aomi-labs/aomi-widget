@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AomiCreditApiError } from "@aomi-labs/client";
 
 const mocks = vi.hoisted(() => ({
   connected: true,
@@ -211,5 +212,30 @@ describe("Credit Bank", () => {
       idempotencyKey: "topup-recovery",
       recover: true,
     });
+  });
+
+  it("keeps an uncertain payment pending instead of asking for a new payment", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => Response.json(position())),
+    );
+    mocks.accountCredits.topUp.mockRejectedValue(
+      new AomiCreditApiError(502, "top up account credits"),
+    );
+
+    render(<CreditBank />);
+    await screen.findByText("-25 credits");
+    fireEvent.click(screen.getByRole("button", { name: /Credit bank/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Add credits" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pay 10.00 USDC" }));
+
+    expect(
+      await screen.findByText("Failed to top up account credits: HTTP 502"),
+    ).toBeTruthy();
+    expect(screen.getByText("Confirming previous payment")).toBeTruthy();
+    expect(window.localStorage.getItem("aomi_credit_topup:user-1")).toContain(
+      "idempotencyKey",
+    );
+    expect(screen.queryByText(/Confirm the top-up again/)).toBeNull();
   });
 });
