@@ -82,7 +82,7 @@ const context = record(
   record(
     await client.pipeline.invoke(
       "/v1/pipeline/apps/default/operations/svm_get_context",
-      {},
+      { topic: "Verify the owned local Solana test chain" },
     ),
   ).result,
 );
