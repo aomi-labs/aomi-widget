@@ -33,9 +33,14 @@ describe("AgentTransport", () => {
     expect(startHeaders.get("idempotency-key")).toBe("idem-fixed");
     expect(startHeaders.get("payment-signature")).toBe("payment");
     expect(startHeaders.get("x-aomi-inference-funding")).toBe("user_byok");
+    expect(startHeaders.get("x-session-id")).toBe("session-1");
+    expect(startHeaders.get("x-thread-id")).toBe("session-1");
     expect(fetch.mock.calls[1][0]).toBe(
       "https://portal.example/v1/agent/chat/session-1?cursor=cursor-1&wait=30000",
     );
+    const pollHeaders = new Headers(fetch.mock.calls[1][1].headers);
+    expect(pollHeaders.get("x-session-id")).toBe("session-1");
+    expect(pollHeaders.get("x-thread-id")).toBe("session-1");
   });
 
   it("applies the client funding default to Agent turns", async () => {

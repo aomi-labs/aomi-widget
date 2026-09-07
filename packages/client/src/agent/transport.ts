@@ -48,12 +48,16 @@ export class AgentTransport {
       inferenceFunding?: AomiInferenceFundingSource;
     } = {},
   ): Promise<EventPage> {
+    const sessionId = intent.sessionId;
     return this.json("POST", "/v1/agent/chat", {
-      headers: mutationHeaders({
-        ...options,
-        inferenceFunding:
-          options.inferenceFunding ?? this.defaultInferenceFunding,
-      }),
+      headers: {
+        ...mutationHeaders({
+          ...options,
+          inferenceFunding:
+            options.inferenceFunding ?? this.defaultInferenceFunding,
+        }),
+        ...threadHeaders(sessionId),
+      },
       body: intent,
     });
   }
@@ -63,6 +67,7 @@ export class AgentTransport {
     options: { cursor?: string; waitMs?: number } = {},
   ): Promise<EventPage> {
     return this.json("GET", `/v1/agent/chat/${encodeURIComponent(sessionId)}`, {
+      headers: threadHeaders(sessionId),
       query: {
         cursor: options.cursor,
         wait: Math.min(Math.max(options.waitMs ?? 0, 0), 30_000),
@@ -79,7 +84,10 @@ export class AgentTransport {
       "POST",
       `/v1/agent/chat/${encodeURIComponent(sessionId)}/interrupt`,
       {
-        headers: { "idempotency-key": idempotencyKey },
+        headers: {
+          "idempotency-key": idempotencyKey,
+          ...threadHeaders(sessionId),
+        },
         body: { turnId },
       },
     );
@@ -96,7 +104,10 @@ export class AgentTransport {
       "POST",
       `/v1/agent/chat/${encodeURIComponent(sessionId)}/actions/${encodeURIComponent(actionId)}/result`,
       {
-        headers: { "idempotency-key": idempotencyKey },
+        headers: {
+          "idempotency-key": idempotencyKey,
+          ...threadHeaders(sessionId),
+        },
         body: { revision, result },
       },
     );
@@ -183,6 +194,14 @@ function mutationHeaders(
       ? { "x-aomi-inference-funding": options.inferenceFunding }
       : {}),
   };
+}
+
+function threadHeaders(
+  sessionId: string | null | undefined,
+): Record<string, string> {
+  return sessionId
+    ? { "x-session-id": sessionId, "x-thread-id": sessionId }
+    : {};
 }
 
 function randomIdempotencyKey(): string {
