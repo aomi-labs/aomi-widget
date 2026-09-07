@@ -12,6 +12,8 @@ const REQUEST_HEADERS = new Set([
   "payment-signature",
   "x-request-id",
   "x-aomi-inference-funding",
+  "x-session-id",
+  "x-thread-id",
 ]);
 
 const RESPONSE_HEADERS = new Set([
