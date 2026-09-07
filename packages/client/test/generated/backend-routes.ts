@@ -831,7 +831,7 @@ export const AOMI_BACKEND_ENDPOINTS = [
   {
     method: "POST",
     path: "/api/platforms/{name}/telegram/handover/{bot}/{id}/revoke",
-    auth: ["activation"],
+    auth: ["activation-or-wallet"],
   },
   {
     method: "POST",

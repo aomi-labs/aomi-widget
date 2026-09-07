@@ -807,7 +807,7 @@
         },
         "security": [],
         "x-aomi-auth": [
-          "activation"
+          "activation-or-wallet"
         ]
       }
     },
