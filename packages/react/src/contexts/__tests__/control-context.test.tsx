@@ -50,6 +50,7 @@ const renderControlContext = (
 
   const result = render(
     <ControlContextProvider
+      accountSessionAvailable
       aomiClient={aomiClient as never}
       sessionId="session-1"
       getThreadMetadata={(threadId) => threadMetadata.get(threadId)}

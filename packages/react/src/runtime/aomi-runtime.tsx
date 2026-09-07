@@ -175,6 +175,7 @@ function AomiRuntimeInner({
       appPlatforms={appPlatforms}
       applicationId={applicationId}
       inferenceFunding={inferenceFunding}
+      accountSessionAvailable={accountSessionAvailable}
     >
       <AomiRuntimeCore
         aomiClient={aomiClient}

@@ -206,6 +206,7 @@ export type ControlContextProviderProps = {
   appPlatforms?: AomiPlatformFilter;
   applicationId?: ApplicationId;
   inferenceFunding?: AomiInferenceFundingSource;
+  accountSessionAvailable?: boolean;
 };
 
 export function ControlContextProvider({
@@ -217,6 +218,7 @@ export function ControlContextProvider({
   appPlatforms,
   applicationId,
   inferenceFunding,
+  accountSessionAvailable = false,
 }: ControlContextProviderProps) {
   // ---------------------------------------------------------------------------
   // Stable refs into the central plumbing (aomiClient, the props that change
@@ -269,6 +271,7 @@ export function ControlContextProvider({
 
   const byok = useByokImpl({
     aomiClientRef,
+    accountClient: accountSessionAvailable ? aomiClient : null,
     clientIdRef,
     getControlSessionId: getCurrentControlSessionId,
     initialInferenceFunding: inferenceFunding,
