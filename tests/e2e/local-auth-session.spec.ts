@@ -44,6 +44,14 @@ test("first Agent turn preserves the signed-in Better Auth session", async ({
   await page.goto("/dev/widget-auth-e2e", {
     waitUntil: "domcontentloaded",
   });
+  // The development harness starts as server-rendered buttons. Its account
+  // snapshot appears after hydration, when those buttons can handle clicks.
+  await expect(
+    page
+      .getByRole("heading", { name: "Backend Account", exact: true })
+      .locator("..")
+      .locator("pre"),
+  ).toContainText('"guest"');
   const verified = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/api/auth/siwe/verify" &&

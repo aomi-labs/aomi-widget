@@ -71,13 +71,19 @@ test("composer keyboard editing sends only the retained chain hint", async ({
   await input.pressSequentially(
     "Reply exactly CAPABILITY_READY without calling tools. @8453",
   );
-  await expect(picker.getByRole("option")).toHaveCount(1);
-  await expect(picker.getByRole("option")).toContainText("Base");
+  const baseOption = picker.getByRole("option", {
+    name: "Base L2 · ETH chain",
+    exact: true,
+  });
+  const baseSepoliaOption = picker.getByRole("option", {
+    name: "Base Sepolia L2 · ETH chain",
+    exact: true,
+  });
+  await expect(baseOption).toHaveAttribute("aria-selected", "true");
   await input.press("ArrowDown");
-  await expect(picker.getByRole("option")).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expect(baseSepoliaOption).toHaveAttribute("aria-selected", "true");
+  await input.press("ArrowUp");
+  await expect(baseOption).toHaveAttribute("aria-selected", "true");
   await input.press("Enter");
   await expect(picker).toHaveCount(0);
   await expect(base).toBeVisible();
@@ -88,7 +94,7 @@ test("composer keyboard editing sends only the retained chain hint", async ({
     "Reply exactly CAPABILITY_READY without calling tools.",
   );
   await input.pressSequentially("@8453");
-  await expect(picker.getByRole("option")).toHaveCount(1);
+  await expect(baseOption).toHaveAttribute("aria-selected", "true");
   await input.press("Tab");
   await expect(base).toBeVisible();
   await expect(input).toBeFocused();
