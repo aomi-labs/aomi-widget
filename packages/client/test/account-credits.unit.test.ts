@@ -178,4 +178,50 @@ describe("account credits", () => {
     expect(first.headers.get("idempotency-key")).toBe("topup-recovery");
     expect(second.headers.get("idempotency-key")).toBe("topup-recovery");
   });
+
+  it("does not expose an HTML gateway page in credit errors", async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          "<!DOCTYPE html><html><body>502 Bad Gateway</body></html>",
+          {
+            status: 502,
+            headers: { "content-type": "text/html" },
+          },
+        ),
+    );
+    const client = new AomiClient({
+      baseUrl: "https://api.test",
+      fetch: fetchImpl as typeof fetch,
+      guest: false,
+    });
+
+    const error = await client.account.credits.get().catch((cause) => cause);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toBe("Failed to fetch account credits: HTTP 502");
+    expect(error.message).not.toContain("<!DOCTYPE html>");
+  });
+
+  it("retains a structured JSON error detail", async () => {
+    const fetchImpl = vi.fn(async () =>
+      Response.json(
+        {
+          error: {
+            code: "payment_pending",
+            message: "Payment is still confirming",
+          },
+        },
+        { status: 503 },
+      ),
+    );
+    const client = new AomiClient({
+      baseUrl: "https://api.test",
+      fetch: fetchImpl as typeof fetch,
+      guest: false,
+    });
+
+    await expect(client.account.credits.get()).rejects.toThrow(
+      "HTTP 503\nPayment is still confirming",
+    );
+  });
 });

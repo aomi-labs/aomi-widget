@@ -169,10 +169,45 @@ async function responseJson<T>(
   operation: string,
 ): Promise<T> {
   if (!response.ok) {
-    const detail = await response.text().catch(() => "");
+    const detail = await responseErrorDetail(response);
     throw new AomiCreditApiError(response.status, operation, detail);
   }
   return (await response.json()) as T;
+}
+
+async function responseErrorDetail(
+  response: Response,
+): Promise<string | undefined> {
+  const body = await response.text().catch(() => "");
+  if (!body.trim()) return undefined;
+
+  try {
+    const payload = JSON.parse(body) as unknown;
+    const detail = jsonErrorDetail(payload);
+    return detail ? detail.slice(0, 500) : undefined;
+  } catch {
+    // Gateways and proxies sometimes return an HTML error page. Keep the
+    // status in the API error while hiding that page from users.
+    return undefined;
+  }
+}
+
+function jsonErrorDetail(value: unknown): string | undefined {
+  if (typeof value === "string") return value.trim() || undefined;
+  if (!value || typeof value !== "object") return undefined;
+
+  const record = value as Record<string, unknown>;
+  for (const key of ["message", "detail", "error"]) {
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+    if (candidate && typeof candidate === "object") {
+      const nested = jsonErrorDetail(candidate);
+      if (nested) return nested;
+    }
+  }
+  return undefined;
 }
 
 function paymentReceiptFrom(

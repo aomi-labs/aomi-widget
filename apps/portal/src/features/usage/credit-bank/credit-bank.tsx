@@ -189,7 +189,7 @@ export function CreditBank() {
     }
   }
 
-  const balance = toCredits(position?.bank.balance_microusd ?? 0);
+  const balance = position ? toCredits(position.bank.balance_microusd) : null;
 
   return (
     <div className="border-aomi-border border-t">
@@ -215,12 +215,14 @@ export function CreditBank() {
         <span className="flex shrink-0 items-center gap-2">
           <span className="text-right">
             <span className="text-aomi-fg block text-[13px] font-medium tabular-nums">
-              {loading && !position ? "—" : formatCreditAmount(balance)}
+              {balance === null ? "—" : formatCreditAmount(balance)}
             </span>
             <span className="text-aomi-muted block text-[11px] tabular-nums">
               {loading && !position
                 ? "Loading…"
-                : `${formatUsdc(balance / 100)} value`}
+                : balance === null
+                  ? "Unavailable"
+                  : `${formatUsdc(balance / 100)} value`}
             </span>
           </span>
           <ChevronDown
