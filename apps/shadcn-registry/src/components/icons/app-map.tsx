@@ -1,7 +1,7 @@
 import type { FC, SVGProps } from "react";
 import { Globe2Icon } from "lucide-react";
 
-import { canonicalAppId } from "@/lib/apps/app-identity";
+import { canonicalAppId } from "../../lib/apps/app-identity";
 
 import { AutoModeIcon } from "./auto-mode";
 import {

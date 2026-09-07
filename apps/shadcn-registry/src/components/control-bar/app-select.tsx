@@ -16,7 +16,7 @@ import {
   CommandList,
   CommandInput,
 } from "@/components/ui/command";
-import { resolveAppIdentity } from "@/lib/apps/app-identity";
+import { resolveAppIdentity } from "../../lib/apps/app-identity";
 import { getAppIcon } from "@/components/icons";
 import { useCapabilityComposer } from "@/components/assistant-ui/capability-composer";
 import { sameDirectRoutingApp } from "@/components/assistant-ui/routing";
