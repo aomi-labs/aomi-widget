@@ -5,6 +5,7 @@ import {
   ThreadListItemPrimitive,
   ThreadListPrimitive,
   useThreadList,
+  useThreadListItem,
 } from "@assistant-ui/react";
 import { ArchiveIcon, MoreHorizontalIcon, PlusIcon } from "lucide-react";
 
@@ -101,6 +102,7 @@ const ThreadListSkeleton: FC = () => {
 };
 
 const ThreadListItem: FC = () => {
+  const thread = useThreadListItem();
   const [menuOpen, setMenuOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -120,6 +122,7 @@ const ThreadListItem: FC = () => {
 
   return (
     <ThreadListItemPrimitive.Root
+      data-thread-id={thread.id}
       className="aui-thread-list-item group/thread hover:bg-aomi-hover focus-visible:bg-aomi-hover data-active:bg-aomi-accent-subtle flex w-full min-w-0 items-center rounded-lg pr-2 transition-all focus-visible:outline-none"
       onMouseEnter={cancelClose}
       onMouseLeave={scheduleClose}

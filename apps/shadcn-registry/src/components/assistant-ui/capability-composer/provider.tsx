@@ -207,23 +207,20 @@ export function CapabilityComposerProvider({
     setMentions((current) => current.filter((item) => keys.has(item.key)));
   }, []);
 
+  useEffect(() => {
+    const current = composerRuntime.getState().runConfig;
+    const custom = { ...(current.custom ?? {}) };
+    const payload = buildCapabilityHintPayload(policy, mentions);
+    if (payload) custom.aomiCapabilityHints = payload;
+    else delete custom.aomiCapabilityHints;
+    composerRuntime.setRunConfig({ ...current, custom });
+  }, [composerRuntime, policy, mentions]);
+
   const prepareSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
-      if (normalizedRouting.error) {
-        event.preventDefault();
-        return;
-      }
-      const current = composerRuntime.getState().runConfig;
-      const custom = { ...(current.custom ?? {}) };
-      const payload = buildCapabilityHintPayload(policy, mentions);
-      if (!payload) {
-        delete custom.aomiCapabilityHints;
-      } else {
-        custom.aomiCapabilityHints = payload;
-      }
-      composerRuntime.setRunConfig({ ...current, custom });
+      if (normalizedRouting.error) event.preventDefault();
     },
-    [composerRuntime, mentions, normalizedRouting.error, policy],
+    [normalizedRouting.error],
   );
 
   const value = useMemo<CapabilityComposerContextValue>(

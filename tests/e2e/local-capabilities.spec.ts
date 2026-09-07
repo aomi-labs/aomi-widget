@@ -59,7 +59,42 @@ test("composer keyboard editing sends only the retained chain hint", async ({
     const body = await response.json().catch(() => null);
     events.push(...(body?.events ?? []));
   });
-  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (input, init) => {
+      const request = new Request(
+        input instanceof Request ? input.clone() : input,
+        init,
+      );
+      const url = new URL(request.url);
+      if (
+        url.origin === window.location.origin &&
+        url.pathname === "/v1/agent/chat" &&
+        request.method === "POST"
+      ) {
+        (
+          window as Window & { aomiComposerRequestBody?: string }
+        ).aomiComposerRequestBody = await request.clone().text();
+      }
+      return originalFetch.call(window, input, init);
+    };
+  });
+  const token = process.env.AOMI_E2E_WALLET_TOKEN;
+  const address = process.env.AOMI_E2E_WALLET_ADDRESS;
+  expect(token, "AOMI_E2E_WALLET_TOKEN is required").toBeTruthy();
+  expect(
+    address,
+    "E2E wallet must match the configured executor signer",
+  ).toBeTruthy();
+  const seed = new URLSearchParams({
+    token: token!,
+    address: address!,
+    chainId: "31337",
+    redirect: "/",
+  });
+  await page.goto(`/api/bff/e2e/wallet?${seed}`, {
+    waitUntil: "domcontentloaded",
+  });
   await expect(page.getByTestId("portal-shell")).toBeVisible({
     timeout: 30_000,
   });
@@ -71,13 +106,11 @@ test("composer keyboard editing sends only the retained chain hint", async ({
   await input.pressSequentially(
     "Reply exactly CAPABILITY_READY without calling tools. @8453",
   );
-  const baseOption = picker.getByRole("option", {
-    name: "Base L2 · ETH chain",
-    exact: true,
+  const baseOption = picker.getByRole("option").filter({
+    has: page.getByText("Base", { exact: true }),
   });
-  const baseSepoliaOption = picker.getByRole("option", {
-    name: "Base Sepolia L2 · ETH chain",
-    exact: true,
+  const baseSepoliaOption = picker.getByRole("option").filter({
+    has: page.getByText("Base Sepolia", { exact: true }),
   });
   await expect(baseOption).toHaveAttribute("aria-selected", "true");
   await input.press("ArrowDown");
@@ -107,16 +140,26 @@ test("composer keyboard editing sends only the retained chain hint", async ({
   await page.getByRole("button", { name: "Send message" }).click();
   const response = await started;
   expect(response.status()).toBe(200);
-  const intent = response.request().postDataJSON() as {
-    message: string;
-    mode?: string;
-  };
+  const requestBody =
+    response.request().postData() ??
+    response.request().postDataBuffer()?.toString("utf8") ??
+    (await page.evaluate(
+      () =>
+        (window as Window & { aomiComposerRequestBody?: string })
+          .aomiComposerRequestBody,
+    ));
+  expect(
+    requestBody,
+    "Actual submitted request body must be observed",
+  ).toBeTruthy();
+  const intent = JSON.parse(requestBody!) as { message: string; mode?: string };
   expect(intent.mode ?? "auto").toBe("auto");
   expect(intent.message).toContain("CAPABILITY_READY");
   expect(intent.message).toContain(
     "Preferred execution chain ids: eip155:8453.",
   );
   expect(intent.message.match(/<AOMI_UI_CAPABILITY_HINTS>/g)).toHaveLength(1);
+  expect(intent.message).not.toContain("eip155:84532");
   expect(intent.message).not.toContain("Preferred app ids:");
   expect(intent.message).not.toContain("Preferred skill ids:");
   await expect
