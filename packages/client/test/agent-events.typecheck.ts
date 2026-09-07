@@ -37,14 +37,14 @@ const instruction: SvmInstruction = {
   description: "Consumer instruction",
   kind: "transfer",
 };
-// @ts-expect-error Generated signing calls require a string value.
 const invalidCall: NonNullable<SigningRequest["calls"]>[number] = {
   to: "0x123",
+  // @ts-expect-error Generated signing calls require a string value.
   value: 0,
 };
-// @ts-expect-error SVM account metadata retains boolean flags.
 const invalidAccount: SvmInstruction["accounts"][number] = {
   pubkey: "account",
+  // @ts-expect-error SVM account metadata retains boolean flags.
   is_signer: "yes",
   is_writable: false,
 };
