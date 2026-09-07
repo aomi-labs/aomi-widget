@@ -1,0 +1,141 @@
+import { expect, test } from "@playwright/test";
+
+test("composer keyboard editing sends only the retained chain hint", async ({
+  page,
+}) => {
+  test.setTimeout(3 * 60_000);
+  const events: Array<{ type?: string; state?: string }> = [];
+  page.on("response", async (response) => {
+    if (
+      response.status() !== 200 ||
+      !new URL(response.url()).pathname.startsWith("/v1/agent/chat")
+    )
+      return;
+    const body = await response.json().catch(() => null);
+    events.push(...(body?.events ?? []));
+  });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("portal-shell")).toBeVisible({
+    timeout: 30_000,
+  });
+  const input = page.getByRole("textbox", { name: "Message input" });
+  const picker = page.getByRole("listbox", {
+    name: "Apps, skills, and chains",
+  });
+  const base = input.locator('[data-capability-key="chain:eip155:8453"]');
+  await input.pressSequentially(
+    "Reply exactly CAPABILITY_READY without calling tools. @8453",
+  );
+  await expect(picker.getByRole("option")).toHaveCount(1);
+  await expect(picker.getByRole("option")).toContainText("Base");
+  await input.press("ArrowDown");
+  await expect(picker.getByRole("option")).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await input.press("Enter");
+  await expect(picker).toHaveCount(0);
+  await expect(base).toBeVisible();
+  await expect(input).toBeFocused();
+  await input.press("Backspace");
+  await expect(base).toHaveCount(0);
+  await expect(input).toContainText(
+    "Reply exactly CAPABILITY_READY without calling tools.",
+  );
+  await input.pressSequentially("@8453");
+  await expect(picker.getByRole("option")).toHaveCount(1);
+  await input.press("Tab");
+  await expect(base).toBeVisible();
+  await expect(input).toBeFocused();
+
+  const started = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/v1/agent/chat" &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Send message" }).click();
+  const response = await started;
+  expect(response.status()).toBe(200);
+  const intent = response.request().postDataJSON() as {
+    message: string;
+    mode?: string;
+  };
+  expect(intent.mode ?? "auto").toBe("auto");
+  expect(intent.message).toContain("CAPABILITY_READY");
+  expect(intent.message).toContain(
+    "Preferred execution chain ids: eip155:8453.",
+  );
+  expect(intent.message.match(/<AOMI_UI_CAPABILITY_HINTS>/g)).toHaveLength(1);
+  expect(intent.message).not.toContain("Preferred app ids:");
+  expect(intent.message).not.toContain("Preferred skill ids:");
+  await expect
+    .poll(
+      () =>
+        events.filter((event) => event.type === "turn_state_changed").at(-1)
+          ?.state,
+      { timeout: 150_000 },
+    )
+    .toBe("complete");
+  await expect(
+    page.getByText("CAPABILITY_READY", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/<AOMI_UI_CAPABILITY_HINTS>/)).toHaveCount(0);
+  await expect(base).toHaveCount(0);
+});
+
+test("live Library search, details, and Try insert a skill into the composer", async ({
+  page,
+}) => {
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("portal-shell")).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.getByRole("button", { name: "Open capability library" }).click();
+  const library = page.getByRole("dialog", { name: "Library", exact: true });
+  await expect(library).toBeVisible();
+  await library
+    .getByRole("navigation", { name: "Library sections" })
+    .getByRole("button", { name: /^Skills/ })
+    .click();
+  const firstSkill = library
+    .getByRole("button", { name: /^Open .+ details$/ })
+    .first();
+  await expect(firstSkill).toBeVisible({ timeout: 30_000 });
+  const label = await firstSkill.getAttribute("aria-label");
+  const skillName = label?.slice("Open ".length, -" details".length);
+  expect(skillName).toBeTruthy();
+  const search = library.getByRole("textbox", { name: "Search library" });
+  await search.fill("e2e-no-capability-matches-this-query");
+  await expect(
+    library.getByText("No capabilities found", { exact: true }),
+  ).toBeVisible();
+  await library.getByRole("button", { name: "Clear search" }).click();
+  await search.fill(skillName!);
+  await library
+    .getByRole("button", { name: `Open ${skillName} details`, exact: true })
+    .click();
+  const detail = library.getByRole("complementary", {
+    name: `${skillName} details`,
+    exact: true,
+  });
+  await expect(detail).toBeVisible();
+  await expect(
+    detail.getByRole("heading", { name: skillName, exact: true }),
+  ).toBeVisible();
+  await expect(
+    detail.getByRole("heading", { name: "How it works", exact: true }),
+  ).toBeVisible({ timeout: 30_000 });
+  await detail.getByRole("button", { name: "Try", exact: true }).click();
+  await expect(library).toHaveCount(0);
+  const input = page.getByRole("textbox", { name: "Message input" });
+  await expect(input.locator('[data-capability-key^="skill:"]')).toHaveCount(1);
+  await expect(
+    input.locator('[data-capability-key^="skill:"]'),
+  ).toHaveAttribute("aria-label", `skill ${skillName}`);
+  await expect(input).toBeFocused();
+  await input.pressSequentially(" explain this capability");
+  await expect(input).toContainText("explain this capability");
+  await expect(
+    page.getByRole("button", { name: "Send message" }),
+  ).toBeEnabled();
+});

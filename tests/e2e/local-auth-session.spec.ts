@@ -110,6 +110,35 @@ test("first Agent turn preserves the signed-in Better Auth session", async ({
   expect(after.user?.isAnonymous).toBe(false);
   expect(afterAccount.user?.id).toBe(beforeAccount.user?.id);
   expect(anonymousSignIns).toHaveLength(anonymousAttemptsBeforeAgent);
+
+  await page.getByRole("button", { name: "Open settings" }).click();
+  const settings = page.getByRole("dialog", { name: "Settings", exact: true });
+  await expect(settings).toBeVisible();
+  const navigation = settings.getByRole("navigation", {
+    name: "Settings sections",
+  });
+  for (const name of ["General", "Account", "Usage"]) {
+    const tab = navigation.getByRole("button", { name, exact: true });
+    await tab.click();
+    await expect(tab).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      settings.getByRole("heading", { name, exact: true }),
+    ).toBeVisible();
+    if (name === "Account") {
+      await expect(
+        settings.getByRole("button", { name: "Add wallet", exact: true }),
+      ).toBeVisible();
+    }
+  }
+  await expect(
+    settings.getByText("Connect your account", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    settings.getByText("Couldn’t refresh your account", { exact: false }),
+  ).toHaveCount(0);
+  await settings.getByRole("button", { name: "Close settings" }).click();
+  await expect(settings).toHaveCount(0);
+  expect((await session(page)).user?.id).toBe(beforeSession.user?.id);
 });
 
 async function session(page: Page) {
