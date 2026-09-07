@@ -1,5 +1,9 @@
 # Canonical Landing
 
+Current session goal: **LEGACY AGENT TRACE GROUPING VERIFIED 2026-09-07** —
+group null-turn historical Agent tool steps and final answers by their preceding
+user message while preserving canonical turn identities and stable pagination.
+
 Current session goal: **LEAN PAYMENT REVIEW FRONTEND CONSUMER FIXES VERIFIED
 2026-09-06** — SDK BYOK routes and response shapes use `/api/account/model-keys`,
 Agent and CLI calls can explicitly select `user_byok`, Portal credit top-ups
