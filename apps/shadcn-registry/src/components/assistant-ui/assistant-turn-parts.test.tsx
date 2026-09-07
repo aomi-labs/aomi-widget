@@ -14,11 +14,12 @@ vi.mock("@assistant-ui/react", async (importOriginal) => ({
       content: [
         {
           type: "tool-call",
+          argsText: "{}",
           toolName: "commit",
           toolCallId: "call-1",
           args: {},
           result: { status: "completed" },
-        } as ToolCallMessagePart,
+        } satisfies ToolCallMessagePart,
       ],
       status: { type: state.running ? "running" : "complete" },
       isLast: true,

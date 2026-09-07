@@ -34,7 +34,13 @@ vi.mock("../../lib/wallet-kit", async (importOriginal) => {
   };
 });
 
-const adapterState = {
+const adapterState: {
+  current: Pick<AomiWalletKit, "identity" | "accounts" | "walletModalRows"> & {
+    selectAccount: ReturnType<typeof vi.fn>;
+    disconnect: ReturnType<typeof vi.fn>;
+    signOutAccount: ReturnType<typeof vi.fn>;
+  };
+} = {
   current: {
     identity: {
       status: "connected",
@@ -66,7 +72,7 @@ const adapterState = {
     selectAccount: vi.fn(async () => undefined),
     disconnect: vi.fn(async () => undefined),
     signOutAccount: vi.fn(async () => undefined),
-  } satisfies Partial<AomiWalletKit>,
+  },
 };
 
 afterEach(() => {

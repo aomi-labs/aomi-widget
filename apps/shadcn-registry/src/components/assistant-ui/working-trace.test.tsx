@@ -256,6 +256,8 @@ describe("WorkingTrace", () => {
     const updatedRun = run([
       {
         kind: "tool_call",
+        resultPreview: "",
+        args: {},
         toolName: "get_chain_context",
         childSeq: 1,
       },
@@ -275,18 +277,20 @@ describe("WorkingTrace", () => {
     };
     const delegatedTask = {
       type: "tool-call" as const,
+      argsText: "{}",
       toolCallId: failedRun.callId,
       toolName: "task",
       args: { label: "Prepare swap", app: "default", prompt: "Swap" },
       result: { status: "failed" },
-    } as ToolCallMessagePart;
+    } satisfies ToolCallMessagePart;
     const recoveredCommit = {
       type: "tool-call" as const,
+      argsText: "{}",
       toolCallId: "call-2",
       toolName: "commit",
       args: {},
       result: { status: "completed" },
-    } as ToolCallMessagePart;
+    } satisfies ToolCallMessagePart;
 
     const items = buildTraceItems(
       [delegatedTask, recoveredCommit],
@@ -314,13 +318,14 @@ describe("WorkingTrace", () => {
     };
     const delegatedTask = {
       type: "tool-call" as const,
+      argsText: "{}",
       toolCallId: "inline:legacy-task-message",
       toolName: "task",
       args: {},
       result: {
         error: { agent_id: failedRun.agentId, code: "child_turn_failed" },
       },
-    } as ToolCallMessagePart;
+    } satisfies ToolCallMessagePart;
 
     const items = buildTraceItems([delegatedTask], [failedRun]);
 
@@ -346,6 +351,7 @@ describe("WorkingTrace", () => {
     };
     const delegatedTask = {
       type: "tool-call" as const,
+      argsText: "{}",
       toolCallId: "call-batch",
       toolName: "task",
       args: { tasks: [{ prompt: "one" }, { prompt: "two" }] },
@@ -356,7 +362,7 @@ describe("WorkingTrace", () => {
           { agent_id: second.agentId, status: "completed" },
         ],
       },
-    } as ToolCallMessagePart;
+    } satisfies ToolCallMessagePart;
 
     const items = buildTraceItems([delegatedTask], [first, second]);
 
@@ -372,11 +378,12 @@ describe("WorkingTrace", () => {
     const task = (toolCallId: string): ToolCallMessagePart =>
       ({
         type: "tool-call",
+        argsText: "{}",
         toolCallId,
         toolName: "task",
         args: {},
         result: { agent_id: latest.agentId, status: "completed" },
-      }) as ToolCallMessagePart;
+      }) satisfies ToolCallMessagePart;
     const items = buildTraceItems(
       [task("first-call"), task("second-call")],
       [latest],
@@ -392,11 +399,12 @@ describe("WorkingTrace", () => {
     const latest = { ...run([]), agentId: "child-b", callId: "batch:2" };
     const task = {
       type: "tool-call",
+      argsText: "{}",
       toolCallId: "batch",
       toolName: "task",
       args: {},
       result: { results: [{ agent_id: "child-a" }, { agent_id: "child-b" }] },
-    } as ToolCallMessagePart;
+    } satisfies ToolCallMessagePart;
     const items = buildTraceItems([task], [latest]);
 
     expect(items).toHaveLength(2);
@@ -408,11 +416,12 @@ describe("WorkingTrace", () => {
     const latest = run([]);
     const task = {
       type: "tool-call",
+      argsText: "{}",
       toolCallId: latest.callId,
       toolName: "task",
       args: {},
       result: { agent_id: latest.agentId },
-    } as ToolCallMessagePart;
+    } satisfies ToolCallMessagePart;
     expect(buildTraceItems([task], [latest])[0]?.key).toBe(
       buildTraceItems([], [latest])[0]?.key,
     );

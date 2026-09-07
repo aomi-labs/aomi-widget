@@ -60,8 +60,8 @@ function makeAdapter(overrides: Partial<AomiWalletKit> = {}): AomiWalletKit {
       address: "0xAAAAAAAA",
       chainId: 1,
       svmAddress: "9xQpubKey",
-      authProvider: "google",
-      walletProvider: "para",
+      authMethod: "google",
+      embeddedProvider: "para",
       primaryLabel: "0xAAA..AA",
     },
     isReady: true,
@@ -292,7 +292,7 @@ describe("WalletPicker", () => {
         identity: {
           status: "disconnected",
           isConnected: false,
-          walletProvider: "para",
+          embeddedProvider: "para",
         },
         accounts: [],
         connectEvmWallet,
@@ -321,7 +321,7 @@ describe("WalletPicker", () => {
         identity: {
           status: "disconnected",
           isConnected: false,
-          walletProvider: "para",
+          embeddedProvider: "para",
         },
         accounts: [],
         connectEvmWallet,
@@ -576,7 +576,6 @@ describe("WalletPicker", () => {
           chainId: 1,
           sessionProvider: "privy",
           embeddedProvider: "privy",
-          walletProvider: "privy",
         },
         accounts: [
           {
@@ -789,14 +788,14 @@ describe("WalletPicker", () => {
         identity: {
           status: "disconnected",
           isConnected: false,
-          walletProvider: "para",
+          embeddedProvider: "para",
         },
         accounts: [],
       }),
     );
     const socialRow = screen.getByRole("button", { name: "Email or Google" });
     expect(within(socialRow).getByText("Email or Google")).toBeTruthy();
-    expect(within(socialRow).getByText("Fast account sign-in")).toBeTruthy();
+    expect(within(socialRow).getByText("Para")).toBeTruthy();
   });
 
   it("falls back to the method label when no account provider brand exists", () => {
@@ -1099,7 +1098,7 @@ describe("WalletPicker", () => {
         identity: {
           status: "connected",
           isConnected: true,
-          walletProvider: "para",
+          embeddedProvider: "para",
           sessionProvider: "para",
         },
         accounts: [
@@ -1154,7 +1153,7 @@ describe("WalletPicker", () => {
         identity: {
           status: "connected",
           isConnected: true,
-          walletProvider: "privy",
+          embeddedProvider: "privy",
           sessionProvider: "privy",
           walletProviderSubject: "did:privy:user",
           primaryLabel: "privy@example.com",
@@ -1205,7 +1204,7 @@ describe("WalletPicker", () => {
         identity: {
           status: "connected",
           isConnected: true,
-          walletProvider: "privy",
+          embeddedProvider: "privy",
           sessionProvider: "privy",
           walletProviderSubject: "did:privy:user",
           primaryLabel: "privy@example.com",
@@ -1244,7 +1243,7 @@ describe("WalletPicker", () => {
           isConnected: true,
           address: "0xAAAAAAAA",
           chainId: 1,
-          walletProvider: "privy",
+          embeddedProvider: "privy",
           primaryLabel: "0xAAA..AA",
         },
         socialLoginOptions: [
@@ -1266,7 +1265,7 @@ describe("WalletPicker", () => {
     expect(
       within(socialRow).getByText("Email, wallet, or social"),
     ).toBeTruthy();
-    expect(within(socialRow).getByText("Fast account sign-in")).toBeTruthy();
+    expect(within(socialRow).getByText("Privy")).toBeTruthy();
   });
 
   it("dedupes stored embedded wallets behind the provider quick sign-in row", () => {
@@ -1299,7 +1298,7 @@ describe("WalletPicker", () => {
           isConnected: true,
           address: "0xAAAAAAAA",
           chainId: 1,
-          walletProvider: "privy",
+          embeddedProvider: "privy",
           primaryLabel: "0xAAA..AA",
         },
         walletModalRows: [
@@ -1345,7 +1344,7 @@ describe("WalletPicker", () => {
     const socialRow = screen.getByRole("button", {
       name: "Email or Google",
     });
-    expect(within(socialRow).getByText("Fast account sign-in")).toBeTruthy();
+    expect(within(socialRow).getByText("Privy")).toBeTruthy();
     expect(
       screen.getAllByRole("button", { name: "Email or Google" }),
     ).toHaveLength(1);
