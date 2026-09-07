@@ -1,5 +1,30 @@
 # Current work
 
+**SKILL ARTWORK AND APP IDENTITY AUDIT 2026-09-07** — audited all 42 built-in
+skills against the current backend catalog. Replaced approximate marks with
+26 source-backed local SVG assets, added missing protocol identities and the
+Dummy testing glyph, normalized artwork bounds, corrected Kamino's wordmark
+crop, rendered Krexa's published raster through a monochrome alpha mask, and restored
+Zora's grayscale Zorb with per-instance gradient IDs. Enlarged Library marks
+and added `/dev/skill-icons` for light/dark review at 14/20/32px. Local SVGs
+are bundled through a deterministic generator and included in both registry
+entries; widget patch version is 2.0.38. Eight icon tests, twelve Library tests,
+Portal TypeScript, full-repository ESLint through the installed launcher,
+registry/widget/client/React builds, and the package dry run pass.
+App follow-up implements one shared resolver across Library, composer, Direct
+selector, and mentions: curated names, local theme-aware marks for all 51
+curated identities (covering all 39 observed live apps), exact wire IDs and
+application scopes preserved, private-name collisions kept custom, and old
+names/labels kept searchable. Removed Library runtime favicon requests and
+colored DECOR tiles. Added local app asset provenance/generator and a scrollable
+`/dev/app-identities` light/dark audit gallery. Root review caught and corrected
+search indexing, prototype-key lookups, raster mask handling, and wordmark
+crop artifacts. Final verification: 38 widget identity/icon/composer tests and
+16 Portal Library tests pass; full-repository ESLint, Portal TypeScript, both
+asset generator checks, registry/widget builds and package contents pass.
+Reviewed all gallery rows in light/dark and Circle StableFX in the live Library.
+Details: `specs/app-identity-investigation.md`.
+
 **ACTIVITY SUBAGENT SUMMARY POLISH 2026-09-07** — shortened “Skills invoked” to
 “Skills”. Replaced visible Working/Done labels with an accent spinner and green
 completion check. Subagent rows now open from the full row with the same mounted

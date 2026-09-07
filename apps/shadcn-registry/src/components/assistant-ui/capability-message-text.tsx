@@ -5,7 +5,7 @@ import { AppWindowIcon, Globe2Icon, WandSparklesIcon } from "lucide-react";
 import { useMemo, type FC } from "react";
 import { SUPPORTED_CHAINS, getChainInfo, useControl } from "@aomi-labs/react";
 
-import { getAppInfo } from "@/components/control-bar/app-metadata";
+import { resolveAppIdentity } from "@/lib/apps/app-identity";
 import {
   getAppIcon,
   getChainIcon,
@@ -121,13 +121,14 @@ export const CapabilityMessageText: TextMessagePartComponent = ({ text }) => {
               (app) => app.name === hint.id.replace(/^name:/u, ""),
             );
         const appName = descriptor?.name ?? hint.id.replace(/^name:/u, "");
-        const label = descriptor?.label ?? getAppInfo(appName).displayName;
+        const info = resolveAppIdentity(descriptor ?? appName);
+        const label = info.displayName;
         return [
           {
             ...hint,
             label,
             token: `▦ ${label}`,
-            Icon: getAppIcon(appName) ?? AppWindowIcon,
+            Icon: getAppIcon(info.brandId) ?? AppWindowIcon,
           },
         ];
       }

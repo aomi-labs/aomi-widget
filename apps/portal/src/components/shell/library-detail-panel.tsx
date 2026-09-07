@@ -56,7 +56,7 @@ export function SkillIdentity({
       }`}
     >
       {createElement(Icon, {
-        className: size === "detail" ? "size-5" : "size-4",
+        className: size === "detail" ? "size-7" : "size-5",
       })}
     </span>
   );

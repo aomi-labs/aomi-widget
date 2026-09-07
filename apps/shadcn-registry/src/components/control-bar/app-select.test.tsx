@@ -3,6 +3,7 @@ import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const selectDirectApp = vi.hoisted(() => vi.fn());
+const getAppIcon = vi.hoisted(() => vi.fn(() => null));
 
 vi.mock("@aomi-labs/react", () => ({
   cn: (...classes: Array<string | false | null | undefined>) =>
@@ -11,8 +12,14 @@ vi.mock("@aomi-labs/react", () => ({
   useControl: () => ({
     state: {
       appDescriptors: [
-        { name: "uniswap", label: "Uniswap" },
+        { name: "uniswap", label: "backend uniswap connector" },
         { name: "partner-agent", label: "Partner Agent", applicationId: 42 },
+        {
+          name: "github",
+          label: "Internal GitHub Review",
+          applicationId: 71,
+          isPublic: false,
+        },
       ],
     },
   }),
@@ -21,7 +28,11 @@ vi.mock("@aomi-labs/react", () => ({
 vi.mock("@/components/assistant-ui/capability-composer", () => ({
   useCapabilityComposer: () => ({
     routing: {
-      directApps: [{ app: "uniswap" }, { applicationId: 42 }],
+      directApps: [
+        { app: "uniswap" },
+        { applicationId: 42 },
+        { applicationId: 71 },
+      ],
     },
     selectedDirectApp: { app: "uniswap" },
     selectDirectApp,
@@ -72,17 +83,23 @@ vi.mock("@/components/ui/command", () => ({
   ),
 }));
 
-vi.mock("@/components/icons", () => ({ getAppIcon: () => null }));
+vi.mock("@/components/icons", () => ({ getAppIcon }));
 
 import { AppSelect } from "./app-select";
 
 describe("AppSelect", () => {
-  beforeEach(() => selectDirectApp.mockClear());
+  beforeEach(() => {
+    selectDirectApp.mockClear();
+    getAppIcon.mockClear();
+  });
 
   it("shows only host-allowed Direct targets", () => {
     render(<AppSelect />);
     expect(screen.getAllByText("Uniswap").length).toBeGreaterThan(0);
+    expect(screen.queryByText("backend uniswap connector")).toBeNull();
     expect(screen.getByText("Partner Agent")).toBeInTheDocument();
+    expect(screen.getByText("Internal GitHub Review")).toBeInTheDocument();
+    expect(getAppIcon).toHaveBeenCalledWith("");
   });
 
   it("selects an application-id target without inventing an app name", () => {

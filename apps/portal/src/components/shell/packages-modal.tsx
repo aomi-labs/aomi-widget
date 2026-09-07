@@ -534,7 +534,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
     const needle = query.trim().toLowerCase();
     const filtered = needle
       ? source.filter((entry) =>
-          `${selectionName(entry)} ${entry.item.description} ${entry.kind === "skill" ? entry.item.tags.join(" ") : ""}`
+          `${selectionName(entry)} ${entry.item.description} ${entry.kind === "skill" ? entry.item.tags.join(" ") : entry.item.searchTerms.join(" ")}`
             .toLowerCase()
             .includes(needle),
         )

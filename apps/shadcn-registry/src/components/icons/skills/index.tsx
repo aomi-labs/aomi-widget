@@ -1,5 +1,5 @@
-import type { FC, SVGProps } from "react";
-import { CircleDollarSignIcon, CoinsIcon } from "lucide-react";
+import { useId, type FC, type SVGProps } from "react";
+import { CoinsIcon, FlaskConicalIcon } from "lucide-react";
 
 import {
   AcrossIcon,
@@ -10,12 +10,31 @@ import {
 } from "../apps";
 import { ArbitrumIcon, BaseIcon, OptimismIcon, RobinhoodIcon } from "../chains";
 
+import { sourcedSkillMarks } from "./sourced-marks";
+
 type SkillIconProps = SVGProps<SVGSVGElement>;
+
+/** Static, reviewed SVG geometry shared by every skill surface. */
+function SourcedSkillIcon({
+  mark,
+  ...props
+}: SkillIconProps & { mark: keyof typeof sourcedSkillMarks }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+      {...props}
+      dangerouslySetInnerHTML={{ __html: sourcedSkillMarks[mark] }}
+    />
+  );
+}
 
 /**
  * Official marks used by the capability picker.
  *
- * These are deliberately monochrome. The picker supplies `currentColor`, so
+ * These are monochrome; Krexa uses its published raster as an alpha mask. The picker supplies `currentColor`, so
  * the same source mark stays legible in the muted and active states.
  */
 
@@ -23,7 +42,7 @@ type SkillIconProps = SVGProps<SVGSVGElement>;
 export function AaveSkillIcon(props: SkillIconProps) {
   return (
     <svg
-      viewBox="0 0 266 139"
+      viewBox="-26.5600 -90.0935 318.7200 318.7200"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
@@ -47,75 +66,29 @@ export function AaveSkillIcon(props: SkillIconProps) {
 
 /** Across Protocol mark. Source: https://across.to/ */
 export function AcrossSkillIcon(props: SkillIconProps) {
-  return <AcrossIcon {...props} />;
+  return <AcrossIcon viewBox="-4.0000 -4.0000 48.0000 48.0000" {...props} />;
 }
 
-// Source: https://aerodrome.finance/brand (official AERO brand kit).
+/** Source and presentation notes: assets/README.md. */
 export function AerodromeSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 128 128"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        d="M29.5 54.6s0-.1 0-.1c1.4-5.5 11.8-11.2 16.7-13.8 14.7-7 30.5-11.3 46.3-14.7 3.6-.8 7.3-1.5 11-2.1 6.7-1.5 3.2-9.7-2.9-7.6-6.5 1.1-12.9 2.5-19.3 4-14.8 3.7-29.6 8.1-43.1 15.4-6.9 3.9-15.6 9.2-17.5 17.4 0 .4-.2.9-.1 1.4v1c0 .3 0 .7.1 1 3.6 15.9 45.5 20.9 59.6 22.3 6.6.8 13.3 1.1 19.9 1.5 2 .6 3.1-2 .8-2.3-1 0-2-.2-3.1-.3-17-1.6-34.2-4-50.4-9.8-3.8-1.3-7.5-2.9-10.9-5.1-2.2-1.4-4.4-2.9-5.9-5.1-.2-.3-.3-.6-.5-.9 0 0 0 0 0 0 0-.1 0-.3-.1-.4v-1.2c0 0 0-.1 0-.2Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="aerodrome" {...props} />;
 }
 
-/** Curve's faceted torus mark, compacted to a monochrome icon. Source: the supplied CRV_lg.svg asset. */
+/** Source and presentation notes: assets/README.md. */
 export function CurveSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        fill="currentColor"
-        fillRule="evenodd"
-        d="M12 2.5a9.5 9.5 0 1 0 0 19 9.5 9.5 0 0 0 0-19m0 4.05a5.45 5.45 0 1 1 0 10.9 5.45 5.45 0 0 1 0-10.9"
-        clipRule="evenodd"
-      />
-      <path
-        d="m7.45 7.93 2.1 2.1a2.8 2.8 0 0 0 0 3.94l-2.1 2.1a5.78 5.78 0 0 1 0-8.14m9.1 0a5.78 5.78 0 0 1 0 8.14l-2.1-2.1a2.8 2.8 0 0 0 0-3.94z"
-        fill="currentColor"
-        opacity=".38"
-      />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="curve" {...props} />;
 }
 
-/** Ether.fi's geometric ether mark. Source: supplied ether.fi-logo.svg asset. */
+/** Source and presentation notes: assets/README.md. */
 export function EtherfiSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 52 52"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        d="M25.9 1.7 51.3 28.8 29 51.3 2.1 29.6 22 .2zM22.1 8.5 8.8 27.8l17.1 15.6 17.3-15.1zM10.8 30.4l9.5 7.6 6.1-5.8-8.9-7.9zM31 31.9l5.8 5.9 8.3-8.7-6-5.1z"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="etherfi" {...props} />;
 }
 
 /** Compound's three-bar protocol mark, cropped from the official wordmark. Source: https://compound.finance/images/compound-logo.svg */
 export function CompoundSkillIcon(props: SkillIconProps) {
   return (
     <svg
-      viewBox="0 0 22 27"
+      viewBox="-5.6024 -2.6906 32.3387 32.3387"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
@@ -129,83 +102,31 @@ export function CompoundSkillIcon(props: SkillIconProps) {
   );
 }
 
-/** Convex's stepped C mark, with its source color bands reduced to opacity. Source: supplied convex_logo_whitebackground.svg. */
+/** Source and presentation notes: assets/README.md. */
 export function ConvexSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 198 198"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        d="M156.83 85.66V59h-13.35V45.62h-26.69V32.28H90.1v13.34H63.42V59H50.07v80h13.34v13.35H90.1v13.34h26.68v-13.31h26.7V139h13.35v-26.66h-26.66v13.35h-13.35V139H90.1v-13.31H76.76V72.31H90.1V59h26.69v13.31h13.35v13.35z"
-        fill="currentColor"
-      />
-      <path
-        d="M121.24 72.32h8.9v13.34h-8.9zM107.89 58.97h8.9v13.34h-8.9zM81.21 32.28h8.9v13.34h-8.9z"
-        fill="currentColor"
-        opacity=".55"
-      />
-      <path
-        d="M116.8 112.35h13.33v13.35H116.8zM107.9 125.69h8.9v13.34h-8.9zM81.2 152.38h8.9v13.34h-8.9z"
-        fill="currentColor"
-        opacity=".72"
-      />
-      <path
-        d="M54.51 139.03h8.9v13.34h-8.9zM41.17 99h8.9v40.03h-8.9z"
-        fill="currentColor"
-        opacity=".4"
-      />
-      <path
-        d="M41.17 58.97h8.9V99h-8.9zM54.52 45.63h8.9v13.34h-8.9z"
-        fill="currentColor"
-        opacity=".55"
-      />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="convex" {...props} />;
 }
 
-/** Kamino's K-and-arc symbol, cropped from the official wordmark asset. Source: https://kamino.com/assets/logo.1788494054.svg */
+/** Source and presentation notes: assets/README.md. */
 export function KaminoSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 320 249"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path d="M47.54 15.95H0v229.87h47.54z" fill="currentColor" />
-      <path
-        d="M161.18 242.96c-23.81-16.42-39.9-46.96-39.9-81.95 0-34.99 16.09-65.53 39.9-81.95v-2.76H95.31c-15.42 23.88-24.63 53.09-24.63 84.71s9.19 60.81 24.63 84.71h65.87z"
-        fill="currentColor"
-        opacity=".72"
-      />
-      <path
-        d="M274.53 76.28v14.48c-8.18-8.16-16.5-17.16-40.34-17.16-15.31 0-29.21 3.11-41.27 10.33-12.99 7.71-23.54 18.54-31.38 32.13-7.86 13.63-11.86 28.86-11.86 45.26s3.92 31.54 11.68 45.02c7.74 13.46 18.23 24.18 31.23 31.9 12.49 7.41 26.75 10.11 42.39 10.11 14.79 0 29.81-7.69 39.55-17.16v14.48h45.28V76.28zm-35.84 131.65c-24.52 0-44.4-20.9-44.4-46.66s19.89-46.66 44.4-46.66c24.51 0 44.41 20.89 44.41 46.66s-19.9 46.66-44.41 46.66"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="kamino" {...props} />;
 }
 
 /** The bridge skill uses Arbitrum's official chain mark. */
 export function ArbitrumBridgeSkillIcon(props: SkillIconProps) {
-  return <ArbitrumIcon {...props} />;
+  return <ArbitrumIcon viewBox="1.2006 1.2001 21.5989 21.5989" {...props} />;
 }
 
 /** The canonical Base bridge skill uses the official Base mark. */
 export function BaseNativeSkillIcon(props: SkillIconProps) {
-  return <BaseIcon {...props} />;
+  return <BaseIcon viewBox="1.2000 1.2000 21.6000 21.6000" {...props} />;
 }
 
 // Source: https://developers.jup.ag/docs/resources/brand-kit
 export function JupiterSkillIcon(props: SkillIconProps) {
   return (
     <svg
-      viewBox="0 0 32 32"
+      viewBox="-3.2285 -3.4268 38.7420 38.7420"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
@@ -246,313 +167,195 @@ export function JupiterSkillIcon(props: SkillIconProps) {
 
 /** LI.FI, Morpho, and 1inch already have canonical app marks in this package. */
 export function LifiSkillIcon(props: SkillIconProps) {
-  return <LifiIcon {...props} />;
+  return <LifiIcon viewBox="-2.8668 -3.1999 38.3992 38.3992" {...props} />;
 }
 
 export function MorphoSkillIcon(props: SkillIconProps) {
-  return <MorphoIcon {...props} />;
+  return <MorphoIcon viewBox="-2.1448 -2.8688 25.7376 25.7376" {...props} />;
 }
 
 export function OneInchSkillIcon(props: SkillIconProps) {
-  return <OneInchIcon {...props} />;
+  return <OneInchIcon viewBox="1.1992 1.1994 21.6007 21.6007" {...props} />;
 }
 
-/** OpenBook's paired-page mark. Source: https://github.com/openbook-dex */
+/** Source and presentation notes: assets/README.md. */
 export function OpenbookSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        d="M4.5 5.25c2.65-.5 5.16.06 7.5 1.7v12.3c-2.34-1.64-4.85-2.2-7.5-1.7z"
-        fill="currentColor"
-        opacity=".82"
-      />
-      <path
-        d="M19.5 5.25c-2.65-.5-5.16.06-7.5 1.7v12.3c2.34-1.64 4.85-2.2 7.5-1.7z"
-        fill="currentColor"
-      />
-      <path d="M12 6.95v12.3" stroke="currentColor" strokeWidth="1.15" />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="openbook" {...props} />;
 }
 
 /** The canonical Optimism bridge uses the official Optimism mark. */
 export function OptimismNativeSkillIcon(props: SkillIconProps) {
-  return <OptimismIcon {...props} />;
+  return <OptimismIcon viewBox="1.2000 1.1995 21.6000 21.6000" {...props} />;
 }
 
-/** Pendle's P/band mark, redrawn in the icon's currentColor. Source: https://www.pendle.finance/brand-guide/ */
+/** Source and presentation notes: assets/README.md. */
 export function PendleSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        d="M4 4h4.8c4.2 0 6.8 2.2 6.8 5.8 0 3.7-2.7 5.8-6.8 5.8H7.2V20H4zm3.2 3v5.55h1.45c2.4 0 3.73-.96 3.73-2.75S11.05 7 8.65 7z"
-        fill="currentColor"
-      />
-      <path d="M16.2 4H20v16h-3.8z" fill="currentColor" opacity=".42" />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="pendle" {...props} />;
 }
 
-/** Raydium symbol mark. Source: https://docs.raydium.io/resources/brand-kit */
+/** Source and presentation notes: assets/README.md. */
 export function RaydiumSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        d="M12 3.35a8.65 8.65 0 1 0 8.65 8.65A8.65 8.65 0 0 0 12 3.35m0 2.55a6.1 6.1 0 1 1-6.1 6.1A6.1 6.1 0 0 1 12 5.9"
-        fill="currentColor"
-      />
-      <path
-        d="M8.3 14.72c1.55-2.44 3.02-4.32 4.42-5.64 1.48-1.4 2.52-1.7 3.13-.88.48.63.08 1.45-1.18 2.46-1.17.94-2.62 2.1-4.34 3.47 1.74-.23 3.35-.16 4.84.2 1.47.36 2.37.93 2.7 1.7.3.72-.1 1.22-1.18 1.5-1.22.32-2.69.21-4.4-.34-1.66-.53-2.99-1.35-3.99-2.47"
-        fill="currentColor"
-        opacity=".58"
-      />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="raydium" {...props} />;
 }
 
-/** Renzo's angular R. Source: https://docs.renzoprotocol.com/docs/resources/brand-kit */
+/** Source and presentation notes: assets/README.md. */
 export function RenzoSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        d="M5 3.5h7.2c4.27 0 6.8 2.05 6.8 5.3 0 2.28-1.2 3.88-3.45 4.72L19.7 20.5h-4.05l-3.7-6.2H8.55v6.2H5zm3.55 3.15v4.5h3.23c2.37 0 3.62-.76 3.62-2.3 0-1.47-1.2-2.2-3.62-2.2z"
-        fill="currentColor"
-      />
-      <path
-        d="m12.45 14.3 2.3-1.1 4.95 7.3h-3.95z"
-        fill="currentColor"
-        opacity=".44"
-      />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="renzo" {...props} />;
 }
 
 /** Robinhood Chain is also the underlying mark for Robinhood stock tokens. */
 export function RobinhoodStocksSkillIcon(props: SkillIconProps) {
-  return <RobinhoodIcon {...props} />;
+  return <RobinhoodIcon viewBox="4.0003 4.9996 24.0005 24.0005" {...props} />;
 }
 
-/** Rocket Pool's compact rocket mark. Source: https://rocketpool.net/ */
+/** Source and presentation notes: assets/README.md. */
 export function RocketPoolSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        d="M15.9 3.2c2.3.45 4.02 2.16 4.48 4.46.53 2.66-.54 5.5-3.18 8.14l-3.8 3.8-8.99-8.99 3.8-3.8c2.64-2.64 5.48-3.71 8.14-3.18M5.63 13.18l-2.3 2.3 5.2 5.2 2.3-2.3zM4.15 18.72 3 21l2.28-1.15z"
-        fill="currentColor"
-      />
-      <circle cx="15.28" cy="8.28" r="2.05" fill="currentColor" opacity=".2" />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="rocket_pool" {...props} />;
 }
 
-/** Sanctum's rising-arch symbol. Source: https://www.sanctum.so/ */
+/** Source and presentation notes: assets/README.md. */
 export function SanctumSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        d="M4 16.8 12 4l8 12.8h-3.18L12 9.1l-4.82 7.7z"
-        fill="currentColor"
-      />
-      <path
-        d="m7 18.4 5-8 5 8h-2.7L12 14.9l-2.3 3.5z"
-        fill="currentColor"
-        opacity=".56"
-      />
-      <path
-        d="M3 20.5h18"
-        stroke="currentColor"
-        strokeWidth="1.25"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="sanctum" {...props} />;
 }
 
-/** Squads' modular four-cell mark. Source: https://squads.so/ */
+/** Source and presentation notes: assets/README.md. */
 export function SquadsSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <rect
-        x="3.5"
-        y="3.5"
-        width="7.1"
-        height="7.1"
-        rx="1.8"
-        fill="currentColor"
-      />
-      <rect
-        x="13.4"
-        y="3.5"
-        width="7.1"
-        height="7.1"
-        rx="1.8"
-        fill="currentColor"
-        opacity=".55"
-      />
-      <rect
-        x="3.5"
-        y="13.4"
-        width="7.1"
-        height="7.1"
-        rx="1.8"
-        fill="currentColor"
-        opacity=".55"
-      />
-      <rect
-        x="13.4"
-        y="13.4"
-        width="7.1"
-        height="7.1"
-        rx="1.8"
-        fill="currentColor"
-      />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="squads" {...props} />;
 }
 
-/** Stargate's eight-point portal star. Source: https://stargate.finance/ */
+/** Source and presentation notes: assets/README.md. */
 export function StargateSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        d="m12 2.8 1.48 6.24L19.2 5.7l-3.34 5.72 6.34 1.48-6.34 1.48 3.34 5.72-5.72-3.34L12 21l-1.48-4.24-5.72 3.34 3.34-5.72-6.34-1.48 6.34-1.48L4.8 5.7l5.72 3.34z"
-        fill="currentColor"
-      />
-      <circle cx="12" cy="12.9" r="2.25" fill="currentColor" opacity=".24" />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="stargate" {...props} />;
 }
 
-/** SushiSwap's compact roll mark. Source: https://www.sushi.com/ */
+/** Source and presentation notes: assets/README.md. */
 export function SushiSwapSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        d="M3.4 14.3c1.74-4.9 5.48-7.62 10.3-7.62 2.92 0 5.34 1.05 6.9 3.02-.42.14-.76.43-1.03.86-.45.7-.55 1.54-.27 2.52.48 1.75-.08 3.04-1.68 3.88-1.82.95-4.32 1.31-7.49 1.07-2.88-.22-5.13-1.46-6.73-3.73"
-        fill="currentColor"
-      />
-      <circle cx="15.35" cy="10.15" r="1.05" fill="currentColor" opacity=".2" />
-      <path d="m5.1 16.6-2.1 2.1 3.25-.4z" fill="currentColor" opacity=".62" />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="sushiswap" {...props} />;
 }
 
-/** Uniswap's unicorn mark simplified for a 16px slot. Source: https://uniswap.org/ */
+/** Source and presentation notes: assets/README.md. */
 export function UniswapSkillIcon(props: SkillIconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-      {...props}
-    >
-      <path
-        d="M7.3 4.1c.35-.9 1.25-1.45 2.2-1.34.9.1 1.57.84 1.57 1.74 0 .28-.06.55-.18.8l-1.01 2.07c1.02.2 1.93.6 2.75 1.2l2.18-1.32a1.77 1.77 0 1 1 1.84 3.02l-1.9 1.15c.37.82.56 1.73.56 2.7 0 3.4-2.28 5.86-5.64 5.86-2.86 0-5.08-1.56-5.74-4.05-.24-.9-.16-1.68.24-2.33.37-.6.94-.9 1.71-.9.87 0 1.52.42 1.76 1.16.3.94.94 1.43 1.9 1.43 1.21 0 1.98-.85 1.98-2.22 0-1.9-1.37-3.08-3.62-3.08-.48 0-.94.05-1.38.15z"
-        fill="currentColor"
-      />
-      <circle cx="13.8" cy="12.3" r=".72" fill="currentColor" opacity=".2" />
-    </svg>
-  );
+  return <SourcedSkillIcon mark="uniswap" {...props} />;
 }
 
 export function YearnSkillIcon(props: SkillIconProps) {
-  return <YearnIcon {...props} />;
+  return <YearnIcon viewBox="1.2005 1.2000 21.6000 21.6000" {...props} />;
 }
 
-/** zkSync's nested Z mark. Source: https://zksync.io/ */
+/** Source and presentation notes: assets/README.md. */
 export function ZkSyncEraSkillIcon(props: SkillIconProps) {
+  return <SourcedSkillIcon mark="zksync_era_native" {...props} />;
+}
+
+export function ZoraSkillIcon(props: SkillIconProps) {
+  const gradientId = useId();
   return (
     <svg
-      viewBox="0 0 24 24"
-      fill="none"
+      viewBox="1.1969 1.2000 21.6000 21.6000"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
       {...props}
     >
       <path
-        d="M4 5h16v3.1l-10.9 7.8H20V19H4v-3.1l10.9-7.8H4z"
-        fill="currentColor"
+        fill={`url(#${gradientId})`}
+        d="M12 21a9 9 0 1 1 0-18a9 9 0 0 1 0 18"
       />
-      <path
-        d="M10.1 8.1h4.8l-5.4 3.86H4.7z"
-        fill="currentColor"
-        opacity=".22"
-      />
+      <defs>
+        <radialGradient
+          id={gradientId}
+          cx="0"
+          cy="0"
+          r="1"
+          gradientTransform="translate(16.086 7.84)scale(-15.2029)"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset=".007" stopColor="currentColor" stopOpacity=".12" />
+          <stop offset=".191" stopColor="currentColor" stopOpacity=".28" />
+          <stop offset=".498" stopColor="currentColor" stopOpacity=".6" />
+          <stop offset=".667" stopColor="currentColor" stopOpacity=".82" />
+          <stop offset=".823" stopColor="currentColor" />
+          <stop offset="1" stopColor="currentColor" stopOpacity=".42" />
+        </radialGradient>
+      </defs>
     </svg>
   );
 }
 
-export function ZoraSkillIcon(props: SkillIconProps) {
-  // Keep the skill asset truly colorless; the legacy app mark uses a
-  // radialGradient, which is intentionally not carried into this registry.
+export function AvantisSkillIcon(props: SkillIconProps) {
+  return <SourcedSkillIcon mark="avantis" {...props} />;
+}
+
+export function CctpSkillIcon(props: SkillIconProps) {
+  return <SourcedSkillIcon mark="cctp" {...props} />;
+}
+
+export function DebridgeSkillIcon(props: SkillIconProps) {
+  return <SourcedSkillIcon mark="debridge" {...props} />;
+}
+
+export function DriftSkillIcon(props: SkillIconProps) {
+  return <SourcedSkillIcon mark="drift" {...props} />;
+}
+
+export function EigenlayerSkillIcon(props: SkillIconProps) {
+  return <SourcedSkillIcon mark="eigenlayer" {...props} />;
+}
+
+export function KelpSkillIcon(props: SkillIconProps) {
+  return <SourcedSkillIcon mark="kelp" {...props} />;
+}
+
+export function LidoSkillIcon(props: SkillIconProps) {
+  return <SourcedSkillIcon mark="lido" {...props} />;
+}
+
+export function MantleStakedEthSkillIcon(props: SkillIconProps) {
+  return <SourcedSkillIcon mark="mantle_staked_eth" {...props} />;
+}
+
+export function MarinadeSkillIcon(props: SkillIconProps) {
+  return <SourcedSkillIcon mark="marinade" {...props} />;
+}
+
+export function MeteoraSkillIcon(props: SkillIconProps) {
+  return <SourcedSkillIcon mark="meteora" {...props} />;
+}
+
+/** Published Krexa artwork; a raster exception until an official vector is available. */
+export function KrexaSkillIcon(props: SkillIconProps) {
+  const maskId = useId();
   return (
     <svg
-      viewBox="0 0 24 24"
+      viewBox="21 19 86 86"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
       {...props}
     >
-      <circle cx="12" cy="12" r="9" fill="currentColor" opacity=".78" />
-      <path
-        d="M8 8.2h8v2.05l-5.25 3.5H16v2.05H8v-2.05l5.25-3.5H8z"
+      <defs>
+        <mask
+          id={maskId}
+          style={{ maskType: "alpha" }}
+          maskUnits="userSpaceOnUse"
+          x="0"
+          y="0"
+          width="120"
+          height="120"
+        >
+          <image
+            href="data:image/webp;base64,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"
+            width="120"
+            height="120"
+          />
+        </mask>
+      </defs>
+      <rect
+        x="0"
+        y="0"
+        width="120"
+        height="120"
         fill="currentColor"
-        opacity=".34"
+        mask={`url(#${maskId})`}
       />
     </svg>
   );
@@ -565,6 +368,17 @@ export function ZoraSkillIcon(props: SkillIconProps) {
  * identity.
  */
 const SKILL_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
+  avantis: AvantisSkillIcon,
+  debridge: DebridgeSkillIcon,
+  drift: DriftSkillIcon,
+  eigenlayer: EigenlayerSkillIcon,
+  kelp: KelpSkillIcon,
+  lido: LidoSkillIcon,
+  mantle_staked_eth: MantleStakedEthSkillIcon,
+  marinade: MarinadeSkillIcon,
+  meteora: MeteoraSkillIcon,
+  dummy: FlaskConicalIcon,
+  krexa: KrexaSkillIcon,
   aave: AaveSkillIcon,
   across: AcrossSkillIcon,
   aerodrome: AerodromeSkillIcon,
@@ -573,8 +387,7 @@ const SKILL_ICONS: Record<string, FC<SVGProps<SVGSVGElement>>> = {
   compound: CompoundSkillIcon,
   convex: ConvexSkillIcon,
   curve: CurveSkillIcon,
-  // CCTP is Circle's USDC bridge; use the existing generic Circle/USDC mark.
-  cctp: CircleDollarSignIcon,
+  cctp: CctpSkillIcon,
   // Common ERC-20 exposes standard token operations, so reuse the same coin
   // mark shown for unknown ERC-20 assets in transaction and trace UI.
   common_erc20: CoinsIcon,

@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 
 import { inferLibraryCategory, PackagesModal } from "./packages-modal";
-import { PackageRow } from "./package-row";
+import { PackageIcon, PackageRow } from "./package-row";
 import { toCatalogPackage } from "./packages-catalog";
 import { seedAccountOverview } from "@portal/lib/account-overview";
 
@@ -18,6 +18,18 @@ type FetchCall = { input: string | URL | Request; init?: RequestInit };
 const CATALOG = [
   { name: "default" },
   { name: "uniswap", is_public: true, application_id: 7 },
+  {
+    name: "oneinch",
+    is_public: true,
+    application_id: 10,
+    label: "Exchange Aggregator",
+  },
+  {
+    name: "polymarket_rewards",
+    is_public: true,
+    application_id: 11,
+    label: "Market Incentives",
+  },
   {
     name: "stablefx",
     is_public: true,
@@ -158,6 +170,26 @@ describe("packages modal wiring", () => {
     expect(await screen.findByText("How it works")).toBeTruthy();
     expect(await screen.findByText("2 actions available")).toBeTruthy();
     expect(paths(calls)).toContain("GET /api/resource/skills/aave");
+  });
+
+  it("finds curated apps by wire name and original catalog label", async () => {
+    installFetchRecorder();
+    await renderModal();
+
+    const search = screen.getByRole("textbox", { name: "Search library" });
+
+    fireEvent.change(search, { target: { value: "oneinch" } });
+    expect(screen.getByLabelText("Open 1inch details")).toBeTruthy();
+
+    fireEvent.change(search, { target: { value: "polymarket_rewards" } });
+    expect(
+      screen.getByLabelText("Open Polymarket Rewards details"),
+    ).toBeTruthy();
+
+    fireEvent.change(search, { target: { value: "Market Incentives" } });
+    expect(
+      screen.getByLabelText("Open Polymarket Rewards details"),
+    ).toBeTruthy();
   });
 
   it("puts token operations in Tokens & wallets before broad research matches", () => {
@@ -372,5 +404,57 @@ describe("chain-scoped package rows", () => {
     expect(
       screen.getByLabelText("Switch to Arc Testnet to install Circle StableFX"),
     ).toBeDisabled();
+  });
+});
+
+describe("catalog app identity", () => {
+  it("keeps backend identity while using the shared curated presentation", () => {
+    const app = toCatalogPackage({
+      name: "LI.FI",
+      label: "messy backend label",
+      applicationId: 42,
+      isPublic: true,
+    });
+
+    expect(app).toMatchObject({
+      id: "LI.FI",
+      applicationId: 42,
+      brandId: "lifi",
+      name: "LI.FI",
+    });
+  });
+
+  it("keeps a private app with a known wire name on its custom identity", () => {
+    const app = toCatalogPackage({
+      name: "dune",
+      label: "Team Dune",
+      applicationId: "private-7",
+      isPublic: false,
+    });
+
+    expect(app).toMatchObject({
+      id: "dune",
+      applicationId: "private-7",
+      brandId: "",
+      name: "Team Dune",
+      visibility: "personal",
+      category: "Your packages",
+      pinned: false,
+    });
+
+    const view = render(<PackageIcon app={app} size="small" />);
+    expect(view.container.querySelector("svg")).toBeNull();
+    expect(view.container.textContent).toBe(app.abbr);
+  });
+
+  it("renders known local marks without a remote favicon style", () => {
+    const app = toCatalogPackage({ name: "dune", isPublic: true });
+    const view = render(<PackageIcon app={app} size="detail" />);
+    const icon = screen.getByLabelText("Dune");
+
+    expect(icon).toHaveClass("size-12", "bg-aomi-surface-2");
+    expect(icon.querySelector("svg")).toHaveClass("size-7");
+    expect(view.container.innerHTML).not.toContain("google.com/s2/favicons");
+    expect(view.container.innerHTML).not.toContain("background-image");
   });
 });

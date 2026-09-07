@@ -16,7 +16,7 @@ import {
   CommandList,
   CommandInput,
 } from "@/components/ui/command";
-import { getAppInfo } from "./app-metadata";
+import { resolveAppIdentity } from "@/lib/apps/app-identity";
 import { getAppIcon } from "@/components/icons";
 import { useCapabilityComposer } from "@/components/assistant-ui/capability-composer";
 import { sameDirectRoutingApp } from "@/components/assistant-ui/routing";
@@ -57,14 +57,12 @@ export const AppSelect: FC<AppSelectProps> = ({
         : candidate.name === target.app,
     );
     const appName = target.app ?? descriptor?.name ?? "";
-    const info = getAppInfo(appName);
+    const info = resolveAppIdentity(descriptor ?? appName);
     return {
       target,
       appName,
-      label:
-        descriptor?.label ??
-        (appName ? info.displayName : `Application ${target.applicationId}`),
-      Icon: getAppIcon(appName),
+      label: appName ? info.displayName : `Application ${target.applicationId}`,
+      Icon: getAppIcon(info.brandId),
       description: info.category.label,
       search: `${appName} ${descriptor?.label ?? ""} ${info.displayName}`,
     };

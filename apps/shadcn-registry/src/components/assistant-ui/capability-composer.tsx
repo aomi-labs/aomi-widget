@@ -27,7 +27,7 @@ import {
   useThreadContext,
   type AgentMode,
 } from "@aomi-labs/react";
-import { getAppInfo } from "@/components/control-bar/app-metadata";
+import { resolveAppIdentity } from "@/lib/apps/app-identity";
 import { evmNetworkDescription } from "@/components/control-bar/network-metadata";
 import {
   getAppIcon,
@@ -629,7 +629,7 @@ export const CapabilityMentionInput: FC<{
               (!enabled || enabled.has(app.name)),
           )
           .map((app) => {
-            const info = getAppInfo(app.name);
+            const info = resolveAppIdentity(app);
             const chainSearch = (app.chainIds ?? [])
               .map((chainId) => getChainInfo(chainId)?.name ?? chainId)
               .join(" ");
@@ -641,13 +641,13 @@ export const CapabilityMentionInput: FC<{
               key: `app:${sourceId}`,
               kind: "app" as const,
               id: sourceId,
-              label: app.label ?? info.displayName,
+              label: info.displayName,
               description: info.category.label,
               chainIds: app.chainIds,
               applicationId: app.applicationId,
               appName: app.name,
               searchText: `${app.name} ${app.label ?? ""} ${info.displayName} ${info.category.label} ${chainSearch}`,
-              Icon: getAppIcon(app.name) ?? AppWindowIcon,
+              Icon: getAppIcon(info.brandId) ?? AppWindowIcon,
             };
           })
       : [];
