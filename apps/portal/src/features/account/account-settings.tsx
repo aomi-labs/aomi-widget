@@ -306,9 +306,7 @@ export function AccountSettings() {
           <AccountSigningView
             wallets={providerWallets}
             delegatedAccounts={acl.delegatedAccounts}
-            unboundWallets={[]}
             onCommit={acl.commitMode}
-            onBindWallet={acl.bindWallet}
             onRevokeDelegation={acl.revokeDelegation}
             onStopAllAuto={acl.stopAllAuto}
             canConnectPrivy={acl.canConnectPrivy}

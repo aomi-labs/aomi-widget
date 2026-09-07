@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { DelegatedAccountView, SignerMode, WalletPolicy } from "./types";
-import type { UnboundWallet } from "./use-account-acl";
 import {
   CUSTODY_GROUPS,
   reconcile,
@@ -10,17 +9,14 @@ import {
   walletGroupKey,
 } from "./account-reconcile";
 import { WalletPolicyRow } from "./wallet-policy-row";
-import { UnboundWalletRow } from "./unbound-wallet-row";
 import { Divider, SettingRow } from "./settings-rows";
 import { Loader2 } from "lucide-react";
 
 interface AccountSigningViewProps {
   wallets: WalletPolicy[];
   delegatedAccounts: DelegatedAccountView[];
-  unboundWallets: UnboundWallet[];
   /** Run the permit ceremony. Rejects with a user-facing message. */
   onCommit: (wallet: WalletPolicy, mode: SignerMode) => Promise<void>;
-  onBindWallet: (wallet: UnboundWallet) => Promise<"bound" | "already_bound">;
   onRevokeDelegation: (delegation: DelegatedAccountView) => Promise<void>;
   onStopAllAuto: () => Promise<void>;
   canConnectPrivy: boolean;
@@ -37,9 +33,7 @@ const CONNECT_PRIVY_KEY = "__connect_privy__";
 export function AccountSigningView({
   wallets,
   delegatedAccounts,
-  unboundWallets,
   onCommit,
-  onBindWallet,
   onRevokeDelegation,
   onStopAllAuto,
   canConnectPrivy,
@@ -200,14 +194,6 @@ export function AccountSigningView({
     void run(CONNECT_PRIVY_KEY, onConnectPrivy);
   };
 
-  const bindWallet = (id: string) => {
-    const wallet = unboundWallets.find((entry) => entry.id === id);
-    if (!wallet) return;
-    void run(id, async () => {
-      await onBindWallet(wallet);
-    });
-  };
-
   return (
     <div className="mx-auto w-full max-w-[780px] px-6 py-6">
       <div className="flex flex-col gap-5">
@@ -310,27 +296,6 @@ export function AccountSigningView({
                 </div>
               </div>
             ))}
-
-            {unboundWallets.length > 0 && (
-              <div className="flex flex-col">
-                <span className="text-aomi-muted/80 px-0.5 pb-1.5 text-[10px] font-medium uppercase tracking-[0.08em]">
-                  Connected wallets
-                </span>
-                <div className="border-aomi-border bg-aomi-raised flex flex-col overflow-hidden rounded-xl border">
-                  {unboundWallets.map((wallet, index) => (
-                    <div key={wallet.id}>
-                      {index > 0 && <Divider />}
-                      <UnboundWalletRow
-                        wallet={wallet}
-                        busy={Boolean(busy[wallet.id])}
-                        error={errors[wallet.id]}
-                        onActivate={() => bindWallet(wallet.id)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
