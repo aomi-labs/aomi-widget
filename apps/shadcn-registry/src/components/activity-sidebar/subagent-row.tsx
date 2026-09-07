@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Bot, Check, CircleAlert, LoaderCircle } from "lucide-react";
 import { cn, type TaskRunState } from "@aomi-labs/react";
 import { TextMessagePartProvider } from "@assistant-ui/react";
-import { MarkdownText } from "../assistant-ui/markdown-text";
+import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 
 export function SubagentRow({
   agent,
