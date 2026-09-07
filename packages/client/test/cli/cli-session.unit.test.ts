@@ -100,6 +100,24 @@ describe("CLI session lifecycle", () => {
     auto.setAgentRouting("auto");
     expect(readState()).toMatchObject({ agentMode: "auto" });
     expect(readState()?.app).toBeUndefined();
+
+    auto.setAgentRouting("direct");
+    const defaultDirectSession = auto.createClientSession();
+    await defaultDirectSession.sendAsync("hello default");
+    expect(start.mock.calls[2]?.[0]).toMatchObject({ mode: "direct" });
+    expect(start.mock.calls[2]?.[0]).not.toHaveProperty("app");
+    expect(start.mock.calls[2]?.[0]).not.toHaveProperty("applicationId");
+    defaultDirectSession.close();
+
+    auto.setAgentRouting("direct", { applicationId: "42" });
+    const hostedSession = auto.createClientSession();
+    await hostedSession.sendAsync("hello hosted");
+    expect(start.mock.calls[3]?.[0]).toMatchObject({
+      mode: "direct",
+      applicationId: 42,
+    });
+    expect(start.mock.calls[3]?.[0]).not.toHaveProperty("app");
+    hostedSession.close();
   });
 
   it("supports newSessionCommand as an explicit fresh-session command", async () => {

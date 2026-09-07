@@ -176,8 +176,9 @@ parent adoption can lose chain identity independently of mother-only behavior.
 | G2  | omitted mode + `app: orchestrator`  | legacy restricted orchestrator still works |
 | G3  | omitted mode + existing dynamic app | current direct app behavior                |
 | G4  | explicit Auto + app identity        | pre-turn validation error                  |
-| G5  | explicit Direct without app         | pre-turn validation error                  |
+| G5  | explicit Direct without app         | builtin default runtime, zero children     |
 | G6  | explicit Direct with one app        | direct path, zero children                 |
+| G7  | omitted mode and omitted identity   | Auto runtime                               |
 
 ## Later SDK and CLI E2E criteria
 
@@ -187,8 +188,8 @@ behavioral contract. Before Portal work, run built artifacts—not source-only
 mocks—against the paired local backend:
 
 - SDK `Aomi.agent.run()` defaults to Auto and emits the explicit mode field.
-- SDK Direct emits exactly one app identity.
-- CLI default, `--mode auto`, and `--mode direct --app ...` reach the intended
+- SDK Direct supports a selected app or no identity for the builtin default runtime.
+- CLI default, `--mode auto`, untargeted `--mode direct`, and `--mode direct --app ...` reach the intended
   backend runtime.
 - CLI invalid combinations fail locally before a network request.
 - REPL mode/target survives another turn and session resume.

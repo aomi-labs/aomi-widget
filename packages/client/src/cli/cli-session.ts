@@ -548,12 +548,7 @@ export class CliSession {
         ...(requestedApp ? { app: requestedApp } : {}),
       };
     }
-    if (!requestedApp) {
-      throw new TypeError(
-        "Direct mode requires `--app <name>` or `--application-id <id>`",
-      );
-    }
-    return { mode: "direct", app: requestedApp };
+    return { mode: "direct", ...(requestedApp ? { app: requestedApp } : {}) };
   }
 
   createGuestProvider(

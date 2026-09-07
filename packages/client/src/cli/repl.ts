@@ -25,8 +25,10 @@ function printReplHelp(): void {
   console.log("Commands:");
   console.log("  /heap                  Show this message");
   console.log("  /mode auto             Use automatic routing");
-  console.log("  /mode direct <app>     Route directly to one app");
-  console.log("  /app <name>            Shorthand for /mode direct <app>");
+  console.log(
+    "  /mode direct [app]     Route directly (default app if omitted)",
+  );
+  console.log("  /app <name>            Shorthand for /mode direct [app]");
   console.log("  /model <rig>           Set the active backend model");
   console.log("  /model list            Show available models");
   console.log("  /model show            Show the current model");
@@ -130,7 +132,7 @@ export async function handleReplLine(
     const command = trimmed.slice("/mode".length).trim();
     const [rawMode, ...appParts] = command.split(/\s+/u);
     if (rawMode !== "auto" && rawMode !== "direct") {
-      fatal("Usage: /mode auto | /mode direct <app-name>");
+      fatal("Usage: /mode auto | /mode direct [app-name]");
     }
     const app = appParts.join(" ").trim() || undefined;
     if (rawMode === "auto" && app) {
@@ -178,7 +180,7 @@ export async function runInteractiveCli(
 
   console.log("Interactive Aomi CLI ready.");
   console.log(
-    "Commands: /heap, /mode auto|direct <app>, /app <name>, /model <rig>|list|show, /key, :exit",
+    "Commands: /heap, /mode auto|direct [app], /app <name>, /model <rig>|list|show, /key, :exit",
   );
 
   const rl = createInterface({ input, output });

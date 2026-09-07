@@ -86,6 +86,18 @@ describe("ClientSession Agent transport", () => {
         expected: { mode: "auto" },
       },
       {
+        options: { target: { mode: "direct" as const } },
+        expected: { mode: "direct" },
+      },
+      {
+        options: { target: { mode: "direct" as const, app: "  " } },
+        expected: { mode: "direct" },
+      },
+      {
+        options: { target: { mode: "direct" as const, applicationId: 42 } },
+        expected: { mode: "direct", applicationId: 42 },
+      },
+      {
         options: { target: { mode: "direct" as const, app: "zerox" } },
         expected: { mode: "direct", app: "zerox" },
       },
@@ -130,9 +142,30 @@ describe("ClientSession Agent transport", () => {
     expect(
       () =>
         new Session(api, {
-          target: { mode: "direct", app: "" },
+          target: { mode: "direct", applicationId: 0 },
         }),
-    ).toThrow("Direct mode requires an app or applicationId");
+    ).toThrow("Direct applicationId must be a positive integer");
+  });
+
+  it("clears a prior app identity when switching to the default Direct runtime", async () => {
+    const api = client();
+    const start = vi.spyOn(api.agent, "start").mockResolvedValue(page());
+    const session = new Session(api, {
+      sessionId: "session-agent",
+      target: { mode: "direct", applicationId: 42, app: "partner" },
+    });
+    session.syncRuntimeOptions({ target: { mode: "direct" } });
+    await session.sendAsync("hello");
+    expect(start).toHaveBeenCalledWith(
+      {
+        sessionId: "session-agent",
+        clientId: expect.any(String),
+        message: "hello",
+        mode: "direct",
+      },
+      expect.anything(),
+    );
+    session.close();
   });
 
   it("reduces one ordered Event page into messages, title, and lifecycle", async () => {

@@ -1,6 +1,7 @@
 # Auto and Direct Contract and Rollout
 
-Status: PROPOSED FOR REVIEW (2026-09-03)
+Status: rollout plan; wire/SDK contract synchronized with implementation (2026-09-07).
+The remaining checklist records the original rollout gates.
 
 This is the implementation checklist for
 [`AUTO-DIRECT-EXECUTION-PLAN.md`](./AUTO-DIRECT-EXECUTION-PLAN.md). It makes the
@@ -38,14 +39,15 @@ type StartTurnIntent = {
 
 Server validation matrix:
 
-| `mode`   | app identity                        | Meaning                                             |
-| -------- | ----------------------------------- | --------------------------------------------------- |
-| omitted  | omitted                             | Legacy behavior; do not silently change old callers |
-| omitted  | `app` or `applicationId`            | Legacy direct selection                             |
-| `auto`   | omitted                             | New Auto mother                                     |
-| `auto`   | present                             | Reject as ambiguous                                 |
-| `direct` | exactly one resolvable app identity | Direct selected app                                 |
-| `direct` | omitted or conflicting identifiers  | Reject before starting                              |
+| `mode`   | app identity                        | Meaning                                      |
+| -------- | ----------------------------------- | -------------------------------------------- |
+| omitted  | omitted                             | Auto runtime                                 |
+| omitted  | `app` or `applicationId`            | Legacy direct selection                      |
+| `auto`   | omitted                             | New Auto mother                              |
+| `auto`   | present                             | Reject as ambiguous                          |
+| `direct` | exactly one resolvable app identity | Direct selected app                          |
+| `direct` | omitted                             | Builtin default runtime, without child tools |
+| `direct` | conflicting identifiers             | Reject before starting                       |
 
 For hosted apps, `applicationId` is authoritative and an optional `app` is an
 exact-name consistency check. Builtins can use `app`. The internal Auto AppSpec
@@ -121,11 +123,11 @@ Primary backend ownership:
 
 - [ ] Add `mode` to `aomi_pipeline::agent::TurnRequest` and validation.
 - [ ] Route explicit Auto to the new AppSpec.
-- [ ] Route explicit Direct to exactly one existing builtin or hosted app.
+- [ ] Route explicit Direct to the selected builtin/hosted app, or builtin default when untargeted.
 - [ ] Keep the existing `/v1/agent/chat` endpoint and idempotency behavior.
 - [ ] Keep legacy app selection and the legacy orchestrator runtime working.
 - [ ] Update route/request tests and regenerate the Agent OpenAPI contract.
-- [ ] Add negative tests for ambiguous Auto/app and Direct-without-app inputs.
+- [ ] Reject ambiguous Auto/app and conflicting hosted identifiers; verify untargeted Direct selects default.
 
 ### Backend green gate
 
@@ -175,8 +177,7 @@ Expose a discriminated target while flattening it onto the wire contract:
 ```ts
 type AgentTarget =
   | { mode?: "auto" }
-  | { mode: "direct"; app: string; applicationId?: never }
-  | { mode: "direct"; applicationId: number; app?: string };
+  | { mode: "direct"; applicationId?: number; app?: string };
 
 type SessionOptions = {
   target?: AgentTarget;
@@ -222,7 +223,8 @@ User surface:
 ```text
 aomi chat "show my Base ETH balance"                  # Auto (default)
 aomi chat --mode auto "show my Base ETH balance"      # explicit Auto
-aomi chat --mode direct --app zerox "quote ETH/USDC"  # explicit Direct
+aomi chat --mode direct "..."                         # builtin default
+aomi chat --mode direct --app zerox "quote ETH/USDC"  # selected Direct
 aomi chat --mode direct --application-id 42 "..."     # hosted Direct
 ```
 
@@ -230,11 +232,11 @@ CLI compatibility and persistence:
 
 - [ ] add global `--mode auto|direct`;
 - [ ] no mode and no app uses Auto in the updated CLI;
-- [ ] explicit Direct requires `--app` or `--application-id`;
+- [ ] explicit Direct accepts `--app` or `--application-id`, defaulting to the builtin default runtime when neither is selected;
 - [ ] explicit Auto plus an app selector is a clear CLI error;
 - [ ] `--app` without `--mode` retains legacy direct behavior;
 - [ ] persist the selected mode and Direct target with the active session;
-- [ ] add `/mode auto` and `/mode direct <app>` to the REPL;
+- [ ] add `/mode auto` and `/mode direct [app]` to the REPL;
 - [ ] keep `/app <name>` as a compatibility shorthand for Direct;
 - [ ] show the current mode and Direct app in status/help/JSON output;
 - [ ] keep wallet `--aa`/`--eoa` and `--aa-mode` concepts distinct from agent

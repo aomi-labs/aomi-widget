@@ -1,6 +1,6 @@
 # Auto and Direct Execution Plan
 
-Status: PROPOSED FOR REVIEW (2026-09-03)
+Status: execution plan; default-selection contract synchronized with implementation (2026-09-07).
 
 This plan replaces the user-facing Auto/Direct/Coordinate proposal in
 `CAPABILITY-LIBRARY-AND-MENTIONS.md`. It keeps the capability Library and `@`
@@ -9,8 +9,8 @@ mention work from that proposal, but changes execution to two user-facing modes:
 - **Auto** is the default Aomi experience. One capable mother performs ordinary
   Aomi Core and compatible skill work itself and delegates only when an app,
   isolated guard scope, or genuinely complex subtask requires a child.
-- **Direct** targets exactly one explicitly selected app and has no child-agent
-  surface.
+- **Direct** runs one selected app, or the builtin default runtime when no app
+  identity is supplied, and has no child-agent surface.
 
 The current `default` and `orchestrator` app selections and public Agent endpoint
 remain available for legacy clients. Updated SDK, CLI, widgets, and Portal use
@@ -34,7 +34,8 @@ Related review documents:
 
 1. Portal and configurable widgets offer **Auto** and **Direct** only.
 2. Auto is the default for every updated first-party client.
-3. Selecting Direct reveals an app picker and requires exactly one app.
+3. Portal Direct exposes an app picker. At the wire/SDK boundary, an omitted
+   Direct identity selects the builtin default runtime.
 4. Auto does not reveal an app, skill, chain, or child choice before the turn.
    Natural language must work without an `@` reference.
 5. `@app`, `@skill`, and `@chain` references are optional model hints. They do
@@ -208,15 +209,19 @@ The Auto preamble should express this policy in a compact order:
 
 ### 🟨 Preserve legacy selection
 
-The public Agent routes remain unchanged. Existing callers continue to work:
+The public Agent routes remain unchanged. Selection follows this contract:
+
+- omitted mode and omitted identity select Auto;
+- explicit Direct without an identity selects the builtin default runtime;
 
 - omitted mode plus `app: "default"` selects the current default runtime;
 - `app: "orchestrator"` selects the current legacy orchestrator;
 - an existing builtin or dynamic app selection remains direct;
 - `applicationId` retains its current stable hosted-app semantics.
 
-Updated clients send an explicit new mode field. This lets Auto become the
-product default without silently changing old clients that omit it.
+Updated clients send an explicit mode field. Untargeted older callers also use
+Auto; callers that require the default runtime select `app: "default"` or
+explicit Direct. Existing named-app callers retain Direct selection.
 
 ## Widget product contract
 
@@ -294,7 +299,7 @@ design works.
 ## Definition of done
 
 - Auto is the default in updated SDK, CLI, Portal, and default widget config.
-- Direct always names exactly one app and cannot call `task`.
+- Direct selects one app, defaulting to builtin `default` when untargeted, and cannot call `task`.
 - Auto handles core and compatible skill work without a child.
 - Auto delegates app work and guard-separated work with correct child scope.
 - Mother and child transactions share parent IDs and canonical commit tools.

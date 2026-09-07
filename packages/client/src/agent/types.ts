@@ -53,13 +53,9 @@ export type AgentTarget =
     }
   | {
       mode: "direct";
-      app: string;
-      applicationId?: never;
-    }
-  | {
-      mode: "direct";
-      applicationId: number;
-      /** Optional exact-name consistency check for a hosted application. */
+      /** Omit both identities to use the builtin default runtime. */
+      applicationId?: number;
+      /** Builtin name, or an exact-name consistency check for a hosted app. */
       app?: string;
     };
 export type InterruptIntent = Schemas["InterruptIntent"];

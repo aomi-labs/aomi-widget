@@ -574,8 +574,7 @@ function normalizeTarget(
       ...(app ? { app } : {}),
     };
   }
-  if (!app) throw new TypeError("Direct mode requires an app or applicationId");
-  return { mode: "direct", app };
+  return { mode: "direct", ...(app ? { app } : {}) };
 }
 
 function assertTargetCompatibility(options: {
@@ -618,7 +617,10 @@ function startTargetFields(options: {
           applicationId: options.target.applicationId,
           ...(options.target.app ? { app: options.target.app } : {}),
         }
-      : { mode: "direct", app: options.target.app };
+      : {
+          mode: "direct",
+          ...(options.target.app ? { app: options.target.app } : {}),
+        };
   }
   if (options.target) return { mode: "auto" };
 

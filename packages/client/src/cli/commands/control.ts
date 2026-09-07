@@ -309,14 +309,11 @@ export function setAgentModeCommand(
 ): void {
   const selectedApp = app?.trim();
   const cli = CliSession.loadOrCreate(config);
-  if (mode === "direct" && !selectedApp && !cli.app && !cli.applicationId) {
-    fatal("Usage: /mode direct <app-name>");
-  }
   cli.setAgentRouting(mode, selectedApp ? { app: selectedApp } : undefined);
   console.log(
     mode === "auto"
       ? "Mode set to Auto"
-      : `Mode set to Direct (${selectedApp ?? cli.app ?? `application ${cli.applicationId}`})`,
+      : `Mode set to Direct (${selectedApp ?? cli.app ?? (cli.applicationId ? `application ${cli.applicationId}` : "default")})`,
   );
   if (options?.printLocation !== false) {
     printDataFileLocation({ verbose: config.verbose });

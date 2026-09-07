@@ -40,7 +40,9 @@ function printRootHelp(): void {
   console.log("");
   console.log("  /heap                        Show REPL help");
   console.log("  /mode auto                   Use automatic routing");
-  console.log("  /mode direct <app>           Route directly to one app");
+  console.log(
+    "  /mode direct [app]           Route directly (default app if omitted)",
+  );
   console.log("  /app <name>                  Shorthand for Direct mode");
   console.log("  /model <rig>|list|show       Manage the active model");
   console.log("  /key <provider:key>|show|clear");
