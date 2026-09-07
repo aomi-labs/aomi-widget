@@ -332,16 +332,14 @@ export function AccountSettings() {
         <p className="text-aomi-muted px-[22px] pb-5 text-[13px]">
           Loading provider signing settings…
         </p>
-      ) : providerWallets.length || acl.needsParaAgentWallet ? (
+      ) : providerWallets.length ? (
         <div className="border-aomi-border border-t">
           <AccountSigningView
             wallets={providerWallets}
             delegatedAccounts={acl.delegatedAccounts}
             unboundWallets={acl.unboundWallets}
-            needsParaAgentWallet={acl.needsParaAgentWallet}
             onCommit={acl.commitMode}
             onBindWallet={acl.bindWallet}
-            onProvisionParaAgentWallet={acl.provisionParaAgentWallet}
             onRevokeDelegation={acl.revokeDelegation}
             onStopAllAuto={acl.stopAllAuto}
             canConnectPrivy={acl.canConnectPrivy}
