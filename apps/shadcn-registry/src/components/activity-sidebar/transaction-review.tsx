@@ -50,20 +50,6 @@ export function TransactionReview({
       : request.type === "execute_evm"
         ? request.transactions.map((tx) => tx.from)
         : request.transactions.map((tx) => tx.payer);
-  // A failed durable request still needs an explicit rejection to unblock its queue.
-  if (failed)
-    return (
-      <div className="mt-3">
-        <Button
-          variant="outline"
-          onClick={onReject}
-          disabled={approving}
-          className="h-9 rounded-full text-[12px]"
-        >
-          Reject request
-        </Button>
-      </div>
-    );
   return (
     <section
       ref={reviewRef}
@@ -123,7 +109,9 @@ export function TransactionReview({
           </pre>
         </details>
       )}
-      <footer className="mt-3 grid grid-cols-[1fr_1.7fr] gap-2">
+      <footer
+        className={failed ? "mt-3" : "mt-3 grid grid-cols-[1fr_1.7fr] gap-2"}
+      >
         <Button
           type="button"
           variant="outline"
@@ -131,17 +119,19 @@ export function TransactionReview({
           disabled={approving}
           className="border-aomi-border bg-aomi-raised text-aomi-muted hover:bg-aomi-hover h-10 rounded-full text-[12px]"
         >
-          Reject
+          {failed ? "Reject request" : "Reject"}
         </Button>
-        <Button
-          type="button"
-          onClick={onApprove}
-          disabled={approving}
-          className="bg-aomi-fg text-aomi-bg hover:bg-aomi-fg h-10 rounded-full text-[12px] hover:opacity-90"
-        >
-          <Wallet className="size-4" />
-          {approving ? "Waiting for wallet…" : "Send to wallet"}
-        </Button>
+        {!failed && (
+          <Button
+            type="button"
+            onClick={onApprove}
+            disabled={approving}
+            className="bg-aomi-fg text-aomi-bg hover:bg-aomi-fg h-10 rounded-full text-[12px] hover:opacity-90"
+          >
+            <Wallet className="size-4" />
+            {approving ? "Waiting for wallet…" : "Send to wallet"}
+          </Button>
+        )}
       </footer>
     </section>
   );
