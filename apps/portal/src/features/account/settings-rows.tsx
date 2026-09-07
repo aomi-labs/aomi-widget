@@ -15,9 +15,9 @@ export function SettingsSectionHeading({
   return (
     <div className="flex min-h-8 items-center justify-between gap-3 px-0.5">
       <div className="flex min-w-0 items-baseline gap-2">
-        <h3 className="truncate text-[12px] font-semibold">{title}</h3>
+        <h3 className="truncate text-[13px] font-semibold">{title}</h3>
         {detail ? (
-          <span className="text-aomi-muted truncate text-[11px]">{detail}</span>
+          <span className="text-aomi-muted truncate text-[12px]">{detail}</span>
         ) : null}
       </div>
       {action}
@@ -47,11 +47,11 @@ export function SettingRow({
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {leading}
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <div className="truncate text-[13px] font-medium leading-none">
+          <div className="truncate text-[14px] font-medium leading-none">
             {title}
           </div>
           <span
-            className={`text-aomi-muted truncate text-[11px] leading-snug ${descMono ? "font-mono" : ""}`}
+            className={`text-aomi-muted truncate text-[12px] leading-snug ${descMono ? "font-mono" : ""}`}
           >
             {desc}
           </span>

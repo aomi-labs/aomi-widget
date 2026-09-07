@@ -24,6 +24,25 @@ vi.mock("@aomi-labs/react", async (importOriginal) => ({
   useAomiRuntime: () => runtime,
 }));
 
+vi.mock("@/components/assistant-ui/markdown-text", async () => {
+  const { useMessagePartText } = await vi.importActual<
+    typeof import("@assistant-ui/react")
+  >("@assistant-ui/react");
+  return {
+    MarkdownText: () => {
+      const { text } = useMessagePartText();
+      const parts = text.split("**");
+      return (
+        <span className="aui-md">
+          {parts.map((part, index) =>
+            index % 2 ? <strong key={index}>{part}</strong> : part,
+          )}
+        </span>
+      );
+    },
+  };
+});
+
 vi.mock("../../lib/capabilities/skill-catalog", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("../../lib/capabilities/skill-catalog")
@@ -778,9 +797,9 @@ describe("active transaction presentation", () => {
     expect(screen.getByText("Aave")).toBeInTheDocument();
     expect(screen.queryByText("aave")).not.toBeInTheDocument();
 
-    const toggle = screen.getByRole("button", { name: "Skills invoked 1" });
+    const toggle = screen.getByRole("button", { name: "Skills 1" });
     const content = container.querySelector(
-      '[data-activity-group-content="Skills invoked"]',
+      '[data-activity-group-content="Skills"]',
     );
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(content).toHaveClass("grid-rows-[1fr]", "opacity-100");
@@ -790,6 +809,108 @@ describe("active transaction presentation", () => {
     expect(content).toHaveClass("grid-rows-[0fr]", "opacity-0");
     expect(content).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByText("Aave")).toBeInTheDocument();
+  });
+
+  it("uses icon states and only renders the formatted subagent result", () => {
+    runtime.pendingActions = [];
+    runtime.events = [
+      {
+        type: "task_started",
+        event_id: "task-started",
+        sequence: 1,
+        turn_id: "turn-1",
+        occurred_at: 1,
+        call_id: "call-1",
+        agent_id: "agent-1",
+        label: "ETH price",
+        app: "research",
+        resumed: false,
+      },
+      {
+        type: "task_phase",
+        event_id: "task-phase",
+        sequence: 2,
+        turn_id: "turn-1",
+        occurred_at: 2,
+        call_id: "call-1",
+        agent_id: "agent-1",
+        app: "research",
+        phase: "task_completed",
+        elapsed_ms: 100,
+        observed_at_ms: 2,
+      },
+      {
+        type: "task_activity",
+        event_id: "task-tool",
+        sequence: 3,
+        turn_id: "turn-1",
+        occurred_at: 3,
+        call_id: "call-1",
+        agent_id: "agent-1",
+        child_seq: 1,
+        kind: "tool_call",
+        tool_name: "brave_search",
+        args: {},
+        result_preview: "search result",
+      },
+      {
+        type: "task_completed",
+        event_id: "task-completed",
+        sequence: 4,
+        turn_id: "turn-1",
+        occurred_at: 4,
+        call_id: "call-1",
+        agent_id: "agent-1",
+        status: "completed",
+        message: "ETH spot price: **$2,502.20 USD**",
+        staged_count: 0,
+        steps: 1,
+        duration_ms: 100,
+      },
+    ] as Event[];
+
+    const { container } = render(<ActivitySidebar />);
+    expect(
+      screen.getByRole("status", { name: "Completed" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Done")).not.toBeInTheDocument();
+    expect(screen.queryByText("task_completed")).not.toBeInTheDocument();
+    expect(screen.queryByText("brave search")).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: /ETH price/ });
+    const content = container.querySelector(
+      '[data-subagent-content="agent-1"]',
+    );
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(content).toHaveClass("grid-rows-[0fr]", "opacity-0");
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(content).toHaveClass("grid-rows-[1fr]", "opacity-100");
+    expect(screen.getByText("$2,502.20 USD").tagName).toBe("STRONG");
+    expect(screen.queryByText(/\*\*\$2,502/)).not.toBeInTheDocument();
+  });
+
+  it("shows a spinner instead of Working text for an active subagent", () => {
+    runtime.pendingActions = [];
+    runtime.events = [
+      {
+        type: "task_started",
+        event_id: "task-started",
+        sequence: 1,
+        turn_id: "turn-1",
+        occurred_at: 1,
+        call_id: "call-1",
+        agent_id: "agent-1",
+        label: "ETH price",
+        app: "research",
+        resumed: false,
+      },
+    ] as Event[];
+
+    render(<ActivitySidebar />);
+    expect(screen.getByRole("status", { name: "Working" })).toBeInTheDocument();
+    expect(screen.queryByText("Working")).not.toBeInTheDocument();
   });
 });
 

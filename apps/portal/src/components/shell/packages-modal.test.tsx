@@ -135,9 +135,18 @@ describe("packages modal wiring", () => {
     await renderModal();
 
     expect(screen.getByRole("dialog", { name: "Library" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Library" })).toHaveClass(
+      "text-[15px]",
+    );
     expect(screen.getByRole("button", { name: /Discover/ })).toHaveAttribute(
       "aria-pressed",
       "true",
+    );
+    expect(screen.getByRole("button", { name: /Discover/ })).toHaveClass(
+      "text-[13px]",
+    );
+    expect(screen.getByRole("textbox", { name: "Search library" })).toHaveClass(
+      "text-[14px]",
     );
     expect(screen.getByLabelText("Aave details").className).toContain(
       "border-l",

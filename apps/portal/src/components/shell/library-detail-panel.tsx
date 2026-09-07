@@ -71,7 +71,7 @@ export function ChainMarks({
 }) {
   if (chainIds.length === 0) {
     return (
-      <span className="text-aomi-muted whitespace-nowrap text-[10px]">
+      <span className="text-aomi-muted whitespace-nowrap text-[11px]">
         Any network
       </span>
     );
@@ -99,7 +99,7 @@ export function ChainMarks({
         })}
       </span>
       {!expanded && chainIds.length > shown.length ? (
-        <span className="text-aomi-muted ml-1 text-[9px]">
+        <span className="text-aomi-muted ml-1 text-[10px]">
           +{chainIds.length - shown.length}
         </span>
       ) : null}
@@ -116,7 +116,7 @@ function DetailSection({
 }) {
   return (
     <section className="border-aomi-border border-t pt-5">
-      <h3 className="text-aomi-muted text-[10px] font-medium uppercase tracking-[0.12em]">
+      <h3 className="text-aomi-muted text-[11px] font-medium uppercase tracking-[0.12em]">
         {title}
       </h3>
       <div className="mt-2.5">{children}</div>
@@ -147,12 +147,12 @@ function AppDetails({
       <div className="px-5 pb-5 pt-1">
         <PackageIcon app={app} size="detail" />
         <div className="mt-4 flex items-center gap-2">
-          <h2 className="text-[16px] font-semibold">{app.name}</h2>
+          <h2 className="text-[17px] font-semibold">{app.name}</h2>
           <span className="bg-aomi-surface-2 text-aomi-muted rounded-full px-2 py-1 text-[9px] font-medium uppercase tracking-[0.1em]">
             App
           </span>
         </div>
-        <p className="text-aomi-muted mt-2 text-xs leading-5">
+        <p className="text-aomi-muted mt-2 text-[13px] leading-5">
           {app.description}
         </p>
       </div>
@@ -160,7 +160,7 @@ function AppDetails({
       <div className="space-y-5 px-5">
         <DetailSection title="Availability">
           {app.chainIds.length === 0 ? (
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-2 text-[13px]">
               <Network className="text-aomi-muted size-3.5" />
               All supported networks
             </div>
@@ -171,7 +171,7 @@ function AppDetails({
                 return (
                   <span
                     key={chainId}
-                    className="bg-aomi-surface-2 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px]"
+                    className="bg-aomi-surface-2 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px]"
                   >
                     {Icon ? <Icon className="size-3" /> : null}
                     {chainLabel(chainId)}
@@ -183,11 +183,11 @@ function AppDetails({
         </DetailSection>
 
         <DetailSection title="Category">
-          <span className="bg-aomi-surface-2 rounded-full px-2.5 py-1.5 text-[10px]">
+          <span className="bg-aomi-surface-2 rounded-full px-2.5 py-1.5 text-[11px]">
             {app.category}
           </span>
           {app.visibility === "personal" ? (
-            <span className="bg-aomi-surface-2 ml-1.5 rounded-full px-2.5 py-1.5 text-[10px]">
+            <span className="bg-aomi-surface-2 ml-1.5 rounded-full px-2.5 py-1.5 text-[11px]">
               Personal
             </span>
           ) : null}
@@ -196,7 +196,7 @@ function AppDetails({
 
       <div className="mt-auto p-5">
         {app.pinned ? (
-          <div className="bg-aomi-surface-2 text-aomi-muted flex h-10 items-center justify-center gap-2 rounded-xl text-xs font-medium">
+          <div className="bg-aomi-surface-2 text-aomi-muted flex h-10 items-center justify-center gap-2 rounded-xl text-[13px] font-medium">
             <Check size={14} /> Built in
           </div>
         ) : installed ? (
@@ -205,7 +205,7 @@ function AppDetails({
             onClick={onUninstall}
             disabled={!installedReady || busy}
             aria-label={`Remove ${app.name}`}
-            className="border-aomi-border hover:bg-aomi-hover text-aomi-muted hover:text-aomi-danger flex h-10 w-full items-center justify-center rounded-xl border text-xs font-medium transition-colors disabled:opacity-50"
+            className="border-aomi-border hover:bg-aomi-hover text-aomi-muted hover:text-aomi-danger flex h-10 w-full items-center justify-center rounded-xl border text-[13px] font-medium transition-colors disabled:opacity-50"
           >
             {busy ? <Loader2 className="size-4 animate-spin" /> : "Remove app"}
           </button>
@@ -219,7 +219,7 @@ function AppDetails({
                 ? `Add ${app.name}`
                 : `Switch network to add ${app.name}`
             }
-            className="bg-aomi-fg text-aomi-bg flex h-10 w-full items-center justify-center rounded-xl text-xs font-medium transition-opacity hover:opacity-90 disabled:opacity-40"
+            className="bg-aomi-fg text-aomi-bg flex h-10 w-full items-center justify-center rounded-xl text-[13px] font-medium transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {busy ? (
               <Loader2 className="size-4 animate-spin" />
@@ -266,20 +266,20 @@ function SkillDetails({
       <div className="px-5 pb-5 pt-1">
         <SkillIdentity skillId={skill.id} size="detail" />
         <div className="mt-4 flex items-center gap-2">
-          <h2 className="text-[16px] font-semibold">{skillLabel(skill)}</h2>
+          <h2 className="text-[17px] font-semibold">{skillLabel(skill)}</h2>
           <span className="bg-aomi-surface-2 text-aomi-muted rounded-full px-2 py-1 text-[9px] font-medium uppercase tracking-[0.1em]">
             Skill
           </span>
         </div>
-        <p className="text-aomi-muted mt-2 text-xs leading-5">
+        <p className="text-aomi-muted mt-2 text-[13px] leading-5">
           {skill.description}
         </p>
       </div>
 
       {error ? (
-        <p className="text-aomi-danger px-5 text-xs">{error}</p>
+        <p className="text-aomi-danger px-5 text-[13px]">{error}</p>
       ) : !detail ? (
-        <div className="text-aomi-muted flex items-center gap-2 px-5 text-xs">
+        <div className="text-aomi-muted flex items-center gap-2 px-5 text-[13px]">
           <Loader2 className="size-3.5 animate-spin" /> Loading details…
         </div>
       ) : (
@@ -292,7 +292,7 @@ function SkillDetails({
                   return (
                     <span
                       key={chainId}
-                      className="bg-aomi-surface-2 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[10px]"
+                      className="bg-aomi-surface-2 flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px]"
                     >
                       {Icon ? <Icon className="size-3" /> : null}
                       {chainLabel(chainId)}
@@ -301,7 +301,7 @@ function SkillDetails({
                 })}
               </div>
             ) : (
-              <span className="text-aomi-muted text-xs">
+              <span className="text-aomi-muted text-[13px]">
                 Any supported network
               </span>
             )}
@@ -313,7 +313,7 @@ function SkillDetails({
                 {detail.tags.slice(0, 8).map((tag) => (
                   <span
                     key={tag}
-                    className="bg-aomi-surface-2 rounded-full px-2.5 py-1.5 text-[10px] capitalize"
+                    className="bg-aomi-surface-2 rounded-full px-2.5 py-1.5 text-[11px] capitalize"
                   >
                     {tag.replaceAll("_", " ")}
                   </span>
@@ -323,7 +323,7 @@ function SkillDetails({
           ) : null}
 
           <DetailSection title="How it works">
-            <div className="space-y-2 text-xs">
+            <div className="space-y-2 text-[13px]">
               <div className="flex items-center gap-2">
                 <Sparkles className="text-aomi-accent size-3.5" />
                 <span>
@@ -347,7 +347,7 @@ function SkillDetails({
         <button
           type="button"
           onClick={onTry}
-          className="bg-aomi-fg text-aomi-bg flex h-10 w-full items-center justify-center rounded-xl text-xs font-medium transition-opacity hover:opacity-90"
+          className="bg-aomi-fg text-aomi-bg flex h-10 w-full items-center justify-center rounded-xl text-[13px] font-medium transition-opacity hover:opacity-90"
         >
           <MessageCircle size={14} className="mr-2" /> Try
         </button>
@@ -386,7 +386,7 @@ export function LibraryDetailPanel({
     >
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-5">
         {!selection ? (
-          <div className="text-aomi-muted flex flex-1 items-center justify-center px-6 text-center text-xs leading-5">
+          <div className="text-aomi-muted flex flex-1 items-center justify-center px-6 text-center text-[13px] leading-5">
             Select an app or skill to see its details.
           </div>
         ) : selection.kind === "app" ? (

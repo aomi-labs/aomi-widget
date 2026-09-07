@@ -1,5 +1,24 @@
 # Current work
 
+**ACTIVITY SUBAGENT SUMMARY POLISH 2026-09-07** — shortened “Skills invoked” to
+“Skills”. Replaced visible Working/Done labels with an accent spinner and green
+completion check. Subagent rows now open from the full row with the same mounted
+height/fade motion as other activity disclosures and no redundant chevron. The
+expanded panel renders only the canonical final message through the shared
+Markdown renderer; internal phase names, child tool labels, and repeated trace
+notes remain in Working trace instead. Verified 36 focused activity tests,
+Portal TypeScript, scoped ESLint, registry generation, formatting, live shell
+stability, and `git diff --check`.
+
+**LIBRARY AND SETTINGS TYPE HIERARCHY 2026-09-07** — introduced one shared
+full-frame modal scale for 15px modal/page titles, 13px navigation, 12px page
+descriptions, and 13px section headings. Raised Library search, catalog names,
+descriptions, actions, inspector copy, and Settings' primary row labels/supporting
+copy by one restrained step while leaving dense counts and kind badges compact.
+Verified the populated Library in the live Portal with no console errors, 15
+focused modal tests, Portal TypeScript, scoped ESLint, formatting, and
+`git diff --check`.
+
 **ACTIVITY GROUP COLLAPSE POLISH 2026-09-07** — replaced the native snapping
 Skills/Subagents disclosure with the same mounted height-and-opacity transition
 used by the working trace. The separator remains, but now travels smoothly as

@@ -62,6 +62,15 @@ describe("SettingsModal directory shell", () => {
       "aria-pressed",
       "true",
     );
+    expect(screen.getByRole("heading", { name: "Settings" })).toHaveClass(
+      "text-[15px]",
+    );
+    expect(screen.getByRole("button", { name: "General" })).toHaveClass(
+      "text-[13px]",
+    );
+    expect(screen.getByRole("heading", { name: "General" })).toHaveClass(
+      "text-[15px]",
+    );
     expect(
       screen.getByText("Appearance, defaults, and account overview"),
     ).toBeTruthy();

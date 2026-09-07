@@ -57,6 +57,7 @@ import {
 } from "./packages-catalog";
 import { setInstalledApps } from "./packages-api";
 import { usePackageCatalog } from "./use-package-catalog";
+import { directoryModalType } from "./directory-modal-type";
 
 interface PackagesModalProps {
   onClose: () => void;
@@ -193,7 +194,7 @@ function SearchField({
         onChange={(event) => onQueryChange(event.target.value)}
         aria-label="Search library"
         placeholder="Search apps and skills"
-        className="placeholder:text-aomi-muted min-w-0 flex-1 bg-transparent text-[13px] outline-none"
+        className="placeholder:text-aomi-muted min-w-0 flex-1 bg-transparent text-[14px] outline-none"
       />
       {query ? (
         <button
@@ -231,16 +232,16 @@ function SidebarButton({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-[12px] transition-colors ${
+      className={`flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 transition-colors ${directoryModalType.navigation} ${
         active
           ? "bg-aomi-surface-2 font-medium"
           : "text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg"
       }`}
     >
-      <Icon className="size-3.5" />
+      <Icon className="size-4" />
       <span className="min-w-0 flex-1 truncate text-left">{label}</span>
       {count !== undefined ? (
-        <span className="font-mono text-[9px]">{count}</span>
+        <span className="font-mono text-[10px]">{count}</span>
       ) : null}
     </button>
   );
@@ -272,7 +273,7 @@ function AppAction({
   const available = isPackageAvailableOnChain(app, activeChainId);
   if (installed) {
     return (
-      <span className="text-aomi-muted flex h-8 w-[62px] shrink-0 items-center justify-center gap-1.5 text-[11px] font-medium">
+      <span className="text-aomi-muted flex h-8 w-[62px] shrink-0 items-center justify-center gap-1.5 text-[12px] font-medium">
         <Check className="size-3.5" /> Added
       </span>
     );
@@ -285,7 +286,7 @@ function AppAction({
       aria-label={
         available ? `Add ${app.name}` : `Switch network to add ${app.name}`
       }
-      className="border-aomi-border hover:bg-aomi-hover flex h-8 w-[62px] shrink-0 items-center justify-center gap-1.5 rounded-lg border text-[11px] font-medium transition-colors disabled:opacity-40"
+      className="border-aomi-border hover:bg-aomi-hover flex h-8 w-[62px] shrink-0 items-center justify-center gap-1.5 rounded-lg border text-[12px] font-medium transition-colors disabled:opacity-40"
     >
       {busy ? (
         <Loader2 className="size-3.5 animate-spin" />
@@ -339,17 +340,17 @@ function CatalogRow({
         )}
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
-            <span className="truncate text-[13px] font-semibold">
+            <span className="truncate text-[14px] font-semibold">
               {selectionName(selection)}
             </span>
             <KindLabel kind={selection.kind} />
             {arcOnly ? (
-              <span className="text-aomi-muted shrink-0 text-[9px]">
+              <span className="text-aomi-muted shrink-0 text-[10px]">
                 Arc only
               </span>
             ) : null}
           </span>
-          <span className="text-aomi-muted mt-0.5 block truncate text-[11px]">
+          <span className="text-aomi-muted mt-0.5 block truncate text-[12px]">
             {selectionDescription(selection)}
           </span>
         </span>
@@ -369,7 +370,7 @@ function CatalogRow({
           type="button"
           onClick={onTry}
           aria-label={`Try ${selectionName(selection)}`}
-          className="border-aomi-border hover:bg-aomi-hover flex h-8 w-[62px] shrink-0 items-center justify-center gap-1.5 rounded-lg border text-[11px] font-medium transition-colors"
+          className="border-aomi-border hover:bg-aomi-hover flex h-8 w-[62px] shrink-0 items-center justify-center gap-1.5 rounded-lg border text-[12px] font-medium transition-colors"
         >
           <MessageCircle className="size-3.5" /> Try
         </button>
@@ -611,7 +612,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
               <Library className="text-aomi-accent size-4" />
               <h1
                 id="library-title"
-                className="flex-1 text-[14px] font-semibold"
+                className={`flex-1 ${directoryModalType.modalTitle}`}
               >
                 Library
               </h1>
@@ -642,7 +643,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
               ))}
             </nav>
             <div className="border-aomi-border mt-5 border-t pt-4">
-              <span className="text-aomi-muted px-2.5 text-[9px] font-semibold uppercase tracking-[0.12em]">
+              <span className="text-aomi-muted px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em]">
                 Categories
               </span>
               <nav className="mt-2 space-y-0.5" aria-label="Library categories">
@@ -675,8 +676,8 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
               </p>
             ) : null}
             <div className="mt-4 flex items-center justify-between px-1">
-              <h2 className="text-[12px] font-semibold">{listTitle}</h2>
-              <span className="text-aomi-muted font-mono text-[9px]">
+              <h2 className={directoryModalType.sectionTitle}>{listTitle}</h2>
+              <span className="text-aomi-muted font-mono text-[10px]">
                 {visible.length}
               </span>
             </div>

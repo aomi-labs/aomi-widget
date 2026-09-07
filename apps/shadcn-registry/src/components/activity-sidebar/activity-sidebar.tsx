@@ -16,15 +16,25 @@ import {
 } from "react";
 import {
   Bot,
+  Check,
   ChevronDown,
   Circle,
+  CircleAlert,
   FileSignature,
   Layers3,
+  LoaderCircle,
   Puzzle,
 } from "lucide-react";
-import { cn, getChainInfo, useAomiRuntime } from "@aomi-labs/react";
+import {
+  cn,
+  getChainInfo,
+  useAomiRuntime,
+  type TaskRunState,
+} from "@aomi-labs/react";
+import { TextMessagePartProvider } from "@assistant-ui/react";
 import { getChainIcon } from "../icons/chain-map";
 import { getSkillIcon } from "../icons/skills";
+import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { selectActivity, type ActivityTransaction } from "./model";
 import { friendlyTransactionLabel, transactionSemantic } from "./presentation";
 import { WalletReview } from "./wallet-review";
@@ -168,56 +178,16 @@ function ActivitySidebarContent() {
                 {activity.agents.length > 0 && (
                   <Group title="Subagents" count={activity.agents.length}>
                     {activity.agents.map((agent, index) => (
-                      <details key={agent.agentId} className="group py-2">
-                        <summary className="flex cursor-pointer list-none items-center gap-2.5 [&::-webkit-details-marker]:hidden">
-                          <Bot
-                            className={cn(
-                              "size-4 shrink-0",
-                              index % 2 ? "text-pink-500" : "text-aomi-accent",
-                            )}
-                          />
-                          <span
-                            className="min-w-0 flex-1 truncate text-[13px]"
-                            title={agent.label || agent.app}
-                          >
-                            {agent.label || agent.app || "Subagent"}
-                          </span>
-                          <span
-                            className={cn(
-                              "text-[11px]",
-                              agent.status === "completed"
-                                ? "text-aomi-success"
-                                : agent.status === "failed"
-                                  ? "text-aomi-danger"
-                                  : "text-aomi-muted",
-                            )}
-                          >
-                            {agent.status === "completed"
-                              ? "Done"
-                              : agent.status === "running"
-                                ? "Working"
-                                : agent.status}
-                          </span>
-                        </summary>
-                        <div className="text-aomi-muted mt-2 space-y-2 pl-[26px] text-[12px]">
-                          {agent.phase && <p>{agent.phase}</p>}
-                          {agent.message && (
-                            <p className="break-words">{agent.message}</p>
-                          )}
-                          {agent.steps.map((step) => (
-                            <p key={step.childSeq} className="break-words">
-                              {step.kind === "note"
-                                ? step.text
-                                : step.toolName.replaceAll("_", " ")}
-                            </p>
-                          ))}
-                        </div>
-                      </details>
+                      <SubagentRow
+                        key={agent.agentId}
+                        agent={agent}
+                        index={index}
+                      />
                     ))}
                   </Group>
                 )}
                 {activity.skills.length > 0 && (
-                  <Group title="Skills invoked" count={activity.skills.length}>
+                  <Group title="Skills" count={activity.skills.length}>
                     <InvokedSkills ids={activity.skills} />
                   </Group>
                 )}
@@ -300,6 +270,106 @@ function ActivitySidebarContent() {
         )}
       </AnimatePresence>
     </>
+  );
+}
+
+function SubagentRow({ agent, index }: { agent: TaskRunState; index: number }) {
+  const [open, setOpen] = useState(false);
+  const hasMessage = Boolean(agent.message?.trim());
+  const label = agent.label || agent.app || "Subagent";
+  const status =
+    agent.status === "completed"
+      ? "Completed"
+      : agent.status === "running"
+        ? "Working"
+        : agent.status === "failed"
+          ? "Failed"
+          : agent.status === "cancelled"
+            ? "Cancelled"
+            : "Stalled";
+
+  return (
+    <section className="py-2" aria-label={label}>
+      <button
+        type="button"
+        aria-expanded={hasMessage ? open : undefined}
+        aria-controls={hasMessage ? `subagent-${agent.agentId}` : undefined}
+        onClick={() => hasMessage && setOpen((current) => !current)}
+        className={cn(
+          "flex w-full items-center gap-2.5 text-left",
+          hasMessage ? "cursor-pointer" : "cursor-default",
+        )}
+      >
+        <Bot
+          aria-hidden="true"
+          className={cn(
+            "size-4 shrink-0",
+            index % 2 ? "text-pink-500" : "text-aomi-accent",
+          )}
+        />
+        <span className="min-w-0 flex-1 truncate text-[13px]" title={label}>
+          {label}
+        </span>
+        <SubagentStatus status={agent.status} label={status} />
+      </button>
+      {hasMessage && (
+        <div
+          id={`subagent-${agent.agentId}`}
+          aria-hidden={!open}
+          inert={!open}
+          data-subagent-content={agent.agentId}
+          className={cn(
+            "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+            open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+          )}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div className="text-aomi-muted overflow-hidden break-words pl-[26px] pt-2 text-[12px] leading-5 [&_.aui-md>*:first-child]:mt-0 [&_.aui-md>*:last-child]:mb-0 [&_.aui-md]:text-[12px] [&_.aui-md]:leading-5">
+              <TextMessagePartProvider text={agent.message!} isRunning={false}>
+                <MarkdownText />
+              </TextMessagePartProvider>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SubagentStatus({
+  status,
+  label,
+}: {
+  status: TaskRunState["status"];
+  label: string;
+}) {
+  return (
+    <span
+      role="status"
+      aria-label={label}
+      title={label}
+      className={cn(
+        "grid size-5 shrink-0 place-items-center",
+        status === "completed"
+          ? "text-aomi-success"
+          : status === "failed"
+            ? "text-aomi-danger"
+            : status === "running"
+              ? "text-aomi-accent"
+              : "text-aomi-muted",
+      )}
+    >
+      {status === "completed" ? (
+        <Check aria-hidden="true" className="size-4" strokeWidth={2.2} />
+      ) : status === "running" ? (
+        <LoaderCircle
+          aria-hidden="true"
+          className="size-4 animate-spin motion-reduce:animate-none"
+        />
+      ) : (
+        <CircleAlert aria-hidden="true" className="size-4" />
+      )}
+    </span>
   );
 }
 

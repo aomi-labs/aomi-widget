@@ -357,11 +357,16 @@ export const registry: RegistryComponent[] = [
     dependencies: [
       "@aomi-labs/client",
       "@aomi-labs/react",
+      "@assistant-ui/react",
       "lucide-react",
       "viem",
       "motion",
     ],
-    registryDependencies: [aomi("aomi-wallet-kit"), "button"],
+    registryDependencies: [
+      aomi("aomi-wallet-kit"),
+      assistantUI("markdown-text"),
+      "button",
+    ],
     description:
       "Activity rail and wallet impact review for durable attended Actions.",
   },

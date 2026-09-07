@@ -13,6 +13,7 @@ import { ModalBackdrop } from "@/components/ui/modal-backdrop";
 import { GeneralSettings } from "@portal/features/general";
 import { AccountSettings } from "@portal/features/account";
 import { UsageSettings } from "@portal/features/usage";
+import { directoryModalType } from "@portal/components/shell/directory-modal-type";
 import {
   useAomiSession,
   type AomiSessionStatus,
@@ -226,7 +227,7 @@ export function SettingsModal({
               <Settings2 className="text-aomi-accent size-4" />
               <h1
                 id="settings-title"
-                className="flex-1 text-[14px] font-semibold"
+                className={`flex-1 ${directoryModalType.modalTitle}`}
               >
                 Settings
               </h1>
@@ -240,13 +241,13 @@ export function SettingsModal({
                     type="button"
                     onClick={() => setTab(id)}
                     aria-pressed={active}
-                    className={`flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 text-[12px] transition-colors ${
+                    className={`flex h-9 w-full items-center gap-2.5 rounded-lg px-2.5 transition-colors ${directoryModalType.navigation} ${
                       active
                         ? "bg-aomi-surface-2 font-medium"
                         : "text-aomi-muted hover:bg-aomi-hover hover:text-aomi-fg"
                     }`}
                   >
-                    <Icon className="size-3.5" />
+                    <Icon className="size-4" />
                     <span className="min-w-0 flex-1 truncate text-left">
                       {label}
                     </span>
@@ -259,8 +260,12 @@ export function SettingsModal({
           <section className="flex min-h-0 min-w-0 flex-col">
             <header className="border-aomi-border flex min-h-[74px] items-center border-b px-6 py-4">
               <div className="min-w-0">
-                <h2 className="text-[14px] font-semibold">{activeNav.label}</h2>
-                <p className="text-aomi-muted mt-1 text-[11px] leading-snug">
+                <h2 className={directoryModalType.pageTitle}>
+                  {activeNav.label}
+                </h2>
+                <p
+                  className={`text-aomi-muted mt-1 ${directoryModalType.pageDescription}`}
+                >
                   {activeNav.description}
                 </p>
               </div>
