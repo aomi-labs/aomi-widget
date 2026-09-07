@@ -340,17 +340,14 @@ export class CliSession {
     target?: { app?: string; applicationId?: string },
   ): void {
     this.state.agentMode = mode;
-    if (mode === "auto") {
-      delete this.state.app;
-      delete this.state.applicationId;
-    } else {
+    delete this.state.app;
+    delete this.state.applicationId;
+    if (mode === "direct") {
       if (target?.app !== undefined) {
         this.state.app = target.app;
-        if (target.applicationId === undefined) delete this.state.applicationId;
       }
       if (target?.applicationId !== undefined) {
         this.state.applicationId = target.applicationId;
-        if (target.app === undefined) delete this.state.app;
       }
     }
     this.save();

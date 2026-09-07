@@ -67,6 +67,7 @@ describe("CLI REPL command routing", () => {
     const config = {
       baseUrl: "https://api.aomi.dev",
       app: "default",
+      applicationId: "42",
       secrets: {},
     };
 
@@ -76,6 +77,7 @@ describe("CLI REPL command routing", () => {
       printLocation: false,
     });
     expect(config.app).toBe("khalani");
+    expect(config.applicationId).toBeUndefined();
     expect(config.agentMode).toBe("direct");
   });
 
@@ -109,6 +111,11 @@ describe("CLI REPL command routing", () => {
     );
     expect(config.agentMode).toBe("direct");
     expect(config.app).toBe("zerox");
+
+    await handleReplLine(config, "/mode direct", false);
+    expect(config.agentMode).toBe("direct");
+    expect(config.app).toBeUndefined();
+    expect(config.applicationId).toBeUndefined();
   });
 
   it("routes /model list and /model <rig>", async () => {

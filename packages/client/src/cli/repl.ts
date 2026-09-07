@@ -125,6 +125,7 @@ export async function handleReplLine(
     setAppCommand(config, app, { printLocation: false });
     config.agentMode = "direct";
     config.app = app;
+    delete config.applicationId;
     return "continue";
   }
 
@@ -140,12 +141,10 @@ export async function handleReplLine(
     }
     setAgentModeCommand(config, rawMode, app, { printLocation: false });
     config.agentMode = rawMode;
-    if (rawMode === "auto") {
-      delete config.app;
-      delete config.applicationId;
-    } else if (app) {
+    delete config.app;
+    delete config.applicationId;
+    if (rawMode === "direct" && app) {
       config.app = app;
-      delete config.applicationId;
     }
     return "continue";
   }
