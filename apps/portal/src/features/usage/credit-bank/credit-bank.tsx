@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   AomiCreditApiError,
   type AomiCreditActivity,
@@ -87,7 +87,6 @@ export function CreditBank() {
   const [pendingTopUp, setPendingTopUp] = useState<PendingTopUp | null>(
     initialPendingTopUp,
   );
-  const loadAttempt = useRef(0);
 
   useEffect(() => {
     const next = readPendingTopUp(pendingStorageKey);
@@ -96,20 +95,16 @@ export function CreditBank() {
   }, [pendingStorageKey]);
 
   const load = useCallback(async () => {
-    const attempt = ++loadAttempt.current;
     setLoading(true);
     try {
-      const next = await account.credits.get({ limit: ACTIVITY_PAGE_SIZE });
-      if (attempt !== loadAttempt.current) return;
-      setPosition(next);
+      setPosition(await account.credits.get({ limit: ACTIVITY_PAGE_SIZE }));
       setError(null);
     } catch (cause) {
-      if (attempt !== loadAttempt.current) return;
       setError(
         cause instanceof Error ? cause.message : "Could not load Credit Bank",
       );
     } finally {
-      if (attempt === loadAttempt.current) setLoading(false);
+      setLoading(false);
     }
   }, [account.credits]);
 
@@ -154,10 +149,6 @@ export function CreditBank() {
       setPendingTopUp(pending);
     }
     setPaying(true);
-    // A balance refresh may still be in flight. Its late failure must not
-    // overwrite the result of this payment attempt or its recovery state.
-    ++loadAttempt.current;
-    setLoading(false);
     setError(null);
     setSuccess(null);
     try {

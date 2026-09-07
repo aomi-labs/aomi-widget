@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AomiCreditApiError } from "@aomi-labs/client";
 
@@ -238,36 +238,5 @@ describe("Credit Bank", () => {
       "idempotencyKey",
     );
     expect(screen.queryByText(/Confirm the top-up again/)).toBeNull();
-  });
-
-  it("does not let a late balance failure overwrite a successful top-up", async () => {
-    let rejectInitialLoad!: (cause: unknown) => void;
-    mocks.accountCredits.get.mockImplementationOnce(
-      () =>
-        new Promise((_, reject) => {
-          rejectInitialLoad = reject;
-        }),
-    );
-    mocks.accountCredits.topUp.mockResolvedValue({
-      ...position(),
-      bank: { balance_microusd: 10_000, outstanding_debt_microusd: 0 },
-    });
-
-    render(<CreditBank />);
-    fireEvent.click(screen.getByRole("button", { name: /Credit bank/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Add credits" }));
-    fireEvent.change(screen.getByLabelText("Top-up credits"), {
-      target: { value: "1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Pay 0.01 USDC" }));
-
-    expect(
-      await screen.findByText("1 credit added. Your bank now has 1 credit."),
-    ).toBeTruthy();
-    await act(async () => {
-      rejectInitialLoad(new AomiCreditApiError(502, "fetch account credits"));
-    });
-    expect(screen.queryByText(/Failed to fetch account credits/)).toBeNull();
-    expect(screen.getByText("1 credit")).toBeTruthy();
   });
 });
