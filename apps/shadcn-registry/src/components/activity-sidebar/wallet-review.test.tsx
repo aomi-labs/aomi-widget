@@ -6,12 +6,13 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Action } from "@aomi-labs/client";
+import type { Action, Event } from "@aomi-labs/client";
 
 const runtime = vi.hoisted(() => ({
   pendingActions: [] as Action[],
   actionAttempts: new Map(),
-  events: [] as Action[],
+  events: [] as Event[],
+  isRunning: false,
   turnState: undefined as string | undefined,
   executeAction: vi.fn(),
   rejectAction: vi.fn(),
@@ -23,7 +24,18 @@ vi.mock("@aomi-labs/react", async (importOriginal) => ({
   useAomiRuntime: () => runtime,
 }));
 
-vi.mock("../lib/wallet-kit", () => ({
+vi.mock("../../lib/capabilities/skill-catalog", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("../../lib/capabilities/skill-catalog")
+  >()),
+  useSkillCatalog: () => ({
+    skills: [{ id: "aave", name: "aave" }],
+    loading: false,
+    error: null,
+  }),
+}));
+
+vi.mock("../../lib/wallet-kit", () => ({
   useAomiWalletKit: () => ({
     supportedChains: [
       {
@@ -36,7 +48,8 @@ vi.mock("../lib/wallet-kit", () => ({
   }),
 }));
 
-import { RuntimeTxHandler } from "./runtime-tx-handler";
+import { ActivitySidebar } from "./activity-sidebar";
+import { WalletReview } from "./wallet-review";
 
 function action(request: Action["request"]): Action {
   return {
@@ -71,8 +84,9 @@ function simulation(): Extract<
   };
 }
 
-describe("RuntimeTxHandler", () => {
+describe("WalletReview", () => {
   beforeEach(() => {
+    runtime.isRunning = false;
     runtime.pendingActions = [];
     runtime.events = [];
     runtime.turnState = undefined;
@@ -104,14 +118,14 @@ describe("RuntimeTxHandler", () => {
     runtime.events = runtime.pendingActions;
     runtime.turnState = "awaiting_action";
 
-    render(<RuntimeTxHandler />);
+    render(<WalletReview />);
 
     expect(runtime.executeAction).not.toHaveBeenCalled();
     expect(screen.getByTestId("transaction-review")).toHaveTextContent(
       "To 0x222222…222222",
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send to wallet" }));
     await waitFor(() =>
       expect(runtime.executeAction).toHaveBeenCalledWith("action-1"),
     );
@@ -136,9 +150,9 @@ describe("RuntimeTxHandler", () => {
       }),
     ];
 
-    render(<RuntimeTxHandler />);
+    render(<WalletReview />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send to wallet" }));
 
     await waitFor(() =>
       expect(runtime.showNotification).toHaveBeenCalledWith(
@@ -162,10 +176,10 @@ describe("RuntimeTxHandler", () => {
       }),
     ];
 
-    render(<RuntimeTxHandler />);
+    render(<WalletReview />);
     expect(runtime.executeAction).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send to wallet" }));
 
     await waitFor(() =>
       expect(runtime.executeAction).toHaveBeenCalledWith("action-1"),
@@ -208,15 +222,9 @@ describe("RuntimeTxHandler", () => {
       }),
     ];
 
-    render(<RuntimeTxHandler />);
+    render(<WalletReview />);
 
-    expect(screen.getByTestId("action-simulation")).toHaveAttribute(
-      "data-status",
-      "passed",
-    );
-    expect(screen.getByTestId("action-simulation")).toHaveTextContent(
-      "Simulation passed",
-    );
+    expect(screen.queryByTestId("action-simulation")).not.toBeInTheDocument();
     expect(screen.getByTestId("transaction-review")).toHaveTextContent(
       "Estimated gas · 21,000 units",
     );
@@ -277,10 +285,10 @@ describe("RuntimeTxHandler", () => {
       }),
     ];
 
-    render(<RuntimeTxHandler />);
+    render(<WalletReview />);
 
-    expect(screen.getByText("−0.1 aBasUSDC")).toBeInTheDocument();
-    expect(screen.getByText("+0.1 USDC")).toBeInTheDocument();
+    expect(screen.getByLabelText("−0.1 aBasUSDC")).toBeInTheDocument();
+    expect(screen.getByLabelText("+0.1 USDC")).toBeInTheDocument();
     const effects = screen.getAllByTestId("asset-effect");
     expect(effects[0]).toHaveTextContent("Aave Base USDC");
     expect(effects[1]).toHaveTextContent("USD Coin");
@@ -291,7 +299,7 @@ describe("RuntimeTxHandler", () => {
     ).toBe(true);
   });
 
-  it("keeps two transactions visible and pages additional work", () => {
+  it("shows the full batch with readable expandable transaction details", () => {
     runtime.pendingActions = [
       action({
         type: "execute_evm",
@@ -327,23 +335,16 @@ describe("RuntimeTxHandler", () => {
       }),
     ];
 
-    render(<RuntimeTxHandler />);
+    render(<WalletReview />);
 
-    expect(screen.getByText("Approve USDC")).toBeInTheDocument();
-    expect(screen.getByText("Swap USDC to ETH")).toBeInTheDocument();
-    expect(screen.getByText("1–2 of 3")).toBeInTheDocument();
-    expect(screen.getByTestId("transaction-connector")).toBeInTheDocument();
-    const firstPage = screen.getAllByTestId("transaction-step");
-    expect(firstPage).toHaveLength(2);
-    expect(firstPage[0]?.querySelector(".lucide-key-round")).toBeTruthy();
-    expect(firstPage[1]?.querySelector(".lucide-repeat-2")).toBeTruthy();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Next transaction page" }),
-    );
-    expect(screen.getByText("Send ETH")).toBeInTheDocument();
-    expect(screen.getByText("3 of 3")).toBeInTheDocument();
-    expect(screen.getAllByTestId("transaction-step")).toHaveLength(1);
+    expect(screen.getAllByText("Approve USDC")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Swap USDC to ETH")[0]).toBeInTheDocument();
+    const rows = screen.getAllByTestId("transaction-step");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.querySelector(".lucide-pencil-line")).toBeTruthy();
+    expect(rows[1]?.querySelector(".lucide-arrow-right-left")).toBeTruthy();
+    expect(rows[2]).toHaveTextContent("Send ETH");
+    expect(rows[2]).toHaveTextContent("3 of 3");
   });
 
   it("turns protocol-generated swap labels into readable review steps", () => {
@@ -376,13 +377,17 @@ describe("RuntimeTxHandler", () => {
       }),
     ];
 
-    render(<RuntimeTxHandler />);
+    render(<WalletReview />);
 
-    expect(screen.getByText("Approve 0.00758 USDC")).toBeInTheDocument();
+    expect(screen.getAllByText("Approve 0.00758 USDC")[0]).toBeInTheDocument();
     expect(screen.getAllByText(/LI\.FI/).length).toBeGreaterThan(0);
-    expect(screen.getByText("No wallet changes")).toBeInTheDocument();
-    expect(screen.queryByText(/lifi_q_abc123/)).not.toBeInTheDocument();
-    expect(screen.getByText("Swap 0.00758 USDC to ETH")).toBeInTheDocument();
+    expect(screen.getByText("Wallet changes unavailable")).toBeInTheDocument();
+    expect(
+      screen.getAllByTestId("transaction-step")[0].querySelector("summary"),
+    ).not.toHaveTextContent("lifi_q_abc123");
+    expect(
+      screen.getAllByText("Swap 0.00758 USDC to ETH")[0],
+    ).toBeInTheDocument();
   });
 
   it("shows exact, unlimited, and revoked token permissions explicitly", () => {
@@ -446,7 +451,7 @@ describe("RuntimeTxHandler", () => {
       }),
     ];
 
-    render(<RuntimeTxHandler />);
+    render(<WalletReview />);
 
     expect(screen.getByText("Allow 0.0075 USDC")).toBeInTheDocument();
     expect(screen.getByText("Unlimited WETH spending")).toBeInTheDocument();
@@ -514,7 +519,7 @@ describe("RuntimeTxHandler", () => {
       }),
     ];
 
-    render(<RuntimeTxHandler />);
+    render(<WalletReview />);
 
     expect(screen.getByText("NFT minted")).toBeInTheDocument();
     expect(screen.getByText("Aomi Founders #42")).toBeInTheDocument();
@@ -549,11 +554,9 @@ describe("RuntimeTxHandler", () => {
       }),
     ];
 
-    render(<RuntimeTxHandler />);
+    render(<WalletReview />);
 
-    expect(screen.getByTestId("action-simulation")).toHaveTextContent(
-      "Simulation passed",
-    );
+    expect(screen.queryByTestId("action-simulation")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Simulation did not pass"),
     ).not.toBeInTheDocument();
@@ -581,9 +584,362 @@ describe("RuntimeTxHandler", () => {
       }),
     ];
 
-    render(<RuntimeTxHandler />);
+    render(<WalletReview />);
 
-    expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Send to wallet" }),
+    ).toBeDisabled();
     expect(screen.getByText("No wallet changes simulated")).toBeInTheDocument();
+  });
+});
+
+describe("activity signing strip", () => {
+  it("keeps Signed neutral until signing and puts rejection in the strip", () => {
+    const current = action({
+      type: "execute_evm",
+      transactions: [
+        {
+          chain_id: 8453,
+          from: "0x123",
+          to: "0x456",
+          data: "0x",
+          label: "Transfer",
+          kind: "transfer",
+        },
+      ],
+      simulation: simulation(),
+    });
+    runtime.pendingActions = [current];
+    runtime.events = [current];
+    const { rerender } = render(<ActivitySidebar />);
+    expect(screen.getByTitle("Not yet signed").firstElementChild).toHaveClass(
+      "bg-aomi-border",
+    );
+    runtime.pendingActions = [];
+    runtime.events = [
+      {
+        ...current,
+        state: "rejected",
+        revision: 2,
+        result: { status: "rejected", reason: "Request rejected" },
+      },
+    ];
+    rerender(<ActivitySidebar />);
+    expect(screen.getByTitle("Signing rejected").firstElementChild).toHaveClass(
+      "bg-aomi-danger",
+    );
+    expect(screen.getByTestId("activity-transaction")).not.toHaveTextContent(
+      "rejected",
+    );
+    expect(screen.queryByTestId("transaction-review")).not.toBeInTheDocument();
+  });
+  it("colors Signed blue when the wallet returns a submitted leg", () => {
+    const current = action({
+      type: "execute_evm",
+      transactions: [
+        {
+          chain_id: 8453,
+          from: "0x123",
+          to: "0x456",
+          data: "0x",
+          label: "Transfer",
+          kind: "transfer",
+        },
+      ],
+      simulation: simulation(),
+    });
+    runtime.pendingActions = [];
+    runtime.events = [
+      {
+        ...current,
+        state: "completed",
+        result: {
+          status: "submitted",
+          legs: [{ id: "leg_1", status: "submitted", transactionId: "0xhash" }],
+        },
+      },
+    ];
+    render(<ActivitySidebar />);
+    expect(screen.getByTitle("Signed").firstElementChild).toHaveClass(
+      "bg-aomi-accent",
+    );
+    expect(screen.getByTestId("activity-transaction")).not.toHaveTextContent(
+      "submitted",
+    );
+  });
+});
+
+describe("active transaction presentation", () => {
+  it("moves animation to signing, then stops for completed work", () => {
+    const current = action({
+      type: "execute_evm",
+      transactions: [
+        {
+          chain_id: 8453,
+          from: "0x123",
+          to: "0x456",
+          data: "0x",
+          label: "Transfer",
+          kind: "transfer",
+        },
+      ],
+      simulation: simulation(),
+    });
+    runtime.events = [current];
+    runtime.pendingActions = [current];
+    const { rerender } = render(<ActivitySidebar />);
+    expect(screen.getByTitle("Commit").firstElementChild).toHaveAttribute(
+      "data-active-phase",
+      "true",
+    );
+    expect(
+      screen
+        .getByTestId("activity-transaction")
+        .querySelector("details, summary, pre"),
+    ).toBeNull();
+    runtime.actionAttempts.set(current.id, { state: "executing" });
+    rerender(<ActivitySidebar />);
+    expect(
+      screen.getByTitle("Not yet signed").firstElementChild,
+    ).toHaveAttribute("data-active-phase", "true");
+    runtime.actionAttempts.clear();
+    runtime.pendingActions = [];
+    runtime.events = [
+      {
+        ...current,
+        state: "completed",
+        result: {
+          status: "submitted",
+          legs: [{ id: "leg_1", status: "submitted", transactionId: "0xhash" }],
+        },
+      },
+    ];
+    rerender(<ActivitySidebar />);
+    expect(
+      screen
+        .getByTestId("activity-transaction")
+        .querySelector("[data-active-phase]"),
+    ).toBeNull();
+  });
+  it("does not animate an older unresolved request when a new turn is working", () => {
+    const current = action({
+      type: "execute_evm",
+      transactions: [
+        {
+          chain_id: 8453,
+          from: "0x123",
+          to: "0x456",
+          data: "0x",
+          label: "Transfer",
+          kind: "transfer",
+        },
+      ],
+      simulation: simulation(),
+    });
+    runtime.pendingActions = [current];
+    runtime.isRunning = true;
+    runtime.events = [
+      current,
+      {
+        type: "message",
+        event_id: "new",
+        sequence: 2,
+        turn_id: "new-turn",
+        occurred_at: 2,
+        sender: "user",
+        content: "New request",
+      },
+    ];
+    render(<ActivitySidebar />);
+    expect(
+      screen
+        .getByTestId("activity-transaction")
+        .querySelector("[data-active-phase]"),
+    ).toBeNull();
+  });
+  it("uses Library skill display labels", () => {
+    runtime.pendingActions = [];
+    runtime.events = [
+      {
+        type: "message",
+        event_id: "skill",
+        sequence: 1,
+        turn_id: "turn-1",
+        occurred_at: 1,
+        sender: "agent",
+        content: "",
+        tool_result: [
+          "activate_skill",
+          JSON.stringify({ activated: ["aave"] }),
+        ],
+      },
+    ];
+    render(<ActivitySidebar />);
+    expect(screen.getByText("Aave")).toBeInTheDocument();
+    expect(screen.queryByText("aave")).not.toBeInTheDocument();
+  });
+});
+
+describe("unified live transaction review", () => {
+  beforeEach(() => {
+    runtime.events = [];
+    runtime.pendingActions = [];
+    runtime.actionAttempts.clear();
+    runtime.isRunning = false;
+    runtime.executeAction.mockReset().mockResolvedValue(undefined);
+    runtime.rejectAction.mockReset().mockResolvedValue(undefined);
+  });
+  afterEach(cleanup);
+  function transfer(id: string) {
+    return {
+      ...action({
+        type: "execute_evm",
+        transactions: [
+          {
+            chain_id: 8453,
+            from: "0x123",
+            to: "0x456",
+            data: "0x",
+            label: `Send ${id}`,
+            kind: "transfer",
+          },
+        ],
+        simulation: simulation(),
+      }),
+      id,
+    };
+  }
+  it("reviews only the head request once and advances to the next request", async () => {
+    const first = transfer("first"),
+      second = transfer("second");
+    runtime.pendingActions = [first, second];
+    runtime.events = [first, second];
+    const { rerender } = render(<ActivitySidebar />);
+    expect(screen.getAllByText("Send first")).toHaveLength(1);
+    expect(screen.queryByTestId("transaction-step")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Transactions/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Wallet request: 1 transaction/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Send to wallet" }));
+    await waitFor(() =>
+      expect(runtime.executeAction).toHaveBeenCalledWith("first"),
+    );
+    runtime.pendingActions = [second];
+    runtime.events = [
+      {
+        ...first,
+        state: "rejected",
+        result: { status: "rejected", reason: "No" },
+      },
+      second,
+    ];
+    rerender(<ActivitySidebar />);
+    expect(screen.getByTestId("transaction-review")).toHaveAttribute(
+      "data-action-id",
+      "second",
+    );
+    expect(screen.getAllByTestId("activity-transaction")).toHaveLength(2);
+  });
+  it("keeps a failed durable request rejectable without offering signing", async () => {
+    const failed = transfer("failed");
+    if (failed.request.type !== "execute_evm") throw new Error("fixture");
+    failed.request.simulation.status = "failed";
+    runtime.pendingActions = [failed];
+    runtime.events = [failed];
+    render(<ActivitySidebar />);
+    expect(
+      screen.queryByRole("button", { name: "Send to wallet" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^Transactions/ }),
+    ).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Reject request" }));
+    await waitFor(() =>
+      expect(runtime.rejectAction).toHaveBeenCalledWith(
+        "failed",
+        "Request rejected",
+      ),
+    );
+  });
+  it("retains completed transactions across newer turns in the unified list", () => {
+    const past = { ...transfer("past"), state: "completed" as const };
+    runtime.events = [
+      past,
+      {
+        type: "message",
+        event_id: "new-message",
+        turn_id: "new-turn",
+        sequence: 3,
+        occurred_at: 3,
+        role: "user",
+        content: "Hello",
+      } as Event,
+    ];
+    render(<ActivitySidebar />);
+    expect(screen.queryByText("Past transactions")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Transactions 1" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Send past")).toBeInTheDocument();
+    expect(screen.queryByTestId("transaction-review")).not.toBeInTheDocument();
+  });
+  it("orders mixed transaction history newest first without duplicates", () => {
+    const older = {
+      ...transfer("older"),
+      sequence: 1,
+      state: "completed" as const,
+    };
+    const newest = { ...transfer("newest"), sequence: 9 };
+    const middle = {
+      ...transfer("middle"),
+      sequence: 5,
+      state: "rejected" as const,
+    };
+    runtime.events = [middle, newest, older];
+    runtime.pendingActions = [newest];
+    render(<ActivitySidebar />);
+    const rows = screen.getAllByTestId("activity-transaction");
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toHaveTextContent("Send newest");
+    expect(rows[1]).toHaveTextContent("Send middle");
+    expect(rows[2]).toHaveTextContent("Send older");
+    expect(screen.queryByText("Past transactions")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Transactions, newest first" }),
+    ).toHaveStyle({ height: "272px" });
+  });
+  it("expands the shared list and distinguishes pending from finalized without Review labels", () => {
+    const items = Array.from({ length: 5 }, (_, i) => ({
+      ...transfer(`item-${i}`),
+      sequence: i + 1,
+      state: i === 4 ? ("pending" as const) : ("completed" as const),
+    }));
+    runtime.events = items;
+    runtime.pendingActions = [items[4]];
+    render(<ActivitySidebar />);
+    expect(
+      screen.queryByText("Review", { exact: true }),
+    ).not.toBeInTheDocument();
+    const rows = screen.getAllByTestId("activity-transaction");
+    expect(rows[0]).toHaveClass("border-dashed");
+    expect(rows[1]).not.toHaveClass("border-dashed");
+    const expand = screen.getByRole("button", {
+      name: "Show all 5 transactions",
+    });
+    expect(expand).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(expand);
+    const less = screen.getByRole("button", {
+      name: "Show fewer transactions",
+    });
+    expect(less).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getAllByTestId("activity-transaction")).toHaveLength(5);
+    fireEvent.click(less);
+    expect(
+      screen.getByRole("button", { name: "Show all 5 transactions" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(runtime.executeAction).not.toHaveBeenCalled();
   });
 });

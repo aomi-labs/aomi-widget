@@ -34,7 +34,7 @@ import {
 
 import type { FC } from "react";
 import { useEffect } from "react";
-import { LazyMotion, MotionConfig, domAnimation } from "motion/react";
+import { LazyMotion, MotionConfig, domMax } from "motion/react";
 import * as m from "motion/react-m";
 
 import { Button } from "@/components/ui/button";
@@ -52,7 +52,7 @@ import {
 } from "@aomi-labs/react";
 import { useComposerControl } from "@/components/aomi-frame";
 import { AomiMark } from "@/components/aomi-mark";
-import { RuntimeTxHandler } from "@/components/runtime-tx-handler";
+import { ActivitySidebar } from "@/components/activity-sidebar/activity-sidebar";
 import { ModelSelect } from "@/components/control-bar/model-select";
 import { ModeSelect } from "@/components/control-bar/mode-select";
 import { AppSelect } from "@/components/control-bar/app-select";
@@ -90,7 +90,7 @@ export const Thread: FC = () => {
       enabledAppIds={controlBarProps.enabledAppIds}
       routing={controlBarProps.routing}
     >
-      <LazyMotion features={domAnimation}>
+      <LazyMotion features={domMax}>
         <MotionConfig reducedMotion="user">
           <ThreadPrimitive.Root
             className="aui-root aui-thread-root @container bg-aomi-bg text-aomi-fg relative flex h-full flex-col"
@@ -99,34 +99,39 @@ export const Thread: FC = () => {
             }}
           >
             <PaymentRequiredGate />
-            <ThreadPrimitive.Viewport
-              autoScroll={!isReviewingAction}
-              className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 pt-2 md:px-6"
-            >
-              <ThreadPrimitive.If empty>
-                <ThreadWelcome />
-              </ThreadPrimitive.If>
+            <div className="@[1100px]:flex-row relative flex min-h-0 flex-1 flex-col overflow-hidden">
+              <div className="aui-chat-column @[1100px]:ml-auto @[1100px]:max-w-[var(--activity-chat-max-width,100%)] flex min-h-0 min-w-0 max-w-full flex-1 flex-col">
+                <ThreadPrimitive.Viewport
+                  autoScroll={!isReviewingAction}
+                  className="aui-thread-viewport relative flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-4 pt-2 md:px-6"
+                >
+                  <ThreadPrimitive.If empty>
+                    <ThreadWelcome />
+                  </ThreadPrimitive.If>
 
-              <ThreadLoadingSkeleton />
+                  <ThreadLoadingSkeleton />
 
-              <ThreadPrimitive.Messages
-                components={{
-                  UserMessage,
-                  EditComposer,
-                  AssistantMessage,
-                }}
-              />
+                  <ThreadPrimitive.Messages
+                    components={{
+                      UserMessage,
+                      EditComposer,
+                      AssistantMessage,
+                    }}
+                  />
 
-              <ThreadPrimitive.If empty={false}>
-                <div className="aui-thread-viewport-spacer min-h-36 grow" />
-              </ThreadPrimitive.If>
-            </ThreadPrimitive.Viewport>
+                  <ThreadPrimitive.If empty={false}>
+                    <div className="aui-thread-viewport-spacer min-h-36 grow" />
+                  </ThreadPrimitive.If>
+                </ThreadPrimitive.Viewport>
 
-            {/* The empty state carries its own hero composer (mock layout); the
+                {/* The empty state carries its own hero composer (mock layout); the
               docked composer appears once a conversation exists. */}
-            <ThreadPrimitive.If empty={false}>
-              <Composer />
-            </ThreadPrimitive.If>
+                <ThreadPrimitive.If empty={false}>
+                  <Composer />
+                </ThreadPrimitive.If>
+              </div>
+              {aomiRuntime && <ActivitySidebar />}
+            </div>
           </ThreadPrimitive.Root>
         </MotionConfig>
       </LazyMotion>
@@ -175,7 +180,7 @@ const ThreadWelcome: FC = () => {
         transition={{ delay: 0.05 }}
         className="w-full"
       >
-        <ComposerStack placeholder="Ask Aomi to swap, bridge, send, or deploy…" />
+        <ComposerBox placeholder="Ask Aomi to swap, bridge, send, or deploy…" />
       </m.div>
       <ThreadSuggestions />
     </div>
@@ -325,18 +330,11 @@ const ComposerBox: FC<{ placeholder: string }> = ({ placeholder }) => {
   );
 };
 
-const ComposerStack: FC<{ placeholder: string }> = ({ placeholder }) => (
-  <div className="flex w-full flex-col gap-2.5">
-    <RuntimeTxHandler />
-    <ComposerBox placeholder={placeholder} />
-  </div>
-);
-
 const Composer: FC = () => {
   return (
     <div className="aui-composer-wrapper bg-aomi-bg mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 overflow-visible px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-1 md:pb-6">
       <ThreadScrollToBottom />
-      <ComposerStack placeholder="Reply to Aomi…" />
+      <ComposerBox placeholder="Reply to Aomi…" />
     </div>
   );
 };

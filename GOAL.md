@@ -1,4 +1,63 @@
+# Current work
+
+**TRANSACTION LIST EXPANSION AND PENDING STYLE 2026-09-05** — added Show all / Show fewer below the scroll fades with animated height and a three-row default. Pending transactions use a fine dashed border; the active wallet request has a subtle blue edge. Removed visible Review labels, retaining the request count and accessible context. Finalized rows remain solid. Verified 36 focused tests, Portal TypeScript, scoped lint, and registry/widget builds.
+
+**THREAD ACTIVITY PERSISTENCE AND ORDER 2026-09-05** — skills and subagents now project all events in the thread. Transaction staging identity includes the turn; action matching is turn-scoped and ordering retains initial stage/action sequence rather than completion revisions. New top rows reset the scroll to the top with anchoring disabled. Transactions collapse via height/opacity without scaling the outer card. Added persistence, repeated-transfer and late-revision regressions.
+
+**UNIFIED TRANSACTION HISTORY 2026-09-05** — current, queued, and historical transactions now share one newest-first list with an accurate total count. Three cards fit in a 272px viewport; additional rows scroll with conditional top/bottom fades. Mixed lists distinguish current wallet-request rows with a subtle blue dashed border; execution still targets only the head durable action.
+
+**CHAT SPACING NUDGE 2026-09-05** — widened the animated desktop chat-column region from 864px to 960px, shifting the centered trace and composer up to 48px left while retaining the rail’s 24px right gutter and single synchronized transition. Narrow layouts are unchanged.
+
+**LIVE RAIL MOTION AND SPACING VERIFIED 2026-09-05** — final rail expands to 352px with a 24px right gutter; synchronized chat width limits the push and keeps trace/input aligned. Removed embedded review ancestor scrolling that could cause snap-back. Browser checks verified smooth intermediate position, unchanged left sidebar, stable approval reveal, restored closing geometry and narrow-panel access. 31 tests, Portal typecheck, scoped lint and registry/widget builds pass; preview root responds 200.
+
+**UNIFIED LIVE TRANSACTION REVIEW 2026-09-05** — integrated review into the activity card with a two-transaction scroll viewport, content-sized animated shell, canonical labels/chain chips, current/queued/history separation, and forced-open signing. Preserved durable action execution/rejection locks, warnings, token metadata, permission/NFT effects, simulation data and signing payload inspection. Failed committed requests remain rejectable. The rail now expands/contracts smoothly in the desktop flex layout, resizing the whole message/trace/composer column together without changing the left sidebar. Narrow screens retain a toggleable panel.
+
+**TRANSACTION MOCK CONTENT SIZING 2026-09-05** — activity shell now sizes to content with animated layout changes; current list shows at most two rows before scrolling. Signing forces Transactions open and removes its collapse control; idle sections start expanded with matching arrows. Review uses an inset surface without a hard footer divider. Verified Portal typecheck/lint and browser collapse-to-commit transitions, 172px viewport for four 82px rows, phone action fit, and no page errors.
+
+**UNIFIED REVIEW MOCK REVISED 2026-09-05** — one shared skills/subagents/transactions shell, chain chips on each transaction, no repeated batch title. Wallet effects and signing appear only after commit in an animated separated bottom review area; gas and wallet metadata sit above buttons. Transactions scroll independently. Failed simulation only colors progress, with no review or warning block. Verified TypeScript, scoped lint and 63 responsive combinations plus commit gating.
+
+**UNIFIED TRANSACTION REVIEW MOCKS 2026-09-05** — added `/dev/transaction-layouts`, linked from the previous final mock. Three interactive directions combine transaction lifecycle, wallet changes, history, and signing in one collapsible section. Seven scenarios cover single/batch transactions, past signed/rejected activity, long labels, simulation failure, two networks, and missing decoding. Laptop, short-window, and phone presets keep actions reachable. Mock-only; no production chat/backend changes. See `specs/transaction-layout-studies.md`.
+
+**TRANSACTION PHASE MOTION 2026-09-05** — restored the moving gradient for the last reached phase of current active transactions, moves to Signed during wallet execution, and stops for signed/rejected/failed or historical work. Removed transaction-card inspectors. Skill chips use the Library catalog and label formatter. Verified 28 focused tests, TypeScript, scoped lint, registry/package builds and real browser animation/reduced-motion checks.
+
+**BALANCE IMPACT POLISH 2026-09-05** — removed the two-row minimum height, aligned compact token/amount rows, and added read-only ERC-20 symbol/decimals lookup on the configured transaction chain when simulation metadata is missing. Unknown decimals no longer render raw units as a token amount. Verified live Base USDC metadata and mobile browser rendering as −0.01 USDC in a content-sized 114px panel.
+
+**CHAT ACTIVITY RAIL INTEGRATED 2026-09-05** — ported the selected sidebar and wallet-impact review into real chat. Replaced the composer review and removed its legacy component/preview fixtures. Organized event projection, review binding, effect rendering and formatting in `components/activity-sidebar`. Preserved runtime execution/rejection and failed-simulation guards. Added the compact Stage / Simulate / Commit / Signed strip with neutral/blue/red signing state; kept the working trace unchanged. Verified 35 focused tests, Portal TypeScript, scoped ESLint, registry/package builds, and isolated browser signing/rejection/mobile checks. See `specs/chat-activity-sidebar.md`.
+
 # Canonical Landing
+
+Current session goal: **TRANSACTION MOCK READABILITY POLISHED 2026-09-05** —
+removed card hover effects, matched ETH/ERC-20 simulation icons, clarified
+transaction rows with action icons and separate destination subtitles, and moved
+gas into icon-labelled metadata above the footer in `/dev/activity-final`.
+Unified action glyphs between trace/cards/review, colored outgoing amounts red,
+and replaced the grey footer band with rounded secondary/primary actions.
+The primary wallet action uses ink, matching message send; blue stays an accent.
+The grey balance panel now has the same subtle outline as Transactions.
+
+Current session goal: **GENERIC WALLET IMPACT MOCK REFINED 2026-09-05** —
+updated `/dev/activity-final` against the shipping transaction-review component:
+uniform compact transaction cards, bars without checkmarks, smaller generic
+Wallet impact review with optional decoded rows and per-transaction details,
+Reject on the left, and no feedback form or swap-specific allowance assumptions.
+Verified TypeScript, scoped lint, review modes and mobile geometry.
+
+Current session goal: **FINAL ACTIVITY APPROVAL MOCK REFINED 2026-09-05** —
+`/dev/activity-final` combines the selected open timeline and grouped card with
+compact transaction preparation strips, review only after commit, and accept,
+reject, and expandable rejection feedback. Mock wallet signing and network
+submission are separate states. Verified Portal TypeScript, scoped lint,
+interaction transitions, and mobile long-label/comment layout.
+
+Current session goal: **ACTIVITY AND TRANSACTION REVIEW MOCK GALLERY
+2026-09-05** — built the development-only `/dev/activity-lab` gallery in
+`portal-ui-local`: eight design directions, independently selectable trace,
+activity, and simulation treatments, eight realistic scenarios, mock lifecycle
+controls, partial-batch retry, light/dark themes, and responsive layouts.
+Uses existing Portal tokens, fonts, chain/skill icons, and the Aomi mark.
+No production chat or backend execution changes; all financial data and
+actions are illustrative. See `specs/activity-review-mocks.md` for scope and
+verification.
 
 Current session goal: **SUBAGENT BATCH + TRACE RECONCILIATION VERIFIED
 2026-09-04** — consume the backend's canonical tool call identity and task

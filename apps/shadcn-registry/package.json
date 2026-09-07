@@ -1,6 +1,6 @@
 {
   "name": "@aomi-labs/widget-lib",
-  "version": "2.0.34",
+  "version": "2.0.35",
   "description": "Shadcn registry for the Aomi widget.",
   "type": "module",
   "main": "./dist/index.js",
@@ -43,7 +43,7 @@
     "build:package": "tsup && node scripts/build-package-css.mjs",
     "clean:dist": "rm -rf dist",
     "prepublishOnly": "pnpm run build",
-    "test:runtime-action": "vitest run --config vitest.config.ts src/components/runtime-tx-handler.test.tsx"
+    "test:runtime-action": "vitest run --config vitest.config.ts src/components/activity-sidebar"
   },
   "dependencies": {
     "@aomi-labs/client": "workspace:*",

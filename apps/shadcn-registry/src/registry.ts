@@ -55,7 +55,7 @@ export const registry: RegistryComponent[] = [
       aomi("assistant-threadlist-sidebar"),
       aomi("aomi-wallet-kit"),
       aomi("control-bar"),
-      aomi("runtime-tx-handler"),
+      aomi("activity-sidebar"),
       // shadcn primitives
       "separator",
       "breadcrumb",
@@ -246,6 +246,7 @@ export const registry: RegistryComponent[] = [
     ],
     registryDependencies: [
       aomi("agent-routing"),
+      aomi("activity-sidebar"),
       aomi("control-bar"),
       // From assistant-ui (unchanged)
       assistantUI("markdown-text"),
@@ -330,16 +331,35 @@ export const registry: RegistryComponent[] = [
     description: "Shadcn wrapper for Sonner toasts.",
   },
   {
-    name: "runtime-tx-handler",
+    name: "activity-sidebar",
     file: [
-      "components/runtime-tx-handler.tsx",
+      "components/activity-sidebar/activity-sidebar.tsx",
+      "components/activity-sidebar/model.ts",
+      "lib/capabilities/skill-catalog.ts",
+      "components/assistant-ui/tool-registry.ts",
+      "components/assistant-ui/tool-interpreter/unwrap.ts",
+      "components/assistant-ui/tool-interpreter/normalize.ts",
+      "components/assistant-ui/tool-interpreter/types.ts",
+      "components/icons/skills/index.tsx",
+      "components/icons/apps/index.tsx",
+      "components/activity-sidebar/wallet-review.tsx",
+      "components/activity-sidebar/transaction-review.tsx",
+      "components/activity-sidebar/wallet-impact.tsx",
+      "components/activity-sidebar/token-metadata.ts",
+      "components/activity-sidebar/presentation.tsx",
       "components/icons/chain-map.tsx",
       "components/icons/chains/index.tsx",
     ],
-    dependencies: ["@aomi-labs/client", "@aomi-labs/react", "lucide-react"],
+    dependencies: [
+      "@aomi-labs/client",
+      "@aomi-labs/react",
+      "lucide-react",
+      "viem",
+      "motion",
+    ],
     registryDependencies: [aomi("aomi-wallet-kit"), "button"],
     description:
-      "Shows an inline simulation review for attended Actions and delegates execution to the runtime ActionHandler.",
+      "Activity rail and wallet impact review for durable attended Actions.",
   },
   {
     name: "aomi-para-provider",
