@@ -774,9 +774,22 @@ describe("active transaction presentation", () => {
         ],
       },
     ];
-    render(<ActivitySidebar />);
+    const { container } = render(<ActivitySidebar />);
     expect(screen.getByText("Aave")).toBeInTheDocument();
     expect(screen.queryByText("aave")).not.toBeInTheDocument();
+
+    const toggle = screen.getByRole("button", { name: "Skills invoked 1" });
+    const content = container.querySelector(
+      '[data-activity-group-content="Skills invoked"]',
+    );
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(content).toHaveClass("grid-rows-[1fr]", "opacity-100");
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(content).toHaveClass("grid-rows-[0fr]", "opacity-0");
+    expect(content).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("Aave")).toBeInTheDocument();
   });
 });
 

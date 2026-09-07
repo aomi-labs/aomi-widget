@@ -26,7 +26,8 @@ const op = (
 });
 
 const displaySkillLabel = (skillId: string): string | undefined => {
-  if (skillId === "lifi_swap") return "Lifi";
+  if (skillId === "lifi_swap") return "Lifi Swap";
+  if (skillId === "common_erc20") return "Common Erc20";
   return undefined;
 };
 

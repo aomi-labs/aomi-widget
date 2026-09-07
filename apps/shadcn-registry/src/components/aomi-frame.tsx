@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/sidebar";
 import { ControlBar, type ControlBarProps } from "@/components/control-bar";
 import type { WalletAccountMenuOptions } from "@/components/control-bar/account-menu-types";
+import { ActivityPanelProvider } from "@/components/activity-sidebar/activity-panel-context";
 import { safeEnv } from "../lib/wallet-kit/env";
 import { useActionCapabilities } from "../lib/wallet-kit";
 
@@ -165,32 +166,34 @@ const Root: FC<RootProps> = ({
       threadPersistenceScope={threadPersistenceScope}
       initialThreadId={initialThreadId}
     >
-      <SidebarProvider
-        defaultOpen={defaultSidebarOpen}
-        className="min-h-0! h-full"
-      >
-        <div
-          className={cn(
-            "rounded-4xl bg-aomi-bg flex h-full w-full overflow-hidden shadow-2xl",
-            className,
-          )}
-          style={frameStyle}
+      <ActivityPanelProvider>
+        <SidebarProvider
+          defaultOpen={defaultSidebarOpen}
+          className="min-h-0! h-full"
         >
-          {showSidebar && (
-            <ThreadListSidebar
-              walletPosition={walletPosition}
-              walletFamilies={walletFamilies}
-              walletConnectLabel={walletConnectLabel}
-              walletAccountMenu={walletAccountMenu}
-              products={products}
-              currentProductId={currentProductId}
-            />
-          )}
-          <SidebarInset className="relative flex min-h-0 flex-col">
-            {children}
-          </SidebarInset>
-        </div>
-      </SidebarProvider>
+          <div
+            className={cn(
+              "rounded-4xl bg-aomi-bg flex h-full w-full overflow-hidden shadow-2xl",
+              className,
+            )}
+            style={frameStyle}
+          >
+            {showSidebar && (
+              <ThreadListSidebar
+                walletPosition={walletPosition}
+                walletFamilies={walletFamilies}
+                walletConnectLabel={walletConnectLabel}
+                walletAccountMenu={walletAccountMenu}
+                products={products}
+                currentProductId={currentProductId}
+              />
+            )}
+            <SidebarInset className="@container relative flex min-h-0 flex-col">
+              {children}
+            </SidebarInset>
+          </div>
+        </SidebarProvider>
+      </ActivityPanelProvider>
     </AomiRuntimeProvider>
   );
 };

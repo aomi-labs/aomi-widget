@@ -63,6 +63,10 @@
         {
           "type": "registry:component",
           "path": "components/aomi-frame.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/activity-sidebar/activity-panel-context.tsx"
         }
       ],
       "dependencies": [
@@ -799,6 +803,10 @@
         {
           "type": "registry:component",
           "path": "components/activity-sidebar/activity-sidebar.tsx"
+        },
+        {
+          "type": "registry:component",
+          "path": "components/activity-sidebar/activity-panel-context.tsx"
         },
         {
           "type": "registry:component",

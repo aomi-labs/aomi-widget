@@ -8,6 +8,7 @@ import {
 import {
   useMemo,
   useEffect,
+  useLayoutEffect,
   useState,
   useRef,
   createElement,
@@ -20,8 +21,6 @@ import {
   FileSignature,
   Layers3,
   Puzzle,
-  X,
-  PanelRight,
 } from "lucide-react";
 import { cn, getChainInfo, useAomiRuntime } from "@aomi-labs/react";
 import { getChainIcon } from "../icons/chain-map";
@@ -29,6 +28,7 @@ import { getSkillIcon } from "../icons/skills";
 import { selectActivity, type ActivityTransaction } from "./model";
 import { friendlyTransactionLabel, transactionSemantic } from "./presentation";
 import { WalletReview } from "./wallet-review";
+import { useActivityPanel } from "./activity-panel-context";
 
 export function ActivitySidebar() {
   const { threadViewKey } = useAomiRuntime();
@@ -39,9 +39,14 @@ function ActivitySidebarContent() {
   const { events, pendingActions, actionAttempts, threadViewKey, isRunning } =
     useAomiRuntime();
   const reduceMotion = useReducedMotion();
+  const {
+    open: panelOpen,
+    setOpen: setPanelOpen,
+    setWorthShowing,
+  } = useActivityPanel();
   const [open, setOpen] = useState(true);
-  const [drawer, setDrawer] = useState(false);
-  const toggleRef = useRef<HTMLButtonElement>(null);
+  const [compact, setCompact] = useState(false);
+  const anchorRef = useRef<HTMLSpanElement>(null);
   const railRef = useRef<HTMLElement>(null);
   const layoutParent = useRef<HTMLElement | null>(null);
   useEffect(
@@ -50,10 +55,15 @@ function ActivitySidebarContent() {
     },
     [],
   );
-  const closeDrawer = () => {
-    setDrawer(false);
-    toggleRef.current?.focus();
-  };
+  useLayoutEffect(() => {
+    const parent = anchorRef.current?.parentElement;
+    if (!parent || typeof ResizeObserver === "undefined") return;
+    const update = () => setCompact(parent.clientWidth < 1100);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(parent);
+    return () => observer.disconnect();
+  }, []);
   const activity = useMemo(
     () => selectActivity(events, pendingActions),
     [events, pendingActions],
@@ -112,23 +122,16 @@ function ActivitySidebarContent() {
     activity.history.length ||
     pendingActions.length,
   );
+  useEffect(() => {
+    setWorthShowing(hasActivity, Boolean(pending));
+  }, [hasActivity, pending, setWorthShowing]);
+  useEffect(() => () => setWorthShowing(false, false), [setWorthShowing]);
+  const showRail = hasActivity && panelOpen;
   return (
     <>
-      {hasActivity && (
-        <button
-          ref={toggleRef}
-          type="button"
-          aria-expanded={drawer}
-          aria-label={pending ? "Review transactions" : "Open chat activity"}
-          onClick={() => setDrawer(!drawer)}
-          className="@[1100px]:hidden border-aomi-border bg-aomi-raised text-aomi-fg absolute right-4 top-2 z-20 flex items-center gap-2 rounded-full border px-3 py-2 text-[12px] shadow-sm"
-        >
-          <PanelRight className="size-3.5" />
-          {pending ? "Review transactions" : "Activity"}
-        </button>
-      )}
+      <span ref={anchorRef} className="hidden" aria-hidden="true" />
       <AnimatePresence>
-        {hasActivity && (
+        {showRail && (
           <m.aside
             ref={railRef}
             onUpdate={(latest) => {
@@ -151,22 +154,16 @@ function ActivitySidebarContent() {
             }}
             aria-label="Chat activity"
             onKeyDown={(event) => {
-              if (event.key === "Escape" && drawer) closeDrawer();
+              if (event.key === "Escape" && compact) {
+                setPanelOpen(false);
+              }
             }}
             className={cn(
-              "aui-activity-sidebar @[1100px]:relative @[1100px]:block @[1100px]:top-0 @[1100px]:max-h-full absolute right-0 top-12 z-30 max-h-[calc(100%-3rem)] max-w-full shrink-0 overflow-y-auto overflow-x-hidden",
-              drawer ? "block" : "hidden",
+              "aui-activity-sidebar max-h-full max-w-full shrink-0 overflow-y-auto overflow-x-hidden",
+              compact ? "absolute right-0 top-0 z-30" : "relative top-0 block",
             )}
           >
             <div className="w-[352px] max-w-[100cqw] py-4 pl-3 pr-6">
-              <button
-                type="button"
-                onClick={closeDrawer}
-                className="@[1100px]:hidden border-aomi-border bg-aomi-raised mb-2 ml-auto flex items-center gap-1 rounded-full border px-2 py-1 text-[12px]"
-              >
-                <X className="size-3.5" />
-                Close activity
-              </button>
               <div className="border-aomi-border bg-aomi-raised divide-aomi-border divide-y rounded-3xl border px-4">
                 {activity.agents.length > 0 && (
                   <Group title="Subagents" count={activity.agents.length}>
@@ -408,17 +405,41 @@ function Group({
   count: number;
   children: ReactNode;
 }) {
+  const [open, setOpen] = useState(true);
+
   return (
-    <details open className="group/activity py-4">
-      <summary className="mb-3 flex cursor-pointer list-none items-center gap-2 text-[13px] font-medium [&::-webkit-details-marker]:hidden">
+    <section className="py-4" aria-label={title}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className="flex w-full items-center gap-2 text-left text-[13px] font-medium"
+      >
         {title}
         <span className="text-aomi-muted font-normal tabular-nums">
           {count}
         </span>
-        <ChevronDown className="text-aomi-muted ml-auto size-3.5 transition-transform group-open/activity:rotate-180 motion-reduce:transition-none" />
-      </summary>
-      {children}
-    </details>
+        <ChevronDown
+          className={cn(
+            "text-aomi-muted ml-auto size-3.5 transition-transform duration-200 ease-out motion-reduce:transition-none",
+            open && "rotate-180",
+          )}
+        />
+      </button>
+      <div
+        aria-hidden={!open}
+        inert={!open}
+        data-activity-group-content={title}
+        className={cn(
+          "grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none",
+          open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="pt-3">{children}</div>
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -53,7 +53,7 @@ export const ToolChipView: FC<{
   return (
     <span
       className={cn(
-        "bg-aomi-surface-2 text-aomi-muted inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full px-2.5 py-1 font-mono text-xs tabular-nums leading-4",
+        "border-aomi-border/80 bg-aomi-raised text-aomi-muted inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[11px] tabular-nums leading-none",
         animate &&
           "animate-in fade-in-0 slide-in-from-bottom-1 fill-mode-both duration-300 motion-reduce:animate-none",
       )}
@@ -79,7 +79,7 @@ export const ToolChipView: FC<{
           />
         )
       )}
-      {Glyph && <Glyph className="text-aomi-muted size-3 shrink-0" />}
+      {Glyph && <Glyph className="text-aomi-fg/80 size-3.5 shrink-0" />}
       <span className="truncate">{chip.label}</span>
     </span>
   );
@@ -146,8 +146,8 @@ export const ToolStepRow: FC<{
         </span>
         <span
           className={cn(
-            "flex-1 truncate font-mono text-[13px]",
-            active ? "aui-working-shimmer font-medium" : "text-aomi-fg",
+            "flex-1 truncate text-[13px] font-medium",
+            active ? "aui-working-shimmer" : "text-aomi-fg",
           )}
         >
           {interpretation.title}
@@ -166,7 +166,7 @@ export const ToolStepRow: FC<{
       </button>
 
       {interpretation.chips.length > 0 && (
-        <div className="aui-working-step-chips mb-1 ml-[26px] mt-2 flex max-w-full flex-wrap items-center gap-1.5">
+        <div className="aui-working-step-chips mb-1 ml-[26px] mt-1.5 flex max-w-full flex-wrap items-center gap-1.5">
           {shownChips.map((chip, i) => (
             <ToolChipView
               key={`${chip.label}-${i}`}
@@ -178,7 +178,7 @@ export const ToolStepRow: FC<{
           {overflow > 0 && (
             <span
               className={cn(
-                "bg-aomi-surface-2 text-aomi-muted inline-flex items-center rounded-full px-2.5 py-1 font-mono text-xs leading-4",
+                "border-aomi-border/80 bg-aomi-raised text-aomi-muted inline-flex items-center rounded-full border px-2.5 py-1.5 text-[11px] leading-none",
                 animate &&
                   "animate-in fade-in-0 slide-in-from-bottom-1 fill-mode-both duration-300 motion-reduce:animate-none",
               )}
@@ -234,7 +234,7 @@ export const WorkingNote: FC<{
     </span>
     <div
       className={cn(
-        "min-w-0 flex-1 text-[13px] leading-relaxed [&_p+p]:mt-2 [&_p]:my-0",
+        "min-w-0 flex-1 text-[12px] leading-5 [&_p+p]:mt-2 [&_p]:my-0",
         active ? "aui-working-shimmer font-medium" : "text-aomi-muted",
       )}
     >

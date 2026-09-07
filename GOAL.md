@@ -1,5 +1,43 @@
 # Current work
 
+**ACTIVITY GROUP COLLAPSE POLISH 2026-09-07** — replaced the native snapping
+Skills/Subagents disclosure with the same mounted height-and-opacity transition
+used by the working trace. The separator remains, but now travels smoothly as
+content folds and no longer inherits a stranded content gap in the collapsed
+state. Verified 21 focused activity/sidebar tests, scoped ESLint, formatting,
+registry generation, and `git diff --check`.
+
+**HEADER AND CHAT RHYTHM POLISH 2026-09-07** — carried over the unified
+worktree's clean white outlined New chat action and compact icon-only sun/moon
+control, retaining Activity immediately to its right. Tightened the
+collapsed Thinking/Working trace from 36px to 32px so it vertically centers with
+the assistant's Aomi mark while preserving the established typography and pill
+shape. Verified all three treatments in the live Portal, 14 focused tests,
+Portal TypeScript, scoped ESLint, registry generation, formatting, and
+`git diff --check`.
+
+**GLOBAL ACTIVITY RAIL CONTROL 2026-09-07** — replaced the compact-only floating
+Activity and Close activity pills with one permanent header control immediately
+after the theme switch. The shared frame now owns whether activity is worth
+showing and whether its rail is open: new activity opens once, explicit hide/show
+choices persist while activity updates, and an empty thread leaves the control
+visible but disabled. The rail uses the same width-and-opacity curve for entrance
+and exit at every viewport size, overlaying only when space is tight. Verified
+the live header position and disabled state, 25 focused interaction/sidebar tests,
+Portal TypeScript, scoped ESLint, registry generation, formatting, and
+`git diff --check`.
+
+**WORKING TRACE VISUAL UNIFICATION 2026-09-07** — aligned Working trace
+typography and metadata with the current activity rail: human-readable step and
+subagent labels use the Portal sans-serif hierarchy, counters are quiet inline
+metadata, and chain, amount, status, and skill facts use one compact outlined
+capsule. Skill activation now resolves the canonical LI.FI, Common ERC-20, and
+other supported skill marks instead of a generic puzzle, while unknown skills
+retain the neutral fallback. Live Portal review measured 28px capsules with
+11px Geist labels and 14px identity marks. Twenty-two focused trace/subagent
+tests, two skill-identity interpreter tests, Portal TypeScript, scoped ESLint,
+registry generation, formatting, and `git diff --check` pass.
+
 **TRANSACTION LIST EXPANSION AND PENDING STYLE 2026-09-05** — added Show all / Show fewer below the scroll fades with animated height and a three-row default. Pending transactions use a fine dashed border; the active wallet request has a subtle blue edge. Removed visible Review labels, retaining the request count and accessible context. Finalized rows remain solid. Verified 36 focused tests, Portal TypeScript, scoped lint, and registry/widget builds.
 
 **THREAD ACTIVITY PERSISTENCE AND ORDER 2026-09-05** — skills and subagents now project all events in the thread. Transaction staging identity includes the turn; action matching is turn-scoped and ordering retains initial stage/action sequence rather than completion revisions. New top rows reset the scroll to the top with anchoring disabled. Transactions collapse via height/opacity without scaling the outer card. Added persistence, repeated-transfer and late-revision regressions.

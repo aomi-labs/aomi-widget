@@ -231,7 +231,7 @@ const WorkingStatusGlyph: FC = () => (
 
 const WORKING_STATUS_TEXT_CLASS = "text-[13px] font-medium leading-none";
 const WORKING_COLLAPSED_CHIP_CLASS =
-  "border-aomi-border bg-aomi-surface h-9 w-fit rounded-full pl-3 pr-4";
+  "border-aomi-border bg-aomi-surface h-8 w-fit rounded-full pl-3 pr-4";
 
 export const WorkingTrace: FC<{
   running: boolean;
@@ -457,7 +457,7 @@ export const WorkingTrace: FC<{
           {label}
         </span>
         {stepCount > 0 ? (
-          <span className="bg-aomi-surface-2/80 text-aomi-muted inline-flex h-5 items-center rounded-full px-2 font-mono text-[10px] tabular-nums leading-none">
+          <span className="text-aomi-muted inline-flex items-center text-[11px] font-normal tabular-nums leading-none">
             {stepCount} {stepCount === 1 ? "step" : "steps"}
           </span>
         ) : null}

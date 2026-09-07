@@ -41,7 +41,7 @@ describe("WorkingTrace", () => {
       "Thinking",
     );
     expect(container.querySelector(".aui-working-trace-start")).toHaveClass(
-      "h-9",
+      "h-8",
       "w-fit",
       "rounded-full",
       "pl-3",
@@ -50,7 +50,7 @@ describe("WorkingTrace", () => {
       "bg-aomi-surface",
     );
     expect(container.querySelector(".aui-working-trace-start")).not.toHaveClass(
-      "h-8",
+      "h-9",
       "px-3",
       "-mt-px",
     );
@@ -80,7 +80,7 @@ describe("WorkingTrace", () => {
     const thinking = getByRole("status", { name: "Aomi is thinking" });
     const worked = getByRole("button", { name: /Worked it out/ });
     for (const className of [
-      "h-9",
+      "h-8",
       "w-fit",
       "rounded-full",
       "pl-3",

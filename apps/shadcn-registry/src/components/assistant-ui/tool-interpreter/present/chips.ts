@@ -16,6 +16,7 @@ import {
 
 import { getChainIcon } from "@/components/icons/chain-map";
 import { SolanaIcon } from "@/components/icons/chains";
+import { getSkillIcon } from "@/components/icons/skills";
 import {
   SHAPE_ICONS,
   STAGED_ACTION_ICON_REGISTRY,
@@ -147,7 +148,10 @@ export const chipForFact = (fact: ToolFact): ToolChip | null => {
     case "selector":
       return { label: fact.label ?? fact.value };
     case "skill":
-      return { label: fact.label ?? humanize(fact.value), icon: PuzzleIcon };
+      return {
+        label: fact.label ?? humanize(fact.value),
+        icon: getSkillIcon(fact.value) ?? PuzzleIcon,
+      };
     case "sourceHost":
       return { label: fact.label ?? fact.value };
     case "status":

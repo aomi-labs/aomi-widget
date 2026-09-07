@@ -3,6 +3,7 @@
 export { AomiFrame } from "./components/aomi-frame";
 export { AomiLogo, type AomiLogoProps } from "./components/aomi-logo";
 export { AomiMark } from "./components/aomi-mark";
+export { useActivityPanel } from "./components/activity-sidebar/activity-panel-context";
 export {
   DEFAULT_SIDEBAR_PRODUCTS,
   type SidebarProduct,

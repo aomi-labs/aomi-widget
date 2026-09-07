@@ -45,7 +45,10 @@ export const registry: RegistryComponent[] = [
   },
   {
     name: "aomi-frame",
-    file: "components/aomi-frame.tsx",
+    file: [
+      "components/aomi-frame.tsx",
+      "components/activity-sidebar/activity-panel-context.tsx",
+    ],
     dependencies: ["@aomi-labs/react"],
     registryDependencies: [
       // Theme (CSS variables required by all components)
@@ -334,6 +337,7 @@ export const registry: RegistryComponent[] = [
     name: "activity-sidebar",
     file: [
       "components/activity-sidebar/activity-sidebar.tsx",
+      "components/activity-sidebar/activity-panel-context.tsx",
       "components/activity-sidebar/model.ts",
       "lib/capabilities/skill-catalog.ts",
       "components/assistant-ui/tool-registry.ts",

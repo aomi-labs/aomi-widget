@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PencilLineIcon, PuzzleIcon } from "lucide-react";
 
 import { interpretToolStep } from "@/components/assistant-ui/tool-interpreter";
+import { getSkillIcon } from "@/components/icons/skills";
 
 const labelsFor = (chips: { label: string }[]) =>
   chips.map((chip) => chip.label);
@@ -104,7 +105,8 @@ describe("tool interpreter", () => {
 
     expect(step.title).toBe("Activate skill");
     expect(labelsFor(step.chips)).toEqual(["Aerodrome"]);
-    expect(step.chips[0].icon).toBe(PuzzleIcon);
+    expect(step.chips[0].icon).toBe(getSkillIcon("aerodrome"));
+    expect(step.chips[0].icon).not.toBe(PuzzleIcon);
     expect(step.chips[0].icon).not.toBe(step.icon);
     expect(step.failed).toBe(false);
   });
@@ -119,7 +121,9 @@ describe("tool interpreter", () => {
     });
 
     expect(step.title).toBe("Activate skill");
-    expect(labelsFor(step.chips)).toEqual(["Common erc20", "Lifi"]);
+    expect(labelsFor(step.chips)).toEqual(["Common Erc20", "Lifi Swap"]);
+    expect(step.chips[0].icon).toBe(getSkillIcon("common_erc20"));
+    expect(step.chips[1].icon).toBe(getSkillIcon("lifi_swap"));
   });
 
   it("shows LI.FI quote chain, amounts, and token direction", () => {
