@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AomiCreditApiError } from "@aomi-labs/client";
 
@@ -264,10 +264,10 @@ describe("Credit Bank", () => {
     expect(
       await screen.findByText("1 credit added. Your bank now has 1 credit."),
     ).toBeTruthy();
-    rejectInitialLoad(new AomiCreditApiError(502, "fetch account credits"));
-    await waitFor(() =>
-      expect(screen.queryByText(/Failed to fetch account credits/)).toBeNull(),
-    );
+    await act(async () => {
+      rejectInitialLoad(new AomiCreditApiError(502, "fetch account credits"));
+    });
+    expect(screen.queryByText(/Failed to fetch account credits/)).toBeNull();
     expect(screen.getByText("1 credit")).toBeTruthy();
   });
 });

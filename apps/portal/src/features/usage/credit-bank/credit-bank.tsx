@@ -224,11 +224,7 @@ export function CreditBank() {
         <span className="flex shrink-0 items-center gap-2">
           <span className="text-right">
             <span className="text-aomi-fg block text-[13px] font-medium tabular-nums">
-              {loading && !position
-                ? "—"
-                : balance === null
-                  ? "—"
-                  : formatCreditAmount(balance)}
+              {balance === null ? "—" : formatCreditAmount(balance)}
             </span>
             <span className="text-aomi-muted block text-[11px] tabular-nums">
               {loading && !position
