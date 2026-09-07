@@ -217,6 +217,7 @@ export const registry: RegistryComponent[] = [
       "components/assistant-ui/capability-composer/provider.tsx",
       "components/assistant-ui/capability-composer/input.tsx",
       "components/assistant-ui/capability-composer/picker.tsx",
+      "components/assistant-ui/capability-composer/use-picker-placement.ts",
       "components/assistant-ui/capability-composer/catalog.tsx",
       "components/assistant-ui/capability-composer/editor-dom.ts",
       "components/assistant-ui/capability-composer/model.ts",

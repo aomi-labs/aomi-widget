@@ -4,6 +4,7 @@ import { Globe2Icon } from "lucide-react";
 import { getChainInfo } from "@aomi-labs/react";
 import { getChainIcon } from "@/components/icons";
 import type { CapabilityKind, PickerItem } from "./model";
+import { usePickerPlacement } from "./use-picker-placement";
 
 export function SupportedChainStack({ chainIds }: { chainIds?: number[] }) {
   const uniqueChainIds = [...new Set(chainIds ?? [])].filter(
@@ -60,9 +61,14 @@ export function CapabilityPicker({
   onHighlight: (index: number) => void;
   onSelect: (item: PickerItem) => void;
 }) {
+  const { containerRef, above, height } = usePickerPlacement();
   const hasItems = visibleGroups.some((group) => group.items.length > 0);
   return (
-    <div className="border-aomi-border bg-aomi-raised text-aomi-fg absolute bottom-full left-0 z-50 mb-8 flex max-h-[min(320px,calc(100dvh-11rem))] w-full flex-col overflow-hidden rounded-2xl border p-2 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+    <div
+      ref={containerRef}
+      style={{ maxHeight: height }}
+      className={`border-aomi-border bg-aomi-raised text-aomi-fg absolute left-0 z-50 flex w-full flex-col overflow-hidden rounded-2xl border p-2 shadow-[0_18px_50px_rgba(0,0,0,0.22)] ${above ? "bottom-full mb-8" : "top-full mt-2"}`}
+    >
       {hasItems ? (
         <div
           id={pickerId}

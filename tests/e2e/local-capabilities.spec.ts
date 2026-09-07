@@ -1,5 +1,50 @@
 import { expect, test } from "@playwright/test";
 
+for (const viewport of [
+  { width: 1280, height: 720 },
+  { width: 900, height: 480 },
+  { width: 390, height: 640 },
+]) {
+  test(`capability picker remains reachable at ${viewport.width}×${viewport.height}`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/", { waitUntil: "domcontentloaded" });
+    const input = page.getByRole("textbox", { name: "Message input" });
+    await expect(input).toBeVisible({ timeout: 30_000 });
+    await page
+      .getByRole("button", { name: "Add app, skill, or chain" })
+      .click();
+    const picker = page.getByRole("listbox", {
+      name: "Apps, skills, and chains",
+    });
+    await expect(picker).toBeVisible();
+    await expect
+      .poll(async () => {
+        const panel = await picker.locator("..").boundingBox();
+        const content = await page
+          .locator(".aui-thread-viewport")
+          .boundingBox();
+        return (
+          !!panel &&
+          !!content &&
+          panel.y >= content.y &&
+          panel.y + panel.height <= content.y + content.height &&
+          panel.x >= 0 &&
+          panel.x + panel.width <= viewport.width
+        );
+      })
+      .toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("picker.png") });
+    await input.press("Escape");
+    await expect(picker).toHaveCount(0);
+    await expect(input).toBeFocused();
+    await expect(
+      page.getByRole("button", { name: "Send message" }),
+    ).toBeVisible();
+  });
+}
+
 test("composer keyboard editing sends only the retained chain hint", async ({
   page,
 }) => {
