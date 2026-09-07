@@ -5,7 +5,7 @@ import { useAomiWalletKit } from "../../lib/wallet-kit";
 import { TransactionReview } from "./transaction-review";
 
 /** Presents the next durable Action and submits only an explicit user choice. */
-export function WalletReview({ embedded = false }: { embedded?: boolean }) {
+export function WalletReview() {
   const {
     pendingActions,
     actionAttempts,
@@ -15,7 +15,6 @@ export function WalletReview({ embedded = false }: { embedded?: boolean }) {
   } = useAomiRuntime();
   const wallet = useAomiWalletKit();
   const liveAction = pendingActions[0];
-  const action = liveAction;
   const attempt = liveAction ? actionAttempts.get(liveAction.id) : undefined;
   const lock = useRef(false);
   const [deciding, setDeciding] = useState(false);
@@ -44,12 +43,11 @@ export function WalletReview({ embedded = false }: { embedded?: boolean }) {
     }
   };
 
-  if (!action) return null;
+  if (!liveAction) return null;
 
   return (
     <TransactionReview
-      embedded={embedded}
-      action={action}
+      action={liveAction}
       supportedChains={wallet.supportedChains}
       approving={approving}
       onApprove={() => void decide(true)}

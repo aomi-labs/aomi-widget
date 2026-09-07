@@ -68,7 +68,6 @@ vi.mock("../../lib/wallet-kit", () => ({
 }));
 
 import { ActivitySidebar } from "./activity-sidebar";
-import { WalletReview } from "./wallet-review";
 
 function action(request: Action["request"]): Action {
   return {
@@ -137,11 +136,11 @@ describe("WalletReview", () => {
     runtime.events = runtime.pendingActions;
     runtime.turnState = "awaiting_action";
 
-    render(<WalletReview />);
+    render(<ActivitySidebar />);
 
     expect(runtime.executeAction).not.toHaveBeenCalled();
     expect(screen.getByTestId("transaction-review")).toHaveTextContent(
-      "To 0x222222…222222",
+      "0x2222222222222222222222222222222222222222",
     );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Send to wallet" }));
@@ -169,7 +168,7 @@ describe("WalletReview", () => {
       }),
     ];
 
-    render(<WalletReview />);
+    render(<ActivitySidebar />);
 
     fireEvent.click(screen.getByRole("button", { name: "Send to wallet" }));
 
@@ -195,7 +194,7 @@ describe("WalletReview", () => {
       }),
     ];
 
-    render(<WalletReview />);
+    render(<ActivitySidebar />);
     expect(runtime.executeAction).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Send to wallet" }));
@@ -241,7 +240,7 @@ describe("WalletReview", () => {
       }),
     ];
 
-    render(<WalletReview />);
+    render(<ActivitySidebar />);
 
     expect(screen.queryByTestId("action-simulation")).not.toBeInTheDocument();
     expect(screen.getByTestId("transaction-review")).toHaveTextContent(
@@ -304,7 +303,7 @@ describe("WalletReview", () => {
       }),
     ];
 
-    render(<WalletReview />);
+    render(<ActivitySidebar />);
 
     expect(screen.getByLabelText("−0.1 aBasUSDC")).toBeInTheDocument();
     expect(screen.getByLabelText("+0.1 USDC")).toBeInTheDocument();
@@ -318,7 +317,7 @@ describe("WalletReview", () => {
     ).toBe(true);
   });
 
-  it("shows the full batch with readable expandable transaction details", () => {
+  it("shows the full batch in the sidebar with inspectable request details", () => {
     runtime.pendingActions = [
       action({
         type: "execute_evm",
@@ -354,16 +353,23 @@ describe("WalletReview", () => {
       }),
     ];
 
-    render(<WalletReview />);
+    render(<ActivitySidebar />);
 
     expect(screen.getAllByText("Approve USDC")[0]).toBeInTheDocument();
     expect(screen.getAllByText("Swap USDC to ETH")[0]).toBeInTheDocument();
-    const rows = screen.getAllByTestId("transaction-step");
+    const rows = screen.getAllByTestId("activity-transaction");
     expect(rows).toHaveLength(3);
-    expect(rows[0]?.querySelector(".lucide-pencil-line")).toBeTruthy();
-    expect(rows[1]?.querySelector(".lucide-arrow-right-left")).toBeTruthy();
-    expect(rows[2]).toHaveTextContent("Send ETH");
-    expect(rows[2]).toHaveTextContent("3 of 3");
+    expect(rows.some((row) => row.textContent?.includes("Approve USDC"))).toBe(
+      true,
+    );
+    expect(
+      rows.some((row) => row.textContent?.includes("Swap USDC to ETH")),
+    ).toBe(true);
+    expect(rows.some((row) => row.textContent?.includes("Send ETH"))).toBe(
+      true,
+    );
+    expect(screen.getByText("Transaction details")).toBeInTheDocument();
+    expect(screen.getByTestId("transaction-review")).toHaveTextContent("0x03");
   });
 
   it("turns protocol-generated swap labels into readable review steps", () => {
@@ -396,13 +402,13 @@ describe("WalletReview", () => {
       }),
     ];
 
-    render(<WalletReview />);
+    render(<ActivitySidebar />);
 
     expect(screen.getAllByText("Approve 0.00758 USDC")[0]).toBeInTheDocument();
     expect(screen.getAllByText(/LI\.FI/).length).toBeGreaterThan(0);
     expect(screen.getByText("Wallet changes unavailable")).toBeInTheDocument();
     expect(
-      screen.getAllByTestId("transaction-step")[0].querySelector("summary"),
+      screen.getAllByTestId("activity-transaction")[0],
     ).not.toHaveTextContent("lifi_q_abc123");
     expect(
       screen.getAllByText("Swap 0.00758 USDC to ETH")[0],
@@ -470,7 +476,7 @@ describe("WalletReview", () => {
       }),
     ];
 
-    render(<WalletReview />);
+    render(<ActivitySidebar />);
 
     expect(screen.getByText("Allow 0.0075 USDC")).toBeInTheDocument();
     expect(screen.getByText("Unlimited WETH spending")).toBeInTheDocument();
@@ -538,7 +544,7 @@ describe("WalletReview", () => {
       }),
     ];
 
-    render(<WalletReview />);
+    render(<ActivitySidebar />);
 
     expect(screen.getByText("NFT minted")).toBeInTheDocument();
     expect(screen.getByText("Aomi Founders #42")).toBeInTheDocument();
@@ -573,7 +579,7 @@ describe("WalletReview", () => {
       }),
     ];
 
-    render(<WalletReview />);
+    render(<ActivitySidebar />);
 
     expect(screen.queryByTestId("action-simulation")).not.toBeInTheDocument();
     expect(
@@ -603,12 +609,14 @@ describe("WalletReview", () => {
       }),
     ];
 
-    render(<WalletReview />);
+    render(<ActivitySidebar />);
 
     expect(
-      screen.getByRole("button", { name: "Send to wallet" }),
-    ).toBeDisabled();
-    expect(screen.getByText("No wallet changes simulated")).toBeInTheDocument();
+      screen.queryByRole("button", { name: "Send to wallet" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Reject request" }),
+    ).toBeEnabled();
   });
 });
 
@@ -1008,7 +1016,7 @@ describe("unified live transaction review", () => {
         turn_id: "new-turn",
         sequence: 3,
         occurred_at: 3,
-        role: "user",
+        sender: "user",
         content: "Hello",
       } as Event,
     ];

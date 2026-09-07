@@ -91,18 +91,6 @@ export function actionTransactions(
   ];
 }
 
-export function reviewSummary(
-  request: ActionRequest,
-  transactions: TransactionView[],
-): string {
-  if (request.type === "sign") return "Confirm what your wallet will sign";
-  const networks = [...new Set(transactions.map((item) => item.network))];
-  const count = `${transactions.length} ${transactions.length === 1 ? "transaction" : "transactions"}`;
-  return [count, networks.join(" + ")]
-    .filter((value): value is string => Boolean(value))
-    .join(" · ");
-}
-
 export function transactionSemantic(
   label: string,
   kind?: string,
@@ -162,10 +150,6 @@ export function friendlyTransactionLabel(label: string, kind?: string): string {
     return `Swap ${clean}`;
   }
   return clean;
-}
-
-export function displayProtocol(protocol: string): string {
-  return protocol.toLowerCase() === "lifi" ? "LI.FI" : protocol;
 }
 
 export function assetChangePresentation(

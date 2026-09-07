@@ -347,6 +347,8 @@ export const registry: RegistryComponent[] = [
     name: "activity-sidebar",
     file: [
       "components/activity-sidebar/activity-sidebar.tsx",
+      "components/activity-sidebar/subagent-row.tsx",
+      "components/activity-sidebar/transactions.tsx",
       "components/activity-sidebar/activity-panel-context.tsx",
       "components/activity-sidebar/model.ts",
       "lib/capabilities/skill-catalog.ts",

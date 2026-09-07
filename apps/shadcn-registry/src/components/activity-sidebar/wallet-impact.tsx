@@ -73,36 +73,26 @@ function ReviewPager({
 
 export function ImpactPanel({
   request,
-  embedded = false,
   balanceChanges,
   approvals,
-  hasApprovalTransaction,
   supportedChains,
   showNetwork,
   failed,
 }: {
   request: ActionRequest;
-  embedded?: boolean;
   balanceChanges: Simulation["balanceChanges"];
   approvals: Simulation["approvals"];
-  hasApprovalTransaction: boolean;
   supportedChains?: readonly SupportedChain[];
   showNetwork: boolean;
   failed: boolean;
 }) {
   const [page, setPage] = useState(0);
-  const visibleApprovals =
-    balanceChanges.length && hasApprovalTransaction
-      ? approvals.filter(
-          (approval) => approval.unlimited || isRevokedApproval(approval),
-        )
-      : approvals;
   const entries: Array<
     | { type: "balance"; value: BalanceChange }
     | { type: "approval"; value: ApprovalChange }
   > = [
     ...balanceChanges.map((value) => ({ type: "balance" as const, value })),
-    ...visibleApprovals.map((value) => ({ type: "approval" as const, value })),
+    ...approvals.map((value) => ({ type: "approval" as const, value })),
   ];
   const pages = Math.max(1, Math.ceil(entries.length / REVIEW_PAGE_SIZE));
   const safePage = Math.min(page, pages - 1);
@@ -111,7 +101,7 @@ export function ImpactPanel({
     safePage * REVIEW_PAGE_SIZE + REVIEW_PAGE_SIZE,
   );
   const heading =
-    balanceChanges.length && visibleApprovals.length
+    balanceChanges.length && approvals.length
       ? "Wallet changes"
       : balanceChanges.length
         ? "Balance changes"
@@ -126,10 +116,7 @@ export function ImpactPanel({
       aria-label="Simulated wallet impact"
       data-change-count={balanceChanges.length}
       data-approval-count={approvals.length}
-      className={cn(
-        "bg-aomi-surface flex min-w-0 flex-col rounded-[14px] p-3",
-        !embedded && "border-aomi-border border",
-      )}
+      className={cn("bg-aomi-surface flex min-w-0 flex-col rounded-[14px] p-3")}
     >
       <div className="mb-2 flex items-center gap-2 px-1">
         <p className="text-aomi-muted flex-1 text-[12px] font-medium">
@@ -149,12 +136,7 @@ export function ImpactPanel({
           />
         ) : null}
       </div>
-      <div
-        className={cn(
-          !embedded && "divide-aomi-border divide-y",
-          failed && "opacity-50",
-        )}
-      >
+      <div className={cn(failed && "opacity-50")}>
         {shown.map((entry, index) =>
           entry.type === "balance" ? (
             <AssetChange

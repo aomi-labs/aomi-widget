@@ -51,7 +51,6 @@ describe("missing ERC-20 metadata", () => {
         request={request}
         balanceChanges={[change]}
         approvals={[]}
-        hasApprovalTransaction={false}
         supportedChains={[chain]}
         showNetwork
         failed={false}

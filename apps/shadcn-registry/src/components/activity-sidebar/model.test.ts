@@ -286,8 +286,11 @@ describe("thread-wide activity", () => {
         type: "task_completed",
         call_id: "call",
         agent_id: "agent",
-        app: "swap",
         status: "completed",
+        message: "Done",
+        staged_count: 0,
+        steps: 1,
+        duration_ms: 1,
       } as Event,
       {
         ...meta(4, "turn-2"),
