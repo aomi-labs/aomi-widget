@@ -322,7 +322,10 @@ export function SettingsChip({ app }: { app: AppUsageEntry }) {
       .map((row) => row.paymentMethod)
       .filter((method): method is string => Boolean(method)),
   );
-  if (paymentMethods.has("byok") && paymentMethods.size > 1) {
+  if (
+    [...paymentMethods].some((method) => method.endsWith("byok")) &&
+    paymentMethods.size > 1
+  ) {
     return <Chip>mixed billing</Chip>;
   }
   if (app.settings.appByok) return <Chip>app key · model free</Chip>;
@@ -356,9 +359,7 @@ export function ModelRow({
   app: AppUsageEntry;
   row: AppModelRow;
 }) {
-  const isByok =
-    row.paymentMethod === "byok" ||
-    (row.paymentMethod === undefined && app.settings.appByok);
+  const isByok = row.paymentMethod?.endsWith("byok") ?? app.settings.appByok;
   const hasMarkup = !isByok && row.baseUsd !== row.chargedUsd;
 
   return (
@@ -560,7 +561,7 @@ function monthActivityStats(month: MonthlyStatement) {
   const hasToolData = month.apps.some((a) => a.tool !== null);
   const hasOutcomeData = month.apps.some((a) => a.outcome !== null);
   const { payment, summary } = month;
-  const over = payment.x402SettledUsd > 0;
+  const over = payment.creditBankAppliedUsd > 0;
   const hasAllowance = payment.allowanceCredits.included > 0;
   const creditsPct = hasAllowance
     ? Math.min(
@@ -646,10 +647,12 @@ export function SpendBreakdownSection({ month }: { month: MonthlyStatement }) {
 export function AllowanceSettlementSection({
   month,
   showAllowance = true,
+  children,
 }: {
   month: MonthlyStatement;
   /** Hide when viewing a past month — profile credits only match the current month. */
   showAllowance?: boolean;
+  children?: ReactNode;
 }) {
   const { payment } = month;
   const { over, hasAllowance, creditsPct } = monthActivityStats(month);
@@ -674,7 +677,7 @@ export function AllowanceSettlementSection({
           <span className="text-aomi-muted text-[12px] leading-snug">
             Paid via {payment.settledVia}.{" "}
             {over
-              ? `${usd(payment.x402SettledUsd)} billed via x402 beyond your ${usd(
+              ? `${usd(payment.creditBankAppliedUsd)} applied from your Credit Bank beyond your ${usd(
                   payment.allowanceAppliedUsd,
                 )} monthly allowance.`
               : `Compute fully covered by your allowance (${usd(
@@ -683,6 +686,7 @@ export function AllowanceSettlementSection({
             On-chain fees {payment.onchainNote}.
           </span>
         </div>
+        {children}
       </div>
     </section>
   );

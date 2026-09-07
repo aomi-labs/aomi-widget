@@ -19,9 +19,33 @@ const walletKitState = vi.hoisted(() => ({
     signOutAccount: vi.fn(async () => undefined),
   },
 }));
+const runtimeState = vi.hoisted(() => ({
+  current: {
+    account: {
+      credits: {
+        get: vi.fn(async () => ({
+          period_utc_month: "2026-09",
+          included: {
+            limit_microusd: 0,
+            used_microusd: 0,
+            remaining_microusd: 0,
+          },
+          bank: { balance_microusd: 0, outstanding_debt_microusd: 0 },
+          entries: [],
+          next_before_id: null,
+        })),
+      },
+    },
+  },
+}));
 
 vi.mock("@aomi-labs/widget-lib", () => ({
   useAomiWalletKit: () => walletKitState.current,
+}));
+
+vi.mock("@aomi-labs/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@aomi-labs/react")>()),
+  useAomiRuntime: () => runtimeState.current,
 }));
 
 vi.mock("@portal/lib/use-settings", () => ({

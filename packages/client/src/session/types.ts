@@ -8,6 +8,7 @@ import type {
 } from "../agent/types";
 import type { ActionAttempt, ActionCapabilities } from "../actions";
 import type { UserState } from "../user-state";
+import type { AomiInferenceFundingSource } from "../agent/types";
 
 export type SendResult = {
   messages: readonly MessageEvent[];
@@ -46,6 +47,8 @@ export type SessionOptions = {
   /** @deprecated Use `target: { mode: "direct", applicationId }`. */
   applicationId?: number | string | null;
   getUserState?: () => UserState | undefined;
+  /** Explicit account funding lane for inference execution. */
+  inferenceFunding?: AomiInferenceFundingSource;
   clientId?: string;
   pollIntervalMs?: number;
   logger?: { debug: (...args: unknown[]) => void };
@@ -61,6 +64,7 @@ export type SessionRuntimeOptions = {
   applicationId?: number | string | null;
   clientId?: string;
   getUserState?: () => UserState | undefined;
+  inferenceFunding?: AomiInferenceFundingSource;
   actions?: ActionCapabilities;
 };
 

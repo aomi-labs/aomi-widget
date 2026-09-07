@@ -33,6 +33,7 @@ import {
 } from "react";
 import type {
   AomiClient,
+  AomiInferenceFundingSource,
   AomiPlatformFilter,
   ApplicationId,
 } from "@aomi-labs/client";
@@ -130,12 +131,16 @@ export function useApiKey(): {
 export function useByok(): { state: ByokState; actions: ByokActions } {
   const ctx = useControl();
   return {
-    state: { byokKeys: ctx.state.byokKeys },
+    state: {
+      byokKeys: ctx.state.byokKeys,
+      inferenceFunding: ctx.state.inferenceFunding,
+    },
     actions: {
       setByok: ctx.setByok,
       removeByok: ctx.removeByok,
       getByokKeys: ctx.getByokKeys,
       hasByok: ctx.hasByok,
+      setInferenceFunding: ctx.setInferenceFunding,
       ingestSecrets: ctx.ingestSecrets,
       clearSecrets: ctx.clearSecrets,
       deleteSecret: ctx.deleteSecret,
@@ -200,6 +205,7 @@ export type ControlContextProviderProps = {
   ) => void;
   appPlatforms?: AomiPlatformFilter;
   applicationId?: ApplicationId;
+  inferenceFunding?: AomiInferenceFundingSource;
 };
 
 export function ControlContextProvider({
@@ -210,6 +216,7 @@ export function ControlContextProvider({
   updateThreadMetadata,
   appPlatforms,
   applicationId,
+  inferenceFunding,
 }: ControlContextProviderProps) {
   // ---------------------------------------------------------------------------
   // Stable refs into the central plumbing (aomiClient, the props that change
@@ -264,6 +271,7 @@ export function ControlContextProvider({
     aomiClientRef,
     clientIdRef,
     getControlSessionId: getCurrentControlSessionId,
+    initialInferenceFunding: inferenceFunding,
   });
 
   const authEndpoints = useAuthEndpointsImpl({
@@ -309,6 +317,7 @@ export function ControlContextProvider({
     apiKey: apiKey.state.apiKey,
     clientId: clientIdRef.current,
     byokKeys: byok.state.byokKeys,
+    inferenceFunding: byok.state.inferenceFunding,
     availableModels: authEndpoints.state.availableModels,
     defaultModel: authEndpoints.state.defaultModel,
     authorizedApps: authEndpoints.state.authorizedApps,

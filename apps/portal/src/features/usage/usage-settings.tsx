@@ -11,10 +11,11 @@ import {
   SpendBreakdownSection,
   USAGE_MATRIX_HINT,
 } from "./usage-shared";
+import { CreditBank } from "./credit-bank";
 
 /**
  * Settings › Usage — design-sync hierarchy (hero, spend breakdown, allowance,
- * by-app matrix) on the live model statement (`/api/account/statement`).
+ * by-app matrix) on the live model statement (`/v1/account/statement`).
  * Tool and on-chain subjects show "—" until their ledger writers exist.
  */
 export function UsageSettings() {
@@ -58,10 +59,9 @@ export function UsageSettings() {
 
         <SpendBreakdownSection month={month} />
 
-        <AllowanceSettlementSection
-          month={month}
-          showAllowance={hasAllowance}
-        />
+        <AllowanceSettlementSection month={month} showAllowance={hasAllowance}>
+          <CreditBank />
+        </AllowanceSettlementSection>
 
         {month.apps.length > 0 ? (
           <section className="flex flex-col gap-2.5">

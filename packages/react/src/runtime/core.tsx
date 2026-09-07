@@ -98,6 +98,7 @@ export function AomiRuntimeCore({
     getPreferredThreadControl,
     markControlSynced,
   } = useControl();
+  const inferenceFunding = getControlState().inferenceFunding;
 
   // ---------------------------------------------------------------------------
   // Orchestrator (manages ClientSession per thread)
@@ -115,6 +116,7 @@ export function AomiRuntimeCore({
     aomiClientRef,
   } = useRuntimeOrchestrator(aomiClient, {
     getUserState,
+    inferenceFunding,
     getTarget: () => agentTarget ?? getCurrentThreadTarget(),
     getModel: () => {
       const control = getCurrentThreadControl();
@@ -447,6 +449,7 @@ export function AomiRuntimeCore({
 
   const aomiRuntimeApi: AomiRuntimeApi = useMemo(
     () => ({
+      account: aomiClient.account,
       // User API
       user: userContext.user,
       getUserState: userContext.getUserState,
@@ -494,6 +497,7 @@ export function AomiRuntimeCore({
     }),
     [
       userContext,
+      aomiClient.account,
       threadContext.currentThreadId,
       threadContext.threadViewKey,
       threadContext.allThreadsMetadata,

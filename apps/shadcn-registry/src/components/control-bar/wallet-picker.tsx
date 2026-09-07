@@ -868,6 +868,9 @@ export function WalletPicker() {
                 <ShieldCheckIcon className="size-5" strokeWidth={1.8} />
               </span>
               <div className="min-w-0 flex-1">
+                <span className="text-aomi-muted text-[10px] font-semibold uppercase tracking-[0.14em]">
+                  Aomi account
+                </span>
                 <h2
                   id="aomi-wallet-picker-title"
                   className="text-aomi-fg text-[15px] font-semibold tracking-[-0.01em]"

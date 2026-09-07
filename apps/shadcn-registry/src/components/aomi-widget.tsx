@@ -1,7 +1,10 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import type { AomiClientOptions } from "@aomi-labs/react";
+import type {
+  AomiClientOptions,
+  AomiInferenceFundingSource,
+} from "@aomi-labs/react";
 import { AomiFrame, type AomiFrameControlBarProps } from "./aomi-frame";
 import { AomiWalletKitProvider, useAomiWalletKit } from "../lib/wallet-kit";
 import type {
@@ -53,6 +56,8 @@ export type AomiWidgetProps = {
   /** Execution modes and Direct apps available in this widget. Defaults to Auto only. */
   routing?: AomiRoutingConfig;
   clientOptions?: Omit<AomiClientOptions, "baseUrl" | "getAccountBearer">;
+  /** Select the account's saved BYOK key for Agent turns. */
+  inferenceFunding?: AomiInferenceFundingSource;
   persistThread?: boolean;
   threadPersistenceKey?: string;
   threadPersistenceScope?: string | null;
@@ -100,6 +105,7 @@ export function AomiWidget(props: AomiWidgetProps) {
         controlBarProps={props.controlBarProps}
         routing={props.routing}
         clientOptions={props.clientOptions}
+        inferenceFunding={props.inferenceFunding}
         persistThread={props.persistThread}
         threadPersistenceKey={props.threadPersistenceKey}
         threadPersistenceScope={props.threadPersistenceScope}
@@ -123,6 +129,7 @@ type WidgetFrameProps = Pick<
   | "controlBarProps"
   | "routing"
   | "clientOptions"
+  | "inferenceFunding"
   | "persistThread"
   | "threadPersistenceKey"
   | "threadPersistenceScope"
@@ -143,6 +150,7 @@ function WidgetFrame({
   controlBarProps,
   routing,
   clientOptions,
+  inferenceFunding,
   persistThread,
   threadPersistenceKey,
   threadPersistenceScope,
@@ -171,6 +179,7 @@ function WidgetFrame({
           ...clientOptions,
           getAccountBearer: walletKit.getAccountBearer,
         }}
+        inferenceFunding={inferenceFunding}
         width={width}
         height={height}
         className={className}

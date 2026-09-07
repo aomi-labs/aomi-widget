@@ -1,8 +1,8 @@
 "use client";
 
-import type { DelegationGrant, SignerMode, WalletPolicy } from "./types";
+import type { DelegatedAccountView, SignerMode, WalletPolicy } from "./types";
 import {
-  findGrantForWallet,
+  findDelegationForWallet,
   reconcile,
   walletDisplayName,
   walletMarkKey,
@@ -16,7 +16,7 @@ import { shortenAddress } from "./account-api";
 
 interface WalletPolicyRowProps {
   wallet: WalletPolicy;
-  grants: DelegationGrant[];
+  delegatedAccounts: DelegatedAccountView[];
   draft?: SignerMode;
   expanded: boolean;
   flash: boolean;
@@ -27,13 +27,13 @@ interface WalletPolicyRowProps {
   onDraft: (mode: SignerMode) => void;
   onCommit: () => void;
   onCancel: () => void;
-  onRegrant: () => void;
-  onRevokeGrant: (grantId: string) => void;
+  onRenewDelegation: () => void;
+  onRevokeDelegation: (delegationId: string) => void;
 }
 
 export function WalletPolicyRow({
   wallet,
-  grants,
+  delegatedAccounts,
   draft,
   expanded,
   flash,
@@ -44,14 +44,14 @@ export function WalletPolicyRow({
   onDraft,
   onCommit,
   onCancel,
-  onRegrant,
-  onRevokeGrant,
+  onRenewDelegation,
+  onRevokeDelegation,
 }: WalletPolicyRowProps) {
   const selected = draft ?? wallet.desiredMode;
   const pending = draft !== undefined && draft !== wallet.desiredMode;
   const recon = reconcile(wallet);
   const open = expanded || pending;
-  const grant = findGrantForWallet(grants, wallet);
+  const delegation = findDelegationForWallet(delegatedAccounts, wallet);
   const displayName = walletDisplayName(wallet);
   const status = walletStatusLabel(wallet, recon, pending);
   const blocked = pending ? (blockedReason?.(wallet, selected) ?? null) : null;
@@ -110,22 +110,22 @@ export function WalletPolicyRow({
             onSelect={onDraft}
           />
 
-          {wallet.desiredMode === "auto" && grant && (
+          {wallet.desiredMode === "auto" && delegation && (
             <>
               <Divider />
               <SettingRow
                 className="py-2"
-                title="Provider grant"
+                title="Delegated account"
                 desc={
                   recon.status === "drifted"
                     ? recon.detail
-                    : `${grant.provider} · ${grant.kind}`
+                    : `${delegation.provider} · ${delegation.kind}`
                 }
               >
-                {grant.status === "active" ? (
+                {delegation.status === "active" ? (
                   <button
                     type="button"
-                    onClick={() => onRevokeGrant(grant.id)}
+                    onClick={() => onRevokeDelegation(delegation.id)}
                     disabled={busy}
                     className="border-aomi-border text-aomi-muted hover:bg-aomi-surface-2 hover:text-aomi-fg flex h-8 items-center rounded-lg border px-3 text-[11px] font-medium transition-colors disabled:opacity-50"
                   >
@@ -138,11 +138,11 @@ export function WalletPolicyRow({
                 ) : (
                   <button
                     type="button"
-                    onClick={onRegrant}
+                    onClick={onRenewDelegation}
                     disabled={busy}
                     className="border-aomi-border text-aomi-muted hover:bg-aomi-surface-2 hover:text-aomi-fg flex h-8 items-center rounded-lg border px-3 text-[11px] font-medium transition-colors disabled:opacity-50"
                   >
-                    Renew grant
+                    Renew delegation
                   </button>
                 )}
               </SettingRow>
@@ -176,14 +176,14 @@ export function WalletPolicyRow({
             </div>
           ) : (
             recon.status === "drifted" &&
-            !(wallet.desiredMode === "auto" && grant) && (
+            !(wallet.desiredMode === "auto" && delegation) && (
               <div className="flex items-center justify-between gap-3">
                 <span className="text-aomi-muted text-[12px]">
                   {recon.detail}
                 </span>
                 <button
                   type="button"
-                  onClick={onRegrant}
+                  onClick={onRenewDelegation}
                   disabled={busy}
                   className="border-aomi-border text-aomi-muted hover:bg-aomi-surface-2 hover:text-aomi-fg flex h-8 shrink-0 items-center rounded-lg border px-3 text-[11px] font-medium transition-colors disabled:opacity-50"
                 >

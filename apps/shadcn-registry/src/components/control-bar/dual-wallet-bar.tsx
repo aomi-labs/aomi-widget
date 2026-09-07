@@ -3,11 +3,7 @@
 import { Fragment, useEffect, useState, type FC } from "react";
 import { ChevronsUpDownIcon, UnfoldVerticalIcon } from "lucide-react";
 import { cn, getChainInfo } from "@aomi-labs/react";
-import {
-  useAomiWalletKit,
-  formatWalletAddress,
-  signOutAndDisconnect,
-} from "../../lib/wallet-kit";
+import { useAomiWalletKit, formatWalletAddress } from "../../lib/wallet-kit";
 import { WalletIconSlot } from "./wallet-icon-slot";
 import { WalletPicker } from "./wallet-picker";
 import { WalletPickerProvider, useWalletPicker } from "./wallet-picker-context";

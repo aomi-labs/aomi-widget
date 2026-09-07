@@ -9,6 +9,7 @@ import {
   parseAAMode,
   validateSolanaPrivateKey,
   parsePaymentMethod,
+  parseInferenceFunding,
 } from "../../validation";
 
 type SvmCluster = NonNullable<CliConfig["svmCluster"]>;
@@ -122,6 +123,10 @@ export const globalArgs = {
     type: "string",
     description:
       'Payment method for paid Agent/Pipeline calls, e.g. "coinbase"',
+  },
+  "inference-funding": {
+    type: "string",
+    description: "Use the account's saved BYOK key for inference: user_byok",
   },
 } satisfies ArgsDef;
 
@@ -267,6 +272,9 @@ export function buildCliConfig(args: Record<string, unknown>): CliConfig {
     aaMode,
     paymentMethod: parsePaymentMethod(
       str(args["payment-method"]) ?? process.env.AOMI_PAYMENT_METHOD,
+    ),
+    inferenceFunding: parseInferenceFunding(
+      str(args["inference-funding"]) ?? process.env.AOMI_INFERENCE_FUNDING,
     ),
   };
 }

@@ -32,6 +32,21 @@ packageExtensions:
   "@inkjs/ui":
     peerDependencies:
       react: "*"
+  # react-sdk imports these chain-specific react-core entrypoints at runtime,
+  # but 2.24.0 omits react-core from its published dependency manifest. Keep
+  # pnpm from resolving an unrelated hoisted version from another workspace.
+  "@getpara/react-sdk@2.24.0":
+    dependencies:
+      "@getpara/react-core": "2.24.0"
+
+# @better-auth/mcp 1.7.1 automatically adds its primary MCP endpoint to every
+# dynamically registered client's default resources. This widens Agent,
+# Pipeline, and REST clients even when they request one exact resource. Aomi
+# binds resource-less RFC 7591 clients on their first authorize request instead.
+patchedDependencies:
+  "@better-auth/mcp@1.7.1": patches/@better-auth__mcp@1.7.1.patch
+  "@better-auth/oauth-provider@1.7.1": patches/@better-auth__oauth-provider@1.7.1.patch
+  "next@16.1.0": patches/next@16.1.0.patch
 
 onlyBuiltDependencies:
   - "@parcel/watcher"

@@ -1,7 +1,10 @@
-import { auth } from "@aomi-labs/account/better-auth";
 import {
+  BETTER_AUTH_OAUTH_PROVIDER_VERSION,
+  auth,
   aomiOAuthResources,
   guestScopesForAomiResource,
+  hashOAuthClientId,
+  oauthRedirectFailureDiagnostics,
 } from "@aomi-labs/account/better-auth";
 
 import {
@@ -35,8 +38,9 @@ async function handleAuth(request: Request) {
   ) {
     return Response.json({ error: "origin_not_allowed" }, { status: 403 });
   }
-  const policyFailure = await enforceAomiOAuthRequestPolicy(request);
-  if (policyFailure) return policyFailure;
+  const policy = await enforceAomiOAuthRequestPolicy(request);
+  if (policy.kind === "reject") return policy.response;
+  request = policy.request;
   if (request.method === "POST" && path.endsWith("/sign-in/anonymous")) {
     const session = await auth.api.getSession({ headers: request.headers });
     if (session) {
@@ -115,6 +119,17 @@ async function handleAuth(request: Request) {
       clientId: browserClientId,
     });
   }
+  if (
+    request.method === "GET" &&
+    path.endsWith("/oauth2/authorize") &&
+    ["invalid_redirect", "invalid_request"].includes(
+      (await oauthResponseError(response)) ?? "",
+    ) &&
+    new URL(request.url).searchParams.has("client_id") &&
+    new URL(request.url).searchParams.has("redirect_uri")
+  ) {
+    await observeOAuthRedirectFailure(request);
+  }
   if (isObservedOAuthPath(path)) {
     console.info("better_auth_oauth_endpoint", {
       endpoint: path.slice(path.lastIndexOf("/api/auth") + "/api/auth".length),
@@ -129,6 +144,52 @@ async function handleAuth(request: Request) {
     });
   }
   return response;
+}
+
+async function observeOAuthRedirectFailure(request: Request): Promise<void> {
+  const query = new URL(request.url).searchParams;
+  const clientId = query.get("client_id") ?? "";
+  const redirectUri = query.get("redirect_uri") ?? "";
+  const deploymentSha =
+    process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.GITHUB_SHA ?? "local";
+  try {
+    console.warn("better_auth_oauth_redirect_rejected", {
+      ...(await oauthRedirectFailureDiagnostics(clientId, redirectUri)),
+      betterAuthVersion: BETTER_AUTH_OAUTH_PROVIDER_VERSION,
+      deploymentSha,
+      diagnosticsAvailable: true,
+    });
+  } catch {
+    console.warn("better_auth_oauth_redirect_rejected", {
+      clientIdHash: hashOAuthClientId(clientId),
+      betterAuthVersion: BETTER_AUTH_OAUTH_PROVIDER_VERSION,
+      deploymentSha,
+      diagnosticsAvailable: false,
+    });
+  }
+}
+
+async function oauthResponseError(response: Response): Promise<string | null> {
+  const location = response.headers.get("location");
+  if (location) {
+    try {
+      return new URL(location, "https://oauth.invalid").searchParams.get(
+        "error",
+      );
+    } catch {
+      return null;
+    }
+  }
+  const body = (await response
+    .clone()
+    .json()
+    .catch(() => null)) as { url?: unknown } | null;
+  if (typeof body?.url !== "string") return null;
+  try {
+    return new URL(body.url, "https://oauth.invalid").searchParams.get("error");
+  } catch {
+    return null;
+  }
 }
 
 function isObservedOAuthPath(path: string): boolean {

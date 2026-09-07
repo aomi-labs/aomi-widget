@@ -10,6 +10,7 @@ import {
   type AomiClientOptions,
   type AomiPlatformFilter,
 } from "@aomi-labs/client";
+import type { AomiInferenceFundingSource } from "../interface";
 import { ControlContextProvider } from "../contexts/control-context";
 import { NotificationContextProvider } from "../contexts/notification-context";
 import {
@@ -35,6 +36,7 @@ export type AomiRuntimeProviderProps = {
   agentTarget?: AgentTarget;
   appPlatforms?: AomiPlatformFilter;
   clientOptions?: Omit<AomiClientOptions, "baseUrl">;
+  inferenceFunding?: AomiInferenceFundingSource;
   actions?: ActionCapabilities;
   /** Whether a canonical account session can load threads without a wallet. */
   accountSessionAvailable?: boolean;
@@ -59,6 +61,7 @@ export function AomiRuntimeProvider({
   agentTarget,
   appPlatforms,
   clientOptions,
+  inferenceFunding,
   actions,
   accountSessionAvailable = false,
   initialThreadId,
@@ -115,6 +118,7 @@ export function AomiRuntimeProvider({
         <ExtUserProvider>
           <AomiRuntimeInner
             aomiClient={aomiClient}
+            inferenceFunding={inferenceFunding}
             applicationId={applicationId}
             agentTarget={agentTarget}
             appPlatforms={appPlatforms}
@@ -138,6 +142,7 @@ export function AomiRuntimeProvider({
 type AomiRuntimeInnerProps = {
   children: ReactNode;
   aomiClient: AomiClient;
+  inferenceFunding?: AomiInferenceFundingSource;
   applicationId?: number | string | null;
   agentTarget?: AgentTarget;
   appPlatforms?: AomiPlatformFilter;
@@ -150,6 +155,7 @@ type AomiRuntimeInnerProps = {
 function AomiRuntimeInner({
   children,
   aomiClient,
+  inferenceFunding,
   applicationId,
   agentTarget,
   appPlatforms,
@@ -168,6 +174,7 @@ function AomiRuntimeInner({
       updateThreadMetadata={threadContext.updateThreadMetadata}
       appPlatforms={appPlatforms}
       applicationId={applicationId}
+      inferenceFunding={inferenceFunding}
     >
       <AomiRuntimeCore
         aomiClient={aomiClient}

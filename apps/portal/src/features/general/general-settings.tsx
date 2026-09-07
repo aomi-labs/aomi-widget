@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
-import { getChainInfo } from "@aomi-labs/react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { getChainInfo, useAomiRuntime } from "@aomi-labs/react";
+import type { AomiCreditPosition } from "@aomi-labs/client";
 import { useAomiWalletKit } from "@aomi-labs/widget-lib";
 import { ChevronRight, Shield, UserRound } from "lucide-react";
 import { countDriftedWallets } from "@portal/features/account/wallet-attention";
@@ -36,7 +37,28 @@ export function GeneralSettings({
   const identity = adapter.identity;
   const { settings, updateSetting } = useSettings();
   const account = useAccountOverview();
+  const { account: runtimeAccount } = useAomiRuntime();
   const acl = useAccountAcl();
+  const [credits, setCredits] = useState<AomiCreditPosition | null>(null);
+
+  useEffect(() => {
+    if (!adapter.accountUser || adapter.accountGuest) {
+      setCredits(null);
+      return;
+    }
+    let mounted = true;
+    void runtimeAccount.credits
+      .get({ limit: 1 })
+      .then((position) => {
+        if (mounted) setCredits(position);
+      })
+      .catch(() => {
+        if (mounted) setCredits(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [adapter.accountGuest, adapter.accountUser, runtimeAccount]);
 
   const networkTicker = identity.chainId
     ? getChainInfo(identity.chainId)?.ticker
@@ -88,7 +110,7 @@ export function GeneralSettings({
           walletDesc={linkedWalletStatus}
           tier={account?.user.tier}
           memberSince={formatMemberSince(account?.user.created_at)}
-          usage={account?.usage}
+          credits={credits}
           onManageAccount={onManageAccount}
           onViewUsage={onViewUsage}
         />
@@ -152,7 +174,7 @@ function AccountSummaryCard({
   walletDesc,
   tier,
   memberSince,
-  usage,
+  credits,
   onManageAccount,
   onViewUsage,
 }: {
@@ -160,18 +182,20 @@ function AccountSummaryCard({
   walletDesc: string;
   tier?: string;
   memberSince?: string;
-  usage?: {
-    credit_used: number;
-    credit_paid: number;
-    period_utc_month?: string;
-  };
+  credits?: AomiCreditPosition | null;
   onManageAccount?: () => void;
   onViewUsage?: () => void;
 }) {
-  const creditsUsed = usage?.credit_used ?? 0;
-  const creditsIncluded = usage?.credit_paid ?? 0;
+  const creditsUsed =
+    credits?.included.used_microusd === undefined
+      ? 0
+      : credits.included.used_microusd / 10_000;
+  const creditsIncluded =
+    credits?.included.limit_microusd === undefined
+      ? 0
+      : credits.included.limit_microusd / 10_000;
   const remaining = Math.max(0, creditsIncluded - creditsUsed);
-  const periodLabel = formatPeriodLabel(usage?.period_utc_month);
+  const periodLabel = formatPeriodLabel(credits?.period_utc_month);
   const hasAllowance = creditsIncluded > 0;
 
   return (
