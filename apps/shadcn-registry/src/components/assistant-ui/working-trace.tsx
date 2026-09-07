@@ -700,53 +700,59 @@ export const buildTraceItems = (
   liveDelegations: readonly TaskRunState[],
 ): TraceItem[] => {
   const items: TraceItem[] = [];
-  const runsByCallId = new Map(
-    liveDelegations.map((run) => [run.callId, run] as const),
-  );
   const runsByAgentId = new Map(
     liveDelegations.map((run) => [run.agentId, run] as const),
   );
-  const consumedAgentIds = new Set<string>();
+  const taskParts = content.filter(
+    (part): part is ToolCallMessagePart =>
+      part.type === "tool-call" && part.toolName === "task",
+  );
+  const occurrences = new Map<string, number>();
+  for (const part of taskParts) {
+    for (const agentId of taskResultAgentIds(part.result)) {
+      occurrences.set(agentId, (occurrences.get(agentId) ?? 0) + 1);
+    }
+  }
+  const consumedRuns = new Set<TaskRunState>();
+  const invocationKey = (callId: string, agentId: string) =>
+    `agent-${JSON.stringify([callId, agentId])}`;
   let agentOrder = 0;
 
   content.forEach((part, i) => {
     if (part.type === "tool-call") {
       if (part.toolName === "task") {
         const resultAgentIds = taskResultAgentIds(part.result);
-        const exactRun = part.toolCallId
-          ? runsByCallId.get(part.toolCallId)
-          : undefined;
-        const matchedRuns = [
-          ...(exactRun ? [exactRun] : []),
-          ...resultAgentIds.flatMap((agentId) => {
-            const run = runsByAgentId.get(agentId);
-            return run ? [run] : [];
-          }),
-        ].filter(
-          (run, index, all) =>
-            all.findIndex((candidate) => candidate.agentId === run.agentId) ===
-            index,
+        const callId = part.toolCallId ?? `task-${i}`;
+        // Batch children use <tool call>:<one-based index> on the wire.
+        const matchedRuns = liveDelegations.filter(
+          (run) =>
+            run.callId === callId ||
+            (run.callId.startsWith(`${callId}:`) &&
+              /^\d+$/.test(run.callId.slice(callId.length + 1))),
         );
-        const rows =
-          matchedRuns.length > 0
-            ? matchedRuns.map((run) => ({ agentId: run.agentId, run }))
-            : resultAgentIds.length > 0
-              ? resultAgentIds.map((agentId) => ({ agentId, run: undefined }))
-              : [
-                  {
-                    agentId: part.toolCallId ?? `task-${i}`,
-                    run: undefined,
-                  },
-                ];
-        for (const row of rows) {
-          if (row.run) consumedAgentIds.add(row.run.agentId);
+        const agentIds = [
+          ...new Set([
+            ...resultAgentIds,
+            ...matchedRuns.map((run) => run.agentId),
+          ]),
+        ];
+        for (const agentId of agentIds.length ? agentIds : [callId]) {
+          const exactRun = matchedRuns.find((run) => run.agentId === agentId);
+          // Legacy inline messages lack canonical call identity. Only join an
+          // unambiguous child once; a continuation must not rewrite history.
+          const legacyRun =
+            callId.startsWith("inline:") && occurrences.get(agentId) === 1
+              ? runsByAgentId.get(agentId)
+              : undefined;
+          const run = exactRun ?? legacyRun;
+          if (run) consumedRuns.add(run);
           items.push({
             kind: "agent",
-            agentId: row.agentId,
-            run: row.run,
+            agentId,
+            run,
             tool: part,
             order: agentOrder++,
-            key: row.run ? `agent-${row.run.agentId}` : `task-${row.agentId}`,
+            key: invocationKey(run?.callId ?? callId, agentId),
           });
         }
         return;
@@ -767,13 +773,13 @@ export const buildTraceItems = (
   });
 
   for (const run of liveDelegations) {
-    if (consumedAgentIds.has(run.agentId)) continue;
+    if (consumedRuns.has(run)) continue;
     items.push({
       kind: "agent",
       agentId: run.agentId,
       run,
       order: agentOrder++,
-      key: `agent-${run.agentId}`,
+      key: invocationKey(run.callId, run.agentId),
     });
   }
 
@@ -801,7 +807,7 @@ export const AssistantTurnParts: FC = () => {
   const running = useMessage((s) => s.status?.type === "running");
   const isLast = useMessage((s) => s.isLast);
   const runtime = useOptionalAomiRuntime();
-  const taskRuns = useThreadTaskRuns();
+  const taskRuns = useThreadTaskRuns("turn");
   // Only animate a turn observed live in this component. Completed messages
   // restored from history render immediately instead of replaying the effect.
   const witnessedRunning = useRef(running);
@@ -812,15 +818,8 @@ export const AssistantTurnParts: FC = () => {
     -1,
   );
 
-  // The sidecar is cleared on every send (see the runtime's sendMessage), so
-  // every run in it belongs to the current turn — render them all on the last
-  // message, running or finished. Deliberately NOT gated on "seen while
-  // running" via a component ref: fast models can stream the final text as a
-  // separate message that remounts this component between `task_completed`
-  // and the `task` transcript part landing, and a ref-based memory would
-  // blank the trace for that gap (it re-appeared with the row folded).
-  // Scrollback stays inert because only the last message reads the sidecar,
-  // and reloads start with an empty sidecar (transcript rows take over).
+  // The activity rail projects the whole thread, while a message trace only
+  // consumes the current turn's sidecar. History renders from its transcript.
   const liveDelegations = isLast
     ? Object.values(taskRuns).sort((a, b) => a.startedAt - b.startedAt)
     : [];
@@ -854,13 +853,18 @@ export const AssistantTurnParts: FC = () => {
   // trace visibly live until a real final answer exists and can begin its
   // synthetic stream. This also covers the short resume gap after approve or
   // reject, when polling has restarted but the next model event has not landed.
+  const terminal =
+    runtime?.turnState === "complete" ||
+    runtime?.turnState === "interrupted" ||
+    runtime?.turnState === "failed";
   const awaitingContinuation =
+    !terminal &&
     isLast &&
     items.length > 0 &&
     (runtime?.turnState === "awaiting_action" ||
       runtime?.turnState === "processing" ||
       (witnessedRunning.current && answerText.length === 0));
-  const traceLive = running || awaitingContinuation;
+  const traceLive = !terminal && (running || awaitingContinuation);
 
   // Pace the reveal so a burst of tool calls cascades instead of flashing in.
   // Called unconditionally (before the branches below) to satisfy hook rules;

@@ -366,4 +366,55 @@ describe("WorkingTrace", () => {
       second.agentId,
     ]);
   });
+
+  it("keeps repeated child invocations distinct without borrowing the latest state", () => {
+    const latest = { ...run([]), callId: "second-call" };
+    const task = (toolCallId: string): ToolCallMessagePart =>
+      ({
+        type: "tool-call",
+        toolCallId,
+        toolName: "task",
+        args: {},
+        result: { agent_id: latest.agentId, status: "completed" },
+      }) as ToolCallMessagePart;
+    const items = buildTraceItems(
+      [task("first-call"), task("second-call")],
+      [latest],
+    );
+
+    expect(items).toHaveLength(2);
+    expect(new Set(items.map((item) => item.key)).size).toBe(2);
+    expect(items[0]).toMatchObject({ kind: "agent", run: undefined });
+    expect(items[1]).toMatchObject({ kind: "agent", run: latest });
+  });
+
+  it("preserves every transcript child when only part of a batch is live", () => {
+    const latest = { ...run([]), agentId: "child-b", callId: "batch:2" };
+    const task = {
+      type: "tool-call",
+      toolCallId: "batch",
+      toolName: "task",
+      args: {},
+      result: { results: [{ agent_id: "child-a" }, { agent_id: "child-b" }] },
+    } as ToolCallMessagePart;
+    const items = buildTraceItems([task], [latest]);
+
+    expect(items).toHaveLength(2);
+    expect(items[0]).toMatchObject({ agentId: "child-a", run: undefined });
+    expect(items[1]).toMatchObject({ agentId: "child-b", run: latest });
+  });
+
+  it("keeps a live child key stable when its transcript arrives", () => {
+    const latest = run([]);
+    const task = {
+      type: "tool-call",
+      toolCallId: latest.callId,
+      toolName: "task",
+      args: {},
+      result: { agent_id: latest.agentId },
+    } as ToolCallMessagePart;
+    expect(buildTraceItems([task], [latest])[0]?.key).toBe(
+      buildTraceItems([], [latest])[0]?.key,
+    );
+  });
 });
