@@ -11,6 +11,7 @@ import type {
   PipelineExecutionScope,
   PipelineFilesystemResource,
   PipelineInvokeOptions,
+  PipelineMutationOptions,
   PipelineOperationBuildInput,
   PipelineOperationDescriptor,
   SvmCommitResult,
@@ -42,20 +43,32 @@ export class PipelineApiError extends Error {
 export class EvmPipelineTransport {
   constructor(private readonly requestResponse: RequestResponse) {}
 
-  build(input: PipelineOperationBuildInput): Promise<EvmSimulatedBuild> {
+  build(
+    input: PipelineOperationBuildInput,
+    options: PipelineMutationOptions = {},
+  ): Promise<EvmSimulatedBuild> {
     return json(this.requestResponse, "POST", "/v1/pipeline/evm/build", {
+      headers: mutationHeaders(options),
       body: jsonBody(input),
     });
   }
 
-  stage(input: EvmStageInput): Promise<EvmStagedBuild> {
+  stage(
+    input: EvmStageInput,
+    options: PipelineMutationOptions = {},
+  ): Promise<EvmStagedBuild> {
     return json(this.requestResponse, "POST", "/v1/pipeline/evm/stage", {
+      headers: mutationHeaders(options),
       body: jsonBody(input),
     });
   }
 
-  simulate(build: EvmStagedBuild): Promise<EvmSimulatedBuild> {
+  simulate(
+    build: EvmStagedBuild,
+    options: PipelineMutationOptions = {},
+  ): Promise<EvmSimulatedBuild> {
     return json(this.requestResponse, "POST", "/v1/pipeline/evm/simulate", {
+      headers: mutationHeaders(options),
       body: { build: jsonBody(build) },
     });
   }
@@ -74,20 +87,32 @@ export class EvmPipelineTransport {
 export class SvmPipelineTransport {
   constructor(private readonly requestResponse: RequestResponse) {}
 
-  build(input: PipelineOperationBuildInput): Promise<SvmSimulatedBuild> {
+  build(
+    input: PipelineOperationBuildInput,
+    options: PipelineMutationOptions = {},
+  ): Promise<SvmSimulatedBuild> {
     return json(this.requestResponse, "POST", "/v1/pipeline/svm/build", {
+      headers: mutationHeaders(options),
       body: jsonBody(input),
     });
   }
 
-  stage(input: SvmStageInput): Promise<SvmStagedBuild> {
+  stage(
+    input: SvmStageInput,
+    options: PipelineMutationOptions = {},
+  ): Promise<SvmStagedBuild> {
     return json(this.requestResponse, "POST", "/v1/pipeline/svm/stage", {
+      headers: mutationHeaders(options),
       body: jsonBody(input),
     });
   }
 
-  simulate(build: SvmStagedBuild): Promise<SvmSimulatedBuild> {
+  simulate(
+    build: SvmStagedBuild,
+    options: PipelineMutationOptions = {},
+  ): Promise<SvmSimulatedBuild> {
     return json(this.requestResponse, "POST", "/v1/pipeline/svm/simulate", {
+      headers: mutationHeaders(options),
       body: { build: jsonBody(build) },
     });
   }

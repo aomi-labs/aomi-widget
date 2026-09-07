@@ -71,17 +71,19 @@ export interface PipelineBuildProvenance {
   operations: PipelineOperationInvocation[];
 }
 
-export interface PipelineInvokeOptions {
-  /** Validate arguments against the live operation descriptor before POSTing. */
-  validate?: boolean;
+export interface PipelineMutationOptions {
   idempotencyKey?: string;
   paymentSignature?: string;
 }
 
-export interface PipelineCommitOptions {
+export interface PipelineInvokeOptions extends PipelineMutationOptions {
+  /** Validate arguments against the live operation descriptor before POSTing. */
+  validate?: boolean;
+}
+
+export interface PipelineCommitOptions extends PipelineMutationOptions {
   /** Defaults to the portable Build digest, making repeated commits stable. */
   idempotencyKey?: string;
-  paymentSignature?: string;
 }
 
 export type PipelineSimulation = Schemas["PipelineSimulation"];

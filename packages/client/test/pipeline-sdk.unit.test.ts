@@ -189,6 +189,11 @@ describe("Pipeline SDK lifecycle", () => {
     const receipt = await evm.commit(simulated);
 
     expect(receipt.status).toBe("committed");
+    const keys = fetch.mock.calls.map(([, init]) =>
+      new Headers(init?.headers).get("idempotency-key"),
+    );
+    expect(keys.every(Boolean)).toBe(true);
+    expect(new Set(keys).size).toBe(3);
     expect(fetch.mock.calls.map(([url]) => url)).toEqual([
       "https://api.example/v1/pipeline/evm/stage",
       "https://api.example/v1/pipeline/evm/simulate",
@@ -206,7 +211,7 @@ describe("Pipeline SDK lifecycle", () => {
   });
 
   it("preserves SVM instruction semantics through the fluent lifecycle", async () => {
-    const fetch = vi.fn(async (url: string) => {
+    const fetch = vi.fn(async (url: string, _init?: RequestInit) => {
       if (url.endsWith("/stage")) return Response.json(svmStaged);
       if (url.endsWith("/simulate")) return Response.json(svmSimulated);
       throw new Error(`Unexpected request ${url}`);
@@ -231,6 +236,11 @@ describe("Pipeline SDK lifecycle", () => {
 
     expect(build).toBeInstanceOf(SvmBuild);
     expect(build.status).toBe("simulated");
+    expect(
+      fetch.mock.calls.every(([, init]) =>
+        new Headers(init?.headers).has("idempotency-key"),
+      ),
+    ).toBe(true);
     expect(JSON.parse(fetch.mock.calls[0][1]?.body as string)).toEqual(input);
     expect(build.actions[0]).toMatchObject({ lane: "instruction", id: 1 });
     expect(JSON.parse(fetch.mock.calls[1][1]?.body as string)).toEqual({
@@ -318,6 +328,35 @@ describe("Pipeline SDK lifecycle", () => {
     });
     expect(result).toEqual(committed);
     expect(result.requests[0].type).toBe("execute_svm");
+  });
+
+  it("honors caller mutation keys and payment proofs for both build transports", async () => {
+    const fetch = vi
+      .fn()
+      .mockImplementation(async () => Response.json(evmSimulated));
+    const pipeline = new AomiClient({
+      baseUrl: "https://api.example",
+      fetch,
+      guest: false,
+    }).pipeline;
+    const input = {
+      operation: "/v1/pipeline/apps/default/operations/tool",
+      arguments: {},
+    };
+    const options = {
+      idempotencyKey: "build-operation",
+      paymentSignature: "payment-proof",
+    };
+    await pipeline.evm.build(input, options);
+    await pipeline.svm.build(input, options);
+    for (const [, init] of fetch.mock.calls) {
+      expect(new Headers(init.headers).get("idempotency-key")).toBe(
+        options.idempotencyKey,
+      );
+      expect(new Headers(init.headers).get("payment-signature")).toBe(
+        options.paymentSignature,
+      );
+    }
   });
 
   it("validates live operation arguments and keeps invocation runtime-typed", async () => {

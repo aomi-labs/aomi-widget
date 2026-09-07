@@ -61,6 +61,7 @@ export type {
   PipelineGasEstimate,
   PipelineGuardResult,
   PipelineInvokeOptions,
+  PipelineMutationOptions,
   PipelineJsonSchema,
   PipelineLog,
   PipelineOperationBuildInput,
