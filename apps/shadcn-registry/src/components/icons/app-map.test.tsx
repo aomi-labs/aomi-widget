@@ -44,7 +44,7 @@ describe("getAppIcon", () => {
       const Icon = getAppIcon(appId);
       expect(Icon, appId).toBeDefined();
       const markup = renderToStaticMarkup(
-        createElement(Icon!, { "data-app": appId }),
+        createElement(Icon!),
       );
       expect(markup, appId).toContain("currentColor");
       expect(markup, appId).not.toMatch(/\b(?:href|src)="https?:\/\//u);
