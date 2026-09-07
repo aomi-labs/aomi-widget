@@ -36,7 +36,6 @@ export class EvmStaged {
     return this.raw.actions.map((action) => ({
       ...action,
       chainFamily: "evm",
-      kind: "calls",
     }));
   }
 
@@ -74,7 +73,6 @@ export class EvmBuild {
     return this.raw.actions.map((action) => ({
       ...action,
       chainFamily: "evm",
-      kind: "calls",
     }));
   }
 

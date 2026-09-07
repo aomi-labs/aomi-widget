@@ -104,7 +104,7 @@ const agentResult = await aomi.agent.run("Supply 100 USDC to Aave");
 console.log(agentResult.messages);
 
 // The wire-close client is always available without a second instance.
-await aomi.raw.pipeline.evm.stage({ actions: [] });
+await aomi.raw.pipeline.root();
 ```
 
 Agent runs use **Auto** routing by default. Select **Direct** only when the
@@ -146,19 +146,30 @@ commit of a merely staged Build.
 const staged = await client.pipeline.evm.stage({
   actions: [
     {
-      chainId: 1,
-      calls: [{ to: "0x...", data: "0x", value: 0n }],
+      to: "0x...",
+      chain_id: 1,
+      description: "Transfer",
+      data: { signature: "", args: [], raw: "0x" },
+      value: 0n,
     },
   ],
 });
 const simulated = await client.pipeline.evm.simulate(staged);
-const receipt = await client.pipeline.evm.commit(simulated);
+const committed = await client.pipeline.evm.commit(simulated);
 
 const svmStaged = await client.pipeline.svm.stage({
   kind: "instructions",
-  instructions,
+  instructions: [{
+    description: "Transfer",
+    instructions: [{ program_id: "...", accounts: [], data_base64: "..." }],
+  }],
 });
 ```
+
+Portable builds preserve backend transaction records and operation provenance.
+Commit returns `requests` containing wallet intents (`ActionRequest[]`), plus
+operation output in `result` (EVM) or `results` (SVM). Stateless requests have
+no durable Agent Action IDs and are not automatically signed by the SDK.
 
 The Catalog is filesystem-like and arbitrary live operations deliberately stay
 runtime-schema-driven:

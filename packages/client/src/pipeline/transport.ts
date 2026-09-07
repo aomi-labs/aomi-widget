@@ -8,6 +8,7 @@ import type {
   PipelineCommitOptions,
   PipelineDirectory,
   PipelineErrorBody,
+  PipelineExecutionScope,
   PipelineFilesystemResource,
   PipelineInvokeOptions,
   PipelineOperationBuildInput,
@@ -104,13 +105,16 @@ export class SvmPipelineTransport {
 
 export class PipelineOperationTransport {
   readonly href: string;
+  readonly executionScope: PipelineExecutionScope;
 
   constructor(
     private readonly requestResponse: RequestResponse,
     scope: "apps" | "skills",
     owner: string,
   ) {
-    this.href = `/v1/pipeline/${scope}/${encodeURIComponent(required("name", owner))}`;
+    const name = required("name", owner);
+    this.href = `/v1/pipeline/${scope}/${encodeURIComponent(name)}`;
+    this.executionScope = scope === "apps" ? { app: name } : { skills: [name] };
   }
 
   directory(): Promise<PipelineDirectory> {
@@ -228,7 +232,6 @@ export class PipelineTransport {
       options,
     );
   }
-
 }
 
 async function invokeOperation<T>(
@@ -281,7 +284,9 @@ async function pipelineError(response: Response): Promise<PipelineApiError> {
     response.status === 408 ||
       response.status === 429 ||
       response.status >= 500,
-    stringValue(error?.requestId) ?? response.headers.get("x-request-id") ?? undefined,
+    stringValue(error?.requestId) ??
+      response.headers.get("x-request-id") ??
+      undefined,
     error?.details,
   );
 }

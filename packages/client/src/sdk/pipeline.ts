@@ -41,13 +41,17 @@ export class AomiEvmPipeline {
       "actions" in input
         ? input
         : {
-            actions: [
-              {
-                chainId: input.chainId,
-                calls: input.calls,
-                description: input.description,
-              },
-            ],
+            app: input.app,
+            skills: input.skills,
+            actions: input.calls.map((call) => ({
+              to: call.to,
+              chain_id: input.chainId,
+              description:
+                call.description ?? input.description ?? "Transaction",
+              data: { signature: "", args: [], raw: call.data ?? "0x" },
+              value: call.value,
+              gas_limit: call.gas,
+            })),
           };
     return new EvmStaged(await this.raw.stage(request), this.raw);
   }
@@ -139,7 +143,11 @@ export class AomiPipelineOperationScope {
     validatePipelineArguments(args, descriptor.inputSchema);
     const chainFamily =
       options.chainFamily ?? descriptor.chainFamily ?? inferChainFamily(args);
-    const input = { operation: descriptor.href, arguments: args };
+    const input = {
+      ...this.raw.executionScope,
+      operation: descriptor.href,
+      arguments: args,
+    };
     return chainFamily === "svm"
       ? this.svm.build(input)
       : this.evm.build(input);
