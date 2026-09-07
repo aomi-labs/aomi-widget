@@ -10,7 +10,7 @@ import {
 import { inferLibraryCategory, PackagesModal } from "./packages-modal";
 import { PackageIcon, PackageRow } from "./package-row";
 import { toCatalogPackage } from "./packages-catalog";
-import { seedAccountOverview } from "@portal/lib/account-overview";
+import { seedAccountOverview, useAccountOverview } from "@portal/lib/account-overview";
 
 type FetchCall = { input: string | URL | Request; init?: RequestInit };
 
@@ -342,6 +342,36 @@ describe("packages modal wiring", () => {
     expect(
       (screen.getByLabelText("Remove Uniswap") as HTMLButtonElement).disabled,
     ).toBe(false);
+  });
+
+  it("ignores a pending install response after sign-out and modal unmount", async () => {
+    let finishPut: ((response: Response) => void) | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+        const path = new URL(input.toString(), "https://portal.test").pathname;
+        if (path === "/api/account/apps" && init?.method === "PUT") {
+          return new Promise<Response>((resolve) => { finishPut = resolve; });
+        }
+        if (path === "/api/account/apps") return Response.json(CATALOG);
+        return new Response("Unauthenticated", { status: 401 });
+      }),
+    );
+    const view = await renderModal();
+    fireEvent.click(screen.getByLabelText("Add Treasury Ops"));
+    expect(finishPut).toBeTypeOf("function");
+    view.unmount();
+    seedAccountOverview(null);
+
+    await act(async () => {
+      finishPut?.(Response.json({ apps: ["default", "uniswap", "treasury-ops"] }));
+    });
+    function AccountIdentity() {
+      return <span>{useAccountOverview()?.user.user_id ?? "signed-out"}</span>;
+    }
+    render(<AccountIdentity />);
+    expect(screen.getByText("signed-out")).toBeTruthy();
+    expect(screen.queryByText("acct-1")).toBeNull();
   });
 
   it("serializes full-set replacements", async () => {

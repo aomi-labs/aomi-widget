@@ -10,7 +10,7 @@ import {
   type SkillSummary,
 } from "@/lib/capabilities/skill-catalog";
 import {
-  seedAccountOverview,
+  updateAccountApps,
   useAccountOverview,
 } from "@portal/lib/account-overview";
 import {
@@ -54,20 +54,13 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
   const [view, setView] = useState<LibraryView>("discover");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<LibrarySelection | null>(null);
-  const [installedFromServer, setInstalledFromServer] = useState<{
-    userId: string;
-    apps: string[];
-  } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const mutationInFlight = useRef(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const accountUserId = account?.user.user_id;
-  const installedBaseline =
-    installedFromServer && installedFromServer.userId === accountUserId
-      ? installedFromServer.apps
-      : (account?.user.apps ?? null);
+  const installedBaseline = account?.user.apps ?? null;
   const installedReady = installedBaseline !== null;
   const installedIds = useMemo(() => {
     const ids = new Set(installedBaseline ?? []);
@@ -79,7 +72,6 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
     async (packageId: string, next: string[]) => {
       if (
         !installedReady ||
-        !account ||
         !accountUserId ||
         mutationInFlight.current
       )
@@ -89,8 +81,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
       setActionError(null);
       try {
         const apps = await setInstalledApps(next);
-        setInstalledFromServer({ userId: accountUserId, apps });
-        seedAccountOverview({ ...account, user: { ...account.user, apps } });
+        updateAccountApps(accountUserId, apps);
       } catch (cause) {
         setActionError(
           cause instanceof Error ? cause.message : "Couldn’t update apps",
@@ -100,7 +91,7 @@ export function PackagesModal({ onClose }: PackagesModalProps) {
         setBusyId(null);
       }
     },
-    [account, accountUserId, installedReady],
+    [accountUserId, installedReady],
   );
 
   const install = (packageId: string) => {
