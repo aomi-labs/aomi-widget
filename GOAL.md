@@ -1,5 +1,18 @@
 # Current work
 
+**PAIRED MERGE READINESS CLEANUP 2026-09-07** — consolidated wallet review in the
+Activity sidebar, split composer/catalog/picker and sidebar responsibilities,
+removed superseded UI prototypes, preserved complete signing and permission
+disclosures, and fixed invocation/terminal-state joins. Aligned generated Agent
+and Pipeline contracts with the paired backend, corrected SDK stage/commit wire
+shapes and untargeted Direct routing, and bumped published packages. Final SDK
+and React tarballs pass isolated ESM, CJS, and strict public-type consumer checks.
+Full frontend tests currently pass (1,391 tests; two documented existing skips),
+as do lint, root types, and package builds. Integrated current main in both
+branches. Live wallet/CLI/SDK/browser gates and final remote checks are still
+in progress; this is not yet a merge-ready sign-off. Evidence is in the local
+merge-readiness review directory. Main must not be merged without the user.
+
 **SKILL ARTWORK AND APP IDENTITY AUDIT 2026-09-07** — audited all 42 built-in
 skills against the current backend catalog. Replaced approximate marks with
 26 source-backed local SVG assets, added missing protocol identities and the
