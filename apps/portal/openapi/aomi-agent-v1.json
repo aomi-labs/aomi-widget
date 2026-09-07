@@ -2591,6 +2591,24 @@
           },
           "protocol": {
             "type": "string"
+          },
+          "expires_at": {
+            "type": "integer"
+          },
+          "last_batch_status": {
+            "type": "string"
+          },
+          "pending_tx_id": {
+            "type": "integer"
+          },
+          "current_lifecycle": {
+            "type": "string"
+          },
+          "broadcaster": {
+            "enum": ["wallet", "venue", "hosted"]
+          },
+          "fee_outcome": {
+            "$ref": "#/components/schemas/FeeOutcome"
           }
         }
       },
@@ -2642,6 +2660,24 @@
             "type": "string"
           },
           "kind": {
+            "type": "string"
+          },
+          "broadcaster": {
+            "enum": ["wallet", "venue", "hosted"]
+          },
+          "signed_transaction_base64": {
+            "type": "string"
+          },
+          "broadcast_commitment": {
+            "type": "string"
+          },
+          "pending_tx_id": {
+            "type": "integer"
+          },
+          "last_batch_status": {
+            "type": "string"
+          },
+          "current_lifecycle": {
             "type": "string"
           }
         }
@@ -2704,7 +2740,7 @@
           }
         }
       },
-      "SvmFeeOutcome": {
+      "FeeOutcome": {
         "oneOf": [
           {
             "type": "object",
@@ -2819,7 +2855,7 @@
             "type": "string"
           },
           "fee_outcome": {
-            "$ref": "#/components/schemas/SvmFeeOutcome"
+            "$ref": "#/components/schemas/FeeOutcome"
           }
         }
       },
