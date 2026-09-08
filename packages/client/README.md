@@ -279,11 +279,12 @@ npx @aomi-labs/client tx sign action-1                   # execute a pending Act
 npx @aomi-labs/client session status                     # session info
 npx @aomi-labs/client session events                     # system events
 npx @aomi-labs/client session close                      # clear session
-npx @aomi-labs/client pipeline apps --query solana       # search Pipeline apps
-npx @aomi-labs/client pipeline tools --app svm-read-only --query balance
-npx @aomi-labs/client pipeline tool svm_get_balance --app svm-read-only
-npx @aomi-labs/client pipeline call svm_get_balance --app svm-read-only --idempotency-key operation-1 --arguments '{"address":"..."}'
-npx @aomi-labs/client pipeline run --app svm-read-only --idempotency-key operation-2 --program 'svm_get_balance address=...'
+npx @aomi-labs/client pipeline apps --filter solana
+npx @aomi-labs/client pipeline operations --app svm-read-only --filter balance
+npx @aomi-labs/client pipeline operation svm_get_balance --app svm-read-only
+npx @aomi-labs/client pipeline invoke svm_get_balance --app svm-read-only --arguments '{"address":"..."}'
+npx @aomi-labs/client pipeline build supply --app aave --arguments @supply.json > build.json
+npx @aomi-labs/client pipeline evm commit build.json
 ```
 
 The root command now mirrors the Rust CLI shape:
@@ -291,6 +292,27 @@ The root command now mirrors the Rust CLI shape:
 - `aomi` starts an interactive REPL with `/app`, `/model`, `/key`, and `:exit`.
 - `aomi --prompt "..."` sends a single prompt and exits.
 - The noun-verb subcommands remain available for transaction, session, secret, and control flows.
+
+### Pipeline CLI
+
+Pipeline commands use the same filesystem scopes and Build types as the
+TypeScript SDK. The normal operation flow is discover, build, inspect, then
+commit:
+
+```bash
+aomi pipeline operations --app aave
+aomi pipeline build supply --app aave --arguments @supply.json > build.json
+aomi pipeline evm commit build.json
+```
+
+`--arguments` and raw lifecycle inputs accept inline JSON, a file path,
+`@file`, or `-` for stdin. Results are JSON on stdout, while payment progress
+uses stderr, so Builds can be safely redirected or piped. `commit` accepts only
+a simulated Build and does not implicitly sign returned wallet requests.
+
+Use `aomi pipeline evm ...` or `aomi pipeline svm ...` for direct
+`build`, `stage`, `simulate`, and `commit` control. `aomi pipeline read [path]`
+is the generic Catalog escape hatch.
 
 ### Wallet connection
 
