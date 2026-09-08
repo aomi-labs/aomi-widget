@@ -1,5 +1,34 @@
 # Canonical Landing
 
+Settings reconnect follow-up (2026-09-08): linked embedded-wallet Connect and
+Add method use the host's exact Para/Privy selector, not whichever SDK happens
+to be mounted. Verified Para Connect in the existing local browser: Para modal
+opened and all three linked Para wallets became connected. No authorization
+submitted. Account/provider regression suite: 48 tests passed.
+
+Para authorization follow-up (2026-09-08): Settings now resolves live signing
+capability for the exact target address, independently of the globally selected
+wallet. EVM typed-data requests pin the signer; Para validates the recovered EVM
+address and exposes its embedded Solana message signer (raw message, base64
+Ed25519 signature). Linked does not imply currently signable. Remember the user's
+provider choice across reloads without opening login or granting authority.
+Real permission changes remain user-operated; no signatures or transactions
+submitted by the agent.
+
+Local sign-in follow-up (2026-09-08): expose both configured Privy and Para
+choices, opening only the selected SDK. Browser verified both login forms and
+switching back after cancellation; no login, signature, or delegation submitted.
+Move the development badge away from the account button. Wallet-picker tests,
+provider-switching tests, typechecks, and widget package build cover the change.
+
+Current session work: **TRANSACTION ROUTING SURFACES 2026-09-08** — explicit
+Manual/Auto authorization separated from Wallet/Hosted/Venue submission and AA
+execution. UI/CLI select Hosted for new Auto preparations, validate exact live
+delegation, preserve sealed requests and payer, and reject unsupported routes.
+Pipeline V2 replaces old handwritten envelopes. Uncommitted; no deployment or
+live provider transaction. See the maintained wallet-routing page for the
+supported UI/CLI matrix and release gates.
+
 Current session goal: **LEGACY AGENT TRACE GROUPING VERIFIED 2026-09-07** —
 group null-turn historical Agent tool steps and final answers by their preceding
 user message while preserving canonical turn identities and stable pagination.

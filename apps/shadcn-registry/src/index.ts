@@ -1,4 +1,5 @@
 // Main entry point for @aomi-labs/widget-lib
+export { WalletSignInOptionsContext } from "./components/control-bar/wallet-picker-context";
 // Re-export the main AomiFrame component
 export { AomiFrame } from "./components/aomi-frame";
 export { AomiLogo, type AomiLogoProps } from "./components/aomi-logo";

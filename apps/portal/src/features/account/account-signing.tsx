@@ -20,6 +20,7 @@ interface AccountSigningViewProps {
   unboundWallets: UnboundWallet[];
   /** Run the permit ceremony. Rejects with a user-facing message. */
   onCommit: (wallet: WalletPolicy, mode: SignerMode) => Promise<void>;
+  onSelectWallet?: (wallet: WalletPolicy) => void;
   onBindWallet: (wallet: UnboundWallet) => Promise<"bound" | "already_bound">;
   onRevokeDelegation: (delegation: DelegatedAccountView) => Promise<void>;
   onStopAllAuto: () => Promise<void>;
@@ -39,6 +40,7 @@ export function AccountSigningView({
   delegatedAccounts,
   unboundWallets,
   onCommit,
+  onSelectWallet,
   onBindWallet,
   onRevokeDelegation,
   onStopAllAuto,
@@ -132,7 +134,7 @@ export function AccountSigningView({
           delegation.status === "active" &&
           (delegation.providerKey ?? delegation.provider).toLowerCase() ===
             "privy" &&
-          !delegation.scope.toLowerCase().startsWith("solana"),
+          delegation.address.chain === "evm",
       ),
     [delegatedAccounts],
   );
@@ -301,6 +303,15 @@ export function AccountSigningView({
                         }
                         onDraft={(mode) => setDraft(wallet.id, mode)}
                         onCommit={() => void commit(wallet.id)}
+                        onSelectWallet={
+                          onSelectWallet
+                            ? () => {
+                                void run(wallet.id, async () => {
+                                  onSelectWallet(wallet);
+                                });
+                              }
+                            : undefined
+                        }
                         onCancel={() => cancelDraft(wallet.id)}
                         onRenewDelegation={() => renewDelegation(wallet.id)}
                         onRevokeDelegation={revokeDelegation}
@@ -340,7 +351,7 @@ export function AccountSigningView({
             <SettingRow
               className="pt-4"
               title="Stop all auto-signing"
-              desc="Revokes every provider delegation. Wallets set to Bypass permissions will fall back to manual until renewed."
+              desc="Revokes every provider delegation. Auto execution stops until you renew delegation or explicitly choose Manual."
             >
               <button
                 type="button"

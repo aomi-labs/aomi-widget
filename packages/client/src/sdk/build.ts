@@ -4,14 +4,12 @@ import type {
 } from "../pipeline/transport";
 import type {
   EvmCommitResult,
-  EvmPresentedAction,
   EvmSimulatedBuild,
   EvmStagedBuild,
   PipelineActionSummary,
   PipelineCommitOptions,
   PipelineSimulation,
   SvmCommitResult,
-  SvmPresentedAction,
   SvmSimulatedBuild,
   SvmStagedBuild,
 } from "../pipeline/types";
@@ -22,7 +20,7 @@ export class EvmStaged {
     private readonly transport: EvmPipelineTransport,
   ) {}
 
-  get version(): 1 {
+  get version(): 2 {
     return this.raw.version;
   }
 
@@ -30,12 +28,8 @@ export class EvmStaged {
     return this.raw.status;
   }
 
-  get actions(): EvmPresentedAction[] {
-    return this.raw.actions.map((action) => ({
-      ...action,
-      chainFamily: "evm",
-      kind: "calls",
-    }));
+  get actions(): EvmStagedBuild["actions"] {
+    return this.raw.actions;
   }
 
   get digest(): string {
@@ -60,7 +54,7 @@ export class EvmBuild {
     private readonly transport: EvmPipelineTransport,
   ) {}
 
-  get version(): 1 {
+  get version(): 2 {
     return this.raw.version;
   }
 
@@ -68,12 +62,8 @@ export class EvmBuild {
     return this.raw.status;
   }
 
-  get actions(): EvmPresentedAction[] {
-    return this.raw.actions.map((action) => ({
-      ...action,
-      chainFamily: "evm",
-      kind: "calls",
-    }));
+  get actions(): EvmSimulatedBuild["actions"] {
+    return this.raw.actions;
   }
 
   get summary(): PipelineActionSummary | undefined {
@@ -103,7 +93,7 @@ export class SvmStaged {
     private readonly transport: SvmPipelineTransport,
   ) {}
 
-  get version(): 1 {
+  get version(): 2 {
     return this.raw.version;
   }
 
@@ -111,11 +101,8 @@ export class SvmStaged {
     return this.raw.status;
   }
 
-  get actions(): SvmPresentedAction[] {
-    return this.raw.actions.map((action) => ({
-      ...action,
-      chainFamily: "svm",
-    }));
+  get actions(): unknown[] {
+    return this.raw.actions;
   }
 
   get digest(): string {
@@ -140,7 +127,7 @@ export class SvmBuild {
     private readonly transport: SvmPipelineTransport,
   ) {}
 
-  get version(): 1 {
+  get version(): 2 {
     return this.raw.version;
   }
 
@@ -148,11 +135,8 @@ export class SvmBuild {
     return this.raw.status;
   }
 
-  get actions(): SvmPresentedAction[] {
-    return this.raw.actions.map((action) => ({
-      ...action,
-      chainFamily: "svm",
-    }));
+  get actions(): unknown[] {
+    return this.raw.actions;
   }
 
   get summary(): PipelineActionSummary | undefined {

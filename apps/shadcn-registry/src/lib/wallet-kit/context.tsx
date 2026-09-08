@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from "react";
 import { useUser } from "@aomi-labs/react";
 import { AOMI_SESSION_DISCONNECTED_IDENTITY } from "./identity";
 import type { AomiWalletKit } from "./types";
@@ -24,8 +30,9 @@ const DISCONNECTED_WALLET_KIT: AomiWalletKit = {
   connect: async () => undefined,
 };
 
-const AomiWalletKitContext =
-  createContext<AomiWalletKit>(DISCONNECTED_WALLET_KIT);
+const AomiWalletKitContext = createContext<AomiWalletKit>(
+  DISCONNECTED_WALLET_KIT,
+);
 
 function toSvmCapabilities(
   capabilities: AomiWalletKit["identity"]["svmCapabilities"],
@@ -41,6 +48,7 @@ function toSvmCapabilities(
 function AomiWalletKitSync({ walletKit }: { walletKit: AomiWalletKit }) {
   const { setUser } = useUser();
   const identity = walletKit.identity;
+  const previous = useRef<typeof identity | null>(null);
 
   useEffect(() => {
     // Account-abstraction and sponsorship are backend authority: they are
@@ -53,20 +61,33 @@ function AomiWalletKitSync({ walletKit }: { walletKit: AomiWalletKit }) {
         provider: identity.isConnected
           ? (identity.sessionProvider ?? identity.embeddedProvider ?? null)
           : null,
-        auth_method: identity.isConnected ? (identity.authMethod ?? null) : null,
+        auth_method: identity.isConnected
+          ? (identity.authMethod ?? null)
+          : null,
       },
       evm: {
-        address: identity.address ?? null,
+        ...(!previous.current ||
+        previous.current.isConnected !== identity.isConnected ||
+        previous.current.address !== identity.address
+          ? { address: identity.address ?? null }
+          : {}),
         chain_id: identity.chainId ?? null,
       },
       svm: {
-        address: identity.svmAddress ?? null,
+        ...(!previous.current ||
+        previous.current.isConnected !== identity.isConnected ||
+        previous.current.svmAddress !== identity.svmAddress
+          ? { address: identity.svmAddress ?? null }
+          : {}),
         cluster: identity.svmCluster ?? undefined,
         wallet_name: identity.svmWalletName ?? null,
         transport: identity.svmTransport ?? null,
         capabilities: toSvmCapabilities(identity.svmCapabilities) ?? [],
       },
     });
+    // Chain/auth refreshes must not replace an explicitly selected agent with
+    // the connector's login wallet. An actual wallet switch still replaces it.
+    previous.current = identity;
   }, [
     identity.address,
     identity.authMethod,

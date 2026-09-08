@@ -47,12 +47,6 @@ export async function signCommand(
   if (new Set(selectors).size !== selectors.length) {
     fatal("Duplicate Action IDs are not allowed.");
   }
-  if (config.execution === "aa") {
-    fatal(
-      "AA execution is owned by the backend; local Action execution is EOA.",
-    );
-  }
-
   const cli = CliSession.load();
   if (!cli) fatal("No active session. Run `aomi chat` first.");
   cli.mergeConfig(config);
@@ -63,6 +57,21 @@ export async function signCommand(
       resolveAction(session.actions.pending(), selector),
     );
     for (const action of actions) {
+      const aa =
+        action.request.type === "sign" &&
+        action.request.chainFamily === "evm" &&
+        action.request.executionKind === "erc4337" &&
+        Boolean(action.request.operationId);
+      if (
+        config.execution &&
+        (config.execution === "aa"
+          ? !aa
+          : action.request.type !== "execute_evm")
+      ) {
+        fatal(
+          "The requested execution mode does not match the prepared Action; prepare a new operation instead.",
+        );
+      }
       if (!session.actions.canExecute(action.id)) {
         fatal(missingCapability(action));
       }
@@ -97,7 +106,11 @@ function formatAction(action: Action): string {
       : request.type === "execute_svm"
         ? `${request.transactions.length} SVM transaction${request.transactions.length === 1 ? "" : "s"}`
         : `${request.chainFamily.toUpperCase()} signature`;
-  return `${action.state === "pending" ? "⏳" : "✅"} ${action.id}  ${detail}  (${action.state}, revision ${action.revision})`;
+  const funding =
+    request.type === "sign" && request.maxNetworkFee
+      ? ` · network ceiling ${request.maxNetworkFee} native base units (${request.sponsorship === "required" ? "sponsorship required" : "user-funded"})`
+      : "";
+  return `${action.state === "pending" ? "⏳" : "✅"} ${action.id}  ${detail}${funding}  (${action.state}, revision ${action.revision})`;
 }
 
 function missingCapability(action: Action): string {

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const walletKit = vi.hoisted(() => ({
@@ -8,6 +8,7 @@ const walletKit = vi.hoisted(() => ({
   privyDelegationMounts: 0,
   throwOnProviderMount: "",
   replace: vi.fn(),
+  connectSocial: vi.fn(async () => undefined),
 }));
 
 const navigation = vi.hoisted(() => ({
@@ -24,7 +25,11 @@ vi.mock("next/navigation", () => ({
 vi.mock("@aomi-labs/widget-lib", async () => {
   const React = await import("react");
   const ProviderOwner = React.createContext(false);
+  const WalletSignInOptionsContext = React.createContext<
+    readonly { id: string; connect: () => Promise<void> }[]
+  >([]);
   return {
+    WalletSignInOptionsContext,
     AomiWalletKitProvider: ({
       auth,
       children,
@@ -39,12 +44,20 @@ vi.mock("@aomi-labs/widget-lib", async () => {
         throw new Error(walletKit.throwOnProviderMount);
       }
       walletKit.auth = auth;
+      const choices = React.useContext(WalletSignInOptionsContext);
       React.useEffect(() => {
         walletKit.providerMounts += 1;
       }, []);
       return (
         <ProviderOwner.Provider value>
-          <div data-testid="wallet-provider-root">{children}</div>
+          <div data-testid="wallet-provider-root">
+            {choices.map((choice) => (
+              <button key={choice.id} onClick={() => void choice.connect()}>
+                {choice.id}
+              </button>
+            ))}
+            {children}
+          </div>
         </ProviderOwner.Provider>
       );
     },
@@ -56,7 +69,8 @@ vi.mock("@aomi-labs/widget-lib", async () => {
     monadTestnet: { id: 10143 },
     robinhood: { id: 46630 },
     useAomiWalletKit: () => ({
-      connectSocial: vi.fn(),
+      isReady: true,
+      connectSocial: walletKit.connectSocial,
       getAccountCredential: vi.fn(),
     }),
     useFullTestnet: (chains: unknown) => ({
@@ -83,6 +97,7 @@ vi.mock("@portal/components/providers/e2e-wallet-provider", () => ({
 
 describe("WalletProviders Privy configuration", () => {
   afterEach(() => {
+    window.localStorage.removeItem("aomi:wallet-provider");
     vi.unstubAllEnvs();
     vi.resetModules();
     walletKit.auth = undefined;
@@ -90,8 +105,29 @@ describe("WalletProviders Privy configuration", () => {
     walletKit.privyDelegationMounts = 0;
     walletKit.throwOnProviderMount = "";
     walletKit.replace.mockReset();
+    walletKit.connectSocial.mockClear();
     navigation.pathname = "/settings";
     navigation.search = "";
+  });
+
+  it("restores the selected provider after remount without opening login again", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PRIVY_APP_ID", "privy-app");
+    vi.stubEnv("NEXT_PUBLIC_PARA_API_KEY", "para-key");
+    const { WalletProviders } = await import("./wallet-providers");
+    const view = render(<WalletProviders>chat</WalletProviders>);
+    fireEvent.click(screen.getByRole("button", { name: "para" }));
+    await waitFor(() =>
+      expect(walletKit.connectSocial).toHaveBeenCalledWith("para"),
+    );
+    view.unmount();
+    walletKit.connectSocial.mockClear();
+    walletKit.providerMounts = 0;
+    render(<WalletProviders>chat</WalletProviders>);
+    await waitFor(() =>
+      expect(walletKit.auth).toMatchObject({ provider: "para" }),
+    );
+    expect(walletKit.connectSocial).not.toHaveBeenCalled();
+    expect(walletKit.providerMounts).toBe(1);
   });
 
   it("leaves enabled login methods under Privy's authority", async () => {
@@ -107,6 +143,40 @@ describe("WalletProviders Privy configuration", () => {
     expect(walletKit.auth).toEqual({ provider: "privy" });
     expect(view.getAllByTestId("wallet-provider-root")).toHaveLength(1);
     expect(view.getAllByTestId("privy-delegation-root")).toHaveLength(1);
+  });
+
+  it("offers both configured providers and opens only the selected provider", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PRIVY_APP_ID", "privy-app");
+    vi.stubEnv("NEXT_PUBLIC_PARA_API_KEY", "para-key");
+    navigation.pathname = "/";
+    const { WalletProviders } = await import("./wallet-providers");
+    render(
+      <WalletProviders>
+        <span>chat</span>
+      </WalletProviders>,
+    );
+    expect(screen.getByRole("button", { name: "privy" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "para" })).toBeInTheDocument();
+    expect(walletKit.connectSocial).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "para" }));
+    await waitFor(() =>
+      expect(walletKit.connectSocial).toHaveBeenLastCalledWith("para"),
+    );
+    expect(walletKit.auth).toEqual({
+      provider: "para",
+      methods: ["email", "google"],
+    });
+    expect(screen.getAllByTestId("wallet-provider-root")).toHaveLength(1);
+    expect(screen.queryByTestId("privy-delegation-root")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "privy" }));
+    await waitFor(() =>
+      expect(walletKit.connectSocial).toHaveBeenLastCalledWith("privy"),
+    );
+    expect(walletKit.auth).toEqual({ provider: "privy" });
+    expect(walletKit.connectSocial).toHaveBeenCalledTimes(2);
+    expect(screen.getAllByTestId("wallet-provider-root")).toHaveLength(1);
   });
 
   it("mounts no auth SDK while a device route is choosing a provider", async () => {

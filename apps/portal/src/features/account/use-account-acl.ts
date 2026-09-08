@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   authorizationChallenge,
   authorizationCommit,
+  UserState,
   type AuthorizationPoster,
   type WalletEip712Payload,
 } from "@aomi-labs/client";
@@ -73,6 +74,7 @@ export type AccountAcl = {
   refresh: () => Promise<void>;
   /** Run the permit ceremony; resolves once the new mode is committed. */
   commitMode: (wallet: WalletPolicy, mode: SignerMode) => Promise<void>;
+  selectWallet: (wallet: WalletPolicy) => void;
   /** Link a connected wallet to the account (bind ceremony). */
   bindWallet: (wallet: UnboundWallet) => Promise<"bound" | "already_bound">;
   revokeDelegation: (delegation: DelegatedAccountView) => Promise<void>;
@@ -91,14 +93,15 @@ function unboundFromAccounts(
   accounts: readonly AdapterAccount[],
   wallets: WalletPolicy[],
 ): UnboundWallet[] {
-  const bound = new Set(
-    wallets.map((wallet) => `${wallet.chain}:${wallet.address.toLowerCase()}`),
-  );
   return accounts
     .filter((account) => account.address)
     .filter((account) => {
-      const chain = account.family;
-      return !bound.has(`${chain}:${account.address.toLowerCase()}`);
+      return !wallets.some((wallet) =>
+        UserState.sameAddress(
+          { chain: wallet.chain, address: wallet.address },
+          { chain: account.family, address: account.address },
+        ),
+      );
     })
     .map((account) => ({
       id: `${account.family}:${account.address}`,
@@ -133,6 +136,7 @@ export function useAccountAcl(): AccountAcl {
   const svmCluster = adapter.identity.svmCluster;
   const signTypedData = adapter.signTypedData;
   const signSolanaMessage = adapter.signSolanaMessage;
+  const canSignFor = adapter.canSignFor;
   const openAccountUI = adapter.openAccountUI;
   const currentThreadId = runtime?.currentThreadId;
   const canConnectPrivy =
@@ -162,20 +166,72 @@ export function useAccountAcl(): AccountAcl {
     void refresh();
   }, [refresh]);
 
+  const selectWallet = useCallback(
+    (wallet: WalletPolicy) => {
+      if (!runtime)
+        throw new Error(
+          "Open a chat session to select its transaction account.",
+        );
+      if (
+        wallet.desiredMode === "denied" ||
+        (wallet.desiredMode === "auto" && !wallet.canUseAuto)
+      ) {
+        throw new Error(
+          "This account cannot authorize transactions under its current policy.",
+        );
+      }
+      const state = runtime.getUserState();
+      const selected = state[wallet.chain];
+      const sameAccount = Boolean(
+        selected?.address &&
+        UserState.sameAddress(
+          { chain: wallet.chain, address: selected.address },
+          { chain: wallet.chain, address: wallet.address },
+        ),
+      );
+      runtime.setUser({
+        connection: { ...state.connection, is_connected: true },
+        [wallet.chain]: {
+          ...selected,
+          address: wallet.address,
+          broadcaster:
+            wallet.desiredMode === "auto"
+              ? sameAccount && selected?.broadcaster === "venue"
+                ? "venue"
+                : "hosted"
+              : undefined,
+        },
+      });
+    },
+    [runtime],
+  );
+
   const signerFor = useCallback(
-    (wallet: WalletPolicy) =>
-      wallet.chain === "evm"
-        ? { address: evmAddress, canSign: Boolean(signTypedData && evmAddress) }
-        : {
-            address: svmAddress,
-            canSign: Boolean(signSolanaMessage && svmAddress),
-          },
-    [evmAddress, svmAddress, signSolanaMessage, signTypedData],
+    (wallet: Pick<WalletPolicy, "chain" | "address">) => {
+      if (canSignFor?.(wallet.chain, wallet.address)) {
+        return { address: wallet.address, canSign: true };
+      }
+      const signer =
+        wallet.chain === "evm"
+          ? {
+              address: evmAddress,
+              canSign: Boolean(signTypedData && evmAddress),
+            }
+          : {
+              address: svmAddress,
+              canSign: Boolean(signSolanaMessage && svmAddress),
+            };
+      if (canSignFor && signer.address) {
+        signer.canSign = canSignFor(wallet.chain, signer.address);
+      }
+      return signer;
+    },
+    [canSignFor, evmAddress, svmAddress, signSolanaMessage, signTypedData],
   );
 
   const blockedReason = useCallback(
     (wallet: WalletPolicy, mode: SignerMode): string | null => {
-      if (mode === "auto" && wallet.canUseAuto === false) {
+      if (mode === "auto" && wallet.canUseAuto !== true) {
         return "This wallet has no active delegated account to sign with.";
       }
       const signer = signerFor(wallet);
@@ -187,7 +243,10 @@ export function useAccountAcl(): AccountAcl {
         isLoosening(wallet.desiredMode, mode) && !wallet.providerManaged;
       if (
         needsSelf &&
-        signer.address?.toLowerCase() !== wallet.address.toLowerCase()
+        !UserState.sameAddress(
+          { chain: wallet.chain, address: signer.address ?? "" },
+          { chain: wallet.chain, address: wallet.address },
+        )
       ) {
         return "Connect this wallet itself to widen what it may sign.";
       }
@@ -200,6 +259,7 @@ export function useAccountAcl(): AccountAcl {
     async (wallet: WalletPolicy, mode: SignerMode) => {
       const blocked = blockedReason(wallet, mode);
       if (blocked) throw new Error(blocked);
+      const signer = signerFor(wallet);
 
       const challenge = await readable(() =>
         authorizationChallenge(post, {
@@ -217,6 +277,7 @@ export function useAccountAcl(): AccountAcl {
         }
         const { signature } = await readable(() =>
           signTypedData({
+            signer: signer.address,
             typed_data:
               challenge.typed_data as WalletEip712Payload["typed_data"],
             description: permitDescription(wallet, mode),
@@ -231,6 +292,7 @@ export function useAccountAcl(): AccountAcl {
         }
         const { signature } = await readable(() =>
           signSolanaMessage({
+            signer: signer.address,
             message: challenge.message_base64 as string,
             cluster: svmCluster,
             description: permitDescription(wallet, mode),
@@ -240,20 +302,39 @@ export function useAccountAcl(): AccountAcl {
           authorizationCommit(post, {
             permit: challenge.permit,
             signature,
-            ...(svmAddress ? { signer: svmAddress } : {}),
+            signer: signer.address,
           }),
         );
       }
 
       await refresh();
+      // Selecting Auto also selects its exact authorizing account. A Para
+      // agent is not the connected login wallet; never transfer its policy
+      // to the login address. This changes new preparations, not staged work.
+      if (runtime && mode !== "denied") {
+        const state = runtime.getUserState();
+        const selected = state[wallet.chain];
+        const sameAccount = Boolean(
+          selected?.address &&
+          UserState.sameAddress(
+            { chain: wallet.chain, address: selected.address },
+            { chain: wallet.chain, address: wallet.address },
+          ),
+        );
+        if (mode === "auto" || sameAccount) {
+          selectWallet({ ...wallet, desiredMode: mode });
+        }
+      }
     },
     [
       blockedReason,
+      signerFor,
       refresh,
       signSolanaMessage,
       signTypedData,
-      svmAddress,
       svmCluster,
+      runtime,
+      selectWallet,
     ],
   );
 
@@ -266,20 +347,13 @@ export function useAccountAcl(): AccountAcl {
           signTypedData,
           signSolanaMessage,
           svmCluster,
-          signerAddress: wallet.chain === "svm" ? svmAddress : evmAddress,
+          signerAddress: signerFor(wallet).address,
         }),
       );
       await refresh();
       return result;
     },
-    [
-      evmAddress,
-      refresh,
-      signSolanaMessage,
-      signTypedData,
-      svmAddress,
-      svmCluster,
-    ],
+    [signerFor, refresh, signSolanaMessage, signTypedData, svmCluster],
   );
 
   const revokeDelegation = useCallback(
@@ -376,6 +450,7 @@ export function useAccountAcl(): AccountAcl {
       unboundWallets,
       refresh,
       commitMode,
+      selectWallet,
       bindWallet,
       revokeDelegation,
       stopAllAuto,
@@ -389,6 +464,7 @@ export function useAccountAcl(): AccountAcl {
       blockedReason,
       canConnectPrivy,
       commitMode,
+      selectWallet,
       connectPrivy,
       error,
       delegatedAccounts,

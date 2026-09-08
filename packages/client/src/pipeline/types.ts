@@ -1,5 +1,4 @@
 import type { components } from "../generated/agent-v1/types";
-import type { Action } from "../agent/types";
 
 type Schemas = components["schemas"];
 
@@ -79,17 +78,7 @@ export type PipelineGuardResult = Schemas["PipelineGuardResult"];
 export type PipelineGasEstimate = Schemas["PipelineGasEstimate"];
 export type PipelineLog = Schemas["PipelineLog"];
 
-export interface PipelineActionSummary {
-  title?: string;
-  description?: string;
-  actionCount?: number;
-  transactionCount?: number;
-  assetsIn?: string[];
-  assetsOut?: string[];
-  contracts?: string[];
-  programs?: string[];
-  chains?: Array<number | string>;
-}
+export type PipelineActionSummary = Schemas["PipelineBuild"]["summary"];
 
 export interface EvmCallInput {
   to: `0x${string}`;
@@ -122,53 +111,19 @@ export interface EvmDirectInput {
   description?: string;
 }
 
-export interface EvmStagedAction {
-  id: string;
-  chainFamily?: "evm";
-  kind?: "calls";
-  status?: string;
-  chainId: number;
-  calls: EvmCall[];
-  description?: string;
-}
-
-export type EvmPresentedAction = EvmStagedAction & {
-  chainFamily: "evm";
-  kind: "calls";
-};
-
-export interface EvmStagedBuild {
-  version: 1;
+// A Build is a server-sealed value, not a wallet Action. Preserve its native
+// action records, origin, expiry and attestation without fabricating a second
+// presentation envelope. Execution requests are returned separately at commit.
+export type EvmStagedBuild = Schemas["PipelineBuild"] & {
   status: "staged";
-  actions: EvmStagedAction[];
-  digest: string;
-}
-
-export interface EvmSimulatedBuild {
-  version: 1;
+  actions: Schemas["AssembledEvmTransaction"][];
+};
+export type EvmSimulatedBuild = Schemas["PipelineBuild"] & {
   status: "simulated";
-  actions: EvmStagedAction[];
+  actions: Schemas["AssembledEvmTransaction"][];
   simulation: PipelineSimulation;
-  summary?: PipelineActionSummary;
-  digest: string;
-}
-
-export interface PipelineTransactionReceipt {
-  id?: string;
-  transactionId: string;
-  status?: "submitted" | "confirmed" | "failed";
-  chainId?: number;
-  cluster?: string;
-  blockNumber?: number | string;
-}
-
-export interface EvmCommitResult {
-  version: 1;
-  status: "committed" | "submitted" | "awaiting_wallet";
-  digest: string;
-  receipts?: PipelineTransactionReceipt[];
-  action?: Action;
-}
+};
+export type EvmCommitResult = Schemas["PipelineEvmCommitResult"];
 
 export interface SvmAccountMeta {
   pubkey: string;
@@ -205,49 +160,10 @@ export type SvmStageInput =
 
 export type SvmDirectInput = SvmStageInput;
 
-export type SvmStagedAction =
-  | {
-      id: string;
-      chainFamily?: "svm";
-      kind: "instructions";
-      status?: string;
-      instructions: SvmInstruction[];
-      cluster?: string;
-      description?: string;
-    }
-  | {
-      id: string;
-      chainFamily?: "svm";
-      kind: "transaction";
-      status?: string;
-      transaction: SvmTransaction;
-      cluster?: string;
-      description?: string;
-    };
-
-export type SvmPresentedAction = SvmStagedAction & { chainFamily: "svm" };
-
-export interface SvmStagedBuild {
-  version: 1;
-  status: "staged";
-  actions: SvmStagedAction[];
-  digest: string;
-}
-
-export interface SvmSimulatedBuild {
-  version: 1;
+export type SvmStagedBuild = Schemas["PipelineBuild"] & { status: "staged" };
+export type SvmSimulatedBuild = Schemas["PipelineBuild"] & {
   status: "simulated";
-  actions: SvmStagedAction[];
   simulation: PipelineSimulation;
-  summary?: PipelineActionSummary;
-  digest: string;
-}
-
-export interface SvmCommitResult {
-  version: 1;
-  status: "committed" | "submitted" | "awaiting_wallet";
-  digest: string;
-  receipts?: PipelineTransactionReceipt[];
-  action?: Action;
-}
+};
+export type SvmCommitResult = Schemas["PipelineSvmCommitResult"];
 export type PipelineErrorBody = Schemas["ErrorEnvelope"];

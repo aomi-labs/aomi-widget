@@ -129,6 +129,17 @@ const result = await run.result();
 primitives have distinct DTOs and lifecycle transitions; TypeScript rejects a
 commit of a merely staged Build.
 
+Build V2 values retain the server's native action records, `origin`, `expiresAt`,
+`digest`, and `attestation`. Pass the complete value through simulate/commit;
+do not reconstruct it from displayed calls. Commit returns `result` (EVM) or
+`results` (SVM), plus `requests`; it does not manufacture a session Action or
+execute a wallet request. An expired Build requires fresh preparation.
+
+The direct staging helpers translate calls into Catalog staging parameters.
+Pipeline chooses the authorizing account from account policy: a caller `from`
+override is rejected. SVM cluster/payer overrides and non-base64 instruction
+data are currently unsupported and rejected rather than ignored.
+
 ```ts
 const staged = await client.pipeline.evm.stage({
   actions: [
