@@ -1,5 +1,12 @@
 # Canonical Landing
 
+Current session goal: **ACTION WALLET EXPORT VERIFIED 2026-09-08** —
+restore EIP-5792, MegaETH MOSS, and MetaMask Agent Wallet handoff artifacts on
+the canonical Action model, remove orphaned pre-Action CLI signing code, and
+align the transaction documentation and package release. Verified with client
+typecheck, scoped lint, 283 client tests, the production package build, built
+CLI help smoke, and the npm dry-run tarball audit for `0.6.13`.
+
 Current session goal: **LEGACY AGENT TRACE GROUPING VERIFIED 2026-09-07** —
 group null-turn historical Agent tool steps and final answers by their preceding
 user message while preserving canonical turn identities and stable pagination.
