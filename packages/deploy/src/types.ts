@@ -1406,3 +1406,27 @@ export interface RerunDeploymentResult {
   runId: number | null;
   ciUrl: string | null;
 }
+export interface ProjectDeploymentAttempt {
+  id: number;
+  previousRunId?: number | null;
+  number?: number;
+  attempt: number;
+  commit: string;
+  branch: string;
+  status: string;
+  conclusion: string | null;
+  url: string;
+  createdAt: string;
+  updatedAt?: string;
+  diagnostics?: string[];
+  jobs?: Array<{
+    id: number;
+    name: string;
+    status: string;
+    conclusion: string | null;
+    startedAt: string | null;
+    completedAt: string | null;
+    url: string;
+    steps: Array<{ name: string; status: string; conclusion: string | null }>;
+  }>;
+}

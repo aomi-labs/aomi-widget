@@ -565,7 +565,7 @@ export function createLaunchRoutes(options: LaunchRoutesOptions): LaunchRoutes {
       if (!owner) {
         return jsonResponse({ error: "project not found for this user" }, 404);
       }
-      const result = await client.listUserProjectApps({
+      const result = await client.projectRuntimeApps({
         githubUserId: session.githubUserId,
         projectId: owner.id,
       });
