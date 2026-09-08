@@ -185,6 +185,38 @@
     "/v1/account/statement": {
       "get": {
         "operationId": "getAccountStatement",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Priced usage statement"
@@ -1351,7 +1383,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PipelineBuild"
+                  "$ref": "#/components/schemas/PipelineEvmCommitResult"
                 }
               }
             }
@@ -1615,7 +1647,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PipelineBuild"
+                  "$ref": "#/components/schemas/PipelineSvmCommitResult"
                 }
               }
             }
@@ -1890,6 +1922,11 @@
           },
           "ens_name": {
             "type": ["string", "null"]
+          },
+          "broadcaster": {
+            "type": "string",
+            "enum": ["wallet", "hosted", "venue"],
+            "description": "Selected submitter. Auto selects hosted before assembly; an explicit wallet selection is invalid for Auto. App policy still bounds this choice."
           }
         }
       },
@@ -1914,6 +1951,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "broadcaster": {
+            "type": "string",
+            "enum": ["wallet", "hosted", "venue"],
+            "description": "Selected submitter. Auto selects hosted before assembly; an explicit wallet selection is invalid for Auto. App policy still bounds this choice."
           }
         }
       },
@@ -2655,7 +2697,13 @@
             }
           },
           "sponsorship": {
-            "type": "string"
+            "type": "string",
+            "enum": ["none", "required"]
+          },
+          "maxNetworkFee": {
+            "type": "string",
+            "pattern": "^[0-9]+$",
+            "description": "Maximum network cost in native base units, separate from application fees and principal."
           }
         }
       },
@@ -2912,10 +2960,18 @@
       },
       "PipelineBuild": {
         "type": "object",
-        "required": ["version", "status", "actions", "provenance", "digest"],
+        "required": [
+          "version",
+          "status",
+          "actions",
+          "origin",
+          "expiresAt",
+          "digest",
+          "attestation"
+        ],
         "properties": {
           "version": {
-            "const": 1
+            "const": 2
           },
           "status": {
             "enum": ["staged", "simulated"]
@@ -2923,16 +2979,78 @@
           "actions": {
             "type": "array"
           },
-          "provenance": {
-            "type": "object"
+          "origin": {
+            "type": "object",
+            "description": "App, skills, and Catalog operations that assembled the actions.",
+            "required": ["app", "operations"],
+            "properties": {
+              "app": {
+                "type": "string"
+              },
+              "skills": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "operations": {
+                "type": "array"
+              }
+            }
           },
           "simulation": {
             "$ref": "#/components/schemas/PipelineSimulation"
           },
           "summary": {},
+          "expiresAt": {
+            "type": "integer",
+            "description": "Unix timestamp after which commit is rejected."
+          },
           "digest": {
             "type": "string",
             "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "attestation": {
+            "type": "string",
+            "description": "Server authentication of the Build, its owner, and app scope."
+          }
+        }
+      },
+      "PipelineEvmCommitResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "digest", "result", "requests"],
+        "properties": {
+          "status": {
+            "const": "committed"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "result": {},
+          "requests": {
+            "type": "array"
+          }
+        }
+      },
+      "PipelineSvmCommitResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["status", "digest", "results", "requests"],
+        "properties": {
+          "status": {
+            "const": "committed"
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "results": {
+            "type": "array"
+          },
+          "requests": {
+            "type": "array"
           }
         }
       },

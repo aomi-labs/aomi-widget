@@ -7,7 +7,9 @@ import {
   type ErrorInfo,
   type ReactNode,
   useEffect,
+  useCallback,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -32,6 +34,8 @@ import {
   megaeth,
   robinhood,
   useFullTestnet,
+  useAomiWalletKit,
+  WalletSignInOptionsContext,
 } from "@aomi-labs/widget-lib";
 import { PrivyDelegationProvider } from "@aomi-labs/widget-lib/providers/privy";
 import {
@@ -136,6 +140,51 @@ function getBrowserAuthOrigin(): BrowserAuthOrigin | null {
 export function WalletProviders({ children, e2eWallet }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [signIn, setSignIn] = useState<{
+    provider: DeviceAuthProvider;
+    attempt: number;
+  } | null>(null);
+  const [providerRestored, setProviderRestored] = useState(false);
+  useEffect(() => {
+    try {
+      const provider = window.localStorage.getItem("aomi:wallet-provider");
+      if (
+        (provider === "para" && paraApiKey) ||
+        (provider === "privy" && privyAppId)
+      ) {
+        setSignIn({ provider, attempt: 0 });
+      }
+    } catch {
+      // Storage can be disabled; provider selection still works for this visit.
+    } finally {
+      setProviderRestored(true);
+    }
+  }, []);
+  const chooseProvider = useCallback(async (provider: DeviceAuthProvider) => {
+    try {
+      window.localStorage.setItem("aomi:wallet-provider", provider);
+    } catch {
+      // Remembering a UI preference is optional, never an authentication grant.
+    }
+    setSignIn((previous) => ({
+      provider,
+      attempt: (previous?.attempt ?? 0) + 1,
+    }));
+  }, []);
+  const signInOptions = useMemo(() => {
+    const providers: DeviceAuthProvider[] = [];
+    if (privyAppId) providers.push("privy");
+    if (paraApiKey) providers.push("para");
+    return providers.map((provider) => ({
+      id: provider,
+      label: provider === "privy" ? "Privy" : "Para",
+      description: "Sign in or link this provider to your Aomi account",
+      family: "multichain" as const,
+      kind: "social" as const,
+      status: "available" as const,
+      connect: () => chooseProvider(provider),
+    }));
+  }, [chooseProvider]);
   const [browserAuthOrigin, setBrowserAuthOrigin] =
     useState<BrowserAuthOrigin | null>(() => getBrowserAuthOrigin());
   useEffect(() => {
@@ -172,11 +221,7 @@ export function WalletProviders({ children, e2eWallet }: Props) {
     ? routeProviderFailure
       ? null
       : routeProvider
-    : privyAppId
-      ? "privy"
-      : paraApiKey
-        ? "para"
-        : null;
+    : (signIn?.provider ?? (privyAppId ? "privy" : paraApiKey ? "para" : null));
   const auth = selectedProvider
     ? selectedProvider === "privy"
       ? ({ provider: "privy" } as const)
@@ -195,42 +240,62 @@ export function WalletProviders({ children, e2eWallet }: Props) {
     );
   }
 
+  // Restore before mounting any SDK: a cached session in the default provider
+  // must not start an account exchange while the selected provider is loading.
+  if (!providerRestored) return null;
+
   const providerTree = (
-    <AomiWalletKitProvider
-      key={selectedProvider ?? "no-auth-provider"}
-      auth={auth}
-      account={account}
-      providers={{
-        para: paraApiKey
-          ? {
-              appName: "Aomi Labs",
-              appDescription: "Aomi portal testing",
-              apiKey: paraApiKey,
-              environment: paraEnvironment,
-            }
-          : false,
-        privy: privyAppId
-          ? {
-              appId: privyAppId,
-              appName: "Aomi Labs",
-            }
-          : false,
-      }}
-      wallets={{
-        evm: {
-          chains: routedChains,
-          appName: "Aomi Labs",
-          wallets: evmWallets,
-          walletConnectProjectId,
-        },
-        solana: {
-          networks: solanaNetworks,
-          preferDirectSend: true,
-        },
-      }}
+    <WalletSignInOptionsContext.Provider
+      value={isDeviceAuthRoute(pathname) ? [] : signInOptions}
     >
-      {selectedProvider === "privy" ? (
-        <PrivyDelegationProvider>
+      <AomiWalletKitProvider
+        key={selectedProvider ?? "no-auth-provider"}
+        auth={auth}
+        account={account}
+        providers={{
+          para: paraApiKey
+            ? {
+                appName: "Aomi Labs",
+                appDescription: "Aomi portal testing",
+                apiKey: paraApiKey,
+                environment: paraEnvironment,
+              }
+            : false,
+          privy: privyAppId
+            ? {
+                appId: privyAppId,
+                appName: "Aomi Labs",
+              }
+            : false,
+        }}
+        wallets={{
+          evm: {
+            chains: routedChains,
+            appName: "Aomi Labs",
+            wallets: evmWallets,
+            walletConnectProjectId,
+          },
+          solana: {
+            networks: solanaNetworks,
+            preferDirectSend: true,
+          },
+        }}
+      >
+        {!isDeviceAuthRoute(pathname) && signIn && signIn.attempt > 0 && (
+          <ProviderSignIn key={signIn.attempt} provider={signIn.provider} />
+        )}
+        {selectedProvider === "privy" ? (
+          <PrivyDelegationProvider>
+            <FullTestnetWalletRouter
+              enabled={fullTestnetEnabled}
+              chains={routedChains}
+              routedChainIds={routedChainIds}
+              logLabel="portal:FullTestnetWalletRouter"
+            >
+              {children}
+            </FullTestnetWalletRouter>
+          </PrivyDelegationProvider>
+        ) : (
           <FullTestnetWalletRouter
             enabled={fullTestnetEnabled}
             chains={routedChains}
@@ -239,18 +304,9 @@ export function WalletProviders({ children, e2eWallet }: Props) {
           >
             {children}
           </FullTestnetWalletRouter>
-        </PrivyDelegationProvider>
-      ) : (
-        <FullTestnetWalletRouter
-          enabled={fullTestnetEnabled}
-          chains={routedChains}
-          routedChainIds={routedChainIds}
-          logLabel="portal:FullTestnetWalletRouter"
-        >
-          {children}
-        </FullTestnetWalletRouter>
-      )}
-    </AomiWalletKitProvider>
+        )}
+      </AomiWalletKitProvider>
+    </WalletSignInOptionsContext.Provider>
   );
   return isDeviceAuthRoute(pathname) && selectedProvider ? (
     <DeviceAuthProviderErrorBoundary
@@ -262,6 +318,26 @@ export function WalletProviders({ children, e2eWallet }: Props) {
   ) : (
     providerTree
   );
+}
+
+function ProviderSignIn({ provider }: { provider: DeviceAuthProvider }) {
+  const adapter = useAomiWalletKit();
+  const started = useRef(false);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!adapter.isReady || !adapter.connectSocial || started.current) return;
+    started.current = true;
+    void adapter.connectSocial(provider).catch(() => setFailed(true));
+  }, [adapter, provider]);
+  return failed ? (
+    <div
+      role="alert"
+      className="bg-background fixed bottom-4 right-4 z-[100] rounded-xl p-4 shadow-lg"
+    >
+      Couldn’t open {provider === "privy" ? "Privy" : "Para"}. Choose it again
+      to retry.
+    </div>
+  ) : null;
 }
 
 class DeviceAuthProviderErrorBoundary extends Component<
