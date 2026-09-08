@@ -30,7 +30,7 @@ export function AttemptControls({
   const [branch, setBranch] = useState("");
   const latest = detail.attempts.attempts[0];
   useEffect(() => {
-    if (latest?.branch) setBranch(latest.branch);
+    setBranch(latest?.branch ?? "");
   }, [latest?.branch]);
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
@@ -259,7 +259,8 @@ function AttemptCard({
         {attempt.previousRunId
           ? ` · Follows attempt ${attempt.previousRunId}`
           : ""}{" "}
-        · {attempt.branch} · <code>{attempt.commit?.slice(0, 12)}</code> ·{" "}
+        · {attempt.branch || "Pinned commit"} ·{" "}
+        <code>{attempt.commit?.slice(0, 12)}</code> ·{" "}
         {new Date(attempt.createdAt).toLocaleString()}
       </p>
       {expanded && (
@@ -372,7 +373,8 @@ function AttemptCard({
           </div>
           {failed && (
             <p className="text-dim text-xs">
-              Retry checks the latest commit on {attempt.branch}. An existing
+              Retry checks the latest commit on{" "}
+              {attempt.branch || "the repository default branch"}. An existing
               successful release can be reused.
             </p>
           )}
