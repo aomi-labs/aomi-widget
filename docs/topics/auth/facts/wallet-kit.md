@@ -38,6 +38,20 @@ linked-owner, exact-wallet, expiry, or version checks.
 Auto-approve (`client_auto`) is caller-side behavior. It is not server Auto and
 does not create delegation or enable an agent wallet.
 
+Changing a signing mode opens an Aomi confirmation dialog with the exact wallet,
+current/proposed mode, and permission consequences. **Review change** fetches
+the unsigned backend challenge and displays its full EIP-712 JSON (EVM) or
+decoded signable message (Solana). **Sign to approve** signs that exact payload
+and submits the existing permit; it never regenerates the challenge silently.
+Cancel/Escape do not sign or commit. An expired permit or changed policy version
+requires another review; repeated confirmation cannot duplicate signing work.
+
+After confirmation, an embedded wallet may sign using its existing session
+without another popup. The dialog discloses this explicitly. Aomi does not force
+a native provider popup or block Para for lacking one. Ordinary signing is
+unchanged. The backend still verifies the signed permit's exact authority,
+version, and expiry; the Aomi dialog is not cryptographic proof of user presence.
+
 Authorization (Manual/Auto), submission (Wallet/Hosted/Venue), and execution
 (ordinary transaction/AA) are separate. A connected wallet is an identity and
 capability, not a promise that it submits every transaction.

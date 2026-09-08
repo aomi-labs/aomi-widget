@@ -6,6 +6,7 @@ import {
   authorizationCommit,
   UserState,
   type AuthorizationPoster,
+  type AomiAuthorizationChallenge,
   type WalletEip712Payload,
 } from "@aomi-labs/client";
 import { useOptionalAomiRuntime } from "@aomi-labs/react";
@@ -72,8 +73,17 @@ export type AccountAcl = {
   /** Connected adapter accounts not yet linked via the bind ceremony. */
   unboundWallets: UnboundWallet[];
   refresh: () => Promise<void>;
-  /** Run the permit ceremony; resolves once the new mode is committed. */
-  commitMode: (wallet: WalletPolicy, mode: SignerMode) => Promise<void>;
+  /** Fetch the unsigned permit for review, without invoking a signer. */
+  prepareMode: (
+    wallet: WalletPolicy,
+    mode: SignerMode,
+  ) => Promise<AomiAuthorizationChallenge>;
+  /** Sign the reviewed permit; resolves once the new mode is committed. */
+  commitMode: (
+    wallet: WalletPolicy,
+    mode: SignerMode,
+    challenge: AomiAuthorizationChallenge,
+  ) => Promise<void>;
   selectWallet: (wallet: WalletPolicy) => void;
   /** Link a connected wallet to the account (bind ceremony). */
   bindWallet: (wallet: UnboundWallet) => Promise<"bound" | "already_bound">;
@@ -255,11 +265,10 @@ export function useAccountAcl(): AccountAcl {
     [signerFor],
   );
 
-  const commitMode = useCallback(
+  const prepareMode = useCallback(
     async (wallet: WalletPolicy, mode: SignerMode) => {
       const blocked = blockedReason(wallet, mode);
       if (blocked) throw new Error(blocked);
-      const signer = signerFor(wallet);
 
       const challenge = await readable(() =>
         authorizationChallenge(post, {
@@ -270,6 +279,35 @@ export function useAccountAcl(): AccountAcl {
           mode: mode === "auto" ? "server_auto" : mode,
         }),
       );
+      if (
+        wallet.chain === "evm"
+          ? !challenge.typed_data
+          : !challenge.message_base64
+      ) {
+        throw new Error(
+          "The authorization payload is missing. Review this change again.",
+        );
+      }
+      return challenge;
+    },
+    [blockedReason],
+  );
+
+  const commitMode = useCallback(
+    async (
+      wallet: WalletPolicy,
+      mode: SignerMode,
+      challenge: AomiAuthorizationChallenge,
+    ) => {
+      const blocked = blockedReason(wallet, mode);
+      if (blocked) throw new Error(blocked);
+      const signer = signerFor(wallet);
+
+      if (challenge.permit.expiry <= Math.floor(Date.now() / 1000)) {
+        throw new Error(
+          "This authorization expired. Review the change again before signing.",
+        );
+      }
 
       if (wallet.chain === "evm") {
         if (!challenge.typed_data || !signTypedData) {
@@ -449,6 +487,7 @@ export function useAccountAcl(): AccountAcl {
       delegatedAccounts,
       unboundWallets,
       refresh,
+      prepareMode,
       commitMode,
       selectWallet,
       bindWallet,
@@ -463,6 +502,7 @@ export function useAccountAcl(): AccountAcl {
       bindWallet,
       blockedReason,
       canConnectPrivy,
+      prepareMode,
       commitMode,
       selectWallet,
       connectPrivy,

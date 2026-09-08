@@ -375,6 +375,7 @@ export function AccountSettings() {
             delegatedAccounts={acl.delegatedAccounts}
             unboundWallets={acl.unboundWallets}
             onCommit={acl.commitMode}
+            onPrepare={acl.prepareMode}
             onSelectWallet={acl.selectWallet}
             onBindWallet={acl.bindWallet}
             onRevokeDelegation={acl.revokeDelegation}

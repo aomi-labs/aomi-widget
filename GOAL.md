@@ -1,5 +1,15 @@
 # Canonical Landing
 
+Aomi policy confirmation follow-up (2026-09-08): replaces the earlier native
+provider-popup requirement. Settings reviews the exact wallet and old/new mode
+alongside the backend-generated EIP-712 JSON (or Solana message). Review fetches
+an unsigned challenge; only Sign to approve signs that exact payload and submits
+the permit. Cancel/Escape never sign or commit. Embedded wallets may sign without
+a second popup, explicitly disclosed. Removed the temporary Para block and
+forced-native request plumbing. Exact-wallet/backend permit checks remain intact.
+Live typed-data review/cancel verified; no authorization submitted by the agent.
+61 account/provider tests, Portal typecheck, strict lint and formatting pass.
+
 Settings reconnect follow-up (2026-09-08): linked embedded-wallet Connect and
 Add method use the host's exact Para/Privy selector, not whichever SDK happens
 to be mounted. Verified Para Connect in the existing local browser: Para modal

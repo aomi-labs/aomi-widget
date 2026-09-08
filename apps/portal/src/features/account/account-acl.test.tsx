@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 
 import { AccountSettings } from "./account-settings";
@@ -217,6 +218,8 @@ describe("account ACL wiring", () => {
     };
     walletKit.accounts = [];
     walletKit.signTypedData.mockClear();
+    walletKit.signSolanaMessage.mockClear();
+    runtime.setUser.mockClear();
     privyDelegation.start.mockReset();
     privyDelegation.start.mockResolvedValue(undefined);
     // The overview store is module-level; seed it so the tab doesn't also
@@ -231,6 +234,55 @@ describe("account ACL wiring", () => {
     seedAccountOverview(null);
   });
 
+  it.each(["evm", "svm"])(
+    "reviews the unsigned %s payload before requesting a signature",
+    async (chain) => {
+      walletKit.canSignFor = () => true;
+      const { calls } = installFetchRecorder(
+        chain === "svm"
+          ? {
+              "/api/account/authorization/challenge": () =>
+                Response.json({
+                  permit: {
+                    account: "acct-1",
+                    chain_type: "svm",
+                    wallet: PRIVY_SVM,
+                    mode: "client_auto",
+                    version: 4,
+                    expiry: 1_800_000_000,
+                  },
+                  message_base64: btoa("Aomi Authorization\nmode: client_auto"),
+                }),
+            }
+          : {},
+      );
+      await renderAcl();
+      await click(
+        chain === "evm" ? await findWalletRow() : await findPrivyRow(),
+      );
+      await click(screen.getByText("Auto-approve"));
+      await click(screen.getByText("Review change"));
+      const dialog = screen.getByRole("dialog", {
+        name: "Confirm signing policy",
+      });
+      expect(dialog.textContent).toContain(
+        chain === "evm" ? CONNECTED_EVM.toLowerCase() : PRIVY_SVM,
+      );
+      expect(dialog.textContent).toContain("Auto-approve");
+      expect(
+        within(dialog).getByLabelText("Payload to sign").textContent,
+      ).toContain(
+        chain === "evm" ? "AuthorizationPermit" : "Aomi Authorization",
+      );
+      expect(walletKit.signTypedData).not.toHaveBeenCalled();
+      expect(walletKit.signSolanaMessage).not.toHaveBeenCalled();
+      expect(paths(calls)).toContain("/api/account/authorization/challenge");
+      await click(within(dialog).getByRole("button", { name: "Cancel" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      expect(paths(calls)).not.toContain("/api/account/authorization/commit");
+    },
+  );
+
   it("authorizes the exact connected Para wallet without changing the globally selected wallet", async () => {
     walletKit.identity.address = "0x1111111111111111111111111111111111111111";
     walletKit.canSignFor = (chain, address) =>
@@ -239,11 +291,14 @@ describe("account ACL wiring", () => {
     await renderAcl();
     await click(await findWalletRow());
     await click(screen.getByText("Auto-approve"));
-    const authorize = screen.getByText("Sign to authorize");
+    const authorize = screen.getByText("Review change");
     expect(authorize.hasAttribute("disabled")).toBe(false);
     await click(authorize);
+    await click(screen.getByRole("button", { name: "Sign to approve" }));
     expect(walletKit.signTypedData).toHaveBeenCalledWith(
-      expect.objectContaining({ signer: CONNECTED_EVM.toLowerCase() }),
+      expect.objectContaining({
+        signer: CONNECTED_EVM.toLowerCase(),
+      }),
     );
   });
 
@@ -261,16 +316,51 @@ describe("account ACL wiring", () => {
     await renderAcl();
     await click(await findPrivyRow());
     await click(screen.getByText("Auto-approve"));
-    const authorize = screen.getByText("Sign to authorize");
+    const authorize = screen.getByText("Review change");
     expect(authorize.hasAttribute("disabled")).toBe(false);
     await click(authorize);
+    await click(screen.getByRole("button", { name: "Sign to approve" }));
     expect(walletKit.signSolanaMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ signer: PRIVY_SVM, message: "cGVybWl0" }),
+      expect.objectContaining({
+        signer: PRIVY_SVM,
+        message: "cGVybWl0",
+      }),
     );
     expect(bodyOf(calls, "/api/account/authorization/commit")).toMatchObject({
       signer: PRIVY_SVM,
     });
   });
+
+  it.each(["evm", "svm"])(
+    "does not commit a policy when %s signing fails after confirmation",
+    async (chain) => {
+      walletKit.canSignFor = () => true;
+      const sign =
+        chain === "evm" ? walletKit.signTypedData : walletKit.signSolanaMessage;
+      sign.mockRejectedValueOnce(new Error("Wallet signing cancelled"));
+      const { calls } = installFetchRecorder(
+        chain === "svm"
+          ? {
+              "/api/account/authorization/challenge": () =>
+                Response.json({
+                  permit: { wallet: PRIVY_SVM },
+                  message_base64: "cGVybWl0",
+                }),
+            }
+          : {},
+      );
+      await renderAcl();
+      await click(
+        chain === "evm" ? await findWalletRow() : await findPrivyRow(),
+      );
+      await click(screen.getByText("Auto-approve"));
+      await click(screen.getByText("Review change"));
+      await click(screen.getByRole("button", { name: "Sign to approve" }));
+      await screen.findByText("Wallet signing cancelled");
+      expect(paths(calls)).not.toContain("/api/account/authorization/commit");
+      expect(runtime.setUser).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     ["evm", "para", "privy"],
@@ -374,6 +464,53 @@ describe("account ACL wiring", () => {
     ).toBeNull();
   });
 
+  it("refuses an expired reviewed permit without signing or refreshing it silently", async () => {
+    const { calls } = installFetchRecorder({
+      "/api/account/authorization/challenge": () =>
+        Response.json({
+          permit: {
+            account: "acct-1",
+            chain_type: "evm",
+            wallet: CONNECTED_EVM,
+            mode: "client_auto",
+            version: 2,
+            expiry: 1,
+          },
+          typed_data: { primaryType: "AuthorizationPermit" },
+        }),
+    });
+    await renderAcl();
+    await click(await findWalletRow());
+    await click(screen.getByText("Auto-approve"));
+    await click(screen.getByText("Review change"));
+    await click(screen.getByRole("button", { name: "Sign to approve" }));
+    expect(screen.getByText(/This authorization expired/)).toBeTruthy();
+    expect(walletKit.signTypedData).not.toHaveBeenCalled();
+    expect(paths(calls)).not.toContain("/api/account/authorization/commit");
+    expect(
+      paths(calls).filter(
+        (path) => path === "/api/account/authorization/challenge",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("does not offer approval without a signable payload", async () => {
+    const { calls } = installFetchRecorder({
+      "/api/account/authorization/challenge": () =>
+        Response.json({ permit: {} }),
+    });
+    await renderAcl();
+    await click(await findWalletRow());
+    await click(screen.getByText("Auto-approve"));
+    await click(screen.getByText("Review change"));
+    expect(screen.getByText(/authorization payload is missing/)).toBeTruthy();
+    expect(
+      screen.queryByRole("dialog", { name: "Confirm signing policy" }),
+    ).toBeNull();
+    expect(walletKit.signTypedData).not.toHaveBeenCalled();
+    expect(paths(calls)).not.toContain("/api/account/authorization/commit");
+  });
+
   it("runs challenge → sign → commit and reloads on a mode change", async () => {
     const { calls } = installFetchRecorder();
 
@@ -382,7 +519,12 @@ describe("account ACL wiring", () => {
 
     await click(row);
     await click(await screen.findByText("Auto-approve"));
-    await click(await screen.findByText("Sign to authorize"));
+    await click(await screen.findByText("Review change"));
+    const reviewed = JSON.parse(
+      screen.getByLabelText("Payload to sign").textContent ?? "",
+    );
+    expect(walletKit.signTypedData).not.toHaveBeenCalled();
+    await click(screen.getByRole("button", { name: "Sign to approve" }));
 
     await waitFor(() =>
       expect(paths(calls)).toContain("/api/account/authorization/commit"),
@@ -393,6 +535,12 @@ describe("account ACL wiring", () => {
       mode: "client_auto",
     });
     expect(walletKit.signTypedData).toHaveBeenCalledOnce();
+    expect(walletKit.signTypedData).toHaveBeenCalledWith(
+      expect.objectContaining({ typed_data: reviewed }),
+    );
+    expect(
+      paths(calls).filter((p) => p === "/api/account/authorization/challenge"),
+    ).toHaveLength(1);
     expect(bodyOf(calls, "/api/account/authorization/commit")).toMatchObject({
       signature: "0xsignature",
     });
@@ -441,7 +589,8 @@ describe("account ACL wiring", () => {
     await renderAcl();
     await click(await findWalletRow());
     await click(screen.getByRole("button", { name: /Auto(?!-approve)/ }));
-    await click(screen.getByText("Sign to authorize"));
+    await click(screen.getByText("Review change"));
+    await click(screen.getByRole("button", { name: "Sign to approve" }));
     expect(bodyOf(calls, "/api/account/authorization/challenge")).toMatchObject(
       { mode: "server_auto" },
     );
@@ -489,11 +638,12 @@ describe("account ACL wiring", () => {
 
     await click(accept);
     const authorize = await screen.findByRole("button", {
-      name: "Sign to authorize",
+      name: "Review change",
     });
     expect(authorize).toHaveProperty("disabled", false);
 
     await click(authorize);
+    await click(screen.getByRole("button", { name: "Sign to approve" }));
     await waitFor(() =>
       expect(paths(calls)).toContain("/api/account/authorization/commit"),
     );
@@ -517,7 +667,7 @@ describe("account ACL wiring", () => {
       screen.getByText("Connect this wallet itself to widen what it may sign."),
     ).toBeTruthy();
     expect(
-      screen.getByRole("button", { name: /Sign to authorize/ }),
+      screen.getByRole("button", { name: /Review change/ }),
     ).toHaveProperty("disabled", true);
     expect(paths(calls)).not.toContain("/api/account/authorization/challenge");
   });
@@ -535,7 +685,8 @@ describe("account ACL wiring", () => {
     await renderAcl();
     await click(await findWalletRow());
     await click(await screen.findByText("Auto-approve"));
-    await click(await screen.findByText("Sign to authorize"));
+    await click(await screen.findByText("Review change"));
+    await click(screen.getByRole("button", { name: "Sign to approve" }));
 
     expect(
       await screen.findByText(
